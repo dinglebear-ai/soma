@@ -58,7 +58,7 @@ jobs:
       #   v1.2.3 tag   → :1.2.3 AND :latest
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           # TEMPLATE: Replace "example-mcp" with your image name.
           images: ${{ env.IMAGE_NAME }}
