@@ -41,7 +41,7 @@
     "@types/react-dom": "^19",
     "tailwindcss": "^4.0.0",
     "tw-animate-css": "^1.3.4",
-    "typescript": "^5"
+    "typescript": "^6"
   },
   "pnpm": {
     "overrides": {
