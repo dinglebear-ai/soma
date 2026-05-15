@@ -162,7 +162,7 @@ jobs:
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           # TEMPLATE: Update release notes format if you have a CHANGELOG.
           generate_release_notes: true
