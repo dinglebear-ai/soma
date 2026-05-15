@@ -131,6 +131,15 @@ jobs:
           path: artifacts/
 
   # ── Commit binaries to bin/ via Git LFS ──────────────────────────────────────
+  #
+  # SECURITY TEMPLATE NOTE: This job pushes directly to `main` from a
+  # tag-triggered workflow using GITHUB_TOKEN. This bypasses branch protection
+  # if your repo has it enabled. Options:
+  #   1. Disable this job if you distribute binaries via Release assets only.
+  #   2. Replace GITHUB_TOKEN with a narrowly-scoped PAT (repo:contents write).
+  #   3. Push to a dedicated `binaries` branch instead of `main`.
+  # The push is intentional — it updates LFS pointers so `git lfs pull` works
+  # in the Claude plugin install flow. Audit before enabling in production repos.
   lfs-commit:
     name: Commit binaries to bin/ (Git LFS)
     needs: build

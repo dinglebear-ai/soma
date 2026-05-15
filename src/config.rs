@@ -34,7 +34,8 @@ pub struct ExampleConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct McpConfig {
-    /// Bind host (EXAMPLE_MCP_HOST). Default: `0.0.0.0`.
+    /// Bind host (EXAMPLE_MCP_HOST). Default: `127.0.0.1` (loopback).
+    /// Set to `0.0.0.0` to listen on all interfaces — requires auth configured.
     #[serde(default = "default_mcp_host")]
     pub host: String,
     /// Bind port (EXAMPLE_MCP_PORT). Default: `40060`.
@@ -45,6 +46,10 @@ pub struct McpConfig {
     pub server_name: String,
     /// Disable auth entirely — only safe when bound to loopback (EXAMPLE_MCP_NO_AUTH).
     pub no_auth: bool,
+    /// Allow unauthenticated access on non-loopback when behind a trusted reverse proxy
+    /// that enforces its own auth (EXAMPLE_NOAUTH). Loaded here so it participates in
+    /// typed config rather than being a raw env read at call sites.
+    pub trusted_gateway: bool,
     /// Static bearer token for simple auth (EXAMPLE_MCP_TOKEN).
     pub api_token: Option<String>,
     /// Additional allowed Host header values (comma-separated in env).
@@ -107,7 +112,9 @@ pub enum AuthMode {
 // ── defaults ──────────────────────────────────────────────────────────────────
 
 fn default_mcp_host() -> String {
-    "0.0.0.0".into()
+    // Default to loopback for safety. Operators who need external access must
+    // explicitly set EXAMPLE_MCP_HOST=0.0.0.0 (and configure auth).
+    "127.0.0.1".into()
 }
 fn default_mcp_port() -> u16 {
     40060
@@ -144,6 +151,7 @@ impl Default for McpConfig {
             port: default_mcp_port(),
             server_name: default_server_name(),
             no_auth: false,
+            trusted_gateway: false,
             api_token: None,
             allowed_hosts: Vec::new(),
             allowed_origins: Vec::new(),
@@ -246,7 +254,9 @@ impl Config {
         // Env overrides — EXAMPLE_MCP_* for server config, EXAMPLE_API_* for upstream
         env_str("EXAMPLE_MCP_HOST", &mut config.mcp.host);
         env_parse("EXAMPLE_MCP_PORT", &mut config.mcp.port)?;
+        env_str("EXAMPLE_MCP_SERVER_NAME", &mut config.mcp.server_name);
         env_bool("EXAMPLE_MCP_NO_AUTH", &mut config.mcp.no_auth)?;
+        env_bool("EXAMPLE_NOAUTH", &mut config.mcp.trusted_gateway)?;
         env_opt_str("EXAMPLE_MCP_TOKEN", &mut config.mcp.api_token);
         env_list("EXAMPLE_MCP_ALLOWED_HOSTS", &mut config.mcp.allowed_hosts);
         env_list(

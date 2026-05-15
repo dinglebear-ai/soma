@@ -61,6 +61,11 @@ pub enum AuthPolicyKind {
     MountedOAuth,
 }
 
+/// Read EXAMPLE_NOAUTH from the environment directly.
+///
+/// Prefer `config.mcp.trusted_gateway` (loaded via `Config::load`) when a
+/// typed config is available. This function exists for call sites that need the
+/// value before config is fully loaded (e.g. early startup guards).
 pub fn trusted_gateway_from_env() -> bool {
     std::env::var("EXAMPLE_NOAUTH")
         .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"))

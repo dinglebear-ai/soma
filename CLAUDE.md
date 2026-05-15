@@ -71,7 +71,7 @@ Auth is selected in `build_auth_policy()` in `main.rs`. Scopes are `example:read
 |----------|---------|-------------|
 | `EXAMPLE_API_URL` | — | Upstream service base URL |
 | `EXAMPLE_API_KEY` | — | Upstream service API key |
-| `EXAMPLE_MCP_HOST` | `0.0.0.0` | Bind host |
+| `EXAMPLE_MCP_HOST` | `127.0.0.1` | Bind host |
 | `EXAMPLE_MCP_PORT` | `40060` | Bind port |
 | `EXAMPLE_MCP_NO_AUTH` | `false` | Disable auth (loopback only) |
 | `EXAMPLE_MCP_TOKEN` | — | Static bearer token |
@@ -131,6 +131,7 @@ with no CLI analogue.
 | `service.echo(message)` | `example(action="echo", message="...")` | `example echo --message <msg>` | `message` required in both |
 | `service.status()` | `example(action="status")` | `example status` | |
 | _(MCP client interaction)_ | `example(action="elicit_name")` | _(MCP-only — no CLI equivalent)_ | Requires elicitation-capable client |
+| _(MCP elicitation wizard)_ | `example(action="scaffold_intent")` | _(MCP-only — no CLI equivalent)_ | Combines elicitation + skill handoff; no one-shot CLI equivalent |
 | _(built-in)_ | `example(action="help")` | `example --help` | MCP returns structured JSON; CLI prints usage |
 
 **TEMPLATE:** Replace this table with your service's actual actions when you adapt

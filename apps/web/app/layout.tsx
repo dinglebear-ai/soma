@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import { WEB_APP_CONFIG } from "@/lib/template";
 import "./globals.css";
@@ -72,7 +73,7 @@ export default function RootLayout({
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <a
+    <Link
       href={href}
       className="nav-link"
       style={{
@@ -86,6 +87,6 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
       }}
     >
       {children}
-    </a>
+    </Link>
   );
 }

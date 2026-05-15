@@ -113,29 +113,11 @@ pub fn truncate_if_needed(text: &str) -> String {
 
     // Find the last valid UTF-8 boundary within the content budget so the final
     // string including the notice does not exceed MAX_RESPONSE_BYTES.
-    // `floor_char_boundary` is stable on Rust 1.86+ (our MSRV).
-    let boundary = floor_char_boundary(text, content_budget);
+    // `str::floor_char_boundary` is stable since Rust 1.86 (MSRV is 1.90).
+    let boundary = text.floor_char_boundary(content_budget);
     let truncated = &text[..boundary];
 
     format!("{truncated}{notice}")
-}
-
-/// Find the largest byte index `<= index` that is a valid UTF-8 char boundary.
-///
-/// This is equivalent to `str::floor_char_boundary` (stable since Rust 1.86).
-/// We implement it inline to be explicit and avoid any nightly-only concerns.
-fn floor_char_boundary(s: &str, index: usize) -> usize {
-    if index >= s.len() {
-        return s.len();
-    }
-    // Walk backwards from `index` until we find a byte that starts a UTF-8 sequence.
-    // UTF-8 continuation bytes have the pattern 10xxxxxx (0x80..=0xBF).
-    let bytes = s.as_bytes();
-    let mut i = index;
-    while i > 0 && (bytes[i] & 0xC0) == 0x80 {
-        i -= 1;
-    }
-    i
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

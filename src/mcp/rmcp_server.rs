@@ -278,11 +278,7 @@ fn require_auth_context<'a>(
 }
 
 fn check_scope(auth: &AuthContext, required_scope: &str, action: &str) -> Result<(), ErrorData> {
-    let satisfied = auth
-        .scopes
-        .iter()
-        .any(|s| s == required_scope || (required_scope == READ_SCOPE && s == WRITE_SCOPE));
-    if satisfied {
+    if scope_satisfied(&auth.scopes, required_scope) {
         return Ok(());
     }
     tracing::warn!(
@@ -297,6 +293,14 @@ fn check_scope(auth: &AuthContext, required_scope: &str, action: &str) -> Result
     ))
 }
 
+/// Returns true if `token_scopes` satisfy `required`.
+/// Write scope satisfies read (write ⊇ read).
+fn scope_satisfied(token_scopes: &[String], required: &str) -> bool {
+    token_scopes
+        .iter()
+        .any(|s| s == required || (required == READ_SCOPE && s == WRITE_SCOPE))
+}
+
 fn required_scope_for(action: &str) -> Option<&'static str> {
     required_scope_for_action(action)
 }
@@ -309,9 +313,72 @@ fn is_validation_error(error: &anyhow::Error) -> bool {
 mod tests {
     use serde_json::json;
 
-    use crate::token_limit::MAX_RESPONSE_BYTES;
+    use crate::{
+        actions::{required_scope_for_action, READ_SCOPE, WRITE_SCOPE},
+        token_limit::MAX_RESPONSE_BYTES,
+    };
 
-    use super::tool_result_from_json;
+    use super::{scope_satisfied, tool_result_from_json};
+
+    fn scopes(s: &[&str]) -> Vec<String> {
+        s.iter().map(|x| x.to_string()).collect()
+    }
+
+    // ── scope satisfaction logic ───────────────────────────────────────────────
+
+    #[test]
+    fn read_scope_satisfies_read_requirement() {
+        assert!(scope_satisfied(&scopes(&[READ_SCOPE]), READ_SCOPE));
+    }
+
+    #[test]
+    fn write_scope_satisfies_read_requirement() {
+        assert!(
+            scope_satisfied(&scopes(&[WRITE_SCOPE]), READ_SCOPE),
+            "write scope should satisfy read requirement (write ⊇ read)"
+        );
+    }
+
+    #[test]
+    fn empty_scopes_denied() {
+        assert!(!scope_satisfied(&[], READ_SCOPE));
+    }
+
+    #[test]
+    fn unrelated_scope_denied() {
+        assert!(!scope_satisfied(&scopes(&["other:scope"]), READ_SCOPE));
+    }
+
+    #[test]
+    fn read_scope_does_not_satisfy_write() {
+        assert!(
+            !scope_satisfied(&scopes(&[READ_SCOPE]), WRITE_SCOPE),
+            "read scope must not satisfy write requirement"
+        );
+    }
+
+    // ── required scope lookup ─────────────────────────────────────────────────
+
+    #[test]
+    fn greet_requires_read_scope() {
+        assert_eq!(required_scope_for_action("greet"), Some(READ_SCOPE));
+    }
+
+    #[test]
+    fn help_requires_no_scope() {
+        assert_eq!(required_scope_for_action("help"), None);
+    }
+
+    #[test]
+    fn unknown_action_gets_deny_scope() {
+        use crate::actions::DENY_SCOPE;
+        assert_eq!(
+            required_scope_for_action("nonexistent_action"),
+            Some(DENY_SCOPE)
+        );
+    }
+
+    // ── response cap ──────────────────────────────────────────────────────────
 
     #[test]
     fn tool_result_from_json_applies_response_cap() {

@@ -38,7 +38,7 @@ just test-mcporter
 {
   "mcpServers": {
     "example": {
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:40060/mcp",
       "transport": "http"
     }
   }

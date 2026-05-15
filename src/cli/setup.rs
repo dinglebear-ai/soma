@@ -279,6 +279,7 @@ fn write_env(data_dir: &Path, config: &Config) -> Result<()> {
         use std::io::Write;
         use std::os::unix::fs::OpenOptionsExt;
 
+        // mode(0o600) sets permissions atomically at creation — no second chmod needed.
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -290,11 +291,10 @@ fn write_env(data_dir: &Path, config: &Config) -> Result<()> {
     }
     #[cfg(not(unix))]
     std::fs::write(&temp_path, format!("{}\n", lines.join("\n")))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&temp_path, std::fs::Permissions::from_mode(0o600))?;
-    }
-    std::fs::rename(temp_path, env_path)?;
+    std::fs::rename(&temp_path, &env_path).inspect_err(|_| {
+        // Best-effort cleanup: remove the temp file if rename fails to avoid leaking
+        // a partially-written file containing secrets.
+        let _ = std::fs::remove_file(&temp_path);
+    })?;
     Ok(())
 }

@@ -57,9 +57,9 @@ RUN groupadd --gid 1000 example && \
     mkdir -p /data && chown example:example /data
 
 USER 1000:1000
-EXPOSE 3000/tcp
+EXPOSE 40060/tcp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -sf http://localhost:3000/health || exit 1
+  CMD curl -sf http://localhost:40060/health || exit 1
 CMD ["example", "serve", "mcp"]
 ```
 
@@ -79,13 +79,13 @@ services:
       - path: .env
         required: false
     ports:
-      - "${EXAMPLE_MCP_HOST_PORT:-3000}:3000/tcp"
+      - "${EXAMPLE_MCP_HOST_PORT:-40060}:40060/tcp"
     volumes:
       - ${HOME}/.example:/data
     networks:
       - jakenet
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:40060/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
