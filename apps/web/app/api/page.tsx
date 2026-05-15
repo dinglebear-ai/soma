@@ -64,6 +64,11 @@ export default function ApiPage() {
             path={WEB_APP_CONFIG.mcpEndpoint}
             description="MCP Streamable HTTP transport"
           />
+          <EndpointRow
+            method="GET"
+            path="/openapi.json"
+            description="Generated OpenAPI schema for the REST surface"
+          />
         </div>
       </div>
 

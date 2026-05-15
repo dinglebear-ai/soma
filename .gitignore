@@ -157,6 +157,7 @@ Desktop.ini
 # ── Auto-generated ────────────────────────────────────────────────────────────
 # Reference docs produced by scripts/refresh-docs.sh — large, never commit.
 docs/references/
+# docs/generated/ is intentionally committed for small generated contracts such as OpenAPI.
 
 # ── Personal ──────────────────────────────────────────────────────────────────
 CLAUDE.md.local

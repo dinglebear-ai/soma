@@ -19,7 +19,7 @@ Maintenance and automation scripts for the template. Shell scripts are written f
 | `check-schema-docs.py` | Generate/check `docs/MCP_SCHEMA.md` and action docs. |
 | `check-scaffold-intent-contract.py` | Validate scaffold intent schema and examples without third-party dependencies. |
 | `check-version-sync.sh` | Check version consistency. |
-| `pre-release-check.sh` | Full release-readiness gate. |
+| `pre-release-check.sh` | Full release-readiness gate, including schema/OpenAPI/scaffold contract drift checks. |
 | `refresh-docs.sh` | Refresh ignored reference docs with Axon/Repomix. |
 | `sync-cargo.sh` | Sync `Cargo.lock` into plugin data directories. |
 | `test-mcp-auth.sh` | Smoke-test HTTP MCP bearer auth. |

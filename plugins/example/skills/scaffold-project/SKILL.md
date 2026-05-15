@@ -9,6 +9,7 @@ Use this skill to turn scaffold intent JSON into a concrete, user-approved plan 
 
 Canonical spec: `docs/specs/scaffold-intent-handoff.md`.
 Machine-readable contract: `docs/contracts/scaffold-intent.schema.json`.
+Example payloads: `docs/contracts/examples/scaffold-intent-upstream-client.json` and `docs/contracts/examples/scaffold-intent-application-platform.json`.
 
 ## When to use this skill
 
