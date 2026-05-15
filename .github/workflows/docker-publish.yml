@@ -71,7 +71,7 @@ jobs:
       # Multi-platform build and push.
       # TEMPLATE: Remove linux/arm64 from platforms if you only need amd64.
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           # TEMPLATE: Dockerfile lives at config/Dockerfile.
