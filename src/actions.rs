@@ -226,6 +226,9 @@ fn optional_string_param(params: &Value, name: &str) -> Result<Option<String>> {
 
 pub fn is_validation_error(error: &anyhow::Error) -> bool {
     error.downcast_ref::<ValidationError>().is_some()
+        || error
+            .downcast_ref::<crate::app::ScaffoldIntentValidationError>()
+            .is_some()
 }
 
 #[cfg(test)]

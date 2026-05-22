@@ -45,6 +45,36 @@ pub struct ScaffoldIntent {
     pub crawl_search_topics: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ElicitedNameOutcome<'a> {
+    Accepted(&'a str),
+    NoInput,
+    Declined,
+    Cancelled,
+    Unsupported,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScaffoldIntentValidationError {
+    message: String,
+}
+
+impl ScaffoldIntentValidationError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for ScaffoldIntentValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ScaffoldIntentValidationError {}
+
 impl ExampleService {
     pub fn new(client: ExampleClient) -> Self {
         Self { client }
@@ -65,8 +95,45 @@ impl ExampleService {
         self.client.status().await
     }
 
+    /// Build the response for the elicited-name demo after the MCP shim collects input.
+    pub fn elicited_name_greeting(&self, outcome: ElicitedNameOutcome<'_>) -> Value {
+        match outcome {
+            ElicitedNameOutcome::Accepted(name) => {
+                let name = name.trim().to_owned();
+                if name.is_empty() {
+                    json!({
+                        "greeting": "Hello, mysterious stranger!",
+                        "note": "You submitted an empty name - that's perfectly fine!",
+                    })
+                } else {
+                    json!({
+                        "greeting": format!("Hello, {name}! Welcome to the example MCP server."),
+                        "name": name,
+                    })
+                }
+            }
+            ElicitedNameOutcome::NoInput => json!({
+                "greeting": "Hello! (you provided no name - that's okay)",
+            }),
+            ElicitedNameOutcome::Declined => json!({
+                "message": "No problem - you chose not to share your name.",
+                "greeting": "Hello, anonymous user!",
+            }),
+            ElicitedNameOutcome::Cancelled => json!({
+                "message": "Elicitation was cancelled.",
+                "greeting": "Hello there!",
+            }),
+            ElicitedNameOutcome::Unsupported => json!({
+                "message": "Elicitation is not supported by this MCP client.",
+                "hint": "Try a client like Claude.app that supports MCP elicitation (spec 2025-06-18).",
+                "fallback_greeting": "Hello, World! (elicitation unavailable)",
+            }),
+        }
+    }
+
     /// Convert elicited scaffold requirements into the handoff contract consumed by the skill.
-    pub fn scaffold_intent(&self, input: ScaffoldIntent) -> Value {
+    pub fn scaffold_intent(&self, input: ScaffoldIntent) -> Result<Value> {
+        validate_scaffold_intent(&input)?;
         let category = normalize_category(&input.server_category);
         let required_surfaces = if category == "application-platform" {
             vec!["api", "cli", "mcp", "web"]
@@ -76,7 +143,7 @@ impl ExampleService {
         let service_name = input.binary_name.trim().replace('-', "_");
         let env_prefix = input.env_prefix.trim().to_ascii_uppercase();
 
-        json!({
+        Ok(json!({
             "kind": "rmcp_template_scaffold_intent",
             "schema_version": 1,
             "server_category": category,
@@ -115,8 +182,82 @@ impl ExampleService {
                 "upstream_client_surfaces": ["mcp", "cli"],
                 "application_platform_surfaces": ["api", "cli", "mcp", "web"],
             }
-        })
+        }))
     }
+}
+
+fn validate_scaffold_intent(input: &ScaffoldIntent) -> Result<()> {
+    validate_non_empty("display_name", &input.display_name)?;
+    validate_kebab_identifier("crate_name", &input.crate_name)?;
+    validate_kebab_identifier("binary_name", &input.binary_name)?;
+    validate_env_prefix(&input.env_prefix)?;
+    if input.port == 0 {
+        return Err(ScaffoldIntentValidationError::new("port must be between 1 and 65535").into());
+    }
+    validate_urls("crawl_urls", &input.crawl_urls)?;
+    validate_urls("crawl_repos", &input.crawl_repos)?;
+    Ok(())
+}
+
+fn validate_non_empty(field: &str, value: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        return Err(ScaffoldIntentValidationError::new(format!(
+            "`{field}` is required and must not be empty"
+        ))
+        .into());
+    }
+    Ok(())
+}
+
+fn validate_kebab_identifier(field: &str, value: &str) -> Result<()> {
+    let value = value.trim();
+    validate_non_empty(field, value)?;
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return Err(ScaffoldIntentValidationError::new(format!(
+            "`{field}` is required and must not be empty"
+        ))
+        .into());
+    };
+    if !first.is_ascii_lowercase()
+        || !chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-')
+    {
+        return Err(ScaffoldIntentValidationError::new(format!(
+            "`{field}` must match ^[a-z][a-z0-9-]*$"
+        ))
+        .into());
+    }
+    Ok(())
+}
+
+fn validate_env_prefix(value: &str) -> Result<()> {
+    let value = value.trim().to_ascii_uppercase();
+    validate_non_empty("env_prefix", &value)?;
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return Err(ScaffoldIntentValidationError::new(
+            "`env_prefix` is required and must not be empty",
+        )
+        .into());
+    };
+    if !first.is_ascii_uppercase()
+        || !chars.all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
+    {
+        return Err(ScaffoldIntentValidationError::new(
+            "`env_prefix` must match ^[A-Z][A-Z0-9_]*$",
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn validate_urls(field: &str, value: &str) -> Result<()> {
+    for item in split_csv(value) {
+        url::Url::parse(&item).map_err(|_| {
+            ScaffoldIntentValidationError::new(format!("`{field}` contains invalid URL: {item}"))
+        })?;
+    }
+    Ok(())
 }
 
 fn normalize_category(category: &str) -> &'static str {
@@ -210,10 +351,16 @@ fn normalize_plugins(value: &str) -> Vec<String> {
 }
 
 fn split_csv(value: &str) -> Vec<String> {
-    value
+    let mut items = Vec::new();
+    for item in value
         .split(',')
         .map(str::trim)
         .filter(|item| !item.is_empty())
-        .map(ToOwned::to_owned)
-        .collect()
+    {
+        let item = item.to_owned();
+        if !items.contains(&item) {
+            items.push(item);
+        }
+    }
+    items
 }

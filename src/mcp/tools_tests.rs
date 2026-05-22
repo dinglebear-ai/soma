@@ -33,7 +33,9 @@ fn upstream_input() -> ScaffoldIntentInput {
 
 #[test]
 fn scaffold_intent_json_matches_simplified_contract_shape() {
-    let value = service().scaffold_intent(upstream_input().into());
+    let value = service()
+        .scaffold_intent(upstream_input().into())
+        .expect("valid scaffold intent should build");
 
     assert_eq!(value["kind"], "rmcp_template_scaffold_intent");
     assert_eq!(value["schema_version"], 1);
@@ -80,7 +82,9 @@ fn application_platform_intent_requires_all_surfaces() {
     input.plugins = "claude, codex, gemini".to_owned();
     input.crawl_repos = "https://github.com/example/lab-sdk".to_owned();
 
-    let value = service().scaffold_intent(input.into());
+    let value = service()
+        .scaffold_intent(input.into())
+        .expect("valid scaffold intent should build");
 
     assert_eq!(value["server_category"], "application-platform");
     assert_eq!(
@@ -99,7 +103,9 @@ fn application_platform_intent_requires_all_surfaces() {
 
 #[test]
 fn scaffold_intent_json_contains_contract_required_fields() {
-    let value = service().scaffold_intent(upstream_input().into());
+    let value = service()
+        .scaffold_intent(upstream_input().into())
+        .expect("valid scaffold intent should build");
     let contract: serde_json::Value = serde_json::from_str(include_str!(
         "../../docs/contracts/scaffold-intent.schema.json"
     ))
@@ -121,6 +127,8 @@ fn scaffold_intent_json_contains_contract_required_fields() {
 fn primitive_defaults_to_tools_when_input_is_empty() {
     let mut input = upstream_input();
     input.mcp_primitives.clear();
-    let value = service().scaffold_intent(input.into());
+    let value = service()
+        .scaffold_intent(input.into())
+        .expect("valid scaffold intent should build");
     assert_eq!(value["mcp_primitives"], json!(["tools"]));
 }

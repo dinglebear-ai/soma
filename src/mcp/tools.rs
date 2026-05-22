@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::actions::{execute_service_action, ExampleAction};
-use crate::app::{ExampleService, ScaffoldIntent};
+use crate::app::{ElicitedNameOutcome, ExampleService, ScaffoldIntent};
 use crate::server::AppState;
 
 /// Dispatch an incoming MCP tool call to the appropriate handler.
@@ -44,7 +44,7 @@ async fn dispatch_example(
     let action = ExampleAction::from_mcp_args(&args)?;
 
     match action {
-        ExampleAction::ElicitName => elicit_name(peer).await,
+        ExampleAction::ElicitName => elicit_name(&state.service, peer).await,
         ExampleAction::ScaffoldIntent => scaffold_intent(&state.service, peer).await,
         ExampleAction::Help => Ok(json!({ "help": HELP_TEXT })),
         other => execute_service_action(&state.service, &other).await,
@@ -140,7 +140,7 @@ async fn scaffold_intent(
         )
         .await
     {
-        Ok(Some(input)) => Ok(service.scaffold_intent(input.into())),
+        Ok(Some(input)) => service.scaffold_intent(input.into()),
         Ok(None) => Ok(json!({
             "kind": "rmcp_template_scaffold_intent",
             "schema_version": 1,
@@ -199,43 +199,24 @@ impl From<ScaffoldIntentInput> for ScaffoldIntent {
     }
 }
 
-async fn elicit_name(peer: &Peer<RoleServer>) -> anyhow::Result<Value> {
+async fn elicit_name(service: &ExampleService, peer: &Peer<RoleServer>) -> anyhow::Result<Value> {
     match peer
         .elicit::<NameInput>("What is your name? I'll use it to give you a personalised greeting.")
         .await
     {
         Ok(Some(input)) => {
-            let name = input.name.trim().to_string();
-            if name.is_empty() {
-                Ok(json!({
-                    "greeting": "Hello, mysterious stranger!",
-                    "note": "You submitted an empty name — that's perfectly fine!",
-                }))
-            } else {
-                Ok(json!({
-                    "greeting": format!("Hello, {name}! Welcome to the example MCP server."),
-                    "name": name,
-                }))
-            }
+            Ok(service.elicited_name_greeting(ElicitedNameOutcome::Accepted(&input.name)))
         }
-        Ok(None) => Ok(json!({
-            "greeting": "Hello! (you provided no name — that's okay)",
-        })),
-        Err(ElicitationError::UserDeclined) => Ok(json!({
-            "message": "No problem — you chose not to share your name.",
-            "greeting": "Hello, anonymous user!",
-        })),
-        Err(ElicitationError::UserCancelled) => Ok(json!({
-            "message": "Elicitation was cancelled.",
-            "greeting": "Hello there!",
-        })),
+        Ok(None) => Ok(service.elicited_name_greeting(ElicitedNameOutcome::NoInput)),
+        Err(ElicitationError::UserDeclined) => {
+            Ok(service.elicited_name_greeting(ElicitedNameOutcome::Declined))
+        }
+        Err(ElicitationError::UserCancelled) => {
+            Ok(service.elicited_name_greeting(ElicitedNameOutcome::Cancelled))
+        }
         Err(ElicitationError::CapabilityNotSupported) => {
             tracing::warn!("elicitation requested but client does not support it");
-            Ok(json!({
-                "message": "Elicitation is not supported by this MCP client.",
-                "hint": "Try a client like Claude.app that supports MCP elicitation (spec 2025-06-18).",
-                "fallback_greeting": "Hello, World! (elicitation unavailable)",
-            }))
+            Ok(service.elicited_name_greeting(ElicitedNameOutcome::Unsupported))
         }
         Err(e) => {
             tracing::error!(error = %e, "elicitation failed unexpectedly");
