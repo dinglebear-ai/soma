@@ -15,7 +15,7 @@ last_reviewed: "2026-05-15"
 
 # Configuration
 
-Configuration is split between non-secret settings (`config.toml`) and secrets (`  .env`). Env vars always override `config.toml`.
+Configuration is split between non-secret settings (`config.toml`) and secrets (`.env`). Env vars always override `config.toml`.
 
 ## Files
 
@@ -43,14 +43,14 @@ Configuration is split between non-secret settings (`config.toml`) and secrets (
 # config.toml — non-secret settings only
 # Env vars override everything here.
 
-[service]
-skip_tls_verify = false
-site = "default"
-
 [mcp]
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 40060
 server_name = "example-mcp"
+no_auth = false
+trusted_gateway = false
+allowed_hosts = []
+allowed_origins = []
 
 [mcp.auth]
 mode = "bearer"           # or "oauth"
@@ -85,47 +85,27 @@ RUST_LOG=info
 
 ## Config loading pattern
 
-```rust
-impl Config {
-    pub fn load() -> anyhow::Result<Self> {
-        let mut config = Config::default();
+`src/config.rs` is the source of truth. `Config::load()` starts from typed defaults, loads the first readable `config.toml` from `~/.example/config.toml` or `./config.toml`, then applies env overrides.
 
-        // 1. Load config.toml — search two paths in order:
-        //    a) ~/.example/config.toml  (user home config)
-        //    b) ./config.toml           (working directory, e.g. Docker bind-mount)
-        let search_paths = [
-            dirs::home_dir().map(|h| h.join(".example/config.toml")),
-            Some(std::path::PathBuf::from("config.toml")),
-        ];
-        for path in search_paths.iter().flatten() {
-            match std::fs::read_to_string(path) {
-                Ok(contents) => { config = toml::from_str(&contents)?; break; }
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => return Err(anyhow::anyhow!("{}: {e}", path.display())),
-            }
-        }
+Current env overrides include:
 
-        // 2. Env overrides (secrets + any setting the user wants to override)
-        //    All EXAMPLE_* variables override the loaded config.
-        env_str("EXAMPLE_MCP_HOST",              &mut config.mcp.host);
-        env_parse("EXAMPLE_MCP_PORT",            &mut config.mcp.port)?;
-        env_opt_str("EXAMPLE_MCP_TOKEN",         &mut config.mcp.api_token);
-        env_bool("EXAMPLE_MCP_NO_AUTH",          &mut config.mcp.no_auth)?;
-        env_opt_str("EXAMPLE_MCP_ALLOWED_HOSTS", &mut config.mcp.allowed_hosts);
-        env_opt_str("EXAMPLE_MCP_ALLOWED_ORIGINS",&mut config.mcp.allowed_origins);
-        env_opt_str("EXAMPLE_MCP_PUBLIC_URL",    &mut config.mcp.public_url);
-        env_str("EXAMPLE_MCP_AUTH_MODE",         &mut config.mcp.auth.mode);
-        env_opt_str("EXAMPLE_MCP_GOOGLE_CLIENT_ID",     &mut config.mcp.auth.google_client_id);
-        env_opt_str("EXAMPLE_MCP_GOOGLE_CLIENT_SECRET", &mut config.mcp.auth.google_client_secret);
-        env_opt_str("EXAMPLE_MCP_AUTH_ADMIN_EMAIL",     &mut config.mcp.auth.admin_email);
-        env_bool("EXAMPLE_NOAUTH",               &mut config.mcp.noauth)?;
-        env_str("EXAMPLE_API_URL",               &mut config.example.url);
-        env_str("EXAMPLE_API_KEY",               &mut config.example.api_key);
-        env_opt_str("EXAMPLE_APPDATA",           &mut config.example.appdata);
-        Ok(config)
-    }
-}
-```
+| Config field | Env var |
+|---|---|
+| `mcp.host` | `EXAMPLE_MCP_HOST` |
+| `mcp.port` | `EXAMPLE_MCP_PORT` |
+| `mcp.server_name` | `EXAMPLE_MCP_SERVER_NAME` |
+| `mcp.no_auth` | `EXAMPLE_MCP_NO_AUTH` |
+| `mcp.trusted_gateway` | `EXAMPLE_NOAUTH` |
+| `mcp.api_token` | `EXAMPLE_MCP_TOKEN` |
+| `mcp.allowed_hosts` | `EXAMPLE_MCP_ALLOWED_HOSTS` |
+| `mcp.allowed_origins` | `EXAMPLE_MCP_ALLOWED_ORIGINS` |
+| `mcp.auth.public_url` | `EXAMPLE_MCP_PUBLIC_URL` |
+| `mcp.auth.mode` | `EXAMPLE_MCP_AUTH_MODE` |
+| `mcp.auth.google_client_id` | `EXAMPLE_MCP_GOOGLE_CLIENT_ID` |
+| `mcp.auth.google_client_secret` | `EXAMPLE_MCP_GOOGLE_CLIENT_SECRET` |
+| `mcp.auth.admin_email` | `EXAMPLE_MCP_AUTH_ADMIN_EMAIL` |
+| `example.api_url` | `EXAMPLE_API_URL` |
+| `example.api_key` | `EXAMPLE_API_KEY` |
 
 ## Auth policy summary
 
@@ -150,7 +130,7 @@ pub enum AuthPolicy {
 
 ## Defaults
 
-- Host defaults to `0.0.0.0` for HTTP serving.
+- Host defaults to `127.0.0.1` for HTTP serving.
 - Port defaults to `40060`.
 - Appdata defaults to `~/.<service>` locally, `/data` in Docker.
 

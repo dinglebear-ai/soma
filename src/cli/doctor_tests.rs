@@ -15,6 +15,6 @@ fn check_required_var_fails_when_value_is_empty() {
 
 #[test]
 fn check_port_available_passes_for_unused_high_port() {
-    let result = check_port_available(59999);
+    let result = check_port_available("127.0.0.1", 59999);
     assert!(result.ok, "unused high port should be available");
 }

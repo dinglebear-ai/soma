@@ -13,7 +13,9 @@
 //! example doctor [--json]
 //! ```
 
-use crate::{app::ExampleService, config::ExampleConfig, example::ExampleClient};
+use crate::{
+    actions::rest_help, app::ExampleService, config::ExampleConfig, example::ExampleClient,
+};
 use anyhow::{anyhow, Result};
 
 // TEMPLATE: The doctor module is the §48 reference implementation.
@@ -24,6 +26,36 @@ pub mod watch;
 
 pub use setup::{run_setup, SetupCommand};
 
+pub const USAGE: &str = "Usage:
+  example [serve]          Start MCP HTTP server (default)
+  example mcp              Start MCP stdio transport
+
+  example greet [--name NAME]       Greet NAME (or the world)
+  example echo --message MSG        Echo MSG back
+  example status                    Show server status
+  example help                      Show JSON action reference
+  example doctor [--json]           Run environment pre-flight checks
+  example watch [--url URL] [--interval N]  Poll /health and emit on state change
+  example setup check               Check plugin setup without mutating appdata
+  example setup repair              Create missing appdata/env setup files
+  example setup plugin-hook [--no-repair]  Plugin hook JSON contract
+
+  example --help                    Show this help
+  example --version                 Show version
+
+Environment:
+  EXAMPLE_API_URL          Upstream service URL
+  EXAMPLE_API_KEY          Upstream service API key
+  EXAMPLE_MCP_HOST         Bind host (default 127.0.0.1)
+  EXAMPLE_MCP_PORT         Bind port (default 40060)
+  EXAMPLE_MCP_NO_AUTH      Disable auth (loopback only)
+  EXAMPLE_MCP_TOKEN        Static bearer token
+  RUST_LOG                 Log filter (e.g. info,rmcp=warn)";
+
+pub fn usage() -> &'static str {
+    USAGE
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
     Greet {
@@ -33,6 +65,7 @@ pub enum Command {
         message: String,
     },
     Status,
+    Help,
     /// Pre-flight environment validation (§48).
     ///
     /// TEMPLATE: Always keep this command. It is the operator's first stop
@@ -65,7 +98,7 @@ pub enum Command {
 /// 1. Add a variant to `Command` above.
 /// 2. Add a match arm here to construct it from args.
 /// 3. Add a dispatch arm in `run()` below.
-/// 4. Update `print_usage()` in main.rs.
+/// 4. Update `USAGE` above.
 pub fn parse_args() -> Result<Option<Command>> {
     parse_args_from(std::env::args().skip(1))
 }
@@ -80,40 +113,57 @@ where
         [] => None,
         [subcommand, rest @ ..] => match subcommand.as_str() {
             "greet" => {
-                let name = flag_value(rest, "--name");
+                let name = parse_optional_value_flag(rest, "greet", "--name")?;
                 Some(Command::Greet { name })
             }
             "echo" => {
-                let message = flag_value(rest, "--message")
+                let message = parse_required_value_flag(rest, "echo", "--message")?
                     .filter(|m| !m.is_empty())
                     .ok_or_else(|| anyhow!("echo requires non-empty --message"))?;
                 Some(Command::Echo { message })
             }
-            "status" => Some(Command::Status),
+            "status" => {
+                reject_args(rest, "status")?;
+                Some(Command::Status)
+            }
+            "help" => {
+                reject_args(rest, "help")?;
+                Some(Command::Help)
+            }
             // §48: doctor is always parsed here, dispatched via run_cli in main.rs.
             // TEMPLATE: Keep this arm. It routes to doctor::run_doctor() which needs
             //           the full Config (not just ExampleConfig), so main.rs handles it.
             "doctor" => {
-                let json = rest.iter().any(|a| a == "--json");
+                let json = parse_bool_flag(rest, "doctor", "--json")?;
                 Some(Command::Doctor { json })
             }
             "watch" => {
-                let url = flag_value(rest, "--url");
-                let interval = match flag_value(rest, "--interval") {
+                let (url, interval_arg) = parse_watch_flags(rest)?;
+                let interval = match interval_arg {
                     Some(v) => v.parse().map_err(|_| {
                         anyhow!("watch --interval must be a positive integer number of seconds")
                     })?,
                     None => 10,
                 };
+                if interval == 0 {
+                    return Err(anyhow!(
+                        "watch --interval must be a positive integer number of seconds"
+                    ));
+                }
                 Some(Command::Watch { url, interval })
             }
             "setup" => match rest {
-                [action] if action == "check" => Some(Command::Setup(SetupCommand::Check)),
-                [action] if action == "repair" => Some(Command::Setup(SetupCommand::Repair)),
+                [action, flags @ ..] if action == "check" => {
+                    reject_args(flags, "setup check")?;
+                    Some(Command::Setup(SetupCommand::Check))
+                }
+                [action, flags @ ..] if action == "repair" => {
+                    reject_args(flags, "setup repair")?;
+                    Some(Command::Setup(SetupCommand::Repair))
+                }
                 [action, flags @ ..] if action == "plugin-hook" => {
-                    Some(Command::Setup(SetupCommand::PluginHook {
-                        no_repair: flags.iter().any(|f| f == "--no-repair"),
-                    }))
+                    let no_repair = parse_bool_flag(flags, "setup plugin-hook", "--no-repair")?;
+                    Some(Command::Setup(SetupCommand::PluginHook { no_repair }))
                 }
                 _ => None,
             },
@@ -137,6 +187,7 @@ pub async fn run(cmd: Command, cfg: &ExampleConfig) -> Result<()> {
         Command::Greet { name } => service.greet(name.as_deref()).await?,
         Command::Echo { message } => service.echo(message).await?,
         Command::Status => service.status().await?,
+        Command::Help => rest_help(),
         // Doctor, Watch, and Setup are never dispatched via this function — main.rs
         // handles them directly because they need config.mcp fields.
         Command::Doctor { .. } | Command::Watch { .. } | Command::Setup(_) => {
@@ -150,9 +201,86 @@ pub async fn run(cmd: Command, cfg: &ExampleConfig) -> Result<()> {
 
 // ── arg parsing helpers ───────────────────────────────────────────────────────
 
-fn flag_value(args: &[String], flag: &str) -> Option<String> {
-    let pos = args.iter().position(|a| a == flag)?;
-    args.get(pos + 1).cloned()
+fn reject_args(args: &[String], command: &str) -> Result<()> {
+    if args.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow!("{command} does not accept argument `{}`", args[0]))
+    }
+}
+
+fn parse_bool_flag(args: &[String], command: &str, flag: &str) -> Result<bool> {
+    let mut found = false;
+    for arg in args {
+        if arg == flag {
+            if found {
+                return Err(anyhow!("{command} received duplicate {flag}"));
+            }
+            found = true;
+        } else {
+            return Err(anyhow!("{command} does not accept argument `{arg}`"));
+        }
+    }
+    Ok(found)
+}
+
+fn parse_optional_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
+    match args {
+        [] => Ok(None),
+        [found_flag, value] if found_flag == flag => {
+            if value.starts_with("--") {
+                Err(anyhow!("{command} requires a value after {flag}"))
+            } else {
+                Ok(Some(value.clone()))
+            }
+        }
+        [found_flag] if found_flag == flag => {
+            Err(anyhow!("{command} requires a value after {flag}"))
+        }
+        [found_flag, value, rest @ ..] if found_flag == flag => {
+            if value.starts_with("--") {
+                Err(anyhow!("{command} requires a value after {flag}"))
+            } else if rest.iter().any(|arg| arg == flag) {
+                Err(anyhow!("{command} received duplicate {flag}"))
+            } else {
+                Err(anyhow!("{command} does not accept argument `{}`", rest[0]))
+            }
+        }
+        [unexpected, ..] => Err(anyhow!("{command} does not accept argument `{unexpected}`")),
+    }
+}
+
+fn parse_required_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
+    match parse_optional_value_flag(args, command, flag)? {
+        Some(value) => Ok(Some(value)),
+        None => Ok(None),
+    }
+}
+
+fn parse_watch_flags(args: &[String]) -> Result<(Option<String>, Option<String>)> {
+    let mut url = None;
+    let mut interval = None;
+    let mut index = 0;
+    while index < args.len() {
+        let flag = args[index].as_str();
+        let target = match flag {
+            "--url" => &mut url,
+            "--interval" => &mut interval,
+            _ => return Err(anyhow!("watch does not accept argument `{flag}`")),
+        };
+        if target.is_some() {
+            return Err(anyhow!("watch received duplicate {flag}"));
+        }
+        let Some(value) = args.get(index + 1) else {
+            return Err(anyhow!("watch requires a value after {flag}"));
+        };
+        if value.starts_with("--") {
+            return Err(anyhow!("watch requires a value after {flag}"));
+        }
+        *target = Some(value.clone());
+        index += 2;
+    }
+    Ok((url, interval))
 }
 
 #[cfg(test)]

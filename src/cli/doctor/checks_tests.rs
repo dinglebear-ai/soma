@@ -9,10 +9,10 @@
 //!
 //! Tests cover the pure and near-pure check functions. Async network checks
 //! (`check_upstream`) and filesystem-heavy checks are covered with minimal
-//! scaffolding. `check_auth_config` is not covered here — it requires a full
-//! Config and is exercised via integration tests in tests/tool_dispatch.rs.
+//! scaffolding.
 
 use super::*;
+use crate::config::{ExampleConfig, McpConfig};
 
 // ── check_required_var ────────────────────────────────────────────────────────
 
@@ -87,7 +87,7 @@ fn port_available_passes_for_free_port() {
     let port = listener.local_addr().unwrap().port();
     drop(listener); // release the port before the check
 
-    let check = check_port_available(port);
+    let check = check_port_available("127.0.0.1", port);
     assert_eq!(check.category, "server");
     assert!(check.ok, "a free port should pass the availability check");
 }
@@ -98,7 +98,7 @@ fn port_available_fails_when_already_bound() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("should bind to an ephemeral port");
     let port = listener.local_addr().unwrap().port();
 
-    let check = check_port_available(port);
+    let check = check_port_available("127.0.0.1", port);
     assert!(!check.ok, "port in use should fail");
     assert!(
         check.hint.unwrap().contains(&port.to_string()),
@@ -139,4 +139,85 @@ fn dir_writable_passes_for_writable_dir() {
     let check = check_dir_writable("Test dir", dir.path());
     assert!(check.ok);
     assert!(check.value.unwrap().contains("writable"));
+}
+
+#[cfg(unix)]
+#[test]
+fn dir_writable_does_not_recurse_into_symlinked_children() {
+    let dir = tempfile::tempdir().expect("should create temp dir");
+    std::os::unix::fs::symlink(dir.path(), dir.path().join("loop")).unwrap();
+
+    let check = check_dir_writable("Test dir", dir.path());
+    assert!(
+        check.ok,
+        "writability check should not traverse symlinked children"
+    );
+}
+
+#[tokio::test]
+async fn upstream_passes_for_local_health_endpoint() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("should bind test server");
+    let addr = listener.local_addr().unwrap();
+    let handle = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("should accept one request");
+        let mut buffer = [0_u8; 1024];
+        let _ = stream.read(&mut buffer);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            .unwrap();
+    });
+
+    let check = check_upstream(&format!("http://{addr}")).await;
+    handle.join().unwrap();
+
+    assert!(check.ok, "local /health response should pass");
+    assert_eq!(check.category, "connectivity");
+}
+
+fn auth_config(host: &str) -> Config {
+    Config {
+        example: ExampleConfig {
+            api_url: "https://example.test".into(),
+            api_key: "secret".into(),
+        },
+        mcp: McpConfig {
+            host: host.into(),
+            ..McpConfig::default()
+        },
+    }
+}
+
+#[test]
+fn auth_config_passes_loopback_no_auth() {
+    let mut config = auth_config("127.0.0.1");
+    config.mcp.no_auth = true;
+
+    let check = check_auth_config(&config);
+
+    assert!(check.ok);
+    assert!(check.value.unwrap().contains("loopback"));
+}
+
+#[test]
+fn auth_config_passes_typed_trusted_gateway() {
+    let mut config = auth_config("0.0.0.0");
+    config.mcp.trusted_gateway = true;
+
+    let check = check_auth_config(&config);
+
+    assert!(check.ok);
+    assert!(check.value.unwrap().contains("trusted gateway"));
+}
+
+#[test]
+fn auth_config_rejects_non_loopback_without_auth() {
+    let config = auth_config("0.0.0.0");
+
+    let check = check_auth_config(&config);
+
+    assert!(!check.ok);
+    assert!(check.hint.unwrap().contains("EXAMPLE_MCP_TOKEN"));
 }

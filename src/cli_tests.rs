@@ -1,4 +1,4 @@
-use super::{parse_args_from, Command, SetupCommand};
+use super::{parse_args_from, usage, Command, SetupCommand};
 
 #[test]
 fn empty_args_returns_none() {
@@ -54,6 +54,12 @@ fn echo_missing_message_is_error() {
 fn status_subcommand() {
     let cmd = parse_args_from(["status"]).unwrap().unwrap();
     assert_eq!(cmd, Command::Status);
+}
+
+#[test]
+fn help_subcommand() {
+    let cmd = parse_args_from(["help"]).unwrap().unwrap();
+    assert_eq!(cmd, Command::Help);
 }
 
 #[test]
@@ -130,4 +136,47 @@ fn setup_plugin_hook_no_repair_flag() {
         cmd,
         Command::Setup(SetupCommand::PluginHook { no_repair: true })
     );
+}
+
+#[test]
+fn usage_mentions_current_cli_commands_and_loopback_default() {
+    let text = usage();
+    for expected in [
+        "example help",
+        "example doctor",
+        "example setup plugin-hook",
+        "example watch",
+        "default 127.0.0.1",
+    ] {
+        assert!(text.contains(expected), "usage missing {expected}");
+    }
+}
+
+#[test]
+fn parser_rejects_unknown_and_malformed_flags() {
+    for args in [
+        &["status", "--bogus"][..],
+        &["help", "--bogus"],
+        &["greet", "--bogus"],
+        &["greet", "--name"],
+        &["greet", "--name", "--bogus"],
+        &["greet", "--name", "Alice", "extra"],
+        &["doctor", "--bogus"],
+        &["doctor", "--json", "--json"],
+        &["watch", "--url", "http://localhost:40060", "--bogus"],
+        &["watch", "--interval", "0"],
+        &["setup", "check", "--no-repair"],
+        &["setup", "plugin-hook", "--no-reapir"],
+    ] {
+        assert!(
+            parse_args_from(args.iter().copied()).is_err(),
+            "{args:?} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn parser_reports_duplicate_value_flags() {
+    let err = parse_args_from(["greet", "--name", "Alice", "--name", "Bob"]).unwrap_err();
+    assert!(err.to_string().contains("duplicate --name"));
 }

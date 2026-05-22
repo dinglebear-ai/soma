@@ -32,7 +32,7 @@ use checks::{
     check_port_available, check_required_var, check_upstream,
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use serde::Serialize;
 
 use crate::config::{default_data_dir, Config};
@@ -96,7 +96,7 @@ pub async fn run_doctor(config: &Config, json: bool) -> Result<()> {
     //
     // TEMPLATE: config.mcp.port defaults to 3000 for the template.
     //           Your service's port is set in config.toml [mcp] port.
-    checks.push(check_port_available(config.mcp.port));
+    checks.push(check_port_available(&config.mcp.host, config.mcp.port));
 
     // ── 6. Auth configuration ─────────────────────────────────────────────────
     //
@@ -117,7 +117,7 @@ pub async fn run_doctor(config: &Config, json: bool) -> Result<()> {
 
     // Exit code 1 when any check fails.
     if issues > 0 {
-        std::process::exit(1);
+        bail!("doctor found {issues} issue(s)");
     }
     Ok(())
 }

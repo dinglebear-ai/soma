@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 
 use crate::{
     config::{default_data_dir, AuthMode, Config},
-    server::{resolve_auth_policy_kind, trusted_gateway_from_env},
+    server::resolve_auth_policy_kind,
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 // ── public surface ────────────────────────────────────────────────────────────
 
@@ -32,7 +32,10 @@ pub async fn run_setup(config: &Config, command: SetupCommand) -> Result<()> {
 
     println!("{}", serde_json::to_string_pretty(&report)?);
     if !report.blocking_failures.is_empty() {
-        std::process::exit(1);
+        bail!(
+            "setup found {} blocking failure(s)",
+            report.blocking_failures.len()
+        );
     }
     Ok(())
 }
@@ -132,7 +135,7 @@ fn setup_check(config: &Config, no_repair: bool) -> SetupReport {
     }
 
     check_auth(config, &mut report);
-    check_port(config.mcp.port, &mut report);
+    check_port(&config.mcp.host, config.mcp.port, &mut report);
 
     report.finish()
 }
@@ -168,7 +171,7 @@ fn require_oauth_field(
 }
 
 fn check_auth(config: &Config, report: &mut SetupReport) {
-    if let Err(error) = resolve_auth_policy_kind(config, trusted_gateway_from_env()) {
+    if let Err(error) = resolve_auth_policy_kind(config, config.mcp.trusted_gateway) {
         report.blocking_failures.push(SetupFailure {
             code: "invalid_auth_policy",
             message: error.to_string(),
@@ -213,11 +216,11 @@ fn check_auth(config: &Config, report: &mut SetupReport) {
     }
 }
 
-fn check_port(port: u16, report: &mut SetupReport) {
-    if TcpListener::bind(("127.0.0.1", port)).is_err() {
+fn check_port(host: &str, port: u16, report: &mut SetupReport) {
+    if TcpListener::bind((host, port)).is_err() {
         report.advisory_failures.push(SetupFailure {
             code: "mcp_port_in_use",
-            message: format!("MCP port {port} is already in use"),
+            message: format!("MCP bind address {host}:{port} is already in use or unavailable"),
         });
     }
 }
@@ -237,32 +240,32 @@ fn setup_data_dir() -> anyhow::Result<PathBuf> {
 
 fn write_env(data_dir: &Path, config: &Config) -> Result<()> {
     let mut lines = vec![
-        format!("EXAMPLE_API_URL={}", config.example.api_url),
-        format!("EXAMPLE_API_KEY={}", config.example.api_key),
-        format!("EXAMPLE_MCP_HOST={}", config.mcp.host),
-        format!("EXAMPLE_MCP_PORT={}", config.mcp.port),
-        format!("EXAMPLE_MCP_NO_AUTH={}", config.mcp.no_auth),
+        dotenv_assignment("EXAMPLE_API_URL", &config.example.api_url)?,
+        dotenv_assignment("EXAMPLE_API_KEY", &config.example.api_key)?,
+        dotenv_assignment("EXAMPLE_MCP_HOST", &config.mcp.host)?,
+        dotenv_assignment("EXAMPLE_MCP_PORT", &config.mcp.port.to_string())?,
+        dotenv_assignment("EXAMPLE_MCP_NO_AUTH", &config.mcp.no_auth.to_string())?,
     ];
 
     if let Some(token) = config.mcp.api_token.as_deref().filter(|v| !v.is_empty()) {
-        lines.push(format!("EXAMPLE_MCP_TOKEN={token}"));
+        lines.push(dotenv_assignment("EXAMPLE_MCP_TOKEN", token)?);
     }
     if config.mcp.auth.mode == AuthMode::OAuth {
         lines.push("EXAMPLE_MCP_AUTH_MODE=oauth".into());
         if let Some(v) = &config.mcp.auth.public_url {
-            lines.push(format!("EXAMPLE_MCP_PUBLIC_URL={v}"));
+            lines.push(dotenv_assignment("EXAMPLE_MCP_PUBLIC_URL", v)?);
         }
         if let Some(v) = &config.mcp.auth.google_client_id {
-            lines.push(format!("EXAMPLE_MCP_GOOGLE_CLIENT_ID={v}"));
+            lines.push(dotenv_assignment("EXAMPLE_MCP_GOOGLE_CLIENT_ID", v)?);
         }
         if let Some(v) = &config.mcp.auth.google_client_secret {
-            lines.push(format!("EXAMPLE_MCP_GOOGLE_CLIENT_SECRET={v}"));
+            lines.push(dotenv_assignment("EXAMPLE_MCP_GOOGLE_CLIENT_SECRET", v)?);
         }
         if !config.mcp.auth.admin_email.is_empty() {
-            lines.push(format!(
-                "EXAMPLE_MCP_AUTH_ADMIN_EMAIL={}",
-                config.mcp.auth.admin_email
-            ));
+            lines.push(dotenv_assignment(
+                "EXAMPLE_MCP_AUTH_ADMIN_EMAIL",
+                &config.mcp.auth.admin_email,
+            )?);
         }
     }
 
@@ -291,6 +294,26 @@ fn write_env(data_dir: &Path, config: &Config) -> Result<()> {
         let _ = std::fs::remove_file(&temp_path);
     })?;
     Ok(())
+}
+
+fn dotenv_assignment(key: &'static str, value: &str) -> Result<String> {
+    Ok(format!("{key}={}", dotenv_value(value)?))
+}
+
+fn dotenv_value(value: &str) -> Result<String> {
+    if value.chars().any(|c| matches!(c, '\n' | '\r' | '\0')) {
+        bail!("dotenv values cannot contain newlines or NUL bytes");
+    }
+
+    if value.chars().all(|c| {
+        c.is_ascii_alphanumeric()
+            || matches!(c, '_' | '-' | '.' | '/' | ':' | '@' | '%' | '+' | '=' | ',')
+    }) {
+        return Ok(value.to_string());
+    }
+
+    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+    Ok(format!("\"{escaped}\""))
 }
 
 #[cfg(test)]

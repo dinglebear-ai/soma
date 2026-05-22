@@ -1,4 +1,9 @@
+use std::sync::Mutex;
+
 use super::{SetupCommand, SetupReport};
+use crate::config::{Config, ExampleConfig, McpConfig};
+
+static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 // ── SetupReport state machine ─────────────────────────────────────────────────
 
@@ -77,4 +82,97 @@ fn all_variants_are_distinct() {
         SetupCommand::PluginHook { no_repair: false },
         SetupCommand::PluginHook { no_repair: true }
     );
+}
+
+// ── setup check / repair behavior ────────────────────────────────────────────
+
+fn valid_config() -> Config {
+    Config {
+        example: ExampleConfig {
+            api_url: "https://example.test/api".into(),
+            api_key: "secret with spaces".into(),
+        },
+        mcp: McpConfig {
+            host: "127.0.0.1".into(),
+            no_auth: true,
+            ..McpConfig::default()
+        },
+    }
+}
+
+fn with_plugin_data<T>(dir: &std::path::Path, f: impl FnOnce() -> T) -> T {
+    let _guard = ENV_LOCK.lock().unwrap();
+    struct EnvRestore {
+        old: Option<std::ffi::OsString>,
+    }
+
+    impl Drop for EnvRestore {
+        fn drop(&mut self) {
+            unsafe {
+                match self.old.take() {
+                    Some(value) => std::env::set_var("CLAUDE_PLUGIN_DATA", value),
+                    None => std::env::remove_var("CLAUDE_PLUGIN_DATA"),
+                }
+            }
+        }
+    }
+
+    let _restore = EnvRestore {
+        old: std::env::var_os("CLAUDE_PLUGIN_DATA"),
+    };
+    unsafe {
+        std::env::set_var("CLAUDE_PLUGIN_DATA", dir);
+    }
+    f()
+}
+
+#[test]
+fn setup_check_reports_missing_env_as_advisory() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = valid_config();
+
+    let report = with_plugin_data(dir.path(), || super::setup_check(&config, true));
+
+    assert!(report.blocking_failures.is_empty());
+    assert_eq!(report.exit_policy, "advisory_failure");
+    assert!(report
+        .advisory_failures
+        .iter()
+        .any(|failure| failure.code == "env_file_missing"));
+}
+
+#[test]
+fn setup_repair_creates_env_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = valid_config();
+
+    let report = with_plugin_data(dir.path(), || super::setup_repair(&config).unwrap());
+
+    assert!(report.ran_repair);
+    assert!(report.blocking_failures.is_empty());
+    let env_path = dir.path().join(".env");
+    let contents = std::fs::read_to_string(&env_path).unwrap();
+    assert!(contents.contains("EXAMPLE_API_URL=https://example.test/api"));
+    assert!(contents.contains("EXAMPLE_API_KEY=\"secret with spaces\""));
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&env_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+}
+
+#[test]
+fn dotenv_values_quote_special_characters_and_escape_quotes() {
+    assert_eq!(
+        super::dotenv_assignment("EXAMPLE_API_KEY", "secret # \"quoted\"").unwrap(),
+        "EXAMPLE_API_KEY=\"secret # \\\"quoted\\\"\""
+    );
+}
+
+#[test]
+fn dotenv_values_reject_newlines() {
+    let error = super::dotenv_assignment("EXAMPLE_API_KEY", "line\nbreak").unwrap_err();
+    assert!(error.to_string().contains("newlines"));
 }
