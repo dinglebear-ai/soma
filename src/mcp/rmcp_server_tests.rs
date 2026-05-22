@@ -5,7 +5,10 @@ use crate::{
     token_limit::MAX_RESPONSE_BYTES,
 };
 
-use super::{scope_satisfied, tool_result_from_json};
+use super::{
+    internal_tool_error_message, reject_unknown_action_before_scope, scope_satisfied,
+    tool_result_from_json,
+};
 
 fn scopes(s: &[&str]) -> Vec<String> {
     s.iter().map(|x| x.to_string()).collect()
@@ -59,6 +62,20 @@ fn unknown_action_gets_deny_scope() {
         required_scope_for_action("nonexistent_action"),
         Some(DENY_SCOPE)
     );
+}
+
+#[test]
+fn unknown_action_is_rejected_as_validation_before_scope() {
+    let error = reject_unknown_action_before_scope("nonexistent_action")
+        .expect_err("unknown action should be invalid params");
+    assert!(error.message.contains("unknown example action"));
+}
+
+#[test]
+fn internal_tool_errors_include_stable_kind() {
+    let message = internal_tool_error_message("status");
+    assert!(message.contains("kind=execution_error"));
+    assert!(message.contains("action='status'"));
 }
 
 #[test]

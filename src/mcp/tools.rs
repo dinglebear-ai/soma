@@ -36,6 +36,19 @@ pub(super) async fn execute_tool(
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub async fn execute_tool_without_peer_for_test(
+    state: &AppState,
+    name: &str,
+    args: Value,
+) -> anyhow::Result<Value> {
+    match name {
+        "example" => dispatch_example_without_peer(state, args).await,
+        _ => Err(anyhow::anyhow!("unknown tool: {name}")),
+    }
+}
+
 async fn dispatch_example(
     state: &AppState,
     args: Value,
@@ -46,8 +59,29 @@ async fn dispatch_example(
     match action {
         ExampleAction::ElicitName => elicit_name(&state.service, peer).await,
         ExampleAction::ScaffoldIntent => scaffold_intent(&state.service, peer).await,
+        other => dispatch_non_elicitation_action(&state.service, &other).await,
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+async fn dispatch_example_without_peer(state: &AppState, args: Value) -> anyhow::Result<Value> {
+    let action = ExampleAction::from_mcp_args(&args)?;
+    match action {
+        ExampleAction::ElicitName | ExampleAction::ScaffoldIntent => Err(anyhow::anyhow!(
+            "action={} requires an MCP peer",
+            action.name()
+        )),
+        other => dispatch_non_elicitation_action(&state.service, &other).await,
+    }
+}
+
+async fn dispatch_non_elicitation_action(
+    service: &ExampleService,
+    action: &ExampleAction,
+) -> anyhow::Result<Value> {
+    match action {
         ExampleAction::Help => Ok(json!({ "help": HELP_TEXT })),
-        other => execute_service_action(&state.service, &other).await,
+        other => execute_service_action(service, other).await,
     }
 }
 

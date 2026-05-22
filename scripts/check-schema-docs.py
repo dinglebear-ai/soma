@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMAS_RS = ROOT / "src/mcp/schemas.rs"
 ACTION_RS = ROOT / "src/actions.rs"
 TOOLS_RS = ROOT / "src/mcp/tools.rs"
+PROMPTS_RS = ROOT / "src/mcp/prompts.rs"
+RMCP_SERVER_RS = ROOT / "src/mcp/rmcp_server.rs"
 README = ROOT / "README.md"
 SKILL = ROOT / "plugins/example/skills/example/SKILL.md"
 DOC = ROOT / "docs/MCP_SCHEMA.md"
@@ -99,8 +101,31 @@ def render() -> str:
             "",
             "- `ACTION_SPECS` in `src/actions.rs` is the canonical action and scope list.",
             "- `src/mcp/schemas.rs` must derive its enum from `ACTION_SPECS`.",
+            "- The MCP tool schema must reject unknown top-level parameters and encode action-specific requirements that fit the single-tool dispatch model.",
             "- `help` is intentionally public and must have no required scope.",
             "- `src/mcp/tools.rs`, `README.md`, and `plugins/example/skills/example/SKILL.md` must mention every action.",
+            "- `src/mcp/rmcp_server.rs` owns stable resources and must keep `example://schema/mcp-tool` wired to `tool_definitions()`.",
+            "- `src/mcp/prompts.rs` owns stable prompts and must keep `quick_start` covered by prompt tests.",
+            "",
+            "## Resources",
+            "",
+            "| URI | Source | Contract |",
+            "|---|---|---|",
+            "| `example://schema/mcp-tool` | `src/mcp/rmcp_server.rs` | Returns `tool_definitions()` as `application/json`. |",
+            "",
+            "## Prompts",
+            "",
+            "| Prompt | Source | Contract |",
+            "|---|---|---|",
+            "| `quick_start` | `src/mcp/prompts.rs` | Guides a client to call `status` and `greet`. |",
+            "",
+            "## Input Validation",
+            "",
+            "- `action` is always required.",
+            "- `echo` conditionally requires non-empty `message`.",
+            "- `greet` accepts optional `name` and defaults to World.",
+            "- `elicit_name` and `scaffold_intent` collect their extra fields through MCP elicitation, not direct tool-call arguments.",
+            "- Unknown top-level parameters are rejected by the schema.",
             "",
         ]
     )
@@ -134,6 +159,16 @@ def check_scope(actions: list[str]) -> list[str]:
     schema_text = read(SCHEMAS_RS)
     if "action_names()" not in schema_text:
         failures.append("src/mcp/schemas.rs must derive action enum from action_names()")
+    if '"additionalProperties": false' not in schema_text:
+        failures.append("src/mcp/schemas.rs must reject unknown top-level properties")
+    if '"const": "echo"' not in schema_text or '"required": ["message"]' not in schema_text:
+        failures.append("src/mcp/schemas.rs must conditionally require message for echo")
+    rmcp_server_text = read(RMCP_SERVER_RS)
+    if "example://schema/mcp-tool" not in rmcp_server_text or "tool_definitions()" not in rmcp_server_text:
+        failures.append("src/mcp/rmcp_server.rs must expose the schema resource from tool_definitions()")
+    prompts_text = read(PROMPTS_RS)
+    if "quick_start" not in prompts_text:
+        failures.append("src/mcp/prompts.rs must expose quick_start prompt")
     return failures
 
 

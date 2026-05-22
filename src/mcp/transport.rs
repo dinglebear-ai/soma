@@ -63,7 +63,9 @@ pub fn allowed_origins(config: &McpConfig) -> Vec<String> {
         format!("http://localhost:{}", config.port),
         format!("http://127.0.0.1:{}", config.port),
     ];
-    origins.extend(config.allowed_origins.iter().cloned());
+    for origin in &config.allowed_origins {
+        push_configured_origin(&mut origins, origin);
+    }
     if let Some(public_url) = config.auth.public_url.as_deref() {
         if let Some(origin) = extract_origin(public_url) {
             origins.push(origin);
@@ -72,6 +74,13 @@ pub fn allowed_origins(config: &McpConfig) -> Vec<String> {
     origins.sort();
     origins.dedup();
     origins
+}
+
+fn push_configured_origin(origins: &mut Vec<String>, origin: &str) {
+    let Some(origin) = extract_origin_with_label(origin, "EXAMPLE_MCP_ALLOWED_ORIGINS") else {
+        return;
+    };
+    origins.push(origin);
 }
 
 fn push_host_variants(hosts: &mut Vec<String>, host: &str, port: u16) {
@@ -146,18 +155,34 @@ fn has_port(host: &str) -> bool {
 }
 
 fn extract_origin(url: &str) -> Option<String> {
+    extract_origin_with_label(url, "EXAMPLE_MCP_PUBLIC_URL")
+}
+
+fn extract_origin_with_label(url: &str, label: &'static str) -> Option<String> {
     let parsed = url::Url::parse(url)
-        .map_err(|e| tracing::warn!(public_url = url, error = %e, "invalid EXAMPLE_MCP_PUBLIC_URL"))
+        .map_err(|e| tracing::warn!(setting = label, url, error = %e, "invalid MCP origin URL"))
         .ok()?;
     let scheme = parsed.scheme();
     let host = parsed.host_str()?;
     if host.contains('*') {
+        tracing::warn!(
+            setting = label,
+            host,
+            "MCP origin host contains wildcard; skipping"
+        );
         return None;
     }
     let default_port = match scheme {
         "http" => Some(80u16),
         "https" => Some(443u16),
-        _ => None,
+        _ => {
+            tracing::warn!(
+                setting = label,
+                scheme,
+                "MCP origin URL must use http or https"
+            );
+            return None;
+        }
     };
     let origin = match parsed.port() {
         Some(port) if default_port != Some(port) => format!("{scheme}://{host}:{port}"),

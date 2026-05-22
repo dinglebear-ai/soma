@@ -23,7 +23,10 @@ use rmcp::{
 };
 use serde_json::{Map, Value};
 
-use crate::{actions::required_scope_for_action, token_limit};
+use crate::{
+    actions::{is_known_action, required_scope_for_action, ValidationError},
+    token_limit,
+};
 
 use crate::server::{AppState, AuthPolicy};
 
@@ -74,7 +77,10 @@ impl ServerHandler for ExampleRmcpServer {
             .map(ToOwned::to_owned);
 
         let auth = require_auth_context(&self.state, &context)?;
-        // Only scope-check when an action is present; dispatch_example will
+        if let Some(action_str) = action_opt.as_deref() {
+            reject_unknown_action_before_scope(action_str)?;
+        }
+        // Only scope-check when a known action is present; dispatch_example will
         // return the validation error for a missing action below.
         if let (Some(auth), Some(action_str)) = (auth, action_opt.as_deref()) {
             if let Some(required_scope) = required_scope_for_action(action_str) {
@@ -121,7 +127,7 @@ impl ServerHandler for ExampleRmcpServer {
                     "MCP tool execution failed"
                 );
                 Err(ErrorData::internal_error(
-                    format!("tool execution failed for action '{action}'"),
+                    internal_tool_error_message(&action),
                     None,
                 ))
             }
@@ -254,6 +260,23 @@ fn tool_result_from_json(value: Value) -> Result<CallToolResult, ErrorData> {
         .map_err(|e| ErrorData::internal_error(format!("serialization error: {e}"), None))?;
     let text = token_limit::truncate_if_needed(&text);
     Ok(CallToolResult::success(vec![Content::text(text)]))
+}
+
+fn reject_unknown_action_before_scope(action: &str) -> Result<(), ErrorData> {
+    if is_known_action(action) {
+        return Ok(());
+    }
+    Err(ErrorData::invalid_params(
+        ValidationError::UnknownAction {
+            action: action.to_owned(),
+        }
+        .to_string(),
+        None,
+    ))
+}
+
+fn internal_tool_error_message(action: &str) -> String {
+    format!("tool execution failed: kind=execution_error action='{action}'")
 }
 
 // ── auth helpers ──────────────────────────────────────────────────────────────

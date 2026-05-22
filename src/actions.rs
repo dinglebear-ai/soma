@@ -99,6 +99,10 @@ pub fn action_names() -> Vec<&'static str> {
     ACTION_SPECS.iter().map(|spec| spec.name).collect()
 }
 
+pub fn is_known_action(action: &str) -> bool {
+    ACTION_SPECS.iter().any(|spec| spec.name == action)
+}
+
 pub fn rest_action_names() -> Vec<&'static str> {
     ACTION_SPECS
         .iter()
@@ -140,6 +144,17 @@ pub enum ExampleAction {
 }
 
 impl ExampleAction {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Greet { .. } => "greet",
+            Self::Echo { .. } => "echo",
+            Self::Status => "status",
+            Self::Help => "help",
+            Self::ElicitName => "elicit_name",
+            Self::ScaffoldIntent => "scaffold_intent",
+        }
+    }
+
     pub fn from_mcp_args(args: &Value) -> Result<Self> {
         let action = args
             .get("action")

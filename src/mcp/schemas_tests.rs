@@ -23,3 +23,26 @@ fn echo_message_schema_requires_non_empty_string() {
         1
     );
 }
+
+#[test]
+fn schema_conditionally_requires_echo_message() {
+    let tools = tool_definitions();
+    let all_of = tools[0]["inputSchema"]["allOf"]
+        .as_array()
+        .expect("schema should include conditional action validation");
+    assert!(
+        all_of.iter().any(
+            |entry| entry["if"]["properties"]["action"]["const"] == "echo"
+                && entry["then"]["required"]
+                    .as_array()
+                    .is_some_and(|required| required.iter().any(|field| field == "message"))
+        ),
+        "echo action must conditionally require message"
+    );
+}
+
+#[test]
+fn schema_disallows_unknown_top_level_properties() {
+    let tools = tool_definitions();
+    assert_eq!(tools[0]["inputSchema"]["additionalProperties"], false);
+}

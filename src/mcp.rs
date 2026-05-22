@@ -12,6 +12,10 @@ mod transport;
 pub use rmcp_server::{rmcp_server, ExampleRmcpServer};
 pub use transport::{allowed_origins, streamable_http_config, streamable_http_service};
 
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub use tools::execute_tool_without_peer_for_test;
+
 #[cfg(test)]
 #[path = "mcp_tests.rs"]
 mod tests;

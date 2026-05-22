@@ -17,6 +17,11 @@
 #     help()                 → response MUST have a "help" key with non-empty content
 #     schema resource        → MUST be valid JSON schema with name="example" and inputSchema
 #
+#   MCP elicitation actions (`elicit_name`, `scaffold_intent`) require a client
+#   that can render elicitation/create. mcporter HTTP smoke tests do not exercise
+#   that UI flow; fallback outcomes are covered by Rust tests below the live
+#   transport harness.
+#
 #   TEMPLATE: Adapt these checks to your service's actual response shapes.
 #             Replace example-specific validation with your API's semantics.
 #             Add checks that prove your API data is real, e.g.:

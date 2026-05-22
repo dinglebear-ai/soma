@@ -145,6 +145,28 @@ fn test_elicited_name_greeting_transformation_lives_in_service() {
 }
 
 #[test]
+fn test_elicited_name_fallback_outcomes_are_covered_below_live_mcporter() {
+    let service = stub_service();
+
+    assert_eq!(
+        service.elicited_name_greeting(ElicitedNameOutcome::NoInput)["greeting"],
+        "Hello! (you provided no name - that's okay)"
+    );
+    assert_eq!(
+        service.elicited_name_greeting(ElicitedNameOutcome::Declined)["greeting"],
+        "Hello, anonymous user!"
+    );
+    assert_eq!(
+        service.elicited_name_greeting(ElicitedNameOutcome::Cancelled)["greeting"],
+        "Hello there!"
+    );
+    assert_eq!(
+        service.elicited_name_greeting(ElicitedNameOutcome::Unsupported)["fallback_greeting"],
+        "Hello, World! (elicitation unavailable)"
+    );
+}
+
+#[test]
 fn test_scaffold_intent_rejects_invalid_contract_identifiers() {
     let service = stub_service();
     let result = service.scaffold_intent(ScaffoldIntent {

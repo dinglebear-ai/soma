@@ -47,7 +47,28 @@ fn build_tool_definitions() -> Vec<Value> {
                     "description": "Message to echo back (required for action=echo)."
                 }
             },
-            "required": ["action"]
+            "required": ["action"],
+            "additionalProperties": false,
+            "allOf": [
+                {
+                    "if": {
+                        "properties": { "action": { "const": "echo" } },
+                        "required": ["action"]
+                    },
+                    "then": { "required": ["message"] }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "action": { "enum": ["elicit_name", "scaffold_intent"] }
+                        },
+                        "required": ["action"]
+                    },
+                    "then": {
+                        "description": "This action uses MCP elicitation. The setup fields are requested through the client-rendered elicitation form, not through tool-call arguments."
+                    }
+                }
+            ]
         }
     })]
 }
