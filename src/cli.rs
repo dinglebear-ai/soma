@@ -227,9 +227,24 @@ fn parse_bool_flag(args: &[String], command: &str, flag: &str) -> Result<bool> {
 fn parse_optional_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
     match args {
         [] => Ok(None),
-        [found_flag, value] if found_flag == flag => Ok(Some(value.clone())),
+        [found_flag, value] if found_flag == flag => {
+            if value.starts_with("--") {
+                Err(anyhow!("{command} requires a value after {flag}"))
+            } else {
+                Ok(Some(value.clone()))
+            }
+        }
         [found_flag] if found_flag == flag => {
             Err(anyhow!("{command} requires a value after {flag}"))
+        }
+        [found_flag, value, rest @ ..] if found_flag == flag => {
+            if value.starts_with("--") {
+                Err(anyhow!("{command} requires a value after {flag}"))
+            } else if rest.iter().any(|arg| arg == flag) {
+                Err(anyhow!("{command} received duplicate {flag}"))
+            } else {
+                Err(anyhow!("{command} does not accept argument `{}`", rest[0]))
+            }
         }
         [unexpected, ..] => Err(anyhow!("{command} does not accept argument `{unexpected}`")),
     }

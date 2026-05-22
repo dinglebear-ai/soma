@@ -159,6 +159,7 @@ fn parser_rejects_unknown_and_malformed_flags() {
         &["help", "--bogus"],
         &["greet", "--bogus"],
         &["greet", "--name"],
+        &["greet", "--name", "--bogus"],
         &["greet", "--name", "Alice", "extra"],
         &["doctor", "--bogus"],
         &["doctor", "--json", "--json"],
@@ -172,4 +173,10 @@ fn parser_rejects_unknown_and_malformed_flags() {
             "{args:?} should be rejected"
         );
     }
+}
+
+#[test]
+fn parser_reports_duplicate_value_flags() {
+    let err = parse_args_from(["greet", "--name", "Alice", "--name", "Bob"]).unwrap_err();
+    assert!(err.to_string().contains("duplicate --name"));
 }

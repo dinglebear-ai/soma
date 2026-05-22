@@ -23,6 +23,12 @@ fn test_greet_with_name_parsed() {
 }
 
 #[test]
+fn test_greet_rejects_flag_like_name_value() {
+    let error = parse_args_from(["greet", "--name", "--bogus"]).unwrap_err();
+    assert!(error.to_string().contains("requires a value after --name"));
+}
+
+#[test]
 fn test_echo_message_parsed() {
     assert_eq!(
         parse_args_from(["echo", "--message", "Hello, World!"]).unwrap(),

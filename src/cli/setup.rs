@@ -301,7 +301,7 @@ fn dotenv_assignment(key: &'static str, value: &str) -> Result<String> {
 }
 
 fn dotenv_value(value: &str) -> Result<String> {
-    if value.contains(['\n', '\r', '\0']) {
+    if value.chars().any(|c| matches!(c, '\n' | '\r' | '\0')) {
         bail!("dotenv values cannot contain newlines or NUL bytes");
     }
 

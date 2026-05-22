@@ -102,18 +102,28 @@ fn valid_config() -> Config {
 
 fn with_plugin_data<T>(dir: &std::path::Path, f: impl FnOnce() -> T) -> T {
     let _guard = ENV_LOCK.lock().unwrap();
-    let old = std::env::var_os("CLAUDE_PLUGIN_DATA");
+    struct EnvRestore {
+        old: Option<std::ffi::OsString>,
+    }
+
+    impl Drop for EnvRestore {
+        fn drop(&mut self) {
+            unsafe {
+                match self.old.take() {
+                    Some(value) => std::env::set_var("CLAUDE_PLUGIN_DATA", value),
+                    None => std::env::remove_var("CLAUDE_PLUGIN_DATA"),
+                }
+            }
+        }
+    }
+
+    let _restore = EnvRestore {
+        old: std::env::var_os("CLAUDE_PLUGIN_DATA"),
+    };
     unsafe {
         std::env::set_var("CLAUDE_PLUGIN_DATA", dir);
     }
-    let result = f();
-    unsafe {
-        match old {
-            Some(value) => std::env::set_var("CLAUDE_PLUGIN_DATA", value),
-            None => std::env::remove_var("CLAUDE_PLUGIN_DATA"),
-        }
-    }
-    result
+    f()
 }
 
 #[test]
