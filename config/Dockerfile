@@ -26,7 +26,8 @@ FROM node:26-bookworm-slim AS web
 WORKDIR /app/apps/web
 
 COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
-RUN npm install -g pnpm@10.33.2 && pnpm install --frozen-lockfile
+RUN npm install -g "$(node -p "require('./package.json').packageManager")" && \
+    pnpm install --frozen-lockfile
 
 COPY apps/web/ ./
 RUN pnpm build

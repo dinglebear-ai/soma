@@ -42,9 +42,10 @@ jobs:
           key: ${{ github.repository }}-codeql-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ github.repository }}-codeql-
 
-      - name: Enable corepack
+      - name: Install pnpm
         if: matrix.language == 'rust'
-        run: corepack enable
+        working-directory: apps/web
+        run: npm install -g "$(node -p "require('./package.json').packageManager")"
 
       - name: Build web assets
         if: matrix.language == 'rust'

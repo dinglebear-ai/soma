@@ -86,8 +86,9 @@ jobs:
 
       # Build the release binary.
       # TEMPLATE: Replace BINARY_NAME env references if you renamed the env var.
-      - name: Enable corepack
-        run: corepack enable
+      - name: Install pnpm
+        working-directory: apps/web
+        run: npm install -g "$(node -p "require('./package.json').packageManager")"
 
       - name: Build web assets
         working-directory: apps/web
