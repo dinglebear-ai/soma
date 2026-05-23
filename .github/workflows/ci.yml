@@ -6,7 +6,8 @@
 #   BINARY_NAME → your binary name from Cargo.toml [[bin]] (e.g. "myservice")
 #
 # This workflow runs on every push and PR to main.
-# Jobs: fmt, clippy, test (nextest), web, toml, template checks, deny, gitleaks
+# Jobs: actionlint, fmt, clippy, test (nextest), web, native builds, MCP smoke,
+# compose/container smoke, toml, template checks, version sync, deny, gitleaks
 #
 # All jobs must pass before merging. Adjust the matrix rust-version to match
 # your Cargo.toml `rust-version` field.
@@ -37,6 +38,22 @@ env:
     -C target-feature=-avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd,-avx512ifma,-avx512vbmi,-avx512vbmi2,-avx512vnni,-avx512bitalg,-avx512vpopcntdq
 
 jobs:
+  # -- actionlint: GitHub Actions workflow syntax and shell checks -------------
+  actionlint:
+    name: Actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: stable
+
+      - name: actionlint
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@latest
+
   # ── fmt: cargo fmt --check ──────────────────────────────────────────────────
   fmt:
     name: Format
@@ -110,8 +127,8 @@ jobs:
         run: cargo nextest run --profile ci
 
   # ── web: pnpm install, lint, audit, static build ─────────────────────────────
-  web:
-    name: Web
+  frontend-assets:
+    name: Frontend Assets
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -138,6 +155,14 @@ jobs:
       - name: pnpm build
         run: pnpm build
 
+      - name: Upload web export
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-out
+          path: apps/web/out/
+          if-no-files-found: error
+          retention-days: 1
+
   # -- native release builds ----------------------------------------------------
   #
   # These jobs mirror the Axon pattern: prove the binary builds on Linux and on
@@ -147,9 +172,16 @@ jobs:
   build-linux:
     name: Build Linux
     runs-on: ubuntu-latest
+    needs: frontend-assets
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download web export
+        uses: actions/download-artifact@v8
+        with:
+          name: web-out
+          path: apps/web/out
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
@@ -164,13 +196,6 @@ jobs:
           key: ${{ github.repository }}-build-linux-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ github.repository }}-build-linux-
 
-      - name: Build web assets
-        working-directory: apps/web
-        run: |
-          npm install -g "$(node -p "require('./package.json').packageManager")"
-          pnpm install --frozen-lockfile
-          pnpm build
-
       - name: cargo build --release
         run: cargo build --release --locked --bin example
 
@@ -184,9 +209,16 @@ jobs:
   build-windows:
     name: Build Windows
     runs-on: [self-hosted, Windows, rmcp-template, steamy]
+    needs: frontend-assets
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download web export
+        uses: actions/download-artifact@v8
+        with:
+          name: web-out
+          path: apps/web/out
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
@@ -216,14 +248,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { "target rustflags not set" }
           exit 0
 
-      - name: Build web assets
-        shell: pwsh
-        working-directory: apps/web
-        run: |
-          npm install -g "$(node -p "require('./package.json').packageManager")"
-          pnpm install --frozen-lockfile
-          pnpm build
-
       - name: cargo test
         shell: pwsh
         env:
@@ -242,6 +266,114 @@ jobs:
           name: example-windows-x86_64
           path: target/release/example.exe
           if-no-files-found: error
+
+  # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
+  mcp-smoke:
+    name: MCP Smoke
+    runs-on: ubuntu-latest
+    needs: frontend-assets
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download web export
+        uses: actions/download-artifact@v8
+        with:
+          name: web-out
+          path: apps/web/out
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Cache Cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ github.repository }}-mcp-smoke-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ github.repository }}-mcp-smoke-
+
+      - name: Install smoke test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          npm install -g mcporter@0.7.3
+
+      - name: Build example binary
+        run: cargo build --locked --bin example
+
+      - name: Start MCP server
+        env:
+          EXAMPLE_MCP_HOST: 127.0.0.1
+          EXAMPLE_MCP_PORT: 40123
+          EXAMPLE_MCP_NO_AUTH: "true"
+          RUST_LOG: info,rmcp=warn
+        run: |
+          set -euo pipefail
+          ./target/debug/example serve mcp > /tmp/example-mcp.log 2>&1 &
+          echo "$!" > /tmp/example-mcp.pid
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:40123/health >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/example-mcp.log
+          exit 1
+
+      - name: Run mcporter smoke tests
+        env:
+          EXAMPLE_MCP_HOST: 127.0.0.1
+          EXAMPLE_MCP_PORT: 40123
+        run: bash tests/mcporter/test-mcp.sh --timeout-ms 20000
+
+      - name: Upload MCP smoke logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcp-smoke-logs
+          path: |
+            /tmp/example-mcp.log
+            /tmp/test-mcp.*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop MCP server
+        if: always()
+        run: |
+          kill "$(cat /tmp/example-mcp.pid 2>/dev/null)" 2>/dev/null || true
+
+  # -- container-smoke: compose config plus Docker build on PRs/main ------------
+  container-smoke:
+    name: Container Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v4.0.0
+
+      - name: Create Docker network
+        run: docker network create "${DOCKER_NETWORK:-mcp}" || true
+
+      - name: Validate production compose
+        run: docker compose --env-file .env.example -f docker-compose.prod.yml config --quiet
+
+      - name: Validate development compose
+        run: docker compose --env-file .env.example -f docker-compose.yml config --quiet
+
+      - name: Build container image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: config/Dockerfile
+          push: false
+          tags: rmcp-template:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # ── toml: taplo check ─────────────────────────────────────────────────────────
   toml:
@@ -289,6 +421,9 @@ jobs:
 
       - name: Check scaffold intent contract
         run: python3 scripts/check-scaffold-intent-contract.py
+
+      - name: Check version sync
+        run: bash scripts/check-version-sync.sh
 
       - name: Run template feature smoke tests
         run: bash scripts/test-template-features.sh

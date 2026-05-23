@@ -28,6 +28,8 @@ on:
 env:
   # TEMPLATE: Replace "jmagar/example-mcp" with "your-org/your-image-name"
   IMAGE_NAME: ghcr.io/jmagar/example-mcp
+  # TEMPLATE: Replace with the DNS domain used for MCP registry identity proof.
+  MCP_REGISTRY_DOMAIN: yourdomain.com
 
 jobs:
   docker:
@@ -112,3 +114,56 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
+
+  registry:
+    name: Publish MCP Registry Manifest
+    needs: docker
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Prepare server.json for tag
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import os
+
+          path = Path("server.json")
+          raw = path.read_text()
+          data = json.loads(raw[raw.index("{"):])
+
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          image = f"{os.environ['IMAGE_NAME']}:{version}"
+          data["version"] = version
+          for package in data.get("packages", []):
+              package["version"] = version
+              if package.get("registryType") == "oci":
+                  package["identifier"] = image
+
+          path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+
+      - name: Publish to MCP Registry
+        env:
+          MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MCP_PRIVATE_KEY:-}" ]; then
+            echo "MCP_PRIVATE_KEY is not configured; skipping MCP registry publish."
+            exit 0
+          fi
+          ./mcp-publisher login dns \
+            --domain "${MCP_REGISTRY_DOMAIN}" \
+            --private-key "${MCP_PRIVATE_KEY}"
+          ./mcp-publisher publish

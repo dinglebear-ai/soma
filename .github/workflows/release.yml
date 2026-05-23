@@ -31,10 +31,37 @@ env:
   BINARY_NAME: example
 
 jobs:
+  frontend-assets:
+    name: Frontend Assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install pnpm
+        run: npm install -g "$(node -p "require('./package.json').packageManager")"
+
+      - name: Build web assets
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Upload web export
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-out
+          path: apps/web/out/
+          if-no-files-found: error
+          retention-days: 1
+
   # ── Build release binaries ────────────────────────────────────────────────────
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    needs: frontend-assets
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -53,6 +80,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Download web export
+        uses: actions/download-artifact@v8
+        with:
+          name: web-out
+          path: apps/web/out
 
       - name: Install Rust target
         uses: dtolnay/rust-toolchain@stable
@@ -83,18 +116,6 @@ jobs:
           # TEMPLATE: Change "rmcp-template" to your repo name.
           key: ${{ github.repository }}-release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ github.repository }}-release-${{ matrix.target }}-
-
-      # Build the release binary.
-      # TEMPLATE: Replace BINARY_NAME env references if you renamed the env var.
-      - name: Install pnpm
-        working-directory: apps/web
-        run: npm install -g "$(node -p "require('./package.json').packageManager")"
-
-      - name: Build web assets
-        working-directory: apps/web
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
 
       - name: Build release binary
         env:
@@ -198,7 +219,7 @@ jobs:
       - name: Generate SHA256SUMS
         run: |
           cd artifacts
-          sha256sum * > SHA256SUMS
+          sha256sum ./* > SHA256SUMS
           cat SHA256SUMS
 
       - name: Create GitHub Release
