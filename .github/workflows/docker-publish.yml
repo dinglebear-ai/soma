@@ -28,8 +28,9 @@ on:
 env:
   # TEMPLATE: Replace "jmagar/example-mcp" with "your-org/your-image-name"
   IMAGE_NAME: ghcr.io/jmagar/example-mcp
-  # TEMPLATE: Replace with the DNS domain used for MCP registry identity proof.
-  MCP_REGISTRY_DOMAIN: yourdomain.com
+  # Set this as a GitHub Actions repository variable instead of committing the
+  # domain into the template: gh variable set MCP_REGISTRY_DOMAIN --body <domain>
+  MCP_REGISTRY_DOMAIN: ${{ vars.MCP_REGISTRY_DOMAIN }}
 
 jobs:
   docker:
