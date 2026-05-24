@@ -14,6 +14,61 @@ pub enum ValidationError {
     UnknownAction { action: String },
 }
 
+impl ValidationError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::MissingAction => "missing_action",
+            Self::MissingField { .. } => "missing_field",
+            Self::WrongType { .. } => "wrong_type",
+            Self::NotAvailableOverRest { .. } => "not_available_over_rest",
+            Self::UnknownAction { .. } => "unknown_action",
+        }
+    }
+
+    pub fn field(&self) -> Option<&str> {
+        match self {
+            Self::MissingAction => Some("action"),
+            Self::MissingField { field } | Self::WrongType { field } => Some(field.as_str()),
+            Self::NotAvailableOverRest { .. } | Self::UnknownAction { .. } => Some("action"),
+        }
+    }
+
+    pub fn bad_value(&self) -> Option<&str> {
+        match self {
+            Self::NotAvailableOverRest { action } | Self::UnknownAction { action } => {
+                Some(action.as_str())
+            }
+            Self::MissingAction | Self::MissingField { .. } | Self::WrongType { .. } => None,
+        }
+    }
+
+    pub fn remediation(&self) -> String {
+        match self {
+            Self::MissingAction => {
+                format!(
+                    "Set `action` to one of: {}. Use action=help for the full schema.",
+                    action_names().join(", ")
+                )
+            }
+            Self::MissingField { field } => {
+                format!("Provide a non-empty `{field}` value, or use action=help for examples.")
+            }
+            Self::WrongType { field } => {
+                format!("Pass `{field}` as a JSON string, or use action=help for examples.")
+            }
+            Self::NotAvailableOverRest { action } => {
+                format!("Call action={action} through MCP, or call action=help over REST.")
+            }
+            Self::UnknownAction { .. } => {
+                format!(
+                    "Retry with one of the supported actions: {}. Use action=help for examples.",
+                    action_names().join(", ")
+                )
+            }
+        }
+    }
+}
+
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

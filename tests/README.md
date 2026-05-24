@@ -135,3 +135,6 @@ The stub client points at `http://localhost:1/stub`, so service-layer tests rema
 - **Layered coverage:** parse CLI in CLI tests, service logic in service tests, HTTP behavior in route/live tests.
 - **Auth-aware:** auth tests skip or adjust when credentials are intentionally absent.
 - **Resource coverage:** MCP resources are part of the public contract and should be tested alongside tools.
+- **Structured errors:** negative MCP tool tests should assert `isError: true`
+  and inspect `kind`, `schema_version`, `code`, `tool`, `action`, and
+  `remediation` in structured content.

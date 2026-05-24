@@ -55,12 +55,23 @@ fn rest_args_parse_nested_params_shape() {
 fn missing_action_is_validation_error() {
     let error = ExampleAction::from_mcp_args(&json!({})).unwrap_err();
     assert!(error.to_string().contains("action is required"));
+    let validation = error
+        .downcast_ref::<ValidationError>()
+        .expect("error should preserve validation metadata");
+    assert_eq!(validation.code(), "missing_action");
+    assert_eq!(validation.field(), Some("action"));
+    assert!(validation.remediation().contains("action=help"));
 }
 
 #[test]
 fn echo_rejects_missing_and_empty_message() {
     let missing = ExampleAction::from_mcp_args(&json!({ "action": "echo" })).unwrap_err();
     assert!(missing.to_string().contains("`message` is required"));
+    let validation = missing
+        .downcast_ref::<ValidationError>()
+        .expect("error should preserve validation metadata");
+    assert_eq!(validation.code(), "missing_field");
+    assert_eq!(validation.field(), Some("message"));
 
     let empty = ExampleAction::from_rest("echo", &json!({ "message": "" })).unwrap_err();
     assert!(empty.to_string().contains("`message` is required"));
@@ -77,6 +88,11 @@ fn string_params_reject_wrong_json_type() {
     }))
     .unwrap_err();
     assert!(echo.to_string().contains("`message` must be a string"));
+    let validation = echo
+        .downcast_ref::<ValidationError>()
+        .expect("error should preserve validation metadata");
+    assert_eq!(validation.code(), "wrong_type");
+    assert_eq!(validation.field(), Some("message"));
 }
 
 #[test]
@@ -105,6 +121,11 @@ fn rest_missing_action_preserves_missing_action_error() {
 fn unknown_action_mentions_help() {
     let error = ExampleAction::from_rest("missing", &json!({})).unwrap_err();
     assert!(error.to_string().contains("action=help"));
+    let validation = error
+        .downcast_ref::<ValidationError>()
+        .expect("error should preserve validation metadata");
+    assert_eq!(validation.code(), "unknown_action");
+    assert_eq!(validation.bad_value(), Some("missing"));
 }
 
 #[test]

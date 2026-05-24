@@ -193,7 +193,12 @@ pub enum Command { ..., GetThings }
 Command::GetThings => service.get_things().await?,
 ```
 
-**d. Add a test** in `tests/tool_dispatch.rs`.
+**d. Add tests** in `tests/tool_dispatch.rs` and the relevant sidecar unit test.
+Cover both the success path and at least one negative MCP path. Tool-originated
+failures must be returned as structured tool errors with `isError: true`, a
+stable `code`, an optional `field`/`bad_value`, and a remediation hint; reserve
+MCP protocol errors for auth/scope, unknown tool names, resources, prompts, and
+server serialization defects.
 
 ### 5. Update config
 

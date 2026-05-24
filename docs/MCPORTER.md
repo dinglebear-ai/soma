@@ -68,7 +68,7 @@ run_test "status has version" "example" '{"action":"status"}' "version"
 run_test "echo roundtrip" "example" '{"action":"echo","message":"hello"}' "hello"
 ```
 
-A test that checks `is_error: false` is not a good test — it only verifies the MCP protocol layer responded. Semantic tests check that the actual service data is present and structurally correct.
+A test that checks `is_error: false` is not a good test — it only verifies the MCP protocol layer responded. Semantic tests check that the actual service data is present and structurally correct. Negative tool tests should assert `isError: true` and inspect the structured error payload, including `code`, `action`, and `remediation`.
 
 ## Tool validation helpers
 

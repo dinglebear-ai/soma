@@ -56,14 +56,48 @@ pub enum ElicitedNameOutcome<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScaffoldIntentValidationError {
+    code: &'static str,
+    field: Option<&'static str>,
     message: String,
+    remediation: &'static str,
+    expected_pattern: Option<&'static str>,
 }
 
 impl ScaffoldIntentValidationError {
-    fn new(message: impl Into<String>) -> Self {
+    fn new(
+        code: &'static str,
+        field: Option<&'static str>,
+        message: impl Into<String>,
+        remediation: &'static str,
+    ) -> Self {
         Self {
+            code,
+            field,
             message: message.into(),
+            remediation,
+            expected_pattern: None,
         }
+    }
+
+    fn with_expected_pattern(mut self, expected_pattern: &'static str) -> Self {
+        self.expected_pattern = Some(expected_pattern);
+        self
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.code
+    }
+
+    pub fn field(&self) -> Option<&'static str> {
+        self.field
+    }
+
+    pub fn remediation(&self) -> &'static str {
+        self.remediation
+    }
+
+    pub fn expected_pattern(&self) -> Option<&'static str> {
+        self.expected_pattern
     }
 }
 
@@ -192,7 +226,13 @@ fn validate_scaffold_intent(input: &ScaffoldIntent) -> Result<()> {
     validate_kebab_identifier("binary_name", &input.binary_name)?;
     validate_env_prefix(&input.env_prefix)?;
     if input.port == 0 {
-        return Err(ScaffoldIntentValidationError::new("port must be between 1 and 65535").into());
+        return Err(ScaffoldIntentValidationError::new(
+            "invalid_port",
+            Some("port"),
+            "port must be between 1 and 65535",
+            "Use a TCP port between 1 and 65535.",
+        )
+        .into());
     }
     validate_urls("crawl_urls", &input.crawl_urls)?;
     validate_urls("crawl_repos", &input.crawl_repos)?;
@@ -201,9 +241,12 @@ fn validate_scaffold_intent(input: &ScaffoldIntent) -> Result<()> {
 
 fn validate_non_empty(field: &str, value: &str) -> Result<()> {
     if value.trim().is_empty() {
-        return Err(ScaffoldIntentValidationError::new(format!(
-            "`{field}` is required and must not be empty"
-        ))
+        return Err(ScaffoldIntentValidationError::new(
+            "missing_field",
+            Some(leak_field_name(field)),
+            format!("`{field}` is required and must not be empty"),
+            "Provide a non-empty value and retry scaffold_intent.",
+        )
         .into());
     }
     Ok(())
@@ -214,17 +257,24 @@ fn validate_kebab_identifier(field: &str, value: &str) -> Result<()> {
     validate_non_empty(field, value)?;
     let mut chars = value.chars();
     let Some(first) = chars.next() else {
-        return Err(ScaffoldIntentValidationError::new(format!(
-            "`{field}` is required and must not be empty"
-        ))
+        return Err(ScaffoldIntentValidationError::new(
+            "missing_field",
+            Some(leak_field_name(field)),
+            format!("`{field}` is required and must not be empty"),
+            "Provide a non-empty value and retry scaffold_intent.",
+        )
         .into());
     };
     if !first.is_ascii_lowercase()
         || !chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-')
     {
-        return Err(ScaffoldIntentValidationError::new(format!(
-            "`{field}` must match ^[a-z][a-z0-9-]*$"
-        ))
+        return Err(ScaffoldIntentValidationError::new(
+            "invalid_identifier",
+            Some(leak_field_name(field)),
+            format!("`{field}` must match ^[a-z][a-z0-9-]*$"),
+            "Use a lowercase kebab-case identifier such as `unraid-mcp`.",
+        )
+        .with_expected_pattern("^[a-z][a-z0-9-]*$")
         .into());
     }
     Ok(())
@@ -236,7 +286,10 @@ fn validate_env_prefix(value: &str) -> Result<()> {
     let mut chars = value.chars();
     let Some(first) = chars.next() else {
         return Err(ScaffoldIntentValidationError::new(
+            "missing_field",
+            Some("env_prefix"),
             "`env_prefix` is required and must not be empty",
+            "Provide an uppercase environment prefix such as `UNRAID`.",
         )
         .into());
     };
@@ -244,8 +297,12 @@ fn validate_env_prefix(value: &str) -> Result<()> {
         || !chars.all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
     {
         return Err(ScaffoldIntentValidationError::new(
+            "invalid_env_prefix",
+            Some("env_prefix"),
             "`env_prefix` must match ^[A-Z][A-Z0-9_]*$",
+            "Use an uppercase env prefix such as `UNRAID` or `LAB_GATEWAY`.",
         )
+        .with_expected_pattern("^[A-Z][A-Z0-9_]*$")
         .into());
     }
     Ok(())
@@ -254,10 +311,27 @@ fn validate_env_prefix(value: &str) -> Result<()> {
 fn validate_urls(field: &str, value: &str) -> Result<()> {
     for item in split_csv(value) {
         url::Url::parse(&item).map_err(|_| {
-            ScaffoldIntentValidationError::new(format!("`{field}` contains invalid URL: {item}"))
+            ScaffoldIntentValidationError::new(
+                "invalid_url",
+                Some(leak_field_name(field)),
+                format!("`{field}` contains invalid URL: {item}"),
+                "Provide comma-separated absolute URLs such as `https://docs.example.test/`.",
+            )
         })?;
     }
     Ok(())
+}
+
+fn leak_field_name(field: &str) -> &'static str {
+    match field {
+        "display_name" => "display_name",
+        "crate_name" => "crate_name",
+        "binary_name" => "binary_name",
+        "env_prefix" => "env_prefix",
+        "crawl_urls" => "crawl_urls",
+        "crawl_repos" => "crawl_repos",
+        _ => "unknown",
+    }
 }
 
 fn normalize_category(category: &str) -> &'static str {

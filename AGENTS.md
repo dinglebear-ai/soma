@@ -54,6 +54,16 @@ Exception: `scaffold_intent` is MCP-only because it is specifically an MCP elici
 
 `mcp/tools.rs` and `cli.rs` must not contain business logic. They parse inputs and delegate to `ExampleService`. All computation, validation, and transformation belongs in `app.rs`.
 
+## MCP error policy
+
+Action validation failures and action execution failures are tool-originated
+errors. Return them as structured `CallToolResult` errors with `isError: true`
+from `src/mcp/rmcp_server.rs`, including `kind`, `schema_version`, stable
+`code`, `tool`, `action`, optional `field`/`bad_value`, and `remediation`.
+Use protocol `ErrorData` only for auth/scope denial, unknown MCP tool names,
+resource/prompt lookup, malformed protocol requests, and server serialization
+defects.
+
 ## How to add an action
 
 MCP + CLI steps are mandatory for every business action:

@@ -1,13 +1,14 @@
 use serde_json::json;
 
 use crate::{
-    actions::{required_scope_for_action, READ_SCOPE, WRITE_SCOPE},
+    actions::{required_scope_for_action, ValidationError, READ_SCOPE, WRITE_SCOPE},
     token_limit::MAX_RESPONSE_BYTES,
 };
 
 use super::{
     internal_tool_error_message, reject_unknown_action_before_scope, scope_satisfied,
-    tool_result_from_json,
+    tool_error_result, tool_result_from_json, unknown_action_payload, unknown_tool_error,
+    validation_error_payload,
 };
 
 fn scopes(s: &[&str]) -> Vec<String> {
@@ -91,4 +92,58 @@ fn tool_result_from_json_applies_response_cap() {
         .text
         .as_str();
     assert!(text.contains("[TRUNCATED"));
+}
+
+#[test]
+fn validation_errors_become_structured_tool_errors() {
+    let error = anyhow::Error::from(ValidationError::MissingField {
+        field: "message".to_owned(),
+    });
+    let payload = validation_error_payload("example", Some("echo"), &error);
+    let result = tool_error_result(payload).expect("tool error should serialize");
+
+    assert_eq!(result.is_error, Some(true));
+    let structured = result
+        .structured_content
+        .as_ref()
+        .expect("structured content should be present");
+    assert_eq!(structured["kind"], "mcp_tool_error");
+    assert_eq!(structured["schema_version"], 1);
+    assert_eq!(structured["code"], "missing_field");
+    assert_eq!(structured["tool"], "example");
+    assert_eq!(structured["action"], "echo");
+    assert_eq!(structured["field"], "message");
+    assert!(structured["remediation"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("action=help"));
+}
+
+#[test]
+fn unknown_actions_become_retryable_tool_errors() {
+    let result = tool_error_result(unknown_action_payload("example", "missing"))
+        .expect("unknown action payload should serialize");
+
+    assert_eq!(result.is_error, Some(true));
+    let structured = result.structured_content.as_ref().unwrap();
+    assert_eq!(structured["code"], "unknown_action");
+    assert_eq!(structured["bad_value"], "missing");
+    assert!(structured["available_actions"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("help")));
+}
+
+#[test]
+fn unknown_tool_stays_protocol_error_with_structured_data() {
+    let error = unknown_tool_error("bad_tool");
+
+    assert!(error.message.contains("unknown tool"));
+    let data = error
+        .data
+        .expect("unknown tool should include structured data");
+    assert_eq!(data["kind"], "mcp_protocol_error");
+    assert_eq!(data["code"], "unknown_tool");
+    assert_eq!(data["tool"], "bad_tool");
+    assert_eq!(data["available_tools"], json!(["example"]));
 }

@@ -140,12 +140,16 @@ fn truncate_response(text: &str) -> String {
 Errors must be actionable. Every error must say what failed, the bad value, why it failed, and how to fix it:
 
 ```rust
-Ok(CallToolResult::error(vec![Content::text(format!(
-    "ERROR: {action} failed\n\
-     Reason: {reason}\n\
-     Hint: {how_to_fix}\n\
-     See: action=help for full documentation"
-))]))
+Ok(CallToolResult::structured_error(json!({
+    "kind": "mcp_tool_error",
+    "schema_version": 1,
+    "code": "validation_error",
+    "tool": "example",
+    "action": action,
+    "message": reason,
+    "retryable": true,
+    "remediation": how_to_fix,
+})))
 ```
 
 Validation errors return HTTP 400 with an `error` field. Never leak secrets in error text.

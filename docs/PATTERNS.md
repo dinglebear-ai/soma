@@ -1145,7 +1145,16 @@ async fn call_tool(&self, request: CallToolRequestParams, context: RequestContex
             requested_schema: json!({"type": "boolean"}),
         }).await {
             if response.content != json!(true) {
-                return Ok(CallToolResult::error(vec![Content::text("Cancelled.")]));
+                return Ok(CallToolResult::structured_error(json!({
+                    "kind": "mcp_tool_error",
+                    "schema_version": 1,
+                    "code": "cancelled",
+                    "tool": "example",
+                    "action": action,
+                    "message": "User cancelled the destructive action.",
+                    "retryable": true,
+                    "remediation": "Retry with confirmation only if the user explicitly approves."
+                })));
             }
         }
     }
@@ -1844,28 +1853,39 @@ must tell an agent exactly what went wrong AND how to fix it.
 ### MCP tool error structure
 
 ```rust
-// Bad — opaque error
-Err(anyhow::anyhow!("not found"))
+// Bad: opaque protocol error, invisible to the model as tool output.
+Err(ErrorData::internal_error("not found", None))
 
-// Good — agent-correctable error
-Err(anyhow::anyhow!(
-    "docker_logs: container not found: id={id}\n\
-     Hint: use action=docker to list available container IDs first.\n\
-     Example: example(action=\"docker\") → pick an id from the results"
-))
+// Good: agent-correctable tool error.
+Ok(CallToolResult::structured_error(json!({
+    "kind": "mcp_tool_error",
+    "schema_version": 1,
+    "code": "container_not_found",
+    "tool": "example",
+    "action": "docker_logs",
+    "field": "id",
+    "bad_value": id,
+    "message": "Container not found.",
+    "retryable": true,
+    "remediation": "Use action=docker to list available container IDs, then retry."
+})))
 ```
 
 ### Error response shape for MCP
 
-When a tool call fails, return `CallToolResult::error()` with structured text:
+When a tool call fails, return `CallToolResult::structured_error()` with structured JSON:
 
 ```rust
-Ok(CallToolResult::error(vec![Content::text(format!(
-    "ERROR: {action} failed\n\
-     Reason: {reason}\n\
-     Hint: {how_to_fix}\n\
-     See: action=help for full documentation"
-))]))
+Ok(CallToolResult::structured_error(json!({
+    "kind": "mcp_tool_error",
+    "schema_version": 1,
+    "code": "execution_error",
+    "tool": "example",
+    "action": action,
+    "message": reason,
+    "retryable": true,
+    "remediation": how_to_fix,
+})))
 ```
 
 ### Required error fields
@@ -2274,22 +2294,25 @@ pub async fn list_things(&self) -> Result<Value> {
 }
 ```
 
-### MCP tool — never return Err from execute_tool
+### MCP tool - never hide tool-originated errors as protocol errors
 
-MCP tool errors should be `CallToolResult::error()`, not `Err(ErrorData)`.
-An `Err` crashes the tool call at the protocol level; a `CallToolResult::error`
-gives the agent a readable message:
+MCP tool errors should be `CallToolResult::structured_error()`, not `Err(ErrorData)`.
+An `Err` makes the call fail at the protocol level; a structured tool error gives
+the agent a readable payload with `isError: true`:
 
 ```rust
 match state.service.list_things().await {
     Ok(result)  => tool_result_from_json(result),
-    Err(error)  => Ok(CallToolResult::error(vec![
-        Content::text(format!(
-            "ERROR: list_things failed\n\
-             Reason: {error}\n\
-             Hint: use action=status to check server health"
-        ))
-    ])),
+    Err(error)  => Ok(CallToolResult::structured_error(json!({
+        "kind": "mcp_tool_error",
+        "schema_version": 1,
+        "code": "execution_error",
+        "tool": "example",
+        "action": "list_things",
+        "message": format!("list_things failed: {error}"),
+        "retryable": true,
+        "remediation": "Use action=status to check server health, then retry."
+    }))),
 }
 ```
 

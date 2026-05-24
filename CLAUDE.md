@@ -100,6 +100,15 @@ The `elicit_name` action demonstrates MCP elicitation (spec 2025-06-18). The ser
 
 `ElicitationError::CapabilityNotSupported` is handled gracefully — clients that don't support it get a fallback message instead of an error.
 
+## MCP error policy
+
+Tool-originated failures must be visible to agents as structured tool results:
+`CallToolResult::structured_error(...)` with `isError: true`, `kind`,
+`schema_version`, stable `code`, `tool`, `action`, optional `field`/`bad_value`,
+and `remediation`. Reserve protocol `ErrorData` for auth/scope denial, unknown
+MCP tool names, resource/prompt lookup, malformed protocol requests, and server
+serialization defects.
+
 ## Build commands
 
 ```bash

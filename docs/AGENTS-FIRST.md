@@ -64,13 +64,22 @@ Every error must answer four questions:
 | How to fix | `"use action=help to see required parameters"` |
 
 ```rust
-Ok(CallToolResult::error(vec![Content::text(format!(
-    "ERROR: {action} failed\n\
-     Reason: {reason}\n\
-     Hint: {how_to_fix}\n\
-     See: action=help for full documentation"
-))]))
+Ok(CallToolResult::structured_error(json!({
+    "kind": "mcp_tool_error",
+    "schema_version": 1,
+    "code": "validation_error",
+    "tool": "example",
+    "action": action,
+    "message": reason,
+    "retryable": true,
+    "remediation": how_to_fix,
+})))
 ```
+
+Use MCP protocol errors only for protocol/security failures such as unknown tool
+names, auth/scope denial, resource lookup, prompt lookup, and serialization
+defects. Action validation and action execution failures should be visible tool
+results with `isError: true`.
 
 Never return opaque `"internal error"` messages. Never leak secrets in error text.
 

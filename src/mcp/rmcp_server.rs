@@ -21,10 +21,11 @@ use rmcp::{
     service::{Peer, RequestContext},
     ErrorData, RoleServer, ServerHandler,
 };
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 use crate::{
-    actions::{is_known_action, required_scope_for_action, ValidationError},
+    actions::{action_names, is_known_action, required_scope_for_action, ValidationError},
+    app::ScaffoldIntentValidationError,
     token_limit,
 };
 
@@ -77,8 +78,18 @@ impl ServerHandler for ExampleRmcpServer {
             .map(ToOwned::to_owned);
 
         let auth = require_auth_context(&self.state, &context)?;
+        if tool_name != "example" {
+            return Err(unknown_tool_error(&tool_name));
+        }
         if let Some(action_str) = action_opt.as_deref() {
-            reject_unknown_action_before_scope(action_str)?;
+            if !is_known_action(action_str) {
+                tracing::warn!(
+                    tool = %tool_name,
+                    action = %action_str,
+                    "MCP tool rejected unknown action"
+                );
+                return tool_error_result(unknown_action_payload(&tool_name, action_str));
+            }
         }
         // Only scope-check when a known action is present; dispatch_example will
         // return the validation error for a missing action below.
@@ -117,7 +128,11 @@ impl ServerHandler for ExampleRmcpServer {
                     elapsed_ms = started.elapsed().as_millis(),
                     "MCP tool rejected invalid params"
                 );
-                Err(ErrorData::invalid_params(error.to_string(), None))
+                tool_error_result(validation_error_payload(
+                    &tool_name,
+                    empty_action_as_none(&action),
+                    &error,
+                ))
             }
             Err(error) => {
                 tracing::error!(
@@ -126,9 +141,10 @@ impl ServerHandler for ExampleRmcpServer {
                     error = %error,
                     "MCP tool execution failed"
                 );
-                Err(ErrorData::internal_error(
-                    internal_tool_error_message(&action),
-                    None,
+                tool_error_result(execution_error_payload(
+                    &tool_name,
+                    empty_action_as_none(&action),
+                    &error,
                 ))
             }
         }
@@ -262,6 +278,144 @@ fn tool_result_from_json(value: Value) -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::success(vec![Content::text(text)]))
 }
 
+fn tool_error_result(value: Value) -> Result<CallToolResult, ErrorData> {
+    let text = serde_json::to_string(&value)
+        .map_err(|e| ErrorData::internal_error(format!("serialization error: {e}"), None))?;
+    let text = token_limit::truncate_if_needed(&text);
+    let mut result = CallToolResult::structured_error(value);
+    result.content = vec![Content::text(text)];
+    Ok(result)
+}
+
+fn validation_error_payload(tool: &str, action: Option<&str>, error: &anyhow::Error) -> Value {
+    if let Some(error) = error.downcast_ref::<ValidationError>() {
+        return validation_error_payload_from_validation_error(tool, action, error);
+    }
+    if let Some(error) = error.downcast_ref::<ScaffoldIntentValidationError>() {
+        let mut payload = base_tool_error_payload(
+            "mcp_tool_error",
+            error.code(),
+            tool,
+            action,
+            error.to_string(),
+            true,
+            error.remediation(),
+        );
+        if let Some(field) = error.field() {
+            payload["field"] = json!(field);
+        }
+        if let Some(expected_pattern) = error.expected_pattern() {
+            payload["expected_pattern"] = json!(expected_pattern);
+        }
+        return payload;
+    }
+    base_tool_error_payload(
+        "mcp_tool_error",
+        "validation_error",
+        tool,
+        action,
+        error.to_string(),
+        true,
+        "Correct the tool arguments and retry, or use action=help for examples.",
+    )
+}
+
+fn validation_error_payload_from_validation_error(
+    tool: &str,
+    action: Option<&str>,
+    error: &ValidationError,
+) -> Value {
+    let payload_action = action.or(match error {
+        ValidationError::UnknownAction { action }
+        | ValidationError::NotAvailableOverRest { action } => Some(action.as_str()),
+        _ => None,
+    });
+    let mut payload = base_tool_error_payload(
+        "mcp_tool_error",
+        error.code(),
+        tool,
+        payload_action,
+        error.to_string(),
+        true,
+        error.remediation(),
+    );
+    if let Some(field) = error.field() {
+        payload["field"] = json!(field);
+    }
+    if let Some(bad_value) = error.bad_value() {
+        payload["bad_value"] = json!(bad_value);
+    }
+    payload["available_actions"] = json!(action_names());
+    payload
+}
+
+fn unknown_action_payload(tool: &str, action: &str) -> Value {
+    validation_error_payload_from_validation_error(
+        tool,
+        Some(action),
+        &ValidationError::UnknownAction {
+            action: action.to_owned(),
+        },
+    )
+}
+
+fn execution_error_payload(tool: &str, action: Option<&str>, error: &anyhow::Error) -> Value {
+    base_tool_error_payload(
+        "mcp_tool_error",
+        "execution_error",
+        tool,
+        action,
+        format!("Tool execution failed: {error}"),
+        true,
+        "Check service configuration and upstream availability, then retry. Use action=status or action=help for diagnostics.",
+    )
+}
+
+fn base_tool_error_payload(
+    kind: &str,
+    code: &str,
+    tool: &str,
+    action: Option<&str>,
+    message: impl Into<String>,
+    retryable: bool,
+    remediation: impl Into<String>,
+) -> Value {
+    json!({
+        "kind": kind,
+        "schema_version": 1,
+        "code": code,
+        "tool": tool,
+        "action": action,
+        "message": message.into(),
+        "retryable": retryable,
+        "remediation": remediation.into(),
+    })
+}
+
+fn empty_action_as_none(action: &str) -> Option<&str> {
+    if action.is_empty() {
+        None
+    } else {
+        Some(action)
+    }
+}
+
+fn unknown_tool_error(tool_name: &str) -> ErrorData {
+    ErrorData::invalid_params(
+        format!("unknown tool: {tool_name}; available tools: example"),
+        Some(json!({
+            "kind": "mcp_protocol_error",
+            "schema_version": 1,
+            "code": "unknown_tool",
+            "tool": tool_name,
+            "available_tools": ["example"],
+            "retryable": true,
+            "remediation": "Call tools/list, then retry with one of the advertised tool names.",
+        })),
+    )
+}
+
+#[cfg(test)]
 fn reject_unknown_action_before_scope(action: &str) -> Result<(), ErrorData> {
     if is_known_action(action) {
         return Ok(());
@@ -275,6 +429,7 @@ fn reject_unknown_action_before_scope(action: &str) -> Result<(), ErrorData> {
     ))
 }
 
+#[cfg(test)]
 fn internal_tool_error_message(action: &str) -> String {
     format!("tool execution failed: kind=execution_error action='{action}'")
 }

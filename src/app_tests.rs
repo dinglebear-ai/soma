@@ -190,6 +190,12 @@ fn test_scaffold_intent_rejects_invalid_contract_identifiers() {
 
     let error = result.expect_err("invalid crate_name should be rejected");
     assert!(error.to_string().contains("crate_name"));
+    let validation = error
+        .downcast_ref::<ScaffoldIntentValidationError>()
+        .expect("error should preserve scaffold validation metadata");
+    assert_eq!(validation.code(), "invalid_identifier");
+    assert_eq!(validation.field(), Some("crate_name"));
+    assert_eq!(validation.expected_pattern(), Some("^[a-z][a-z0-9-]*$"));
 }
 
 #[test]
@@ -201,6 +207,11 @@ fn test_scaffold_intent_rejects_zero_port_and_bad_urls() {
         .scaffold_intent(input)
         .expect_err("zero port should be rejected");
     assert!(error.to_string().contains("port"));
+    let validation = error
+        .downcast_ref::<ScaffoldIntentValidationError>()
+        .expect("error should preserve scaffold validation metadata");
+    assert_eq!(validation.code(), "invalid_port");
+    assert_eq!(validation.field(), Some("port"));
 
     let mut input = valid_scaffold_intent();
     input.crawl_urls = "not-a-url".into();
@@ -208,6 +219,12 @@ fn test_scaffold_intent_rejects_zero_port_and_bad_urls() {
         .scaffold_intent(input)
         .expect_err("bad crawl URL should be rejected");
     assert!(error.to_string().contains("crawl_urls"));
+    let validation = error
+        .downcast_ref::<ScaffoldIntentValidationError>()
+        .expect("error should preserve scaffold validation metadata");
+    assert_eq!(validation.code(), "invalid_url");
+    assert_eq!(validation.field(), Some("crawl_urls"));
+    assert!(validation.remediation().contains("absolute URLs"));
 }
 
 #[test]

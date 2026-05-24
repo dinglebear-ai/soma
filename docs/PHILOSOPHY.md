@@ -104,12 +104,12 @@ Signs of a violation: an `if` in `tools.rs` that isn't arg parsing; a default va
 
 The MCP server must stay running and return useful responses even when the upstream service is unavailable. Never crash on upstream failures.
 
-1. **MCP server UP, upstream DOWN** — return `CallToolResult::error()`, not panics
+1. **MCP server UP, upstream DOWN** — return `CallToolResult::structured_error()`, not panics
 2. **Partial failures** — return what succeeded, mark what failed
 3. **Startup with bad config** — warn, don't crash (except security violations)
 4. **Upstream timeouts** — fail fast with a clear error, suggest `action=status`
 
-MCP tool errors must use `CallToolResult::error()`, not `Err(ErrorData)`. An `Err` crashes the tool call at the protocol level; a `CallToolResult::error` gives the agent a readable, actionable message.
+MCP tool errors must use `CallToolResult::structured_error()`, not `Err(ErrorData)`. An `Err` fails the call at the protocol level; a structured tool error gives the agent readable, actionable fields with `isError: true`.
 
 ## Destructive action protection
 

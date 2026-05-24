@@ -159,5 +159,10 @@ scripts/pre-release-check.sh
 - Keep business logic tests below HTTP when possible.
 - Use live mcporter tests for transport/resource/auth integration.
 - A test that checks `is_error: false` only verifies the protocol layer responded — prove the actual data is correct.
+- Negative MCP tool tests should assert `isError: true` and inspect the structured
+  error payload: `kind`, `schema_version`, stable `code`, `tool`, `action`,
+  optional `field`/`bad_value`, and `remediation`. Protocol `ErrorData` should
+  be reserved for auth/scope denial, unknown MCP tool names, resource/prompt
+  lookup, and server serialization defects.
 
 See `docs/PATTERNS.md` §12, §17, §24 for test sidecar, mcporter, and nextest patterns.
