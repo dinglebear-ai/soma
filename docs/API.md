@@ -112,7 +112,7 @@ Some actions require MCP client capabilities and are excluded from REST action l
 
 ## Agent-first output rules
 
-- No single response may return more than ~10,000 tokens (~40 KB). REST returns a JSON truncation envelope; MCP returns a valid structured overflow envelope instead of invalid partial JSON.
+- No single response may return more than ~10,000 tokens (~40 KB). REST returns a JSON truncation envelope; MCP returns a valid structured page envelope with `_response_offset` continuation arguments instead of invalid partial JSON.
 - List actions MUST support `limit` and `offset` (or `cursor`).
 - List actions that return heterogeneous data MUST support `filter` and `state` parameters.
 - Every CLI command that outputs data MUST support `--json`.
@@ -120,17 +120,21 @@ Some actions require MCP client capabilities and are excluded from REST action l
 ```rust
 const MAX_RESPONSE_BYTES: usize = 40_000; // ~10K tokens
 
-fn mcp_overflow_response(serialized_bytes: usize) -> serde_json::Value {
+fn mcp_response_page(serialized_bytes: usize, next_offset: usize) -> serde_json::Value {
     serde_json::json!({
-        "kind": "mcp_response_overflow",
+        "kind": "mcp_response_page",
         "schema_version": 1,
-        "code": "response_too_large",
+        "code": "response_page",
         "truncated": false,
         "serialized_bytes": serialized_bytes,
         "max_response_bytes": MAX_RESPONSE_BYTES,
-        "pagination": {
-            "automatic": false,
-            "remediation": "Retry with limit/offset, cursor, filters, or a narrower action."
+        "content_format": "application/json-fragment",
+        "content": "...serialized JSON page...",
+        "continuation": {
+            "arguments": {
+                "_response_offset": next_offset,
+                "_response_page_bytes": 16000
+            }
         }
     })
 }

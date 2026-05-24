@@ -8,6 +8,7 @@ use crate::{
 use super::{
     check_scope, execution_error_payload, scope_satisfied, tool_error_result,
     tool_result_from_json, unknown_action_payload, unknown_tool_error, validation_error_payload,
+    ResponsePageRequest,
 };
 
 fn scopes(s: &[&str]) -> Vec<String> {
@@ -65,10 +66,15 @@ fn unknown_action_gets_deny_scope() {
 }
 
 #[test]
-fn tool_result_from_json_returns_valid_overflow_envelope() {
-    let result = tool_result_from_json(json!({
-        "payload": "x".repeat(MAX_RESPONSE_BYTES + 1)
-    }))
+fn tool_result_from_json_returns_scrollable_page_envelope() {
+    let result = tool_result_from_json(
+        json!({
+            "payload": "x".repeat(MAX_RESPONSE_BYTES + 1)
+        }),
+        ResponsePageRequest::default(),
+        "example",
+        Some("status"),
+    )
     .expect("tool result should serialize");
     let text = result.content[0]
         .raw
@@ -77,16 +83,62 @@ fn tool_result_from_json_returns_valid_overflow_envelope() {
         .text
         .as_str();
     let parsed: serde_json::Value =
-        serde_json::from_str(text).expect("overflow text should remain valid JSON");
+        serde_json::from_str(text).expect("paged text should remain valid JSON");
 
-    assert_eq!(parsed["kind"], "mcp_response_overflow");
+    assert_eq!(parsed["kind"], "mcp_response_page");
     assert_eq!(parsed["schema_version"], 1);
-    assert_eq!(parsed["code"], "response_too_large");
+    assert_eq!(parsed["code"], "response_page");
     assert_eq!(parsed["truncated"], false);
-    assert_eq!(parsed["pagination"]["automatic"], false);
+    assert_eq!(parsed["page"]["offset"], 0);
+    assert_eq!(parsed["page"]["has_more"], true);
+    assert_eq!(parsed["continuation"]["arguments"]["action"], "status");
+    assert!(
+        parsed["continuation"]["arguments"]["_response_offset"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
     assert!(parsed["serialized_bytes"].as_u64().unwrap() > MAX_RESPONSE_BYTES as u64);
     assert!(!text.contains("[TRUNCATED"));
     assert_eq!(result.structured_content.as_ref(), Some(&parsed));
+}
+
+#[test]
+fn tool_result_from_json_returns_requested_continuation_page() {
+    let first = tool_result_from_json(
+        json!({
+            "payload": "x".repeat(MAX_RESPONSE_BYTES + 1)
+        }),
+        ResponsePageRequest::default(),
+        "example",
+        Some("status"),
+    )
+    .expect("first page should serialize");
+    let first_payload: serde_json::Value =
+        serde_json::from_str(first.content[0].raw.as_text().unwrap().text.as_str()).unwrap();
+    let next_offset = first_payload["continuation"]["arguments"]["_response_offset"]
+        .as_u64()
+        .expect("first page should expose next offset") as usize;
+
+    let second = tool_result_from_json(
+        json!({
+            "payload": "x".repeat(MAX_RESPONSE_BYTES + 1)
+        }),
+        ResponsePageRequest {
+            offset: next_offset,
+            page_bytes: 1024,
+        },
+        "example",
+        Some("status"),
+    )
+    .expect("second page should serialize");
+    let second_payload: serde_json::Value =
+        serde_json::from_str(second.content[0].raw.as_text().unwrap().text.as_str()).unwrap();
+
+    assert_eq!(second_payload["kind"], "mcp_response_page");
+    assert_eq!(second_payload["page"]["offset"], next_offset);
+    assert_eq!(second_payload["page"]["page_bytes"], 1024);
+    assert_ne!(second_payload["content"], first_payload["content"]);
 }
 
 #[test]

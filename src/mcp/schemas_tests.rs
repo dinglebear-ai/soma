@@ -25,6 +25,16 @@ fn echo_message_schema_requires_non_empty_string() {
 }
 
 #[test]
+fn schema_advertises_reserved_response_paging_args() {
+    let tools = tool_definitions();
+    let properties = &tools[0]["inputSchema"]["properties"];
+
+    assert_eq!(properties["_response_offset"]["minimum"], 0);
+    assert_eq!(properties["_response_page_bytes"]["minimum"], 1);
+    assert_eq!(properties["_response_page_bytes"]["maximum"], 16000);
+}
+
+#[test]
 fn schema_conditionally_requires_echo_message() {
     let tools = tool_definitions();
     let all_of = tools[0]["inputSchema"]["allOf"]

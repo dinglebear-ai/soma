@@ -45,6 +45,17 @@ fn build_tool_definitions() -> Vec<Value> {
                     "type": "string",
                     "minLength": 1,
                     "description": "Message to echo back (required for action=echo)."
+                },
+                "_response_offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Reserved MCP adapter continuation offset. Use only when a prior response returned kind=mcp_response_page."
+                },
+                "_response_page_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 16000,
+                    "description": "Reserved MCP adapter page size in bytes. Use only with _response_offset to scroll large serialized JSON responses."
                 }
             },
             "required": ["action"],

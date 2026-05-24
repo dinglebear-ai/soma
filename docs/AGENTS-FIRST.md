@@ -27,23 +27,27 @@ This template is optimized for AI agents as primary operators and consumers. Des
 
 No single response may return more than ~10,000 tokens (~40 KB of text). MCP
 responses must stay valid JSON; when a serialized tool result is too large,
-return a small structured overflow envelope and make list actions paginated by
-default:
+return a small structured page envelope with `_response_offset` continuation
+arguments. List actions should still be paginated by default:
 
 ```rust
 const MAX_RESPONSE_BYTES: usize = 40_000; // ~10K tokens
 
-fn mcp_overflow_response(serialized_bytes: usize) -> serde_json::Value {
+fn mcp_response_page(serialized_bytes: usize, next_offset: usize) -> serde_json::Value {
     serde_json::json!({
-        "kind": "mcp_response_overflow",
+        "kind": "mcp_response_page",
         "schema_version": 1,
-        "code": "response_too_large",
+        "code": "response_page",
         "truncated": false,
         "serialized_bytes": serialized_bytes,
         "max_response_bytes": MAX_RESPONSE_BYTES,
-        "pagination": {
-            "automatic": false,
-            "remediation": "Retry with limit/offset, cursor, filters, or a narrower action."
+        "content_format": "application/json-fragment",
+        "content": "...serialized JSON page...",
+        "continuation": {
+            "arguments": {
+                "_response_offset": next_offset,
+                "_response_page_bytes": 16000
+            }
         }
     })
 }

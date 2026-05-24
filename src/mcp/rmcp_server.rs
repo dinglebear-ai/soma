@@ -33,6 +33,11 @@ use crate::server::{AppState, AuthPolicy};
 
 use super::{prompts, schemas::tool_definitions, tools::execute_tool};
 
+const RESPONSE_OFFSET_PARAM: &str = "_response_offset";
+const RESPONSE_PAGE_BYTES_PARAM: &str = "_response_page_bytes";
+const DEFAULT_RESPONSE_PAGE_BYTES: usize = 16_000;
+const MAX_RESPONSE_PAGE_BYTES: usize = 16_000;
+
 // ── server ────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -77,6 +82,7 @@ impl ServerHandler for ExampleRmcpServer {
             .and_then(Value::as_str)
             .map(ToOwned::to_owned);
 
+        let response_page = response_page_request(request.arguments.as_ref())?;
         let auth = require_auth_context(&self.state, &context)?;
         if tool_name != "example" {
             return Err(unknown_tool_error(&tool_name));
@@ -101,10 +107,11 @@ impl ServerHandler for ExampleRmcpServer {
 
         let action: String = action_opt.unwrap_or_default();
 
-        let arguments = request
+        let mut arguments = request
             .arguments
             .map(Value::Object)
             .unwrap_or_else(|| Value::Object(Map::new()));
+        strip_response_page_params(&mut arguments);
 
         // Clone the peer so we can pass it to the tool dispatcher.
         // The peer is needed for elicitation (asking the client for user input).
@@ -120,7 +127,12 @@ impl ServerHandler for ExampleRmcpServer {
                     elapsed_ms = started.elapsed().as_millis(),
                     "MCP tool execution completed"
                 );
-                tool_result_from_json(result)
+                tool_result_from_json(
+                    result,
+                    response_page,
+                    &tool_name,
+                    empty_action_as_none(&action),
+                )
             }
             Err(error) if crate::actions::is_validation_error(&error) => {
                 tracing::warn!(
@@ -270,17 +282,103 @@ fn rmcp_tool_from_json(value: Value) -> Result<Tool, ErrorData> {
     ))
 }
 
-fn tool_result_from_json(value: Value) -> Result<CallToolResult, ErrorData> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ResponsePageRequest {
+    offset: usize,
+    page_bytes: usize,
+}
+
+impl Default for ResponsePageRequest {
+    fn default() -> Self {
+        Self {
+            offset: 0,
+            page_bytes: DEFAULT_RESPONSE_PAGE_BYTES,
+        }
+    }
+}
+
+fn response_page_request(
+    args: Option<&Map<String, Value>>,
+) -> Result<ResponsePageRequest, ErrorData> {
+    let Some(args) = args else {
+        return Ok(ResponsePageRequest::default());
+    };
+    let offset = optional_usize_arg(args, RESPONSE_OFFSET_PARAM)?.unwrap_or(0);
+    let page_bytes = optional_usize_arg(args, RESPONSE_PAGE_BYTES_PARAM)?
+        .unwrap_or(DEFAULT_RESPONSE_PAGE_BYTES)
+        .min(MAX_RESPONSE_PAGE_BYTES);
+    if page_bytes == 0 {
+        return Err(ErrorData::invalid_params(
+            format!("{RESPONSE_PAGE_BYTES_PARAM} must be greater than zero"),
+            Some(json!({
+                "kind": "mcp_protocol_error",
+                "schema_version": 1,
+                "code": "invalid_response_page_bytes",
+                "field": RESPONSE_PAGE_BYTES_PARAM,
+                "retryable": true,
+                "remediation": format!("Omit {RESPONSE_PAGE_BYTES_PARAM} or pass an integer from 1 to {MAX_RESPONSE_PAGE_BYTES}."),
+            })),
+        ));
+    }
+    Ok(ResponsePageRequest { offset, page_bytes })
+}
+
+fn optional_usize_arg(args: &Map<String, Value>, field: &str) -> Result<Option<usize>, ErrorData> {
+    let Some(value) = args.get(field) else {
+        return Ok(None);
+    };
+    let Some(value) = value.as_u64() else {
+        return Err(ErrorData::invalid_params(
+            format!("{field} must be an unsigned integer"),
+            Some(json!({
+                "kind": "mcp_protocol_error",
+                "schema_version": 1,
+                "code": "invalid_response_page_arg",
+                "field": field,
+                "retryable": true,
+                "remediation": format!("Pass {field} as a non-negative integer."),
+            })),
+        ));
+    };
+    usize::try_from(value).map(Some).map_err(|_| {
+        ErrorData::invalid_params(
+            format!("{field} is too large"),
+            Some(json!({
+                "kind": "mcp_protocol_error",
+                "schema_version": 1,
+                "code": "response_page_arg_too_large",
+                "field": field,
+                "retryable": true,
+                "remediation": format!("Pass a smaller {field} value."),
+            })),
+        )
+    })
+}
+
+fn strip_response_page_params(arguments: &mut Value) {
+    let Some(arguments) = arguments.as_object_mut() else {
+        return;
+    };
+    arguments.remove(RESPONSE_OFFSET_PARAM);
+    arguments.remove(RESPONSE_PAGE_BYTES_PARAM);
+}
+
+fn tool_result_from_json(
+    value: Value,
+    page_request: ResponsePageRequest,
+    tool: &str,
+    action: Option<&str>,
+) -> Result<CallToolResult, ErrorData> {
     // Compact JSON (not pretty) recovers ~30-40% of the 40 KB token budget.
     let text = serde_json::to_string(&value)
         .map_err(|e| ErrorData::internal_error(format!("serialization error: {e}"), None))?;
-    if text.len() <= MAX_RESPONSE_BYTES {
+    if text.len() <= MAX_RESPONSE_BYTES && page_request.offset == 0 {
         let mut result = CallToolResult::structured(value);
         result.content = vec![Content::text(text)];
         return Ok(result);
     }
 
-    let payload = response_overflow_payload(text.len());
+    let payload = response_page_payload(&text, page_request, tool, action);
     let text = serde_json::to_string(&payload)
         .map_err(|e| ErrorData::internal_error(format!("serialization error: {e}"), None))?;
     let mut result = CallToolResult::structured(payload);
@@ -304,22 +402,67 @@ fn tool_error_result(value: Value) -> Result<CallToolResult, ErrorData> {
     Ok(result)
 }
 
-fn response_overflow_payload(serialized_bytes: usize) -> Value {
+fn response_page_payload(
+    serialized: &str,
+    page_request: ResponsePageRequest,
+    tool: &str,
+    action: Option<&str>,
+) -> Value {
+    let (offset, content, next_offset, has_more) =
+        response_page_slice(serialized, page_request.offset, page_request.page_bytes);
+    let continuation = has_more.then(|| {
+        json!({
+            "tool": tool,
+            "arguments": {
+                "action": action,
+                RESPONSE_OFFSET_PARAM: next_offset,
+                RESPONSE_PAGE_BYTES_PARAM: page_request.page_bytes,
+            },
+            "note": "Call the same tool with the same original arguments plus these reserved continuation arguments.",
+        })
+    });
+
     json!({
-        "kind": "mcp_response_overflow",
+        "kind": "mcp_response_page",
         "schema_version": 1,
-        "code": "response_too_large",
-        "message": "Tool response exceeded the MCP response size limit. The original JSON was not returned to avoid invalid truncated JSON.",
-        "overflow": true,
+        "code": "response_page",
+        "message": "Tool response exceeded the MCP response size limit and was returned as a scrollable serialized JSON page.",
         "truncated": false,
-        "serialized_bytes": serialized_bytes,
+        "serialized_bytes": serialized.len(),
         "max_response_bytes": MAX_RESPONSE_BYTES,
-        "pagination": {
-            "automatic": false,
-            "reason": "This generic MCP adapter cannot infer action-specific pagination without risking duplicate or missing records.",
-            "remediation": "Retry with limit/offset, cursor, filters, or a narrower action when the tool supports them. Template authors should make large list actions bounded by default.",
+        "content_format": "application/json-fragment",
+        "content": content,
+        "page": {
+            "offset": offset,
+            "page_bytes": page_request.page_bytes,
+            "next_offset": next_offset,
+            "has_more": has_more,
         },
+        "continuation": continuation,
     })
+}
+
+fn response_page_slice(
+    serialized: &str,
+    requested_offset: usize,
+    page_bytes: usize,
+) -> (usize, &str, usize, bool) {
+    let mut offset = requested_offset.min(serialized.len());
+    while offset < serialized.len() && !serialized.is_char_boundary(offset) {
+        offset += 1;
+    }
+
+    let mut end = offset.saturating_add(page_bytes).min(serialized.len());
+    while end > offset && !serialized.is_char_boundary(end) {
+        end -= 1;
+    }
+
+    (
+        offset,
+        &serialized[offset..end],
+        end,
+        end < serialized.len(),
+    )
 }
 
 fn error_overflow_payload(value: &Value, serialized_bytes: usize) -> Value {

@@ -26,8 +26,9 @@
 //!
 //! MCP tool responses must remain valid JSON. The RMCP adapter checks the
 //! compact serialized response against [`MAX_RESPONSE_BYTES`]. Oversized MCP
-//! results are replaced with a small structured overflow envelope that tells
-//! the agent to retry with pagination, cursors, filters, or a narrower action.
+//! results are replaced with a small structured page envelope containing a
+//! serialized JSON fragment and continuation arguments (`_response_offset` and
+//! `_response_page_bytes`) so agents can scroll through the response.
 //!
 //! ## Truncation is a legacy safety net, not the primary strategy
 //!
