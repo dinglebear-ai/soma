@@ -152,12 +152,17 @@ fn unknown_tool_stays_protocol_error_with_structured_data() {
 fn execution_errors_do_not_expose_raw_error_text() {
     let payload = super::execution_error_payload("example", Some("status"));
 
-    assert_eq!(payload["kind"], "mcp_tool_error");
-    assert_eq!(payload["code"], "execution_error");
-    assert_eq!(payload["action"], "status");
     assert_eq!(
-        payload["message"],
-        "Tool execution failed. Check server logs for details."
+        payload,
+        json!({
+            "kind": "mcp_tool_error",
+            "schema_version": 1,
+            "code": "execution_error",
+            "tool": "example",
+            "action": "status",
+            "message": "Tool execution failed. Check server logs for details.",
+            "retryable": true,
+            "remediation": "Check service configuration and upstream availability, then retry. Use action=status or action=help for diagnostics.",
+        })
     );
-    assert!(!payload.to_string().contains("secret"));
 }
