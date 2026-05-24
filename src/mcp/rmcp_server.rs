@@ -112,6 +112,7 @@ impl ServerHandler for ExampleRmcpServer {
             .map(Value::Object)
             .unwrap_or_else(|| Value::Object(Map::new()));
         strip_response_page_params(&mut arguments);
+        let continuation_args = continuation_arguments(&arguments).cloned();
 
         // Clone the peer so we can pass it to the tool dispatcher.
         // The peer is needed for elicitation (asking the client for user input).
@@ -132,6 +133,7 @@ impl ServerHandler for ExampleRmcpServer {
                     response_page,
                     &tool_name,
                     empty_action_as_none(&action),
+                    continuation_args.as_ref(),
                 )
             }
             Err(error) if crate::actions::is_validation_error(&error) => {
@@ -368,6 +370,7 @@ fn tool_result_from_json(
     page_request: ResponsePageRequest,
     tool: &str,
     action: Option<&str>,
+    continuation_args: Option<&Map<String, Value>>,
 ) -> Result<CallToolResult, ErrorData> {
     // Compact JSON (not pretty) recovers ~30-40% of the 40 KB token budget.
     let text = serde_json::to_string(&value)
@@ -378,7 +381,7 @@ fn tool_result_from_json(
         return Ok(result);
     }
 
-    let payload = response_page_payload(&text, page_request, tool, action);
+    let payload = response_page_payload(&text, page_request, tool, action, continuation_args);
     let text = serde_json::to_string(&payload)
         .map_err(|e| ErrorData::internal_error(format!("serialization error: {e}"), None))?;
     let mut result = CallToolResult::structured(payload);
@@ -407,17 +410,20 @@ fn response_page_payload(
     page_request: ResponsePageRequest,
     tool: &str,
     action: Option<&str>,
+    continuation_args: Option<&Map<String, Value>>,
 ) -> Value {
     let (offset, content, next_offset, has_more) =
         response_page_slice(serialized, page_request.offset, page_request.page_bytes);
     let continuation = has_more.then(|| {
+        let arguments = continuation_arguments_with_page(
+            continuation_args,
+            action,
+            next_offset,
+            page_request.page_bytes,
+        );
         json!({
             "tool": tool,
-            "arguments": {
-                "action": action,
-                RESPONSE_OFFSET_PARAM: next_offset,
-                RESPONSE_PAGE_BYTES_PARAM: page_request.page_bytes,
-            },
+            "arguments": arguments,
             "note": "Call the same tool with the same original arguments plus these reserved continuation arguments.",
         })
     });
@@ -426,7 +432,7 @@ fn response_page_payload(
         "kind": "mcp_response_page",
         "schema_version": 1,
         "code": "response_page",
-        "message": "Tool response exceeded the MCP response size limit and was returned as a scrollable serialized JSON page.",
+        "message": "Tool response was returned as a scrollable serialized JSON page.",
         "truncated": false,
         "serialized_bytes": serialized.len(),
         "max_response_bytes": MAX_RESPONSE_BYTES,
@@ -440,6 +446,28 @@ fn response_page_payload(
         },
         "continuation": continuation,
     })
+}
+
+fn continuation_arguments(arguments: &Value) -> Option<&Map<String, Value>> {
+    arguments.as_object()
+}
+
+fn continuation_arguments_with_page(
+    arguments: Option<&Map<String, Value>>,
+    action: Option<&str>,
+    next_offset: usize,
+    page_bytes: usize,
+) -> Value {
+    let mut output = arguments.cloned().unwrap_or_default();
+    if !output.contains_key("action") {
+        output.insert(
+            "action".to_owned(),
+            action.map(Value::from).unwrap_or(Value::Null),
+        );
+    }
+    output.insert(RESPONSE_OFFSET_PARAM.to_owned(), json!(next_offset));
+    output.insert(RESPONSE_PAGE_BYTES_PARAM.to_owned(), json!(page_bytes));
+    Value::Object(output)
 }
 
 fn response_page_slice(
