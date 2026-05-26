@@ -30,6 +30,7 @@ docs/
   ├── MCP-REGISTRY-PUBLISH-GUIDE.md  ← how to publish to the MCP registry
   │
   ├── adr/                            ← accepted architecture decision records
+  │   ├── README.md
   │   └── 0001-stdio-first-plugin-adapter.md
   │
   ├── QUICKSTART.md                   ← 5-minute getting-started guide
@@ -88,7 +89,7 @@ docs/
 | `docs/*.md` | Stable orientation, architecture narrative, and how-to guides. The map, not the territory. |
 | `README.md` | Canonical server surface and binary/transport profile policy for template users. |
 | `docs/PATTERNS.md` | Normative patterns for the entire rmcp server family. Deviation requires an explicit recorded decision. |
-| `docs/adr/` | Accepted architecture decisions. Use ADRs for cross-cutting choices that future adapters must preserve or explicitly supersede. |
+| `docs/adr/` | Accepted architecture decisions. Use ADRs for cross-cutting choices that future adapters must preserve or explicitly supersede. Number new ADRs after the highest accepted record and add them to `docs/adr/README.md`. |
 | `docs/contracts/` | Machine-readable JSON schemas and example payloads checked by CI scripts. Committed. |
 | `docs/generated/` | Small artifacts produced by `just openapi`, `just schema-docs`, etc. Only commit when the artifact is part of CI/API compatibility checking. |
 | `docs/specs/` | Implementation specs and handoff documents. Draft until promoted to a stable guide. |
