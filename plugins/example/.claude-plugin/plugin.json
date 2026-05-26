@@ -14,9 +14,6 @@
   "mcpServers": "./.mcp.json",
   "hooks": "./hooks/hooks.json",
   "skills": "./skills",
-  "experimental": {
-    "monitors": "./monitors/monitors.json"
-  },
   "userConfig": {
     "use_docker": {
       "type": "boolean",
@@ -28,14 +25,14 @@
     "server_url": {
       "type": "string",
       "title": "Server URL",
-      "description": "Base URL of the MCP HTTP server this Claude Code session connects to. If running locally: keep http://localhost:40060. If connecting to a remote server: set to http://hostname:40060 or https://example.yourdomain.com. Do NOT include a trailing /mcp \u2014 the plugin appends it automatically.",
-      "required": true,
-      "default": "http://localhost:40060"
+      "description": "Optional HTTP server base URL for remote/platform fallback and health monitoring. The default MCP connection uses the bundled local stdio adapter at bin/example mcp.",
+      "required": false,
+      "default": ""
     },
     "api_token": {
       "type": "string",
       "title": "API token",
-      "description": "Bearer token for MCP HTTP authentication. Every request to /mcp includes: Authorization: Bearer <token>. Server mode: pick any value and use the same value in EXAMPLE_MCP_TOKEN. Client mode: paste the token your server admin configured. Generate one with: openssl rand -hex 32 or just gen-token.",
+      "description": "Optional bearer token for HTTP MCP fallback. Not used by the default stdio connection. Server mode: pick any value and use the same value in EXAMPLE_MCP_TOKEN. Generate one with: openssl rand -hex 32 or just gen-token.",
       "sensitive": true,
       "required": false
     },
@@ -82,7 +79,7 @@
     "example_api_url": {
       "type": "string",
       "title": "Service API URL",
-      "description": "TEMPLATE: Replace 'example_api_url' with your service's credential field name (e.g. 'myservice_api_url'). Your service's API endpoint \u2014 the URL this MCP server calls to fetch data. Example: https://api.example.com/v1. Maps to EXAMPLE_API_URL env var.",
+      "description": "TEMPLATE: Replace 'example_api_url' with your service's credential field name (e.g. 'myservice_api_url'). For platform servers, this is the deployed REST API base URL used by the local stdio adapter. For upstream-client servers, this is the upstream service endpoint. Maps to EXAMPLE_API_URL env var.",
       "sensitive": true,
       "default": ""
     },

@@ -8,10 +8,13 @@
   "contextFileName": "GEMINI.md",
   "mcpServers": {
     "example": {
-      "type": "http",
-      "url": "${settings.server_url}/mcp",
-      "headers": {
-        "Authorization": "Bearer ${settings.api_token}"
+      "type": "stdio",
+      "command": "${extensionPath}${/}bin${/}example",
+      "args": ["mcp"],
+      "env": {
+        "EXAMPLE_API_URL": "${settings.example_api_url}",
+        "EXAMPLE_API_KEY": "${settings.example_api_key}",
+        "RUST_LOG": "warn"
       }
     }
   },
@@ -20,19 +23,18 @@
   "settings": [
     {
       "name": "server_url",
-      "description": "Base URL of the MCP HTTP server. Keep http://localhost:40060 for local use; set to https://example.yourdomain.com for a remote server. Do NOT include a trailing /mcp.",
-      "required": true,
-      "default": "http://localhost:40060"
+      "description": "Optional HTTP server base URL for remote/platform fallback and health monitoring. The default MCP connection uses local stdio instead.",
+      "required": false
     },
     {
       "name": "api_token",
-      "description": "Bearer token for MCP HTTP authentication. Every request to /mcp includes: Authorization: Bearer <token>. Generate one with: openssl rand -hex 32",
+      "description": "Optional bearer token for HTTP MCP fallback. Not used by the default stdio connection.",
       "required": false,
       "sensitive": true
     },
     {
       "name": "example_api_url",
-      "description": "TEMPLATE: Replace 'example_api_url' with your service's credential field name. Your upstream service API endpoint — the URL this MCP server calls to fetch data. Maps to EXAMPLE_API_URL env var.",
+      "description": "TEMPLATE: Replace 'example_api_url' with your service's credential field name. For platform servers, this is the deployed REST API base URL used by the local stdio adapter. For upstream-client servers, this is the upstream service endpoint. Maps to EXAMPLE_API_URL env var.",
       "required": false
     },
     {

@@ -12,7 +12,7 @@ Multi-platform plugin package for the Example MCP server. Contains manifests for
 | `.codex-plugin/plugin.json` | Codex manifest — same data + Codex UI fields (`interface`) |
 | `gemini-extension.json` | Gemini CLI manifest — uses `settings` array instead of `userConfig` |
 | `.mcp.json` | Shared MCP server connection config used by all three platforms |
-| `bin/example` | Release binary used by the monitor — populate with `just install` |
+| `bin/example` | Release binary used by stdio MCP and optional monitor — populate with `just install` |
 | `hooks/hooks.json` | Lifecycle hook definitions: `SessionStart`, `ConfigChange` |
 | `hooks/plugin-setup.sh` | Lifecycle setup adapter; maps plugin options and delegates to the binary |
 | `monitors/monitors.json` | Background health monitor config (requires Claude Code v2.1.105+) |
@@ -30,13 +30,17 @@ When changing user-configurable settings, update all three manifests: `userConfi
 
 ## Monitors (Claude Code v2.1.105+)
 
-`monitors/monitors.json` runs `example watch` from `${CLAUDE_PLUGIN_ROOT}/bin/example`. The binary must exist at that path before the plugin is installed. Populate it with:
+`.mcp.json` runs `${CLAUDE_PLUGIN_ROOT}/bin/example mcp` as the default stdio MCP
+server. The binary must exist at that path before the plugin is installed.
+Populate it with:
 
 ```bash
 just install   # cargo build --release, then copies to plugins/example/bin/example
 ```
 
-The monitor command uses `${user_config.server_url}` substitution — this is resolved at runtime from the user's plugin settings. Do not hardcode URLs in `monitors.json`.
+`monitors/monitors.json` is optional and only useful for HTTP deployments. Its
+command uses `${user_config.server_url}` substitution — this is resolved at
+runtime from the user's plugin settings. Do not hardcode URLs in `monitors.json`.
 
 When adding a new monitor: add an entry to `monitors.json` and reference only `${CLAUDE_PLUGIN_ROOT}/bin/example` or scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/`. Do not reference bare binary names that depend on PATH — the monitor may start before `plugin-setup.sh` has run.
 

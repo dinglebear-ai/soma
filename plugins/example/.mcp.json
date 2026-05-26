@@ -1,10 +1,13 @@
 {
   "mcpServers": {
     "example": {
-      "type": "http",
-      "url": "${user_config.server_url}/mcp",
-      "headers": {
-        "Authorization": "Bearer ${user_config.api_token}"
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/example",
+      "args": ["mcp"],
+      "env": {
+        "EXAMPLE_API_URL": "${user_config.example_api_url}",
+        "EXAMPLE_API_KEY": "${user_config.example_api_key}",
+        "RUST_LOG": "warn"
       }
     }
   }

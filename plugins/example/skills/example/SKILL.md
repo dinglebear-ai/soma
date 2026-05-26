@@ -26,7 +26,7 @@ description: TEMPLATE SKILL — Replace this description with your service's tri
 # Example Skill
 
 <!-- TEMPLATE: Replace this paragraph with your service description -->
-Rust-based MCP server template. Exposes a single `example` MCP tool with action-based dispatch for interacting with an example remote service.
+Rust-based MCP server template. Exposes a single `example` MCP tool with action-based dispatch for interacting with an example remote service. The plugin default is local stdio MCP (`bin/example mcp`); for platform deployments the local adapter calls the deployed API configured by `example_api_url`.
 
 ## Tool
 
@@ -44,7 +44,7 @@ A single MCP tool, `mcp__example__example`, dispatches on a required `action` ar
 | `scaffold_intent` | Elicit scaffold requirements and return JSON for the scaffold-project skill |
 | `help` | Full in-tree action reference |
 
-**Always prefer the MCP tool**. Fall back to HTTP curl only when MCP is unavailable.
+**Always prefer the MCP tool**. The default plugin path is stdio. Fall back to HTTP curl only when MCP is unavailable or when explicitly debugging a remote HTTP deployment.
 
 ---
 
@@ -71,7 +71,7 @@ mcp__example__example(action="greet", name="Alice")
 {
   "greeting": "Hello, Alice!",
   "target": "Alice",
-  "server": "https://api.example.com/v1"
+  "server": ""
 }
 ```
 
@@ -98,7 +98,7 @@ mcp__example__example(action="echo", message="Hello, world!")
 
 ### `action="status"` — Server status
 
-No parameters. Returns connectivity and configuration info.
+No parameters. Returns status from the local stub or from the deployed API when `example_api_url` / `EXAMPLE_API_URL` is configured.
 
 ```
 mcp__example__example(action="status")
@@ -108,8 +108,7 @@ mcp__example__example(action="status")
 ```json
 {
   "status": "ok",
-  "api_url": "https://api.example.com/v1",
-  "note": "Replace with real health endpoint data"
+  "note": "stub — replace with real health endpoint"
 }
 ```
 
@@ -216,9 +215,17 @@ mcp__example__example(action="help")
 <!-- TEMPLATE: Update the curl examples with your service name and actions.
      The CLAUDE_PLUGIN_OPTION_* env vars are injected by the plugin runtime. -->
 
-Use only when the MCP tool is unavailable. The plugin exports connection settings as:
-- `CLAUDE_PLUGIN_OPTION_SERVER_URL` — base URL (e.g. `http://localhost:40060`)
-- `CLAUDE_PLUGIN_OPTION_API_TOKEN` — bearer token
+Use only when the stdio MCP tool is unavailable or when debugging a remote HTTP
+deployment. The plugin default launches `${CLAUDE_PLUGIN_ROOT}/bin/example mcp`
+and passes:
+
+- `CLAUDE_PLUGIN_OPTION_EXAMPLE_API_URL` — deployed platform API or upstream URL
+- `CLAUDE_PLUGIN_OPTION_EXAMPLE_API_KEY` — deployed API bearer token or upstream key
+
+For HTTP fallback, configure:
+
+- `CLAUDE_PLUGIN_OPTION_SERVER_URL` — HTTP MCP base URL (e.g. `http://localhost:40060`)
+- `CLAUDE_PLUGIN_OPTION_API_TOKEN` — HTTP MCP bearer token
 
 **Sensitive value handling:** `api_token` is declared `sensitive: true` in plugin.json.
 It is never substituted into skill content — only the env var path above is valid.

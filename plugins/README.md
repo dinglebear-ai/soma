@@ -1,6 +1,9 @@
 # plugins
 
-Claude Code, Codex, and Gemini plugin packages for the MCP server. All platforms share the same skills and MCP connection config — only the manifests differ.
+Claude Code, Codex, and Gemini plugin packages for the MCP server. Claude Code
+and Codex share the same stdio MCP connection config; Gemini embeds an
+equivalent inline config because its manifest format differs. All platforms
+share the same skills.
 
 ## Structure
 
@@ -35,16 +38,16 @@ Claude Code plugin manifest. Defines the plugin identity, MCP server connection,
 
 | Field | Type | Description |
 |---|---|---|
-| `server_url` | string | MCP HTTP server base URL (default: `http://localhost:40060`) |
-| `api_token` | string (sensitive) | Bearer token for auth |
+| `server_url` | string | Optional MCP HTTP server base URL for fallback/monitoring |
+| `api_token` | string (sensitive) | Optional bearer token for HTTP fallback auth |
 | `no_auth` | boolean | Disable auth (loopback dev only; non-loopback requires an upstream gateway) |
 | `auth_mode` | string | `bearer` or `oauth` |
 | `public_url` | string | Public URL for OAuth callbacks |
 | `google_client_id` | string (sensitive) | Google OAuth client ID |
 | `google_client_secret` | string (sensitive) | Google OAuth client secret |
 | `auth_admin_email` | string | OAuth admin email |
-| `example_api_url` | string | Upstream service URL |
-| `example_api_key` | string (sensitive) | Upstream service API key |
+| `example_api_url` | string | Deployed platform API or upstream service URL used by stdio adapter |
+| `example_api_key` | string (sensitive) | Deployed API bearer token or upstream service API key |
 
 **TEMPLATE**: Replace `example_api_url` / `example_api_key` with your service's credential fields.
 
@@ -61,16 +64,20 @@ See `.codex-plugin/README.md` for a full field reference and `brandColor` guide.
 
 ### `.mcp.json`
 
-Shared MCP server connection config used by both plugins. Points both clients at the same HTTP endpoint with the same auth headers.
+Shared MCP server connection config used by Claude Code and Codex. It launches
+the bundled local binary in stdio mode.
 
 ```json
 {
   "mcpServers": {
     "example": {
-      "type": "http",
-      "url": "${user_config.server_url}/mcp",
-      "headers": {
-        "Authorization": "Bearer ${user_config.api_token}"
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/example",
+      "args": ["mcp"],
+      "env": {
+        "EXAMPLE_API_URL": "${user_config.example_api_url}",
+        "EXAMPLE_API_KEY": "${user_config.example_api_key}",
+        "RUST_LOG": "warn"
       }
     }
   }

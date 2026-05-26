@@ -40,6 +40,10 @@ fn plugin_manifests_share_identity_and_connection_settings() {
     assert_eq!(claude["name"], "example");
     assert_eq!(codex["name"], "example-mcp");
     assert_eq!(gemini["name"], "example-mcp");
+    assert!(
+        claude.get("experimental").is_none(),
+        "stdio-first plugin should not auto-register HTTP health monitors"
+    );
 
     assert!(claude["repository"]
         .as_str()
@@ -85,22 +89,45 @@ fn plugin_manifests_share_identity_and_connection_settings() {
         );
     }
 
+    assert_eq!(mcp["mcpServers"]["example"]["type"], "stdio");
     assert_eq!(
-        mcp["mcpServers"]["example"]["url"],
-        "${user_config.server_url}/mcp"
+        mcp["mcpServers"]["example"]["command"],
+        "${CLAUDE_PLUGIN_ROOT}/bin/example"
     );
     assert_eq!(
-        mcp["mcpServers"]["example"]["headers"]["Authorization"],
-        "Bearer ${user_config.api_token}"
+        mcp["mcpServers"]["example"]["args"],
+        serde_json::json!(["mcp"])
     );
     assert_eq!(
-        gemini["mcpServers"]["example"]["url"],
-        "${settings.server_url}/mcp"
+        mcp["mcpServers"]["example"]["env"]["EXAMPLE_API_URL"],
+        "${user_config.example_api_url}"
     );
     assert_eq!(
-        gemini["mcpServers"]["example"]["headers"]["Authorization"],
-        "Bearer ${settings.api_token}"
+        mcp["mcpServers"]["example"]["env"]["EXAMPLE_API_KEY"],
+        "${user_config.example_api_key}"
     );
+    assert!(mcp["mcpServers"]["example"].get("url").is_none());
+    assert!(mcp["mcpServers"]["example"].get("headers").is_none());
+
+    assert_eq!(gemini["mcpServers"]["example"]["type"], "stdio");
+    assert_eq!(
+        gemini["mcpServers"]["example"]["command"],
+        "${extensionPath}${/}bin${/}example"
+    );
+    assert_eq!(
+        gemini["mcpServers"]["example"]["args"],
+        serde_json::json!(["mcp"])
+    );
+    assert_eq!(
+        gemini["mcpServers"]["example"]["env"]["EXAMPLE_API_URL"],
+        "${settings.example_api_url}"
+    );
+    assert_eq!(
+        gemini["mcpServers"]["example"]["env"]["EXAMPLE_API_KEY"],
+        "${settings.example_api_key}"
+    );
+    assert!(gemini["mcpServers"]["example"].get("url").is_none());
+    assert!(gemini["mcpServers"]["example"].get("headers").is_none());
 }
 
 #[test]

@@ -43,7 +43,7 @@ Each plugin surface should agree on:
 
 - service name and repository URL
 - MCP server name
-- MCP connection profile: stdio command for upstream-client servers, or HTTP URL shape `<server_url>/mcp` for platform/gateway deployments
+- MCP connection profile: stdio command for local/plugin installs, or HTTP URL shape `<server_url>/mcp` for explicit remote/gateway deployments
 - bearer token setting name
 - upstream service credential names
 - action list and skill documentation
@@ -119,14 +119,14 @@ Responsibilities:
 
 - identifies the extension
 - declares Gemini settings
-- connects to the MCP HTTP endpoint
+- launches the local stdio MCP adapter
 - points at shared skills
 - optionally points Gemini at a context file with `contextFileName`
 
 The Gemini manifest uses `settings.*` interpolation instead of Claude/Codex `user_config.*` interpolation:
 
 ```json
-"url": "${settings.server_url}/mcp"
+"env": { "EXAMPLE_API_URL": "${settings.example_api_url}" }
 ```
 
 Sensitive Gemini settings use:
@@ -153,8 +153,9 @@ The validator checks:
 - Claude, Codex, and Gemini manifests are valid JSON
 - plugin manifests do not contain a `version` field
 - manifests point to the shared `.mcp.json`, hooks, and skills paths
-- shared MCP config exposes the `example` HTTP server at `${user_config.server_url}/mcp`
-- Gemini config exposes the same `example` HTTP server at `${settings.server_url}/mcp`
+- shared MCP config launches `${CLAUDE_PLUGIN_ROOT}/bin/example mcp`
+- Gemini config launches `${extensionPath}${/}bin${/}example mcp`
+- HTTP MCP remains available as a documented fallback for remote/gateway deployments
 - hook config runs `${CLAUDE_PLUGIN_ROOT}/hooks/plugin-setup.sh`
 - every skill has `name:` and `description:` frontmatter
 
@@ -171,10 +172,13 @@ Claude Code and Codex share `plugins/example/.mcp.json`:
 {
   "mcpServers": {
     "example": {
-      "type": "http",
-      "url": "${user_config.server_url}/mcp",
-      "headers": {
-        "Authorization": "Bearer ${user_config.api_token}"
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/example",
+      "args": ["mcp"],
+      "env": {
+        "EXAMPLE_API_URL": "${user_config.example_api_url}",
+        "EXAMPLE_API_KEY": "${user_config.example_api_key}",
+        "RUST_LOG": "warn"
       }
     }
   }
