@@ -3,15 +3,15 @@
 # Dockerfile — Template for building an rmcp-based MCP server
 #
 # TEMPLATE: Replace all occurrences of "example" with your binary name.
-#           The binary name must match Cargo.toml [[bin]] name = "example".
+#           The server binary name must match Cargo.toml [[bin]] name = "example-server".
 #
 # Key substitutions:
-#   "example"              → your binary name (e.g. "myservice")
+#   "example-server"       → your server binary name (e.g. "myservice-server")
 #   "example-cargo-*"      → your cache mount IDs (e.g. "myservice-cargo-*")
 #   "example-mcp"          → your systemd/Docker service name
 #   EXPOSE 40060            → your port (must match config.toml [mcp] port)
 #   HEALTHCHECK port 40060  → same as EXPOSE
-#   CMD ["example", ...]   → your binary name
+#   CMD ["serve", "mcp"]   → default args passed to the server binary
 #
 # Build stages:
 #   builder  — Rust compilation with BuildKit cache mounts (fast incremental builds)
@@ -58,7 +58,7 @@ RUN sed -i 's/, \"xtask\"//g; s/\"xtask\", //g; s/\"xtask\"//g' Cargo.toml
 RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=example-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked -p rmcp-template && rm -rf src
+    mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked -p rmcp-template --bin example-server && rm -rf src
 
 # ── Application build ─────────────────────────────────────────────────────────
 # Now copy the real source and build the actual binary.
@@ -71,8 +71,8 @@ COPY --from=web /app/apps/web/out/ apps/web/out/
 RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=example-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    touch src/main.rs && cargo build --release --locked -p rmcp-template && \
-    cp target/release/example /usr/local/bin/example
+    touch src/main.rs && cargo build --release --locked -p rmcp-template --bin example-server --features full && \
+    cp target/release/example-server /usr/local/bin/example-server
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
 # Minimal Debian image — no Rust toolchain, no build tools.
@@ -94,8 +94,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl gosu && \
     rm -rf /var/lib/apt/lists/*
 
-# TEMPLATE: Replace "example" with your binary name in both COPY and target path.
-COPY --from=builder /usr/local/bin/example /usr/local/bin/example
+# TEMPLATE: Replace "example-server" with your server binary name in both COPY and target path.
+COPY --from=builder /usr/local/bin/example-server /usr/local/bin/example-server
 
 # Wire in the entrypoint.
 # TEMPLATE: entrypoint.sh lives at the repo root. It runs as root, fixes /data
@@ -136,6 +136,6 @@ LABEL io.modelcontextprotocol.server.name="tv.tootie/example-mcp"
 
 # Entrypoint handles permission setup and privilege drop.
 # CMD is the default argument passed to entrypoint.sh.
-# TEMPLATE: Replace "example" with your binary name.
+# TEMPLATE: Replace "example-server" with your server binary name in entrypoint.sh.
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["serve", "mcp"]

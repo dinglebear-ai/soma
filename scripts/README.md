@@ -140,7 +140,7 @@ Audits plugin setup hooks across known Rust MCP servers. Without `--execute`, it
 
 ```bash
 scripts/check-runtime-current.sh
-scripts/check-runtime-current.sh --mode systemd --expected-binary target/release/example
+scripts/check-runtime-current.sh --mode systemd --expected-binary target/release/example-server
 scripts/check-runtime-current.sh --mode docker --pull --compose-dir .
 just runtime-current
 ```

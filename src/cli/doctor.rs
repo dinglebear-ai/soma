@@ -355,16 +355,16 @@ fn print_doctor_report(checks: &[DoctorCheck]) {
         println!(
             "  {}  All checks passed. Run: {}",
             green!("✓"),
-            bold!("example serve")
+            bold!("example-server serve")
         );
     } else {
-        // TEMPLATE: Replace "example serve" with your binary name.
+        // TEMPLATE: Replace "example-server serve" with your server binary name.
         let noun = if issues == 1 { "issue" } else { "issues" };
         println!(
             "  {}  {} {noun} found. Fix before running: {}",
             red!("✗"),
             red!(issues.to_string()),
-            bold!("example serve")
+            bold!("example-server serve")
         );
     }
     println!();

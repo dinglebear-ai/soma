@@ -148,7 +148,7 @@ pub fn check_binary_in_path(binary: &str) -> DoctorCheck {
 ///
 /// # TEMPLATE
 /// Call this once per required variable. Add entries for every var that must be
-/// set before `example serve` will work.
+/// set before `example-server serve` will work.
 pub fn check_required_var(var_name: &str, value: &str) -> DoctorCheck {
     if !value.is_empty() {
         let display = redact(value);
@@ -264,7 +264,7 @@ pub async fn check_upstream(base_url: &str) -> DoctorCheck {
 
 /// Check that the configured MCP port is available (not already in use).
 ///
-/// Binding on a port that is already taken causes `example serve` to fail at
+/// Binding on a port that is already taken causes `example-server serve` to fail at
 /// startup. This check catches that problem before the server starts.
 ///
 /// # TEMPLATE

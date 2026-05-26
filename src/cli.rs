@@ -27,8 +27,8 @@ pub mod watch;
 pub use setup::{run_setup, SetupCommand};
 
 pub const USAGE: &str = "Usage:
-  example [serve]          Start MCP HTTP server (default)
   example mcp              Start MCP stdio transport
+  example-server [serve]   Start HTTP MCP + REST + Web server
 
   example greet [--name NAME]       Greet NAME (or the world)
   example echo --message MSG        Echo MSG back
@@ -46,8 +46,8 @@ pub const USAGE: &str = "Usage:
 Environment:
   EXAMPLE_API_URL          Upstream service URL
   EXAMPLE_API_KEY          Upstream service API key
-  EXAMPLE_MCP_HOST         Bind host (default 127.0.0.1)
-  EXAMPLE_MCP_PORT         Bind port (default 40060)
+  EXAMPLE_MCP_HOST         HTTP server bind host (default 127.0.0.1)
+  EXAMPLE_MCP_PORT         HTTP server bind port (default 40060)
   EXAMPLE_MCP_NO_AUTH      Disable auth (loopback only)
   EXAMPLE_MCP_TOKEN        Static bearer token
   RUST_LOG                 Log filter (e.g. info,rmcp=warn)";

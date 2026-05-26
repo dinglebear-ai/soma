@@ -21,6 +21,7 @@ EXAMPLES = ROOT / "docs/contracts/examples"
 SURFACES = {"api", "cli", "mcp", "web"}
 AUTH_KINDS = {"none", "api-key", "bearer", "oauth", "both", "other"}
 TRANSPORTS = {"stdio", "http", "dual"}
+BINARY_PROFILES = {"cli-mcp", "server-full"}
 PRIMITIVES = {"tools", "resources", "prompts", "elicitation"}
 DEPLOYMENTS = {"none", "systemd", "docker"}
 PLUGINS = {"claude", "codex", "gemini"}
@@ -147,9 +148,14 @@ def validate_payload(payload: object, source: Path) -> None:
 
     runtime = payload["runtime"]
     require(isinstance(runtime, dict), f"{source}: runtime must be object")
-    require_no_extra(runtime, f"{source}: runtime", {"host", "port", "mcp_transport"})
+    require_no_extra(runtime, f"{source}: runtime", {"host", "port", "binary_profile", "mcp_transport"})
     require(isinstance(runtime["host"], str) and runtime["host"], f"{source}: runtime.host required")
     require(isinstance(runtime["port"], int) and 1 <= runtime["port"] <= 65535, f"{source}: runtime.port out of range")
+    require(runtime["binary_profile"] in BINARY_PROFILES, f"{source}: invalid runtime.binary_profile")
+    if category == "upstream-client":
+        require(runtime["binary_profile"] == "cli-mcp", f"{source}: upstream-client must default to cli-mcp binary profile")
+    else:
+        require(runtime["binary_profile"] == "server-full", f"{source}: application-platform must default to server-full binary profile")
     require(runtime["mcp_transport"] in TRANSPORTS, f"{source}: invalid runtime.mcp_transport")
 
     unique_list(payload["mcp_primitives"], f"{source}: mcp_primitives", PRIMITIVES)
@@ -176,12 +182,18 @@ def validate_payload(payload: object, source: Path) -> None:
 
     policy = payload["policy"]
     require(isinstance(policy, dict), f"{source}: policy must be object")
-    policy_keys = {"business_action_minimum_surfaces", "upstream_client_surfaces", "application_platform_surfaces"}
+    policy_keys = {"business_action_minimum_surfaces", "upstream_client_surfaces", "application_platform_surfaces", "binary_profiles"}
     require_keys(policy, f"{source}: policy", policy_keys)
     require_no_extra(policy, f"{source}: policy", policy_keys)
     require(policy.get("business_action_minimum_surfaces") == ["mcp", "cli"], f"{source}: business action minimum must be ['mcp', 'cli']")
     require(policy.get("upstream_client_surfaces") == ["mcp", "cli"], f"{source}: upstream policy mismatch")
     require(set(policy.get("application_platform_surfaces", [])) == {"api", "cli", "mcp", "web"}, f"{source}: application policy mismatch")
+    profiles = policy.get("binary_profiles")
+    require(isinstance(profiles, dict), f"{source}: policy.binary_profiles must be object")
+    require_no_extra(profiles, f"{source}: policy.binary_profiles", {"upstream_client_default", "application_platform_default", "gateway_shared_default"})
+    require(profiles.get("upstream_client_default") == "cli-mcp", f"{source}: upstream binary profile policy mismatch")
+    require(profiles.get("application_platform_default") == "server-full", f"{source}: application binary profile policy mismatch")
+    require(profiles.get("gateway_shared_default") == "server-full", f"{source}: gateway binary profile policy mismatch")
 
 
 def main() -> int:

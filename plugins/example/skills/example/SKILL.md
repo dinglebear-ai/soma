@@ -170,6 +170,7 @@ mcp__example__example(action="scaffold_intent")
   "runtime": {
     "host": "127.0.0.1",
     "port": 3100,
+    "binary_profile": "cli-mcp",
     "mcp_transport": "dual"
   },
   "mcp_primitives": ["tools", "resources", "prompts", "elicitation"],
@@ -188,7 +189,12 @@ mcp__example__example(action="scaffold_intent")
   "policy": {
     "business_action_minimum_surfaces": ["mcp", "cli"],
     "upstream_client_surfaces": ["mcp", "cli"],
-    "application_platform_surfaces": ["api", "cli", "mcp", "web"]
+    "application_platform_surfaces": ["api", "cli", "mcp", "web"],
+    "binary_profiles": {
+      "upstream_client_default": "cli-mcp",
+      "application_platform_default": "server-full",
+      "gateway_shared_default": "server-full"
+    }
   }
 }
 ```

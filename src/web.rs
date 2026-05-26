@@ -22,10 +22,12 @@ use include_dir::{include_dir, Dir};
 #[cfg(feature = "web")]
 static WEB_ASSETS: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/apps/web/out");
 
+#[cfg(feature = "web")]
+use axum::http::header;
 use axum::{
     body::Body,
     extract::Request,
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
 
@@ -92,10 +94,12 @@ pub async fn serve_web_assets(request: Request<Body>) -> Response {
     }
 }
 
+#[cfg(any(feature = "web", test))]
 fn normalize_asset_path(path: &str) -> &str {
     path.trim_start_matches('/').trim_end_matches('/')
 }
 
+#[cfg(any(feature = "web", test))]
 fn asset_candidates(path: &str) -> Vec<String> {
     if path.is_empty() {
         return vec!["index.html".to_string()];
@@ -108,6 +112,7 @@ fn asset_candidates(path: &str) -> Vec<String> {
     ]
 }
 
+#[cfg(any(feature = "web", test))]
 fn cache_control_for(path: &str) -> &'static str {
     if path == "index.html" || path.ends_with(".html") {
         "no-store"
@@ -118,6 +123,7 @@ fn cache_control_for(path: &str) -> &'static str {
     }
 }
 
+#[cfg(any(feature = "web", test))]
 fn guess_mime(path: &str) -> &'static str {
     if path.ends_with(".html") {
         "text/html; charset=utf-8"

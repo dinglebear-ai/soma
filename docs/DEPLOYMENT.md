@@ -42,7 +42,7 @@ profile where they apply:
 | Command | Mode | Description |
 |---|---|---|
 | `example mcp` | stdio MCP | For Claude Code `~/.claude/settings.json` stdio servers |
-| `example serve` | Streamable HTTP MCP | For Docker/remote deployment |
+| `example-server serve` | Streamable HTTP MCP | For Docker/remote deployment |
 | `example [subcommand]` | CLI | Direct API access; data commands print JSON by default |
 | `example doctor` | Pre-flight check | Validates environment and config |
 | `example --help` | Help | Print usage |

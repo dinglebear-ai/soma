@@ -127,7 +127,7 @@ RUST_LOG                     Log filter (e.g. info,rmcp=warn)
 
 ## Transports
 
-- `example serve` (or no args) — Streamable HTTP on `EXAMPLE_MCP_PORT` (default 40060)
+- `example-server serve` (or no args) — Streamable HTTP on `EXAMPLE_MCP_PORT` (default 40060)
 - `example mcp` — stdio transport for child-process MCP clients
 - `example greet / echo / status` — direct CLI
 

@@ -196,8 +196,11 @@ jobs:
           key: ${{ github.repository }}-build-linux-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ github.repository }}-build-linux-
 
-      - name: cargo build --release
-        run: cargo build --release --locked --bin example
+      - name: cargo build local binary
+        run: cargo build --release --locked --bin example --no-default-features --features cli-mcp
+
+      - name: cargo build server binary
+        run: cargo build --release --locked --bin example-server --features full
 
       - name: Upload Linux binary
         uses: actions/upload-artifact@v7
@@ -254,11 +257,17 @@ jobs:
           RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
         run: cargo test --locked --all-targets
 
-      - name: cargo build --release
+      - name: cargo build local binary
         shell: pwsh
         env:
           RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: cargo build --release --locked --bin example
+        run: cargo build --release --locked --bin example --no-default-features --features cli-mcp
+
+      - name: cargo build server binary
+        shell: pwsh
+        env:
+          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
+        run: cargo build --release --locked --bin example-server --features full
 
       - name: Upload Windows binary
         uses: actions/upload-artifact@v7
@@ -302,7 +311,7 @@ jobs:
           npm install -g mcporter@0.7.3
 
       - name: Build example binary
-        run: cargo build --locked --bin example
+        run: cargo build --locked --bin example-server --features full
 
       - name: Start MCP server
         env:
@@ -312,7 +321,7 @@ jobs:
           RUST_LOG: info,rmcp=warn
         run: |
           set -euo pipefail
-          ./target/debug/example serve mcp > /tmp/example-mcp.log 2>&1 &
+          ./target/debug/example-server serve mcp > /tmp/example-mcp.log 2>&1 &
           echo "$!" > /tmp/example-mcp.pid
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:40123/health >/dev/null 2>&1; then

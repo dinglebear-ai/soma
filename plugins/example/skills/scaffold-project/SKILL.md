@@ -64,6 +64,7 @@ The tool returns an object like:
   "runtime": {
     "host": "127.0.0.1",
     "port": 3100,
+    "binary_profile": "cli-mcp",
     "mcp_transport": "dual"
   },
   "mcp_primitives": ["tools", "resources", "prompts", "elicitation"],
@@ -82,7 +83,12 @@ The tool returns an object like:
   "policy": {
     "business_action_minimum_surfaces": ["mcp", "cli"],
     "upstream_client_surfaces": ["mcp", "cli"],
-    "application_platform_surfaces": ["api", "cli", "mcp", "web"]
+    "application_platform_surfaces": ["api", "cli", "mcp", "web"],
+    "binary_profiles": {
+      "upstream_client_default": "cli-mcp",
+      "application_platform_default": "server-full",
+      "gateway_shared_default": "server-full"
+    }
   }
 }
 ```
@@ -120,6 +126,7 @@ Current lightweight intent fields include:
 | field | planning implication |
 |---|---|
 | `runtime.host` / `runtime.port` | Default bind settings and env var docs. |
+| `runtime.binary_profile` | Recommended binary profile: `cli-mcp` or `server-full`. |
 | `runtime.mcp_transport` | `stdio`, `http`, or `dual` transport scaffolding. |
 | `mcp_primitives` | Which MCP primitives to keep/scaffold: tools, resources, prompts, elicitation. |
 | `deployment` | Whether to include no deployment, systemd, or Docker scaffolding. |
@@ -142,6 +149,8 @@ Use `runtime` to decide the server entrypoints and docs:
 
 | value | planning instruction |
 |---|---|
+| `binary_profile = "cli-mcp"` | Plan a lightweight local binary for CLI + stdio MCP. |
+| `binary_profile = "server-full"` | Plan a full server binary for API + Web + HTTP MCP, with optional local adapter. |
 | `mcp_transport = "stdio"` | Plan child-process MCP only. HTTP routes may be omitted unless needed for health/ops. |
 | `mcp_transport = "http"` | Plan Streamable HTTP MCP on `runtime.host:runtime.port`. |
 | `mcp_transport = "dual"` | Plan both `mcp` stdio mode and HTTP `serve` mode. |

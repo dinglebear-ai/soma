@@ -20,9 +20,9 @@ setup used by repos derived from `rmcp-template`.
 The template can run on GitHub-hosted runners, but this repo's Windows job is
 currently wired to the steamy self-hosted runner:
 
-- `build-linux`: `ubuntu-latest`, builds `target/release/example`
+- `build-linux`: `ubuntu-latest`, builds `target/release/example` and `target/release/example-server`
 - `build-windows`: `[self-hosted, Windows, rmcp-template, steamy]`, builds
-  `target/release/example.exe`
+  `target/release/example.exe` and `target/release/example-server.exe`
 
 Both jobs run on push and pull request through `.github/workflows/ci.yml`. They
 upload artifacts named `example-linux-x86_64` and `example-windows-x86_64` so PR

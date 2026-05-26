@@ -86,7 +86,7 @@ Local builds:
 
 ```bash
 just build-web   # scripts/build-web.sh: frozen pnpm install if needed, then pnpm build
-just build-full  # build web assets, then cargo build --release
+just build-full  # build web assets, then cargo build --release --bin example-server --features full
 ```
 
 Docker builds use the `web` stage in `config/Dockerfile`, run

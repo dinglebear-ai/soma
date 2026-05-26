@@ -18,8 +18,8 @@ The template supports user-level systemd deployments when a unit named `example-
 ## Install the binary
 
 ```bash
-cargo build --release
-install -m 755 target/release/example ~/.local/bin/example
+cargo build --release --bin example-server --features full
+install -m 755 target/release/example-server ~/.local/bin/example-server
 ```
 
 Or use the install script:
@@ -44,7 +44,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/example serve mcp
+ExecStart=%h/.local/bin/example-server serve mcp
 Restart=on-failure
 RestartSec=5
 EnvironmentFile=%h/.example/.env
@@ -75,7 +75,7 @@ systemctl --user status example-mcp.service
 - optional `--expected-binary`
 
 ```bash
-scripts/check-runtime-current.sh --mode systemd --expected-binary target/release/example
+scripts/check-runtime-current.sh --mode systemd --expected-binary target/release/example-server
 just runtime-current
 ```
 

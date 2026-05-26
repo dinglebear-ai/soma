@@ -174,6 +174,11 @@ impl ExampleService {
         } else {
             vec!["mcp", "cli"]
         };
+        let binary_profile = if category == "application-platform" {
+            "server-full"
+        } else {
+            "cli-mcp"
+        };
         let service_name = input.binary_name.trim().replace('-', "_");
         let env_prefix = input.env_prefix.trim().to_ascii_uppercase();
 
@@ -196,6 +201,7 @@ impl ExampleService {
             "runtime": {
                 "host": normalize_host(&input.host),
                 "port": input.port,
+                "binary_profile": binary_profile,
                 "mcp_transport": normalize_transport(&input.mcp_transport),
             },
             "mcp_primitives": normalize_primitives(&input.mcp_primitives),
@@ -215,6 +221,11 @@ impl ExampleService {
                 "business_action_minimum_surfaces": ["mcp", "cli"],
                 "upstream_client_surfaces": ["mcp", "cli"],
                 "application_platform_surfaces": ["api", "cli", "mcp", "web"],
+                "binary_profiles": {
+                    "upstream_client_default": "cli-mcp",
+                    "application_platform_default": "server-full",
+                    "gateway_shared_default": "server-full"
+                },
             }
         }))
     }

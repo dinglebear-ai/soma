@@ -428,7 +428,7 @@ When `auth_state: Some(_)`, the OAuth router is automatically mounted:
 Both transports build the same `AppState` and serve the same `ServerHandler`:
 
 ```rust
-// HTTP mode (default: `example` or `example serve`)
+// HTTP mode (default: `example-server` or `example-server serve`)
 async fn serve_mcp() -> Result<()> {
     let config = Config::load()?;
     let state = build_state(config).await?;
@@ -808,14 +808,14 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY Cargo.toml Cargo.lock ./
 RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked && rm -rf src
+    mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked --bin example-server && rm -rf src
 
 # Build real binary
 COPY src/ src/
 RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    touch src/main.rs && cargo build --release --locked && \
-    cp target/release/example /usr/local/bin/example
+    touch src/main.rs && cargo build --release --locked --bin example-server --features full && \
+    cp target/release/example-server /usr/local/bin/example-server
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates curl gosu && rm -rf /var/lib/apt/lists/*
@@ -2610,7 +2610,7 @@ example-mcp v0.1.0 — environment check
   ✓ Auth mode:         no-auth (EXAMPLE_NOAUTH=true)
 
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  1 issue found. Fix it before running: example serve
+  1 issue found. Fix it before running: example-server serve
 
 ```
 
@@ -3321,14 +3321,20 @@ export default config;
 
 ---
 
-## A5. Cargo.toml — Web Feature Gate
+## A5. Cargo.toml — Binary Profiles and Web Feature Gate
 
-Embedding 64KB+ of web assets is always-on by default. To opt-out:
+The template has separate binary profiles: `example` for local CLI + stdio MCP
+and `example-server` for API + Web + HTTP MCP deployments. The full profile is
+the default so existing `cargo build` workflows still build the complete
+template.
 
 ```toml
 [features]
-default = ["web"]
-web = ["include_dir"]
+default = ["full"]
+cli-mcp = []
+http-server = []
+web = ["http-server", "include_dir"]
+full = ["cli-mcp", "http-server", "web"]
 
 [dependencies]
 include_dir = { version = "0.7", optional = true }
@@ -3347,8 +3353,8 @@ pub fn web_assets_available() -> bool {
 
 Build without web UI:
 ```bash
-cargo build --no-default-features   # fast local dev, no asset embedding
-cargo build                          # includes web UI (CI / release)
+cargo build --bin example --no-default-features --features cli-mcp
+cargo build --bin example-server --features full
 ```
 
 ---

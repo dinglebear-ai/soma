@@ -123,6 +123,7 @@ fn test_scaffold_intent_transformation_lives_in_service() {
     assert_eq!(result["upstream"]["base_url_env"], "LAB_API_URL");
     assert_eq!(result["upstream"]["auth_kind"], "api-key");
     assert_eq!(result["runtime"]["host"], "127.0.0.1");
+    assert_eq!(result["runtime"]["binary_profile"], "server-full");
     assert_eq!(result["runtime"]["mcp_transport"], "http");
     assert_eq!(result["deployment"], "docker");
     assert_eq!(result["plugins"], serde_json::json!(["claude", "gemini"]));

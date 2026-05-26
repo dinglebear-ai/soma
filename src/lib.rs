@@ -19,6 +19,7 @@ pub mod config;
 pub mod example;
 pub mod logging;
 pub mod mcp;
+pub mod runtime;
 pub mod server;
 pub mod token_limit;
 pub mod web;

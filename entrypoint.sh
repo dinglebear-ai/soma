@@ -16,18 +16,18 @@
 #   COPY entrypoint.sh /entrypoint.sh
 #   RUN chmod +x /entrypoint.sh
 #   ENTRYPOINT ["/entrypoint.sh"]
-#   CMD ["example", "serve", "mcp"]
+#   CMD ["serve", "mcp"]
 #
 # The ENTRYPOINT + CMD split means:
-#   - `docker run image`                   → runs: /entrypoint.sh example serve mcp
-#   - `docker run image example --help`    → runs: /entrypoint.sh example --help
+#   - `docker run image`                   → runs: /entrypoint.sh serve mcp
+#   - `docker run image --help`            → runs: /entrypoint.sh --help
 #   - `docker run image sh`                → runs: /entrypoint.sh sh  (useful for debugging)
 #
 # TEMPLATE: Update REQUIRED_VARS and binary name below.
 # =============================================================================
 set -e
 
-SERVICE_NAME="example"
+SERVICE_NAME="example-server"
 BINARY="/usr/local/bin/${SERVICE_NAME}"
 
 # ── Data directory ─────────────────────────────────────────────────────────────

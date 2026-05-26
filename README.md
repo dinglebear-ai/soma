@@ -58,7 +58,7 @@ expose business actions, not MCP protocol semantics.
 
 - **Layered architecture** — transport client → service → MCP/CLI shims, enforced by convention
 - **Action-based dispatch** — one MCP tool with an `action` parameter routes to any number of operations
-- **Both transports** — `example serve` (Streamable HTTP) and `example mcp` (stdio)
+- **Both transports** — `example-server serve` (Streamable HTTP) and `example mcp` (stdio)
 - **Both auth modes** — static bearer token or full Google OAuth with RS256 JWT issuance
 - **MCP elicitation** — server-asks-user mid-call (spec 2025-06-18), with graceful fallback
 - **MCP resources** — exposes the tool schema as a readable resource
@@ -86,7 +86,7 @@ The rule: **zero business logic in `tools.rs` or `cli.rs`**. Both are pure shims
 ```bash
 git clone https://github.com/jmagar/rmcp-template
 cd rmcp-template
-cargo run -- serve          # Streamable HTTP on :40060
+cargo run --bin example-server -- serve          # Streamable HTTP on :40060
 # or
 cargo run -- mcp            # stdio transport
 # or
@@ -123,7 +123,7 @@ Find and replace these identifiers across the project:
 | Find | Replace with |
 |------|-------------|
 | `rmcp-template` | `myservice-mcp` (Cargo.toml package name) |
-| `example` (binary name) | `myservice` (Cargo.toml `[[bin]] name`) |
+  | `example` / `example-server` (binary names) | `myservice` / `myservice-server` (Cargo.toml `[[bin]] name`) |
 | `ExampleClient` | `MyServiceClient` |
 | `ExampleService` | `MyServiceService` |
 | `ExampleConfig` | `MyServiceConfig` |
@@ -224,8 +224,8 @@ Edit `src/config.rs` to rename `ExampleConfig` fields and env var names. Edit `c
 ## Command modes
 
 ```
-example [serve]          Start Streamable HTTP MCP server (default)
 example mcp              Start stdio MCP transport
+example-server [serve]   Start Streamable HTTP MCP + REST + Web server
 example greet [--name]   CLI: greet
 example echo --message   CLI: echo
 example status           CLI: server status
@@ -284,19 +284,19 @@ Set `EXAMPLE_MCP_AUTH_MODE=oauth` and the OAuth env vars below. The server issue
 ## Development commands
 
 ```bash
-cargo build           # debug build
-cargo build --release # release build
+cargo build --bin example --no-default-features --features cli-mcp  # local CLI + stdio MCP
+cargo build --bin example-server --features full                    # full server binary
 cargo test            # run tests
 cargo clippy -- -D warnings  # lint
 cargo fmt             # format
 cargo xtask contract-audit  # local static/spec contract audit
 
-just dev              # EXAMPLE_MCP_HOST=127.0.0.1 EXAMPLE_MCP_NO_AUTH=true cargo run -- serve mcp (loopback only, no auth)
+just dev              # run example-server on loopback with no auth
 just test             # cargo test
 just lint             # cargo clippy -- -D warnings
 just fmt              # cargo fmt
-just build            # cargo build
-just release          # cargo build --release
+just build-local      # build only the local CLI + stdio MCP binary
+just build-full       # build web assets, then build the full server binary
 just gen-token        # openssl rand -hex 32
 just health           # curl http://localhost:40060/health | jq .
 ```

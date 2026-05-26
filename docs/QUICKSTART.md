@@ -14,7 +14,7 @@
 ```bash
 git clone https://github.com/jmagar/rmcp-template
 cd rmcp-template
-cargo run -- serve
+cargo run --bin example-server -- serve
 ```
 
 The server starts on `http://localhost:40060`. In another terminal:
@@ -74,7 +74,7 @@ openssl rand -hex 32
 Start with auth:
 
 ```bash
-EXAMPLE_MCP_TOKEN=a3f2c1... cargo run -- serve
+EXAMPLE_MCP_TOKEN=a3f2c1... cargo run --bin example-server -- serve
 ```
 
 Now all `/mcp` calls require `Authorization: Bearer a3f2c1...`:

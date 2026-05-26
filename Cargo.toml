@@ -24,7 +24,13 @@ autobins = false
 
 [[bin]]
 name = "example"
+path = "src/bin/example.rs"
+required-features = ["cli-mcp"]
+
+[[bin]]
+name = "example-server"
 path = "src/main.rs"
+required-features = ["http-server"]
 
 [dependencies]
 # Async runtime
@@ -75,8 +81,11 @@ anyhow = "1"
 include_dir = { version = "0.7", optional = true }
 
 [features]
-default = ["web"]
-web = ["include_dir"]
+default = ["full"]
+cli-mcp = []
+http-server = []
+web = ["http-server", "include_dir"]
+full = ["cli-mcp", "http-server", "web"]
 test-support = []
 
 [dev-dependencies]

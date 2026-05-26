@@ -73,7 +73,7 @@ file logging support, but dual console+file logging is not wired by default.
 Use `RUST_LOG` to control log level:
 
 ```bash
-RUST_LOG=info,rmcp=warn example serve
+RUST_LOG=info,rmcp=warn example-server serve
 ```
 
 Log file: one file, 10 MB cap. On overflow, truncate and restart. Never multiple files.

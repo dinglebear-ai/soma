@@ -29,6 +29,7 @@ on:
 env:
   # TEMPLATE: Replace "example" with your binary name.
   BINARY_NAME: example
+  SERVER_BINARY_NAME: example-server
 
 jobs:
   frontend-assets:
@@ -121,7 +122,10 @@ jobs:
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: x86_64-w64-mingw32-gcc
         run: |
-          cargo build --release --locked --target ${{ matrix.target }}
+          cargo build --release --locked --target ${{ matrix.target }} \
+            --bin ${{ env.BINARY_NAME }} --no-default-features --features cli-mcp
+          cargo build --release --locked --target ${{ matrix.target }} \
+            --bin ${{ env.SERVER_BINARY_NAME }} --features full
 
       - name: Prepare binary artifact
         run: |

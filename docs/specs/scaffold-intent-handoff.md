@@ -101,6 +101,7 @@ The intent should stay lightweight. The wizard asks enough to choose the scaffol
 | `auth_kind` | string | Upstream auth type | `none`, `api-key`, `bearer`, `oauth`, `both`, `other` |
 | `host` | string | Default bind host | `127.0.0.1` |
 | `port` | integer | Default HTTP port | `3100` |
+| `binary_profile` | string | Recommended binary profile | `cli-mcp` or `server-full` |
 | `mcp_transport` | string | MCP transport mode | `stdio`, `http`, or `dual` |
 | `mcp_primitives` | comma-separated string | MCP primitives to scaffold | `tools,resources,prompts,elicitation` |
 | `deployment` | string | Deployment scaffolding to include | `none`, `systemd`, or `docker` |
@@ -160,6 +161,7 @@ These fields are part of the core scaffold decision:
   "runtime": {
     "host": "127.0.0.1",
     "port": 3100,
+    "binary_profile": "cli-mcp",
     "mcp_transport": "dual"
   },
   "mcp_primitives": ["tools", "resources", "prompts", "elicitation"],
@@ -178,7 +180,12 @@ These fields are part of the core scaffold decision:
   "policy": {
     "business_action_minimum_surfaces": ["mcp", "cli"],
     "upstream_client_surfaces": ["mcp", "cli"],
-    "application_platform_surfaces": ["api", "cli", "mcp", "web"]
+    "application_platform_surfaces": ["api", "cli", "mcp", "web"],
+    "binary_profiles": {
+      "upstream_client_default": "cli-mcp",
+      "application_platform_default": "server-full",
+      "gateway_shared_default": "server-full"
+    }
   }
 }
 ```
@@ -205,6 +212,7 @@ These fields are part of the core scaffold decision:
   "runtime": {
     "host": "0.0.0.0",
     "port": 3100,
+    "binary_profile": "server-full",
     "mcp_transport": "http"
   },
   "mcp_primitives": ["tools", "resources", "prompts", "elicitation"],
@@ -223,7 +231,12 @@ These fields are part of the core scaffold decision:
   "policy": {
     "business_action_minimum_surfaces": ["mcp", "cli"],
     "upstream_client_surfaces": ["mcp", "cli"],
-    "application_platform_surfaces": ["api", "cli", "mcp", "web"]
+    "application_platform_surfaces": ["api", "cli", "mcp", "web"],
+    "binary_profiles": {
+      "upstream_client_default": "cli-mcp",
+      "application_platform_default": "server-full",
+      "gateway_shared_default": "server-full"
+    }
   }
 }
 ```

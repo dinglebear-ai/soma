@@ -16,12 +16,12 @@ else
 fi
 
 echo "==> Rebuilding release binary..."
-cargo build --release
+cargo build --release --bin example-server --features full
 
 echo "==> Restarting..."
 if systemctl --user list-unit-files example-mcp.service 2>/dev/null | grep -q example-mcp; then
     mkdir -p "${HOME}/.local/bin"
-    install -m 755 target/release/example "${HOME}/.local/bin/example"
+    install -m 755 target/release/example-server "${HOME}/.local/bin/example-server"
     systemctl --user start example-mcp.service
     echo "    started systemd unit"
 elif [ -f docker-compose.yml ]; then
@@ -29,7 +29,7 @@ elif [ -f docker-compose.yml ]; then
     docker compose up -d --force-recreate
     echo "    started docker compose service"
 else
-    echo "    no service manager detected; binary at target/release/example"
+    echo "    no service manager detected; binary at target/release/example-server"
 fi
 
 echo "==> Done"

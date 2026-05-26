@@ -24,9 +24,11 @@ last_reviewed: "2026-05-15"
 | `just greet` | Quick CLI smoke test. |
 | `just doctor` | Pre-flight environment/connectivity checks (`example doctor`). |
 | `just build` / `just build-release` | Debug/release Rust builds. |
+| `just build-local` / `just build-local-release` | Build only the lightweight `example` CLI + stdio MCP binary. |
+| `just build-server-release` | Build only the full `example-server` API + Web + HTTP MCP binary. |
 | `just build-web` | Build static Next.js web assets (`apps/web/out`). |
 | `just web-check` | Run frontend lint, typecheck, tests, and static build. |
-| `just build-full` | Build web assets then release binary (CI use). |
+| `just build-full` | Build web assets then the full server release binary (CI/Docker use). |
 | `just gen-token` | Generate a random bearer token (`openssl rand -hex 32`). |
 
 ## Quality gates
@@ -105,7 +107,7 @@ example-mcp v0.1.0 — environment check
   ✓ Upstream reachable: https://example.internal/api → 200 OK (42 ms)
 
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  1 issue found. Fix it before running: example serve
+  1 issue found. Fix it before running: example-server serve
 ```
 
 Exit code 0 = ready. Exit code 1 = issues found.

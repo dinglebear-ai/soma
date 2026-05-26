@@ -40,18 +40,18 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY Cargo.toml Cargo.lock ./
 RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked && rm -rf src
+    mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked --bin example-server && rm -rf src
 
 # Build real binary
 COPY src/ src/
 RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    touch src/main.rs && cargo build --release --locked && \
-    cp target/release/example /usr/local/bin/example
+    touch src/main.rs && cargo build --release --locked --bin example-server --features full && \
+    cp target/release/example-server /usr/local/bin/example-server
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/bin/example /usr/local/bin/example
+COPY --from=builder /usr/local/bin/example-server /usr/local/bin/example-server
 RUN groupadd --gid 1000 example && \
     useradd --uid 1000 --gid example --no-create-home --shell /sbin/nologin example && \
     mkdir -p /data && chown example:example /data

@@ -16,19 +16,19 @@ default:
 # Run the MCP server in development mode (HTTP transport 40060, no auth)
 # WARNING: EXAMPLE_MCP_NO_AUTH=true is safe only because HOST is 127.0.0.1 (loopback)
 dev:
-    EXAMPLE_MCP_HOST=127.0.0.1 EXAMPLE_MCP_NO_AUTH=true cargo run -- serve mcp
+    EXAMPLE_MCP_HOST=127.0.0.1 EXAMPLE_MCP_NO_AUTH=true cargo run --bin example-server -- serve mcp
 
 # Run in stdio MCP transport mode (for Claude Desktop or direct pipe)
 mcp:
-    cargo run -- mcp
+    cargo run --bin example -- mcp
 
 # Run a quick CLI greeting (smoke test without a running server)
 greet:
-    cargo run -- greet --name "Developer"
+    cargo run --bin example -- greet --name "Developer"
 
 # Run the doctor pre-flight check
 doctor:
-    cargo run -- doctor
+    cargo run --bin example -- doctor
 
 # ── Building ──────────────────────────────────────────────────────────────────
 
@@ -36,9 +36,21 @@ doctor:
 build:
     cargo build
 
+# Compile the lightweight local/plugin binary only
+build-local:
+    cargo build --bin example --no-default-features --features cli-mcp
+
 # Compile optimized release build (slower compile, much faster runtime)
 build-release:
     cargo build --release
+
+# Compile the lightweight local/plugin release binary only
+build-local-release:
+    cargo build --release --bin example --no-default-features --features cli-mcp
+
+# Compile the full server release binary only
+build-server-release:
+    cargo build --release --bin example-server --features full
 
 # Build the Next.js web UI static export (required before cargo build embeds it)
 # Output lands in apps/web/out/ and is baked into the binary via the `web` feature
@@ -54,7 +66,7 @@ web-check:
     pnpm -C apps/web validate
 
 # Build the full binary with embedded web assets (runs build-web first)
-build-full: build-web build-release
+build-full: build-web build-server-release
 
 # Compile optimized release build (short alias used across the Rust server repos)
 release: build-release
@@ -319,7 +331,7 @@ health:
 
 # Verify that the running Docker/systemd service matches the current artifact
 runtime-current:
-    bash scripts/check-runtime-current.sh --expected-binary target/release/example
+    bash scripts/check-runtime-current.sh --expected-binary target/release/example-server
 
 # Smoke-test the protected MCP HTTP auth path (requires running bearer-auth server)
 auth-smoke:
@@ -349,7 +361,7 @@ repair:
 
 # Copy the release binary into plugin bin/ for local plugin packaging.
 # TEMPLATE: Replace "example" with your binary name
-build-plugin: build-release
+build-plugin: build-local-release
     #!/bin/sh
     set -eu
     target_dir="${CARGO_TARGET_DIR:-target}"
@@ -365,7 +377,7 @@ build-plugin: build-release
 install: build-plugin
 
 # Install the release binary on the local PATH for runtime smoke testing
-install-local: build-release
+install-local: build-local-release
     mkdir -p "${HOME}/.local/bin"
     install -m 755 target/release/example "${HOME}/.local/bin/example"
     @echo "Installed ${HOME}/.local/bin/example"

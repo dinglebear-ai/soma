@@ -99,7 +99,7 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["host", "port", "mcp_transport"],
+      "required": ["host", "port", "binary_profile", "mcp_transport"],
       "properties": {
         "host": {
           "type": "string",
@@ -111,6 +111,11 @@
           "minimum": 1,
           "maximum": 65535,
           "examples": [3100]
+        },
+        "binary_profile": {
+          "type": "string",
+          "enum": ["cli-mcp", "server-full"],
+          "description": "Recommended binary profile for this server category."
         },
         "mcp_transport": {
           "type": "string",
@@ -191,7 +196,8 @@
       "required": [
         "business_action_minimum_surfaces",
         "upstream_client_surfaces",
-        "application_platform_surfaces"
+        "application_platform_surfaces",
+        "binary_profiles"
       ],
       "properties": {
         "business_action_minimum_surfaces": {
@@ -218,6 +224,20 @@
             { "contains": { "const": "mcp" } },
             { "contains": { "const": "web" } }
           ]
+        },
+        "binary_profiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "upstream_client_default",
+            "application_platform_default",
+            "gateway_shared_default"
+          ],
+          "properties": {
+            "upstream_client_default": { "const": "cli-mcp" },
+            "application_platform_default": { "const": "server-full" },
+            "gateway_shared_default": { "const": "server-full" }
+          }
         }
       }
     }
@@ -234,6 +254,11 @@
             "prefixItems": [{ "const": "mcp" }, { "const": "cli" }],
             "minItems": 2,
             "maxItems": 2
+          },
+          "runtime": {
+            "properties": {
+              "binary_profile": { "const": "cli-mcp" }
+            }
           }
         }
       }
@@ -255,6 +280,11 @@
               { "contains": { "const": "mcp" } },
               { "contains": { "const": "web" } }
             ]
+          },
+          "runtime": {
+            "properties": {
+              "binary_profile": { "const": "server-full" }
+            }
           }
         }
       }
@@ -286,6 +316,7 @@
       "runtime": {
         "host": "127.0.0.1",
         "port": 3100,
+        "binary_profile": "cli-mcp",
         "mcp_transport": "dual"
       },
       "mcp_primitives": ["tools", "resources", "prompts", "elicitation"],
@@ -304,7 +335,12 @@
       "policy": {
         "business_action_minimum_surfaces": ["mcp", "cli"],
         "upstream_client_surfaces": ["mcp", "cli"],
-        "application_platform_surfaces": ["api", "cli", "mcp", "web"]
+        "application_platform_surfaces": ["api", "cli", "mcp", "web"],
+        "binary_profiles": {
+          "upstream_client_default": "cli-mcp",
+          "application_platform_default": "server-full",
+          "gateway_shared_default": "server-full"
+        }
       }
     }
   ]

@@ -94,7 +94,7 @@ For local development, disable auth entirely:
 
 ```bash
 just dev
-# equivalent to: EXAMPLE_MCP_HOST=127.0.0.1 EXAMPLE_MCP_NO_AUTH=true cargo run -- serve mcp
+# equivalent to: EXAMPLE_MCP_HOST=127.0.0.1 EXAMPLE_MCP_NO_AUTH=true cargo run --bin example-server -- serve mcp
 ```
 
 `EXAMPLE_MCP_NO_AUTH=true` is accepted only on a loopback bind. It sets the auth policy to `LoopbackDev`, removes the auth middleware, and requires no token for local calls.

@@ -54,6 +54,7 @@ fn scaffold_intent_json_matches_simplified_contract_shape() {
         json!({
             "host": "127.0.0.1",
             "port": 3100,
+            "binary_profile": "cli-mcp",
             "mcp_transport": "dual"
         })
     );
@@ -92,6 +93,7 @@ fn application_platform_intent_requires_all_surfaces() {
         json!(["api", "cli", "mcp", "web"])
     );
     assert_eq!(value["upstream"]["auth_kind"], "both");
+    assert_eq!(value["runtime"]["binary_profile"], "server-full");
     assert_eq!(value["runtime"]["mcp_transport"], "http");
     assert_eq!(value["deployment"], "docker");
     assert_eq!(value["plugins"], json!(["claude", "codex", "gemini"]));
