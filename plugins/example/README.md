@@ -22,8 +22,7 @@ plugins/example/
 ├── bin/
 │   └── example             # Release binary (populate with: just install)
 ├── hooks/
-│   ├── hooks.json          # SessionStart + ConfigChange hook definitions
-│   └── plugin-setup.sh     # Lifecycle setup adapter
+│   └── hooks.json          # SessionStart + ConfigChange hook definitions (call the binary directly)
 ├── monitors/
 │   └── monitors.json       # Background health monitor (requires Claude Code v2.1.105+)
 └── skills/
@@ -72,9 +71,9 @@ from each platform's user-configurable settings at runtime.
 
 ## Hooks
 
-`hooks/hooks.json` fires `plugin-setup.sh` on `SessionStart` and `ConfigChange`.
+`hooks/hooks.json` runs `${CLAUDE_PLUGIN_ROOT}/bin/rtemplate setup plugin-hook` directly on `SessionStart` and `ConfigChange` (no shell wrapper).
 
-The setup script is a thin adapter. It maps plugin settings to environment variables, prepares appdata, ensures the bundled binary is available on `PATH`, and delegates setup checks or repair to `example setup plugin-hook "$@"`.
+The binary maps plugin settings (`CLAUDE_PLUGIN_OPTION_*`) to its `EXAMPLE_*` environment variables via `apply_plugin_options()` (`src/cli/setup.rs`), self-installs into `~/.local/bin`, prepares appdata, and runs setup checks/repair.
 
 ## Monitors
 
@@ -113,5 +112,5 @@ Disabling the plugin mid-session does not stop an already-running monitor; it st
 3. Update `skills/example/SKILL.md` — action table, parameters, response shapes, workflows
 4. Set `brandColor` and `defaultPrompt` in `.codex-plugin/plugin.json`
 5. Keep `.mcp.json` stdio-first unless your service must be remote HTTP only
-6. Update `hooks/plugin-setup.sh` env var block to match your service's `EXAMPLE_*` vars
+6. Update `apply_plugin_options()` in `src/cli/setup.rs` to map your service's plugin options to its `EXAMPLE_*` vars
 7. Run `cargo xtask symlink-docs` after adding any new `CLAUDE.md`

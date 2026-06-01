@@ -220,6 +220,6 @@ bd close <id>         # Complete work
 
 ## Plugin setup hooks
 
-Plugin setup is owned by the binary. Keep `plugins/example/hooks/plugin-setup.sh` as a thin adapter that maps `CLAUDE_PLUGIN_OPTION_*` values to environment variables, prepares appdata, ensures `example` is on `PATH`, and then calls `example setup plugin-hook "$@"`.
+Plugin setup is owned by the binary. `hooks/hooks.json` calls `${CLAUDE_PLUGIN_ROOT}/bin/rtemplate setup plugin-hook` directly (no shell wrapper). The binary's `apply_plugin_options()` (`src/cli/setup.rs`), run before `Config::load()`, maps `CLAUDE_PLUGIN_OPTION_*` values to the binary's `EXAMPLE_*` env vars; `install_self()` self-installs the binary into `~/.local/bin`.
 
-`example setup check` is read-only, `example setup repair` is idempotent, and `example setup plugin-hook --no-repair` is audit mode. Do not add Docker Compose, systemd, or service bootstrap logic back into the hook script. Use `scripts/check-plugin-hook-contract.py` to audit this pattern across the Rust servers.
+`example setup check` is read-only, `example setup repair` is idempotent, and `example setup plugin-hook --no-repair` is audit mode. Do not add Docker Compose, systemd, or service bootstrap logic into the hook path. Use `scripts/check-plugin-hook-contract.py` to audit this pattern across the Rust servers.

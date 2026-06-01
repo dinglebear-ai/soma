@@ -240,31 +240,24 @@ pub(super) fn plugins(reporter: &mut PatternReporter) {
         reporter.fail("plugins", failures.join("; "));
     }
 
-    let hook_path = Path::new("plugins/example/hooks/plugin-setup.sh");
+    let hook_path = Path::new("plugins/example/hooks/hooks.json");
     if hook_path.exists() {
-        let hook = read_file("plugins/example/hooks/plugin-setup.sh");
-        let forbidden = ["docker compose", "systemctl"]
-            .iter()
-            .copied()
-            .filter(|token| hook.contains(token))
-            .collect::<Vec<_>>();
-        if !hook.contains("example setup plugin-hook \"$@\"") {
+        let hook = read_file("plugins/example/hooks/hooks.json");
+        // The hook must call the binary directly (no plugin-setup.sh wrapper).
+        if hook.contains("plugin-setup.sh") {
             reporter.fail(
                 "plugins",
-                "example hook must delegate to `example setup plugin-hook \"$@\"`",
+                "hooks.json must not reference the removed plugin-setup.sh wrapper",
             );
-        } else if !forbidden.is_empty() {
+        } else if !hook.contains("/bin/rtemplate setup plugin-hook") {
             reporter.fail(
                 "plugins",
-                format!(
-                    "example hook contains forbidden bootstrap token(s): {}",
-                    forbidden.join(", ")
-                ),
+                "hooks.json must call `${CLAUDE_PLUGIN_ROOT}/bin/rtemplate setup plugin-hook` directly",
             );
         } else {
             reporter.ok(
                 "plugins",
-                "plugin setup hook is a thin binary-owned adapter",
+                "plugin hooks call the binary's setup plugin-hook directly",
             );
         }
     }

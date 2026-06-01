@@ -17,8 +17,7 @@ plugins/example/
 ├── gemini-extension.json # Gemini extension manifest
 ├── .mcp.json             # Shared MCP server connection config
 ├── hooks/
-│   ├── hooks.json        # Lifecycle hook definitions
-│   └── plugin-setup.sh  # Lifecycle setup adapter
+│   └── hooks.json        # Lifecycle hook definitions (call the binary directly)
 └── skills/
     ├── example/
     │   └── SKILL.md      # Tool documentation for Claude and Codex
@@ -92,24 +91,23 @@ the bundled local binary in stdio mode.
 
 Defines two lifecycle hooks:
 
-| Hook | Trigger | Script |
+| Hook | Trigger | Command |
 |---|---|---|
-| `SessionStart` | Every Claude Code session start | `hooks/plugin-setup.sh` |
-| `ConfigChange` | User updates plugin settings | `hooks/plugin-setup.sh` |
+| `SessionStart` | Every Claude Code session start | `${CLAUDE_PLUGIN_ROOT}/bin/rtemplate setup plugin-hook` |
+| `ConfigChange` | User updates plugin settings | `${CLAUDE_PLUGIN_ROOT}/bin/rtemplate setup plugin-hook` |
 
 Timeout: 300 seconds.
 
-### `hooks/plugin-setup.sh`
+### `rtemplate setup plugin-hook`
 
-The lifecycle adapter. Runs on every session start and config change.
+The lifecycle command. Runs on every session start and config change, called directly by `hooks.json` (no shell wrapper).
 
-- Reads `CLAUDE_PLUGIN_OPTION_*` env vars from plugin `userConfig`
-- Exports those values as the binary's runtime environment variables
+- Reads `CLAUDE_PLUGIN_OPTION_*` env vars from plugin `userConfig` and maps them to the binary's `EXAMPLE_*` runtime env vars (`apply_plugin_options()` in `src/cli/setup.rs`)
+- Self-installs into `~/.local/bin` so the binary is callable in the user's own terminal
 - Prepares the plugin appdata directory
-- Ensures `example` is available on `PATH`
-- Calls `example setup plugin-hook "$@"`
+- Checks/repairs setup and emits the JSON hook contract
 
-Deployment policy, repair behavior, and failure classification live in the Rust binary, not in the hook script. The script is idempotent and intentionally does not manage Docker, systemd, config rewrites, port conflicts, or OAuth redirect construction itself.
+Deployment policy, repair behavior, env-var mapping, and failure classification all live in the Rust binary. The former `plugin-setup.sh` wrapper was a pure env-mapping middleman and has been removed.
 
 ---
 

@@ -23,7 +23,6 @@ fn plugin_manifests_exist_for_all_supported_hosts() {
         "plugins/example/gemini-extension.json",
         "plugins/example/.mcp.json",
         "plugins/example/hooks/hooks.json",
-        "plugins/example/hooks/plugin-setup.sh",
         "plugins/example/skills/example/SKILL.md",
     ] {
         assert!(std::path::Path::new(path).exists(), "{path} should exist");
@@ -92,7 +91,7 @@ fn plugin_manifests_share_identity_and_connection_settings() {
     assert_eq!(mcp["mcpServers"]["example"]["type"], "stdio");
     assert_eq!(
         mcp["mcpServers"]["example"]["command"],
-        "${CLAUDE_PLUGIN_ROOT}/bin/example"
+        "${CLAUDE_PLUGIN_ROOT}/bin/rtemplate"
     );
     assert_eq!(
         mcp["mcpServers"]["example"]["args"],
@@ -131,31 +130,17 @@ fn plugin_manifests_share_identity_and_connection_settings() {
 }
 
 #[test]
-fn claude_hooks_delegate_to_plugin_setup_script() {
+fn claude_hooks_call_binary_setup_plugin_hook_directly() {
     let hooks = json("plugins/example/hooks/hooks.json");
     for hook_name in ["SessionStart", "ConfigChange"] {
         let command = hooks["hooks"][hook_name][0]["hooks"][0]["command"]
             .as_str()
             .unwrap();
-        assert_eq!(command, "${CLAUDE_PLUGIN_ROOT}/hooks/plugin-setup.sh");
+        assert_eq!(
+            command,
+            "${CLAUDE_PLUGIN_ROOT}/bin/rtemplate setup plugin-hook"
+        );
     }
-}
-
-#[test]
-fn plugin_setup_delegates_to_binary_owned_hook_command() {
-    let setup = read("plugins/example/hooks/plugin-setup.sh");
-    assert!(
-        setup.contains("example setup plugin-hook"),
-        "plugin setup should delegate to the binary-owned hook command"
-    );
-    assert!(
-        !setup.contains("systemctl --user"),
-        "plugin setup should not own systemd orchestration"
-    );
-    assert!(
-        !setup.contains("docker compose"),
-        "plugin setup should not own Docker orchestration"
-    );
 }
 
 #[test]
@@ -173,7 +158,7 @@ fn plugin_hook_standard_is_documented() {
 }
 
 fn example_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_example")
+    env!("CARGO_BIN_EXE_rtemplate")
 }
 
 fn setup_command(data_dir: &std::path::Path) -> Command {

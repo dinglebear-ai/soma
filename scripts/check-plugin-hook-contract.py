@@ -97,7 +97,9 @@ SERVERS = [
         "example",
         ROOT,
         "example",
-        "plugins/example/hooks/plugin-setup.sh",
+        # Hook calls the binary directly now (no plugin-setup.sh wrapper); the
+        # env-var mapping lives in apply_plugin_options() in src/cli/setup.rs.
+        None,
         env=(
             ("EXAMPLE_API_URL", "https://api.example.test"),
             ("EXAMPLE_API_KEY", "test-key"),

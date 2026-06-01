@@ -724,8 +724,7 @@ plugins/
       plugin.json         ← plugin manifest + userConfig
     .mcp.json             ← MCP server connection (uses ${user_config.*})
     hooks/
-      hooks.json          ← SessionStart + ConfigChange → plugin-setup.sh
-      plugin-setup.sh     ← thin adapter into `<binary> setup plugin-hook`
+      hooks.json          ← SessionStart + ConfigChange → `<binary> setup plugin-hook` (called directly)
     skills/
       <service>/
         SKILL.md          ← three-tier skill (MCP → CLI → curl)
@@ -777,19 +776,21 @@ Adding an explicit version creates drift and requires manual bumping on every re
 ```json
 {
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/plugins/<service>/hooks/plugin-setup.sh", "timeout": 600 }] }],
-    "ConfigChange": [{ "matcher": "user_settings", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/plugins/<service>/hooks/plugin-setup.sh", "timeout": 600 }] }]
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/<binary> setup plugin-hook", "timeout": 600 }] }],
+    "ConfigChange": [{ "matcher": "user_settings", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/<binary> setup plugin-hook", "timeout": 600 }] }]
   }
 }
 ```
 
-### plugin-setup.sh responsibilities
+### plugin-hook responsibilities
+
+The hook now calls `<binary> setup plugin-hook` directly (no `plugin-setup.sh` wrapper). The binary's `apply_plugin_options()` (in `src/cli/setup.rs`), invoked before `Config::load()`, does what the script used to:
 
 1. Read `CLAUDE_PLUGIN_OPTION_*` env vars (set by plugin runtime from userConfig)
-2. Reject unsafe newline-bearing option values
-3. Export plugin options as runtime env vars
-4. Create the canonical appdata root with private permissions
-5. Ensure the binary is available on `PATH`
+2. Reject (skip) unsafe newline/CR-bearing option values
+3. Map plugin options into the binary's runtime `<SERVICE>_*` env vars
+4. Create the canonical appdata root with private permissions (in setup check/repair)
+5. Self-install the binary into `~/.local/bin`
 6. Call `<binary> setup plugin-hook "$@"`
 
 The hook script must not own Docker/systemd orchestration, config file rewriting, smoke-test policy, or failure classification. Those behaviors live in the binary setup commands.
@@ -2368,16 +2369,15 @@ Every Rust server with a Claude plugin should expose:
 <binary> setup repair
 ```
 
-Use `setup plugin-hook` as the command in `plugin-setup.sh`. Keep `setup check` read-only and non-mutating. Keep `setup repair` idempotent and safe to rerun. `--no-repair` is the rollout/audit mode: it reports what would block startup without mutating appdata or restarting services.
+Use `<binary> setup plugin-hook` directly as the hook command (no shell wrapper). Keep `setup check` read-only and non-mutating. Keep `setup repair` idempotent and safe to rerun. `--no-repair` is the rollout/audit mode: it reports what would block startup without mutating appdata or restarting services.
 
-### Hook script responsibilities
+### plugin-hook env-mapping responsibilities
 
-`plugin-setup.sh` should only:
+`apply_plugin_options()` (`src/cli/setup.rs`), run before `Config::load()` on the plugin-hook path, should only:
 
-- reject unsafe newline-bearing plugin option values
+- reject (skip) unsafe newline/CR-bearing plugin option values
 - map `CLAUDE_PLUGIN_OPTION_*` values to runtime env vars
-- create the canonical appdata root with private permissions
-- warn about stale legacy service managers if applicable
+- (appdata creation and service-manager warnings stay in `setup check`/`setup repair`)
 - ensure the binary is available
 - call `<binary> setup plugin-hook`
 
@@ -2561,17 +2561,12 @@ echo "  Run: example doctor    # validate environment"
 echo "  Run: example --version # verify install"
 ```
 
-### plugin-setup.sh binary symlinking
+### plugin-hook binary self-install
 
-The Claude Code plugin hook (`plugin-setup.sh`) symlinks the plugin-bundled binary into
-`~/.local/bin/` on every SessionStart so it stays current after plugin updates:
-
-```bash
-link_binary() {
-    mkdir -p "${HOME}/.local/bin"
-    ln -sf "${CLAUDE_PLUGIN_ROOT}/bin/<service>" "${HOME}/.local/bin/<service>"
-}
-```
+The Claude Code plugin hook (`<binary> setup plugin-hook`) copies the running binary into
+`~/.local/bin/` on every SessionStart (via `install_self()`) so it stays current after plugin
+updates. A copy (not a symlink) is used so it survives `/plugin update`, which changes the
+plugin cache path a symlink would otherwise dangle to.
 
 ---
 

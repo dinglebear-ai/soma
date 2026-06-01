@@ -77,8 +77,17 @@ pub async fn serve_stdio_mcp() -> Result<()> {
 
 /// Dispatch CLI subcommands.
 pub async fn run_cli() -> Result<()> {
+    let parsed = cli::parse_args()?;
+    // Translate CLAUDE_PLUGIN_OPTION_* into EXAMPLE_* env vars BEFORE Config::load()
+    // so the plugin hook can call the binary directly (no plugin-setup.sh wrapper).
+    if matches!(
+        parsed,
+        Some(cli::Command::Setup(cli::SetupCommand::PluginHook { .. }))
+    ) {
+        cli::apply_plugin_options();
+    }
     let config = Config::load()?;
-    match cli::parse_args()? {
+    match parsed {
         Some(cli::Command::Doctor { json }) => cli::doctor::run_doctor(&config, json).await,
         Some(cli::Command::Watch { url, interval }) => {
             let base = url.unwrap_or_else(|| format!("http://localhost:{}", config.mcp.port));

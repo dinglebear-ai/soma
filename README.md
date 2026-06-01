@@ -485,9 +485,9 @@ This checklist covers everything you need to adapt rmcp-template for a real serv
 
     Edit `plugins/example/.claude-plugin/plugin.json`. Replace the `example_api_url` / `example_api_key` fields with your service's actual credential names and descriptions.
 
-18. **Update `plugins/example/hooks/plugin-setup.sh`**
+18. **Update `apply_plugin_options()` in `src/cli/setup.rs`**
 
-    Replace `EXAMPLE_*` env var names, `example-mcp` service references, and add any service-specific credentials your binary needs.
+    This function maps `CLAUDE_PLUGIN_OPTION_*` plugin options to the binary's `EXAMPLE_*` env vars (it replaces the old `plugin-setup.sh` wrapper). Replace `EXAMPLE_*` env var names and add any service-specific credentials your binary needs.
 
 19. **Update `plugins/example/skills/`**
 

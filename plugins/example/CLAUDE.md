@@ -13,8 +13,7 @@ Multi-platform plugin package for the Example MCP server. Contains manifests for
 | `gemini-extension.json` | Gemini CLI manifest — uses `settings` array instead of `userConfig` |
 | `.mcp.json` | Shared MCP server connection config used by all three platforms |
 | `bin/example` | Release binary used by stdio MCP and optional monitor — populate with `just install` |
-| `hooks/hooks.json` | Lifecycle hook definitions: `SessionStart`, `ConfigChange` |
-| `hooks/plugin-setup.sh` | Lifecycle setup adapter; maps plugin options and delegates to the binary |
+| `hooks/hooks.json` | Lifecycle hook definitions: `SessionStart`, `ConfigChange` — call `bin/rtemplate setup plugin-hook` directly (no shell wrapper) |
 | `monitors/monitors.json` | Background health monitor config (requires Claude Code v2.1.105+) |
 | `skills/example/SKILL.md` | Three-tier tool documentation shared by Claude and Codex |
 
@@ -42,7 +41,7 @@ just install   # cargo build --release, then copies to plugins/example/bin/examp
 command uses `${user_config.server_url}` substitution — this is resolved at
 runtime from the user's plugin settings. Do not hardcode URLs in `monitors.json`.
 
-When adding a new monitor: add an entry to `monitors.json` and reference only `${CLAUDE_PLUGIN_ROOT}/bin/example` or scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/`. Do not reference bare binary names that depend on PATH — the monitor may start before `plugin-setup.sh` has run.
+When adding a new monitor: add an entry to `monitors.json` and reference only `${CLAUDE_PLUGIN_ROOT}/bin/example` or scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/`. Do not reference bare binary names that depend on PATH — the monitor may start before the setup hook has run.
 
 ## Updating the skill
 
@@ -53,9 +52,9 @@ The three-tier structure must be preserved:
 - **Tier 2** (middle): full action reference with parameters and response shapes
 - **Tier 3** (bottom): workflows, HTTP fallback, error handling
 
-## Updating the setup script
+## Updating the plugin option mapping
 
-`hooks/plugin-setup.sh` reads `CLAUDE_PLUGIN_OPTION_*` env vars that map to the `userConfig` fields in `plugin.json`. When you add or rename a `userConfig` field, update the env var block in the setup script to match.
+`apply_plugin_options()` in `src/cli/setup.rs` reads `CLAUDE_PLUGIN_OPTION_*` env vars that map to the `userConfig` fields in `plugin.json`, translating them into the binary's `EXAMPLE_*` vars before `Config::load()`. When you add or rename a `userConfig` field, update the mapping table in that function to match. (This replaces the former `plugin-setup.sh` wrapper, which has been removed.)
 
 Sensitive fields declared `"sensitive": true` in `plugin.json` are available as env vars in hooks but are **never** substituted into skill content.
 
@@ -65,5 +64,5 @@ When renaming `example` → your service:
 
 1. Replace all `example` / `Example` / `EXAMPLE_` identifiers in every file in this directory.
 2. Rename `skills/example/` to `skills/<your-service>/`.
-3. Update `hooks/plugin-setup.sh` — the env var block near the top maps `CLAUDE_PLUGIN_OPTION_*` to your service's actual `EXAMPLE_*` vars.
+3. Update `apply_plugin_options()` in `src/cli/setup.rs` — its mapping table maps `CLAUDE_PLUGIN_OPTION_*` to your service's actual `EXAMPLE_*` vars.
 4. Keep the no-version rule: do not add `"version"` to any manifest.
