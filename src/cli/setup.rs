@@ -20,6 +20,9 @@ use anyhow::{bail, Result};
 pub enum SetupCommand {
     Check,
     Repair,
+    /// Copy this binary into ~/.local/bin so it is available as a bare command
+    /// in the user's own terminal, independent of Claude Code.
+    Install,
     PluginHook { no_repair: bool },
 }
 
@@ -27,6 +30,11 @@ pub async fn run_setup(config: &Config, command: SetupCommand) -> Result<()> {
     let report = match command {
         SetupCommand::Check => setup_check(config, true),
         SetupCommand::Repair => setup_repair(config)?,
+        SetupCommand::Install => {
+            let dest = install_self()?;
+            println!("installed {} -> {}", env!("CARGO_PKG_NAME"), dest.display());
+            return Ok(());
+        }
         SetupCommand::PluginHook { no_repair } => setup_plugin_hook(config, no_repair)?,
     };
 
@@ -83,11 +91,63 @@ impl SetupReport {
 // ── setup logic ───────────────────────────────────────────────────────────────
 
 fn setup_plugin_hook(config: &Config, no_repair: bool) -> Result<SetupReport> {
+    // Keep the user's terminal copy in ~/.local/bin fresh each session so it
+    // survives `/plugin update` (which changes the cache path). Best-effort:
+    // never fail the hook over a self-install problem.
+    if let Err(e) = install_self() {
+        eprintln!("setup plugin-hook: self-install skipped: {e}");
+    }
     let initial = setup_check(config, no_repair);
     if initial.blocking_failures.is_empty() || no_repair {
         return Ok(initial);
     }
     setup_repair(config)
+}
+
+/// Copy the running binary into `~/.local/bin/<name>` so it is callable as a
+/// bare command in the user's own terminal, independent of Claude Code.
+///
+/// Uses the running executable's own file name as the destination, so this
+/// function is identical across every server repo. Copy (not symlink) so it
+/// survives `/plugin update`, which changes the plugin cache path a symlink
+/// would otherwise dangle to. Atomic via temp + rename; idempotent.
+fn install_self() -> Result<PathBuf> {
+    let exe = std::env::current_exe()?;
+    let name = exe
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("cannot determine binary name from {}", exe.display()))?;
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+    let bin_dir = home.join(".local").join("bin");
+    std::fs::create_dir_all(&bin_dir)?;
+    let dest = bin_dir.join(name);
+
+    // Running the already-installed copy: nothing to do.
+    if dest == exe {
+        return Ok(dest);
+    }
+
+    let tmp = bin_dir.join(format!(".{}.tmp", name.to_string_lossy()));
+    std::fs::copy(&exe, &tmp)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?;
+    }
+    std::fs::rename(&tmp, &dest).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })?;
+
+    // Advisory: warn (not fail) if ~/.local/bin is not on PATH.
+    let on_path = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).any(|d| d == bin_dir))
+        .unwrap_or(false);
+    if !on_path {
+        eprintln!(
+            "note: {} is not on your PATH; add:  export PATH=\"$HOME/.local/bin:$PATH\"",
+            bin_dir.display()
+        );
+    }
+    Ok(dest)
 }
 
 fn setup_check(config: &Config, no_repair: bool) -> SetupReport {
