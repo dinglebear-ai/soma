@@ -16,19 +16,19 @@ default:
 # Run the MCP server in development mode (HTTP transport 40060, no auth)
 # WARNING: EXAMPLE_MCP_NO_AUTH=true is safe only because HOST is 127.0.0.1 (loopback)
 dev:
-    EXAMPLE_MCP_HOST=127.0.0.1 EXAMPLE_MCP_NO_AUTH=true cargo run --bin example-server -- serve mcp
+    EXAMPLE_MCP_HOST=127.0.0.1 EXAMPLE_MCP_NO_AUTH=true cargo run --bin rtemplate-server -- serve mcp
 
 # Run in stdio MCP transport mode (for Claude Desktop or direct pipe)
 mcp:
-    cargo run --bin example -- mcp
+    cargo run --bin rtemplate -- mcp
 
 # Run a quick CLI greeting (smoke test without a running server)
 greet:
-    cargo run --bin example -- greet --name "Developer"
+    cargo run --bin rtemplate -- greet --name "Developer"
 
 # Run the doctor pre-flight check
 doctor:
-    cargo run --bin example -- doctor
+    cargo run --bin rtemplate -- doctor
 
 # ── Building ──────────────────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ build:
 
 # Compile the lightweight local/plugin binary only
 build-local:
-    cargo build --bin example --no-default-features --features cli-mcp
+    cargo build --bin rtemplate --no-default-features --features cli-mcp
 
 # Compile optimized release build (slower compile, much faster runtime)
 build-release:
@@ -46,11 +46,11 @@ build-release:
 
 # Compile the lightweight local/plugin release binary only
 build-local-release:
-    cargo build --release --bin example --no-default-features --features cli-mcp
+    cargo build --release --bin rtemplate --no-default-features --features cli-mcp
 
 # Compile the full server release binary only
 build-server-release:
-    cargo build --release --bin example-server --features full
+    cargo build --release --bin rtemplate-server --features full
 
 # Build the Next.js web UI static export (required before cargo build embeds it)
 # Output lands in apps/web/out/ and is baked into the binary via the `web` feature
