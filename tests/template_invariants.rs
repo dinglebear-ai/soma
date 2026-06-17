@@ -1,5 +1,7 @@
 use serde_json::Value;
-use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+use std::fs;
+#[cfg(unix)]
+use std::{os::unix::fs::PermissionsExt, path::Path};
 
 fn read(path: &str) -> String {
     fs::read_to_string(path).unwrap_or_else(|err| panic!("failed to read {path}: {err}"))
@@ -10,6 +12,7 @@ fn json(path: &str) -> Value {
 }
 
 #[test]
+#[cfg(unix)]
 fn portable_scripts_are_executable_and_documented() {
     let docs = read("scripts/README.md");
     for path in [

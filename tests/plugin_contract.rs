@@ -158,17 +158,48 @@ fn example_bin() -> std::path::PathBuf {
         .unwrap_or_else(|| std::path::PathBuf::from(BIN_NAME))
 }
 
+fn free_loopback_port() -> u16 {
+    let listener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("should bind to an ephemeral port");
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    port
+}
+
 fn setup_command(data_dir: &std::path::Path) -> Command {
     let mut cmd = Command::new(example_bin());
+    let port = free_loopback_port().to_string();
     cmd.env_clear()
         .env("HOME", data_dir)
         .env("PATH", std::env::var("PATH").unwrap_or_default())
         .env("RTEMPLATE_HOME", data_dir)
         .env("RTEMPLATE_API_URL", "https://api.example.test")
         .env("RTEMPLATE_API_KEY", "example-secret")
-        .env("RTEMPLATE_MCP_PORT", "0")
+        .env("RTEMPLATE_MCP_HOST", "127.0.0.1")
+        .env("RTEMPLATE_MCP_PORT", port)
         .env("RTEMPLATE_MCP_TOKEN", "mcp-secret");
     cmd
+}
+
+fn assert_repair_success_or_windows_port_advisory(json: &Value) {
+    if cfg!(windows) && json["exit_policy"] == "advisory_failure" {
+        let codes: Vec<&str> = json["advisory_failures"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|failure| failure["code"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            codes,
+            ["mcp_port_in_use"],
+            "unexpected advisory failures after setup repair: {json:#}"
+        );
+    } else {
+        assert_eq!(
+            json["exit_policy"], "success",
+            "setup repair JSON: {json:#}"
+        );
+    }
 }
 
 #[test]
@@ -211,7 +242,7 @@ fn setup_repair_creates_env_file_without_upstream_contact() {
         String::from_utf8_lossy(&output.stderr)
     );
     let json: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(json["exit_policy"], "success");
+    assert_repair_success_or_windows_port_advisory(&json);
     assert_eq!(json["ran_repair"], true);
     assert_eq!(json["no_repair"], false);
 
@@ -265,17 +296,20 @@ fn assert_env_file_mode(path: &std::path::Path) {
 //     mode.  We override that by adding RTEMPLATE_MCP_AUTH_MODE=oauth.
 //   - We omit RTEMPLATE_MCP_TOKEN here so the setup logic enters the OAuth
 //     credential-check branch (token takes precedence in bearer mode).
-//   - Port is kept at 0 (from setup_command) to avoid mcp_port_in_use noise.
+//   - The port is assigned from an ephemeral loopback bind to avoid
+//     mcp_port_in_use noise from fixed test ports.
 
 fn oauth_setup_command(data_dir: &std::path::Path) -> Command {
     let mut cmd = Command::new(example_bin());
+    let port = free_loopback_port().to_string();
     cmd.env_clear()
         .env("HOME", data_dir)
         .env("PATH", std::env::var("PATH").unwrap_or_default())
         .env("RTEMPLATE_HOME", data_dir)
         .env("RTEMPLATE_API_URL", "https://api.example.test")
         .env("RTEMPLATE_API_KEY", "example-secret")
-        .env("RTEMPLATE_MCP_PORT", "0")
+        .env("RTEMPLATE_MCP_HOST", "127.0.0.1")
+        .env("RTEMPLATE_MCP_PORT", port)
         .env("RTEMPLATE_MCP_AUTH_MODE", "oauth")
         .env("RTEMPLATE_MCP_PUBLIC_URL", "https://mcp.example.test")
         .env("RTEMPLATE_MCP_GOOGLE_CLIENT_ID", "test-client-id")
@@ -408,7 +442,7 @@ fn setup_repair_oauth_writes_oauth_env_lines() {
         String::from_utf8_lossy(&output.stderr)
     );
     let json: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(json["exit_policy"], "success");
+    assert_repair_success_or_windows_port_advisory(&json);
     assert_eq!(json["ran_repair"], true);
 
     let env_file = fs::read_to_string(data_dir.join(".env")).unwrap();

@@ -27,9 +27,9 @@ on:
     tags: ["v*"]
 
 env:
-  # TEMPLATE: Replace "example" with your binary name.
-  BINARY_NAME: example
-  SERVER_BINARY_NAME: example-server
+  # TEMPLATE: Replace "rtemplate" with your binary name.
+  BINARY_NAME: rtemplate
+  SERVER_BINARY_NAME: rtemplate-server
 
 jobs:
   frontend-assets:

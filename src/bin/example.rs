@@ -40,3 +40,7 @@ fn is_http_server_request(args: &[String]) -> bool {
         || matches!(args, [c] if c == "serve")
         || matches!(args, [a, b] if a == "serve" && b == "mcp")
 }
+
+#[cfg(test)]
+#[path = "example_tests.rs"]
+mod tests;

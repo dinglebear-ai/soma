@@ -90,7 +90,7 @@ retries = 2
 2. plugin layout validation
 3. schema docs validation
 4. template feature smoke tests
-5. version sync
+5. release version gate
 6. blob-size check
 7. ASCII hygiene
 8. `just verify`
@@ -129,6 +129,8 @@ allowed_blank_lines = 1
 Large artifacts are blocked unless allowlisted in `scripts/blob-size-allowlist.txt`. Plugin binaries are expected artifacts and are allowlisted.
 
 ## Release artifact distribution
+
+`release/components.toml` is the source of truth for release components, version-bearing files, tag prefixes, release workflows, and shipping paths. PR CI runs `cargo xtask check-release-versions --base origin/main --head HEAD --mode pr`, using the merge-base of the PR branch so base-only changes do not force a false bump. Pushes to `main` run `.github/workflows/auto-tag.yml`, which consumes `cargo xtask release-plan --head HEAD --mode main --json`, waits for CI on the exact push SHA, and creates the candidate tag for changed components.
 
 Version tags (`v*`) trigger the release workflow, which builds release binaries and attaches them to the GitHub Release. The release workflow must **not** push generated binaries back to `main`. Local `just dist` / `cargo xtask dist` recipes are operator conveniences for preparing artifacts — they are not a CI write-back path.
 

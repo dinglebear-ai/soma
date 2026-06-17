@@ -9,7 +9,7 @@ Maintenance and automation scripts for the template. Shell scripts are written f
 | `asciicheck.py` | Check/fix unexpected non-ASCII characters. |
 | `block-env-commits.sh` | Prevent `.env*` secrets from being committed. |
 | `build-web.sh` | Build the Next.js web UI static export (`apps/web/out/`). |
-| `bump-version.sh` | Update version-bearing files from the `Cargo.toml` version. |
+| `bump-version.sh` | Compatibility wrapper for `cargo xtask bump-version template`. |
 | `check-blob-size.py` | Block unexpectedly large changed blobs. |
 | `check-coupled-files.sh` | Warn when files that normally change together drift. |
 | `check-dependency-updates.sh` | Report lockfile-compatible and latest dependency updates. |
@@ -19,7 +19,7 @@ Maintenance and automation scripts for the template. Shell scripts are written f
 | `check-openapi.py` | Generate/check `docs/generated/openapi.json` for the REST API surface. |
 | `check-schema-docs.py` | Generate/check `docs/MCP_SCHEMA.md` and action docs. |
 | `check-scaffold-intent-contract.py` | Validate scaffold intent schema and examples without third-party dependencies. |
-| `check-version-sync.sh` | Check version consistency. |
+| `check-version-sync.sh` | Compatibility wrapper for the manifest-backed version sync gate. |
 | `generate-cli.sh` | Generate a standalone CLI for this server via mcporter (requires running server). |
 | `pre-release-check.sh` | Full release-readiness gate, including schema/OpenAPI/scaffold contract drift checks. |
 | `refresh-docs.sh` | Refresh ignored reference docs with Axon/Repomix. |
@@ -59,13 +59,12 @@ Pre-commit guard that rejects staged `.env`, `.env.local`, `.env.prod`, etc. `.e
 ### `bump-version.sh`
 
 ```bash
-scripts/bump-version.sh 1.3.5
 scripts/bump-version.sh patch
 scripts/bump-version.sh minor
 scripts/bump-version.sh major
 ```
 
-Updates `Cargo.toml`, `Cargo.lock`, and `server.json` when present. Plugin manifests intentionally remain versionless.
+Updates every version file declared in `release/components.toml` for the `template` component. Plugin manifests intentionally remain versionless.
 
 ### `check-blob-size.py`
 
@@ -174,7 +173,7 @@ scripts/check-version-sync.sh
 scripts/check-version-sync.sh /path/to/project
 ```
 
-Validates that version-bearing files agree. Missing `CHANGELOG.md` entries are warnings; mismatched versions are failures.
+Runs `cargo xtask check-version-sync`, which validates `release/components.toml`, exact JSON pointers, Cargo/Cargo.lock parity, MCP registry metadata, OpenAPI version, changelog heading, and the plugin-manifest no-version rule.
 
 ### `generate-cli.sh`
 

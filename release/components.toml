@@ -1,0 +1,32 @@
+schema_version = 1
+
+[[components]]
+id = "template"
+name = "rmcp-template"
+tag_prefix = "v"
+release_workflow = "release.yml"
+shipping_paths = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "src",
+  "apps/web",
+  "config",
+  "entrypoint.sh",
+  "install.sh",
+  "server.json",
+  "plugins/rtemplate",
+  "scripts/repair.sh",
+]
+version_source = { kind = "cargo_package", path = "Cargo.toml", package = "rmcp-template" }
+version_files = [
+  { kind = "cargo_package", path = "Cargo.toml", package = "rmcp-template" },
+  { kind = "cargo_lock_package", path = "Cargo.lock", package = "rmcp-template" },
+  { kind = "json_version", path = "server.json", json_pointer = "/version" },
+  { kind = "json_version", path = "server.json", json_pointer = "/packages/0/version" },
+  { kind = "oci_identifier_version", path = "server.json", json_pointer = "/packages/0/identifier" },
+  { kind = "json_version", path = "docs/generated/openapi.json", json_pointer = "/info/version" },
+  { kind = "changelog_heading", path = "CHANGELOG.md" },
+  { kind = "json_no_version", path = "plugins/rtemplate/.claude-plugin/plugin.json" },
+  { kind = "json_no_version", path = "plugins/rtemplate/.codex-plugin/plugin.json" },
+  { kind = "json_no_version", path = "plugins/rtemplate/gemini-extension.json" },
+]

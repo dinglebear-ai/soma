@@ -60,7 +60,7 @@ pre-commit:
 | Script | Purpose |
 |---|---|
 | `scripts/block-env-commits.sh` | Blocks staged `.env*` files except `.env.example`. |
-| `scripts/check-version-sync.sh` | Ensures version-bearing files agree. |
+| `scripts/check-version-sync.sh` | Ensures manifest-declared version-bearing files agree. |
 | `scripts/check-file-size.sh` | Warns/fails on staged files above size budgets. |
 | `taplo check` | Checks TOML formatting (runs on every `.toml` in the commit). |
 

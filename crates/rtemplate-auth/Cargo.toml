@@ -1,6 +1,7 @@
 [package]
 name = "rtemplate-auth"
 description = "Vendored OAuth 2.0 + JWT auth crate for rmcp-template and derived servers."
+license = "MIT"
 version = "0.4.1"
 edition = "2024"
 rust-version = "1.90"

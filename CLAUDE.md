@@ -158,6 +158,21 @@ and the CLI subcommand/flag documented.
 
 Plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`) do **not** contain a `version` field. The marketplace derives the version from the git commit SHA on every push — adding an explicit version causes every push to be treated as a new version and creates duplicate entries. Do not add `version` to any plugin manifest and do not run `scripts/bump-version.sh` targets against plugin manifests.
 
+## Release versioning
+
+`release/components.toml` is the source of truth for versioning. This template currently has one shipped component, `template`, covering the Rust crate/binaries, embedded web assets, Docker/runtime files, MCP registry metadata, and plugin package files. `Cargo.toml` package `rmcp-template` is canonical; `Cargo.lock`, `server.json`, `docs/generated/openapi.json`, and `CHANGELOG.md` must stay in parity through the manifest. Plugin manifests are listed as `json_no_version` and must remain versionless.
+
+Use:
+
+```bash
+cargo xtask check-version-sync
+cargo xtask check-release-versions --base origin/main --head HEAD --mode pr
+cargo xtask release-plan --head HEAD --mode main --json
+cargo xtask bump-version template patch
+```
+
+PR mode uses the merge-base of the PR branch and `origin/main`; main mode compares against the latest matching `v*` semver tag and powers `.github/workflows/auto-tag.yml`.
+
 ## Common gotchas
 
 - **Stdio mode suppresses logs** — `main.rs` sets log level to `warn` in stdio mode so JSON-RPC is not corrupted by log lines on stdout.

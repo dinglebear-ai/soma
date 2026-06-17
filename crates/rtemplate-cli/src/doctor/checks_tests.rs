@@ -60,11 +60,19 @@ fn required_var_redacts_long_secrets() {
 
 // ── check_binary_in_path ─────────────────────────────────────────────────────
 
+#[cfg(unix)]
 #[test]
-fn binary_in_path_passes_for_sh() {
-    // /bin/sh or /usr/bin/sh is on PATH in any POSIX system.
+fn binary_in_path_passes_for_posix_sh() {
     let check = check_binary_in_path("sh");
     assert!(check.ok, "sh should be found in PATH");
+    assert_eq!(check.category, "config");
+}
+
+#[cfg(windows)]
+#[test]
+fn binary_in_path_passes_for_windows_cmd() {
+    let check = check_binary_in_path("cmd.exe");
+    assert!(check.ok, "cmd.exe should be found in PATH");
     assert_eq!(check.category, "config");
 }
 

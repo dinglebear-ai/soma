@@ -3733,6 +3733,11 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "semver",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
  "walkdir",
 ]
 

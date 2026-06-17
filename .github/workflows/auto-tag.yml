@@ -1,0 +1,108 @@
+name: Auto Tag
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: auto-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan release tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Build release plan
+        run: cargo xtask release-plan --head HEAD --mode main --json > release-plan.json
+
+      - name: Build matrix
+        id: matrix
+        run: |
+          set -euo pipefail
+          matrix=$(jq -c '{include: [.[] | select(.changed == true)]}' release-plan.json)
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          jq . release-plan.json
+
+  release:
+    name: Create release tag
+    needs: plan
+    if: needs.plan.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Wait for CI to pass on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 1800))
+          while (( SECONDS < deadline )); do
+            run=$(gh run list \
+              --workflow=ci.yml \
+              --commit "$SHA" \
+              --branch main \
+              --event push \
+              --json databaseId,headSha,headBranch,event,status,conclusion \
+              --limit 20 \
+              | jq -r --arg sha "$SHA" '.[] | select(.headSha == $sha and .event == "push" and .headBranch == "main") | @base64' \
+              | head -n1)
+            if [[ -n "$run" ]]; then
+              status=$(printf '%s' "$run" | base64 -d | jq -r '.status')
+              conclusion=$(printf '%s' "$run" | base64 -d | jq -r '.conclusion // ""')
+              if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
+                exit 0
+              fi
+              if [[ "$status" == "completed" ]]; then
+                echo "CI completed with conclusion=${conclusion}" >&2
+                exit 1
+              fi
+            fi
+            sleep 20
+          done
+          echo "Timed out waiting for CI on ${SHA}" >&2
+          exit 1
+
+      - name: Create and push tag
+        env:
+          TAG: ${{ matrix.candidate_tag }}
+          COMPONENT: ${{ matrix.id }}
+          VERSION: ${{ matrix.version }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists; nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${COMPONENT} ${VERSION}"
+          git push origin "${TAG}"

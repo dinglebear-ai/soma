@@ -4,6 +4,7 @@ version = "0.4.1"
 edition = "2021"
 rust-version = "1.90"
 description = "Embedded static web UI adapter for rmcp-template"
+license = "MIT"
 publish = false
 
 [features]

@@ -10,6 +10,9 @@
 //!   patterns     Check static contracts from docs/PATTERNS.md
 //!   contract-audit Run local static/spec checks for REST-client MCP servers
 //!   cargo-generate Smoke-test cargo-generate output
+//!   check-release-versions Validate release component version policy
+//!   release-plan Print changed release components and candidate tags
+//!   bump-version Bump a release component version
 //!
 //! TEMPLATE: Add your own commands by adding arms to the match block below.
 //!           Keep each command as a separate `fn` for readability.
@@ -25,6 +28,7 @@ use walkdir::WalkDir;
 
 mod cargo_generate;
 mod patterns;
+mod release_versions;
 
 fn main() -> Result<()> {
     // Cargo sets CARGO_MANIFEST_DIR for the workspace root when invoked as
@@ -48,6 +52,10 @@ fn main() -> Result<()> {
         Some("contract-audit") => contract_audit(),
         Some("cargo-generate") => cargo_generate(&args[1..]),
         Some("check-test-siblings") => check_test_siblings(),
+        Some("check-version-sync") => release_versions::check_version_sync(workspace_root),
+        Some("check-release-versions") => check_release_versions_cmd(workspace_root, &args[1..]),
+        Some("release-plan") => release_plan_cmd(workspace_root, &args[1..]),
+        Some("bump-version") => bump_version_cmd(workspace_root, &args[1..]),
         Some("--help") | Some("-h") | Some("help") | None => {
             print_help();
             Ok(())
@@ -55,6 +63,100 @@ fn main() -> Result<()> {
         Some(unknown) => {
             bail!("Unknown xtask command: {unknown:?}\nRun `cargo xtask --help` for usage.")
         }
+    }
+}
+
+fn check_release_versions_cmd(root: &std::path::Path, args: &[String]) -> Result<()> {
+    let options = ReleaseCommandOptions::parse(args)?;
+    release_versions::check(
+        root,
+        options.base.as_deref(),
+        &options.head,
+        options.mode,
+        options.json,
+    )
+}
+
+fn release_plan_cmd(root: &std::path::Path, args: &[String]) -> Result<()> {
+    let options = ReleaseCommandOptions::parse(args)?;
+    let plans = release_versions::plan(root, options.base.as_deref(), &options.head, options.mode)?;
+    release_versions::print_plans(&plans, options.json)
+}
+
+fn bump_version_cmd(root: &std::path::Path, args: &[String]) -> Result<()> {
+    if args.len() != 2 {
+        bail!("Usage: cargo xtask bump-version <component> <patch|minor|major>");
+    }
+    let level = parse_bump_level(&args[1])?;
+    release_versions::bump(root, &args[0], level)
+}
+
+struct ReleaseCommandOptions {
+    base: Option<String>,
+    head: String,
+    mode: release_versions::GateMode,
+    json: bool,
+}
+
+impl ReleaseCommandOptions {
+    fn parse(args: &[String]) -> Result<Self> {
+        let mut base = None;
+        let mut head = "HEAD".to_owned();
+        let mut mode = release_versions::GateMode::Pr;
+        let mut json = false;
+        let mut index = 0usize;
+        while index < args.len() {
+            match args[index].as_str() {
+                "--base" => {
+                    index += 1;
+                    base = Some(
+                        args.get(index)
+                            .context("--base requires a value")?
+                            .to_owned(),
+                    );
+                }
+                "--head" => {
+                    index += 1;
+                    head = args
+                        .get(index)
+                        .context("--head requires a value")?
+                        .to_owned();
+                }
+                "--mode" => {
+                    index += 1;
+                    mode = parse_gate_mode(args.get(index).context("--mode requires a value")?)?;
+                }
+                "--json" => json = true,
+                "--help" | "-h" => {
+                    bail!("Usage: cargo xtask <check-release-versions|release-plan> [--base REF] [--head REF] [--mode pr|main] [--json]");
+                }
+                unknown => bail!("unknown release option: {unknown}"),
+            }
+            index += 1;
+        }
+        Ok(Self {
+            base,
+            head,
+            mode,
+            json,
+        })
+    }
+}
+
+fn parse_gate_mode(value: &str) -> Result<release_versions::GateMode> {
+    match value {
+        "pr" => Ok(release_versions::GateMode::Pr),
+        "main" => Ok(release_versions::GateMode::Main),
+        other => bail!("unknown release gate mode {other:?}; expected pr or main"),
+    }
+}
+
+fn parse_bump_level(value: &str) -> Result<release_versions::BumpLevel> {
+    match value {
+        "patch" => Ok(release_versions::BumpLevel::Patch),
+        "minor" => Ok(release_versions::BumpLevel::Minor),
+        "major" => Ok(release_versions::BumpLevel::Major),
+        other => bail!("unknown bump level {other:?}; expected patch, minor, or major"),
     }
 }
 
@@ -523,6 +625,11 @@ COMMANDS:
   patterns              Check static contracts from docs/PATTERNS.md (--strict, --json)
   contract-audit        Run local static/spec checks without live upstream calls
   cargo-generate        Smoke-test real cargo-generate output (--no-cargo-check)
+  check-version-sync    Validate release manifest version-file parity
+  check-release-versions [--base REF] [--head REF] [--mode pr|main] [--json]
+                        Validate changed release components have fresh versions/tags
+  release-plan          Print changed release components and candidate tags
+  bump-version          Bump a component: cargo xtask bump-version template patch
   help                  Show this help
 
 TEMPLATE:

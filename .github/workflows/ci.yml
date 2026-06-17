@@ -197,16 +197,16 @@ jobs:
           restore-keys: ${{ github.repository }}-build-linux-
 
       - name: cargo build local binary
-        run: cargo build --release --locked --bin example --no-default-features --features cli-mcp
+        run: cargo build --release --locked --bin rtemplate --no-default-features --features local-adapter
 
       - name: cargo build server binary
-        run: cargo build --release --locked --bin example-server --features full
+        run: cargo build --release --locked --bin rtemplate-server --features full
 
       - name: Upload Linux binary
         uses: actions/upload-artifact@v7
         with:
-          name: example-linux-x86_64
-          path: target/release/example
+          name: rtemplate-linux-x86_64
+          path: target/release/rtemplate
           if-no-files-found: error
 
   build-windows:
@@ -225,16 +225,6 @@ jobs:
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-
-      - name: Cache Cargo
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ github.repository }}-build-windows-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ github.repository }}-build-windows-
 
       - name: Show Windows Rust CPU flags
         shell: pwsh
@@ -261,19 +251,19 @@ jobs:
         shell: pwsh
         env:
           RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: cargo build --release --locked --bin example --no-default-features --features cli-mcp
+        run: cargo build --release --locked --bin rtemplate --no-default-features --features local-adapter
 
       - name: cargo build server binary
         shell: pwsh
         env:
           RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: cargo build --release --locked --bin example-server --features full
+        run: cargo build --release --locked --bin rtemplate-server --features full
 
       - name: Upload Windows binary
         uses: actions/upload-artifact@v7
         with:
-          name: example-windows-x86_64
-          path: target/release/example.exe
+          name: rtemplate-windows-x86_64
+          path: target/release/rtemplate.exe
           if-no-files-found: error
 
   # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
@@ -310,8 +300,8 @@ jobs:
           sudo apt-get install -y jq
           npm install -g mcporter@0.7.3
 
-      - name: Build example binary
-        run: cargo build --locked --bin example-server --features full
+      - name: Build rtemplate server binary
+        run: cargo build --locked --bin rtemplate-server --features full
 
       - name: Start MCP server
         env:
@@ -321,7 +311,7 @@ jobs:
           RUST_LOG: info,rmcp=warn
         run: |
           set -euo pipefail
-          ./target/debug/example-server serve mcp > /tmp/rtemplate-mcp.log 2>&1 &
+          ./target/debug/rtemplate-server serve mcp > /tmp/rtemplate-mcp.log 2>&1 &
           echo "$!" > /tmp/rtemplate-mcp.pid
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:40123/health >/dev/null 2>&1; then
@@ -393,7 +383,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install taplo
-        uses: taiki-e/install-action@331d60e3cd3a5f0b2a2a3af0e98bace3c04e6a3b # v2.49.0
+        uses: taiki-e/install-action@e03236526ace47fa2e04bebcfc6da471ebd4690c # v2.49.0
         with:
           tool: taplo-cli
 
@@ -431,8 +421,8 @@ jobs:
       - name: Check scaffold intent contract
         run: python3 scripts/check-scaffold-intent-contract.py
 
-      - name: Check version sync
-        run: bash scripts/check-version-sync.sh
+      - name: Check release versions
+        run: cargo xtask check-release-versions --base origin/main --head HEAD --mode pr
 
       - name: Run template feature smoke tests
         run: bash scripts/test-template-features.sh

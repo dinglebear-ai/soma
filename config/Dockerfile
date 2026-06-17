@@ -3,10 +3,10 @@
 # Dockerfile — Template for building an rmcp-based MCP server
 #
 # TEMPLATE: Replace all occurrences of "example" with your binary name.
-#           The server binary name must match Cargo.toml [[bin]] name = "example-server".
+#           The server binary name must match Cargo.toml [[bin]] name = "rtemplate-server".
 #
 # Key substitutions:
-#   "example-server"       → your server binary name (e.g. "myservice-server")
+#   "rtemplate-server"     → your server binary name (e.g. "myservice-server")
 #   "example-cargo-*"      → your cache mount IDs (e.g. "myservice-cargo-*")
 #   "rtemplate-mcp"          → your systemd/Docker service name
 #   EXPOSE 40060            → your port (must match config.toml [mcp] port)
@@ -50,28 +50,20 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 # BuildKit cache the compiled dependencies as a separate layer — subsequent
 # builds that only change src/ skip this expensive step entirely.
 COPY Cargo.toml Cargo.lock ./
-# Strip xtask workspace member — not needed in Docker build context
-RUN sed -i 's/, \"xtask\"//g; s/\"xtask\", //g; s/\"xtask\"//g' Cargo.toml
+COPY crates/ crates/
+COPY xtask/ xtask/
+COPY src/ src/
+COPY docs/generated/openapi.json docs/generated/openapi.json
+# Embed the Next.js static export built in the web stage.
+COPY --from=web /app/apps/web/out/ apps/web/out/
 
+# ── Application build ─────────────────────────────────────────────────────────
 # TEMPLATE: Replace "example" cache IDs with your service name to avoid
 #           sharing cache with other projects on the same build host.
 RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=example-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked -p rmcp-template --bin example-server && rm -rf src
-
-# ── Application build ─────────────────────────────────────────────────────────
-# Now copy the real source and build the actual binary.
-# The `touch src/main.rs` forces Cargo to re-link even when timestamps haven't
-# changed (Docker layer caching can confuse Cargo's incremental build detection).
-COPY src/ src/
-COPY docs/generated/openapi.json docs/generated/openapi.json
-# Embed the Next.js static export built in the web stage.
-COPY --from=web /app/apps/web/out/ apps/web/out/
-RUN --mount=type=cache,id=example-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=example-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=example-cargo-target,target=/app/target,sharing=locked \
-    touch src/main.rs && cargo build --release --locked -p rmcp-template --bin example-server --features full && \
+    cargo build --release --locked -p rmcp-template --bin rtemplate-server --features full && \
     cp target/release/rtemplate-server /usr/local/bin/rtemplate-server
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
@@ -94,7 +86,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl gosu && \
     rm -rf /var/lib/apt/lists/*
 
-# TEMPLATE: Replace "example-server" with your server binary name in both COPY and target path.
+# TEMPLATE: Replace "rtemplate-server" with your server binary name in both COPY and target path.
 COPY --from=builder /usr/local/bin/rtemplate-server /usr/local/bin/rtemplate-server
 
 # Wire in the entrypoint.

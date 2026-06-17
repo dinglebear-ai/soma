@@ -29,18 +29,22 @@ use rtemplate_runtime::server::{AppState, AuthPolicy};
 use rtemplate_runtime::server::{AppState, AuthPolicy};
 
 pub fn init_logging(stdio_mode: bool, serve_mode: bool) {
-    let log_level = if stdio_mode || !serve_mode {
-        "warn"
-    } else {
-        "info"
-    };
     fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level)),
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new(default_log_level(stdio_mode, serve_mode))),
         )
         .with_writer(std::io::stderr)
         .with_target(true)
         .init();
+}
+
+fn default_log_level(stdio_mode: bool, serve_mode: bool) -> &'static str {
+    if stdio_mode || !serve_mode {
+        "warn"
+    } else {
+        "info"
+    }
 }
 
 /// Start the MCP HTTP server (Streamable HTTP transport).
@@ -183,3 +187,7 @@ async fn shutdown_signal() {
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
     tracing::info!("Shutdown signal received");
 }
+
+#[cfg(test)]
+#[path = "runtime_tests.rs"]
+mod tests;

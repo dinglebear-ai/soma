@@ -4,6 +4,7 @@ version = "0.4.1"
 edition = "2021"
 rust-version = "1.90"
 description = "Shared runtime state and auth policy for rmcp-template surfaces"
+license = "MIT"
 publish = false
 
 [dependencies]
@@ -13,4 +14,3 @@ rtemplate-contracts = { path = "../rtemplate-contracts" }
 rtemplate-service = { path = "../rtemplate-service" }
 tracing = "0.1"
 url = "2"
-

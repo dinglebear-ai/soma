@@ -33,7 +33,7 @@
 #           dev servers. Override with EXAMPLE_MCP_PORT env var.
 [mcp]
 host = "0.0.0.0"            # bind to all interfaces; use 127.0.0.1 for local-only
-port = 40060                 # EXAMPLE_MCP_PORT; also update Dockerfile EXPOSE and docker-compose.yml
+port = 40060                # EXAMPLE_MCP_PORT; also update Dockerfile EXPOSE and docker-compose.yml
 server_name = "example-mcp" # advertised to MCP clients in tools/list response
 
 # Static bearer token — ALWAYS set via EXAMPLE_MCP_TOKEN env var, not here.
@@ -62,15 +62,14 @@ server_name = "example-mcp" # advertised to MCP clients in tools/list response
 # public_url = ""           # EXAMPLE_MCP_PUBLIC_URL (required for oauth)
 # google_client_id = ""     # EXAMPLE_MCP_GOOGLE_CLIENT_ID (use env var)
 # google_client_secret = "" # EXAMPLE_MCP_GOOGLE_CLIENT_SECRET (use env var)
-admin_email = "" # EXAMPLE_MCP_AUTH_ADMIN_EMAIL
-allowed_emails = [] # additional allowed emails beyond admin_email
-sqlite_path = "/data/auth.db" # OAuth session storage; update for your data dir
-key_path = "/data/auth-jwt.pem" # RS256 key for JWT signing; auto-generated on first run
-access_token_ttl_secs = 3600 # 1 hour — how long issued JWTs are valid
-refresh_token_ttl_secs = 86400 # 24 hours — how long refresh tokens last
-auth_code_ttl_secs = 300 # 5 minutes — OAuth auth code window
-register_rpm = 10 # max registration attempts per minute per IP
-authorize_rpm = 60 # max authorization attempts per minute per IP
+admin_email = ""                       # EXAMPLE_MCP_AUTH_ADMIN_EMAIL
+allowed_emails = []                    # additional allowed emails beyond admin_email
+sqlite_path = "/data/auth.db"          # OAuth session storage; update for your data dir
+key_path = "/data/auth-jwt.pem"        # RS256 key for JWT signing; auto-generated on first run
+access_token_ttl_secs = 3600           # 1 hour — how long issued JWTs are valid
+refresh_token_ttl_secs = 86400         # 24 hours — how long refresh tokens last
+auth_code_ttl_secs = 300               # 5 minutes — OAuth auth code window
+register_rpm = 10                      # max registration attempts per minute per IP
+authorize_rpm = 60                     # max authorization attempts per minute per IP
 disable_static_token_with_oauth = true # set false to allow both bearer + oauth
-allowed_client_redirect_uris = [
-] # extra redirect URIs beyond claude.ai defaults
+allowed_client_redirect_uris = []      # extra redirect URIs beyond claude.ai defaults

@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- TEMPLATE: Add changes here as you work. They move to a version section on release. -->
 
+### Added
+
+- Manifest-backed release version gate with `release/components.toml`, xtask commands, CI enforcement, and auto-tag planning.
+
+### Fixed
+
+- Brought `server.json` and generated OpenAPI version metadata back in sync with the crate version.
+
 ## [0.4.1] — 2026-06-01
 
 ### Changed

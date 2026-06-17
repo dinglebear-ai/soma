@@ -45,12 +45,27 @@ explicitly.
 REST APIs stay under explicit versions such as `/v1`. OpenAPI documents and MCP
 action-contract manifests carry versions because they are separate surfaces.
 
+`release/components.toml` is the versioning source of truth for this repository.
+It declares the single shipped `template` component, the `v` tag prefix, the
+release workflow, shipping paths that require a version bump, and every
+version-bearing file. The manifest also records files that must stay
+versionless, such as Claude/Codex/Gemini plugin manifests whose marketplace
+version is derived from the git commit SHA.
+
+Use `cargo xtask check-release-versions --base origin/main --head HEAD --mode pr`
+in PR CI. The PR mode compares from merge-base to avoid false failures from
+changes that exist only on the base branch. Use `cargo xtask release-plan --head
+HEAD --mode main --json` on `main` to plan auto-tags from the latest matching
+semver tag.
+
 ## Consequences
 
 - Boundary stability is proven before repository splits or public publishing.
 - Breaking changes to REST routes, response shapes, auth requirements, MCP
   action params, package exports, or dependency direction require a major
   version bump or compatibility alias.
+- Runtime shipping-path changes require the `template` component version to be
+  greater than the latest `v*` semver tag before merge.
 - The externalization decision is deferred until in-repo boundaries pass tests
   and have consumer fixtures.
 
@@ -60,4 +75,3 @@ action-contract manifests carry versions because they are separate surfaces.
   `docs/adr/0007-versioning-and-distribution.md`.
 - [`docs/adr/0002-extract-reusable-platform-and-product-packages.md`](./0002-extract-reusable-platform-and-product-packages.md)
 - [`docs/adr/0010-extraction-verification-gates.md`](./0010-extraction-verification-gates.md)
-

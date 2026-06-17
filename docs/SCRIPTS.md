@@ -43,7 +43,7 @@ The full release gate. Runs:
 2. plugin layout validation
 3. schema docs validation
 4. template feature smoke tests
-5. version sync
+5. release version gate
 6. blob-size check
 7. ASCII hygiene
 8. `just verify`

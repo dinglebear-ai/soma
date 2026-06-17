@@ -282,9 +282,11 @@ Keep version and metadata synchronized across:
 | `server.json` | package version and registry metadata, when present |
 
 `Cargo.toml` is the canonical version source for this template. Use
-`scripts/bump-version.sh` to update Cargo and `server.json` together, then use
-`scripts/check-version-sync.sh` or `just pre-release` to verify that
-version-bearing files still agree. Plugin manifests should remain versionless.
+`cargo xtask bump-version template patch|minor|major` or
+`scripts/bump-version.sh patch|minor|major` to update every file declared in
+`release/components.toml`, then use `cargo xtask check-version-sync` or
+`just pre-release` to verify that version-bearing files still agree. Plugin
+manifests should remain versionless.
 
 The template should not claim write capability unless the MCP server has real write actions. Read-only servers should use Codex `["Read"]` and avoid write-oriented sample prompts.
 

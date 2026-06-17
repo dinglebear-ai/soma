@@ -112,9 +112,9 @@ pub fn check_dir_writable(label: &str, dir: &Path) -> DoctorCheck {
 /// # TEMPLATE
 /// Replace `"example"` with your binary name (matches Cargo.toml `[[bin]] name`).
 pub fn check_binary_in_path(binary: &str) -> DoctorCheck {
-    let path_var = std::env::var("PATH").unwrap_or_default();
-    for dir in path_var.split(':') {
-        let candidate = std::path::Path::new(dir).join(binary);
+    let path_var = std::env::var_os("PATH").unwrap_or_default();
+    for dir in std::env::split_paths(&path_var) {
+        let candidate = dir.join(binary);
         if candidate.is_file() {
             return DoctorCheck::pass(
                 "config",

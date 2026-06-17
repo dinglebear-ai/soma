@@ -23,4 +23,11 @@ publish = false
 #           These are the only deps needed for the four required commands.
 #           Add more only if a new command truly requires it.
 anyhow = "1"
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1.1"
 walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"

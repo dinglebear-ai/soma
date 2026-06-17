@@ -52,7 +52,7 @@ run_check "schema docs" python3 scripts/check-schema-docs.py --check
 run_check "OpenAPI docs" python3 scripts/check-openapi.py --check
 run_check "scaffold intent contract" python3 scripts/check-scaffold-intent-contract.py
 run_check "template feature smoke" bash scripts/test-template-features.sh
-run_check "version sync" bash scripts/check-version-sync.sh
+run_check "release version gate" cargo xtask check-release-versions --base origin/main --head HEAD --mode pr
 run_check "blob size" python3 scripts/check-blob-size.py
 run_check "ascii hygiene" just ascii-check
 
