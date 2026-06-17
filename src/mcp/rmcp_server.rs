@@ -493,7 +493,7 @@ fn require_auth_context<'a>(
         AuthPolicy::Mounted { .. } => {
             let parts = ctx
                 .extensions
-                .get::<axum::http::request::Parts>()
+                .get::<http::request::Parts>()
                 .ok_or_else(|| {
                     tracing::error!(
                         "rmcp HTTP Parts extension absent — middleware ordering may be broken"

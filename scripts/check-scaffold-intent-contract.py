@@ -21,7 +21,7 @@ EXAMPLES = ROOT / "docs/contracts/examples"
 SURFACES = {"api", "cli", "mcp", "web"}
 AUTH_KINDS = {"none", "api-key", "bearer", "oauth", "both", "other"}
 TRANSPORTS = {"stdio", "http", "dual"}
-BINARY_PROFILES = {"cli-mcp", "server-full"}
+BINARY_PROFILES = {"local-adapter", "server-full"}
 PRIMITIVES = {"tools", "resources", "prompts", "elicitation"}
 DEPLOYMENTS = {"none", "systemd", "docker"}
 PLUGINS = {"claude", "codex", "gemini"}
@@ -153,7 +153,7 @@ def validate_payload(payload: object, source: Path) -> None:
     require(isinstance(runtime["port"], int) and 1 <= runtime["port"] <= 65535, f"{source}: runtime.port out of range")
     require(runtime["binary_profile"] in BINARY_PROFILES, f"{source}: invalid runtime.binary_profile")
     if category == "upstream-client":
-        require(runtime["binary_profile"] == "cli-mcp", f"{source}: upstream-client must default to cli-mcp binary profile")
+        require(runtime["binary_profile"] == "local-adapter", f"{source}: upstream-client must default to local-adapter binary profile")
     else:
         require(runtime["binary_profile"] == "server-full", f"{source}: application-platform must default to server-full binary profile")
     require(runtime["mcp_transport"] in TRANSPORTS, f"{source}: invalid runtime.mcp_transport")
@@ -191,7 +191,7 @@ def validate_payload(payload: object, source: Path) -> None:
     profiles = policy.get("binary_profiles")
     require(isinstance(profiles, dict), f"{source}: policy.binary_profiles must be object")
     require_no_extra(profiles, f"{source}: policy.binary_profiles", {"upstream_client_default", "application_platform_default", "gateway_shared_default"})
-    require(profiles.get("upstream_client_default") == "cli-mcp", f"{source}: upstream binary profile policy mismatch")
+    require(profiles.get("upstream_client_default") == "local-adapter", f"{source}: upstream binary profile policy mismatch")
     require(profiles.get("application_platform_default") == "server-full", f"{source}: application binary profile policy mismatch")
     require(profiles.get("gateway_shared_default") == "server-full", f"{source}: gateway binary profile policy mismatch")
 

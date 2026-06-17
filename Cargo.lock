@@ -2218,6 +2218,7 @@ dependencies = [
  "chrono",
  "dirs",
  "dotenvy",
+ "http",
  "include_dir",
  "lab-auth",
  "reqwest 0.12.28",

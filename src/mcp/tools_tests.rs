@@ -54,7 +54,7 @@ fn scaffold_intent_json_matches_simplified_contract_shape() {
         json!({
             "host": "127.0.0.1",
             "port": 3100,
-            "binary_profile": "cli-mcp",
+            "binary_profile": "local-adapter",
             "mcp_transport": "dual"
         })
     );

@@ -103,11 +103,15 @@ pub fn router(state: AppState) -> Router {
         base = base.merge(oauth);
     }
 
+    #[cfg(feature = "web")]
     let base = if crate::web::web_assets_available() {
         base.fallback(crate::web::serve_web_assets)
     } else {
         base.fallback(|| async { (StatusCode::NOT_FOUND, Json(json!({"error": "not_found"}))) })
     };
+    #[cfg(not(feature = "web"))]
+    let base =
+        base.fallback(|| async { (StatusCode::NOT_FOUND, Json(json!({"error": "not_found"}))) });
 
     base.layer(RequestBodyLimitLayer::new(MCP_BODY_LIMIT_BYTES))
         .layer(cors_layer(&state.config))

@@ -4,19 +4,29 @@
 //! CLI, stdio MCP, and HTTP server wiring in one place.
 
 use anyhow::Result;
+#[cfg(feature = "mcp-http")]
 use std::sync::Arc;
 
+#[cfg(feature = "mcp-stdio")]
 use rmcp::{transport::stdio, ServiceExt};
+#[cfg(feature = "mcp-http")]
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
+use crate::config::Config;
+#[cfg(any(feature = "mcp-stdio", feature = "mcp-http"))]
+use crate::{app::ExampleService, example::ExampleClient};
+
+#[cfg(feature = "cli")]
+use crate::cli;
+#[cfg(feature = "mcp-http")]
+use crate::server::{self, resolve_auth_policy_kind, AuthPolicyKind};
+#[cfg(all(feature = "mcp", not(feature = "mcp-stdio")))]
+use crate::server::{AppState, AuthPolicy};
+#[cfg(feature = "mcp-stdio")]
 use crate::{
-    app::ExampleService,
-    cli,
-    config::Config,
-    example::ExampleClient,
     mcp,
-    server::{self, resolve_auth_policy_kind, AppState, AuthPolicy, AuthPolicyKind},
+    server::{AppState, AuthPolicy},
 };
 
 pub fn init_logging(stdio_mode: bool, serve_mode: bool) {
@@ -35,6 +45,7 @@ pub fn init_logging(stdio_mode: bool, serve_mode: bool) {
 }
 
 /// Start the MCP HTTP server (Streamable HTTP transport).
+#[cfg(feature = "mcp-http")]
 pub async fn serve_http_mcp() -> Result<()> {
     let config = Config::load()?;
     let state = build_state(config).await?;
@@ -61,6 +72,7 @@ pub async fn serve_http_mcp() -> Result<()> {
 ///
 /// Stdio is always LoopbackDev: it is a local trusted pipe between parent and
 /// child process. HTTP auth middleware does not apply.
+#[cfg(feature = "mcp-stdio")]
 pub async fn serve_stdio_mcp() -> Result<()> {
     let config = Config::load()?;
     let service = ExampleService::new(ExampleClient::new(&config.example)?);
@@ -76,6 +88,7 @@ pub async fn serve_stdio_mcp() -> Result<()> {
 }
 
 /// Dispatch CLI subcommands.
+#[cfg(feature = "cli")]
 pub async fn run_cli() -> Result<()> {
     let parsed = cli::parse_args()?;
     // Translate CLAUDE_PLUGIN_OPTION_* into RTEMPLATE_* env vars BEFORE Config::load()
@@ -102,6 +115,7 @@ pub async fn run_cli() -> Result<()> {
     }
 }
 
+#[cfg(feature = "mcp-http")]
 async fn build_state(config: Config) -> Result<AppState> {
     let auth_policy = build_auth_policy(&config).await?;
     let service = ExampleService::new(ExampleClient::new(&config.example)?);
@@ -113,6 +127,7 @@ async fn build_state(config: Config) -> Result<AppState> {
     })
 }
 
+#[cfg(feature = "mcp-http")]
 async fn build_auth_policy(config: &Config) -> Result<AuthPolicy> {
     match resolve_auth_policy_kind(config, config.mcp.trusted_gateway)? {
         AuthPolicyKind::LoopbackDev => Ok(AuthPolicy::LoopbackDev),
@@ -141,6 +156,7 @@ async fn build_auth_policy(config: &Config) -> Result<AuthPolicy> {
     }
 }
 
+#[cfg(feature = "mcp-http")]
 async fn shutdown_signal() {
     let ctrl_c = async {
         if let Err(e) = tokio::signal::ctrl_c().await {

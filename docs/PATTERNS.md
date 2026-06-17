@@ -3338,10 +3338,15 @@ offline template stub active for tests and first-run scaffolds.
 ```toml
 [features]
 default = ["full"]
-cli-mcp = []
-http-server = []
-web = ["http-server", "include_dir"]
-full = ["cli-mcp", "http-server", "web"]
+cli = ["dep:lab-auth"]
+mcp = ["dep:http", "dep:lab-auth", "dep:rmcp", "rmcp/server", "rmcp/macros", "rmcp/elicitation", "rmcp/schemars"]
+mcp-stdio = ["mcp", "rmcp/transport-io"]
+api = ["dep:axum", "dep:lab-auth", "dep:tower-http"]
+mcp-http = ["api", "mcp", "rmcp/transport-streamable-http-server"]
+web = ["api", "dep:include_dir"]
+local-adapter = ["cli", "mcp-stdio"]
+server = ["cli", "api", "mcp-http", "mcp-stdio"]
+full = ["local-adapter", "server", "web"]
 
 [dependencies]
 include_dir = { version = "0.7", optional = true }
@@ -3360,8 +3365,9 @@ pub fn web_assets_available() -> bool {
 
 Build without web UI:
 ```bash
-cargo build --bin example --no-default-features --features cli-mcp
-cargo build --bin example-server --features full
+cargo build --bin rtemplate --no-default-features --features local-adapter
+cargo build --bin rtemplate-server --no-default-features --features server
+cargo build --bin rtemplate-server --features full
 ```
 
 ---

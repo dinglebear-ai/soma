@@ -17,7 +17,7 @@
   "runtime": {
     "host": "127.0.0.1",
     "port": 3100,
-    "binary_profile": "cli-mcp",
+    "binary_profile": "local-adapter",
     "mcp_transport": "dual"
   },
   "mcp_primitives": ["tools", "resources", "prompts", "elicitation"],
@@ -38,7 +38,7 @@
     "upstream_client_surfaces": ["mcp", "cli"],
     "application_platform_surfaces": ["api", "cli", "mcp", "web"],
     "binary_profiles": {
-      "upstream_client_default": "cli-mcp",
+      "upstream_client_default": "local-adapter",
       "application_platform_default": "server-full",
       "gateway_shared_default": "server-full"
     }

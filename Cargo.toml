@@ -25,28 +25,23 @@ autobins = false
 [[bin]]
 name = "rtemplate"
 path = "src/bin/example.rs"
-required-features = ["cli-mcp"]
+required-features = ["local-adapter"]
 
 [[bin]]
 name = "rtemplate-server"
 path = "src/main.rs"
-required-features = ["http-server"]
+required-features = ["server"]
 
 [dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
 # HTTP / MCP transport
-axum = "0.8"
+axum = { version = "0.8", optional = true }
+http = { version = "1", optional = true }
 rmcp = { version = "1.7.0", default-features = false, features = [
-  "server",
-  "macros",
-  "transport-streamable-http-server",
-  "transport-io",
-  "elicitation",
-  "schemars",
-] }
-tower-http = { version = "0.6", features = ["cors", "limit", "trace"] }
+], optional = true }
+tower-http = { version = "0.6", features = ["cors", "limit", "trace"], optional = true }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -60,7 +55,7 @@ chrono = { version = "0.4", features = ["serde"] }
 toml = "1.1"
 
 # OAuth + JWT
-lab-auth = { git = "https://github.com/jmagar/lab.git", rev = "87cec3241f9baef22335de9cc8629ebbcd8ba047", package = "lab-auth" }
+lab-auth = { git = "https://github.com/jmagar/lab.git", rev = "87cec3241f9baef22335de9cc8629ebbcd8ba047", package = "lab-auth", optional = true }
 url = "2"
 
 # Logging
@@ -83,10 +78,23 @@ dotenvy = "0.15.7"
 
 [features]
 default = ["full"]
-cli-mcp = []
-http-server = []
-web = ["http-server", "include_dir"]
-full = ["cli-mcp", "http-server", "web"]
+cli = ["dep:lab-auth"]
+mcp = [
+  "dep:http",
+  "dep:lab-auth",
+  "dep:rmcp",
+  "rmcp/server",
+  "rmcp/macros",
+  "rmcp/elicitation",
+  "rmcp/schemars",
+]
+mcp-stdio = ["mcp", "rmcp/transport-io"]
+api = ["dep:axum", "dep:lab-auth", "dep:tower-http"]
+mcp-http = ["api", "mcp", "rmcp/transport-streamable-http-server"]
+web = ["api", "dep:include_dir"]
+local-adapter = ["cli", "mcp-stdio"]
+server = ["cli", "api", "mcp-http", "mcp-stdio"]
+full = ["local-adapter", "server", "web"]
 test-support = []
 
 [dev-dependencies]

@@ -38,7 +38,7 @@
     "upstream_client_surfaces": ["mcp", "cli"],
     "application_platform_surfaces": ["api", "cli", "mcp", "web"],
     "binary_profiles": {
-      "upstream_client_default": "cli-mcp",
+      "upstream_client_default": "local-adapter",
       "application_platform_default": "server-full",
       "gateway_shared_default": "server-full"
     }

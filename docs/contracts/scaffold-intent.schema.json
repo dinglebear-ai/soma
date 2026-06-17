@@ -114,7 +114,7 @@
         },
         "binary_profile": {
           "type": "string",
-          "enum": ["cli-mcp", "server-full"],
+          "enum": ["local-adapter", "server-full"],
           "description": "Recommended binary profile for this server category."
         },
         "mcp_transport": {
@@ -234,7 +234,7 @@
             "gateway_shared_default"
           ],
           "properties": {
-            "upstream_client_default": { "const": "cli-mcp" },
+            "upstream_client_default": { "const": "local-adapter" },
             "application_platform_default": { "const": "server-full" },
             "gateway_shared_default": { "const": "server-full" }
           }
@@ -257,7 +257,7 @@
           },
           "runtime": {
             "properties": {
-              "binary_profile": { "const": "cli-mcp" }
+              "binary_profile": { "const": "local-adapter" }
             }
           }
         }
@@ -316,7 +316,7 @@
       "runtime": {
         "host": "127.0.0.1",
         "port": 3100,
-        "binary_profile": "cli-mcp",
+        "binary_profile": "local-adapter",
         "mcp_transport": "dual"
       },
       "mcp_primitives": ["tools", "resources", "prompts", "elicitation"],
@@ -337,7 +337,7 @@
         "upstream_client_surfaces": ["mcp", "cli"],
         "application_platform_surfaces": ["api", "cli", "mcp", "web"],
         "binary_profiles": {
-          "upstream_client_default": "cli-mcp",
+          "upstream_client_default": "local-adapter",
           "application_platform_default": "server-full",
           "gateway_shared_default": "server-full"
         }

@@ -8,9 +8,11 @@ mod response_paging;
 pub mod rmcp_server;
 mod schemas;
 mod tools;
+#[cfg(feature = "mcp-http")]
 mod transport;
 
 pub use rmcp_server::{rmcp_server, ExampleRmcpServer};
+#[cfg(feature = "mcp-http")]
 pub use transport::{allowed_origins, streamable_http_config, streamable_http_service};
 
 #[cfg(any(test, feature = "test-support"))]

@@ -7,23 +7,29 @@
 //!   [`app`]     — `ExampleService` (business logic)
 //!   [`config`]  — `Config`, `ExampleConfig`, `McpConfig`
 //!   [`example`] — `ExampleClient` (transport stub)
-//!   [`mcp`]     — MCP protocol layer (tools, schemas, prompts, server handler)
-//!   [`server`]  — `AppState`, `AuthPolicy`, HTTP router
-//!   [`api`]     — REST API handlers (direct `/v1/*` routes, health, status)
+//!   [`mcp`]     — MCP protocol layer (enabled by `mcp`)
+//!   [`server`]  — `AppState`, `AuthPolicy`, HTTP router (enabled by `cli`, `mcp`, or `api`)
+//!   [`api`]     — REST API handlers (enabled by `api`)
 
 pub mod actions;
+#[cfg(feature = "api")]
 pub mod api;
 pub mod app;
 pub mod binary_status;
+#[cfg(feature = "cli")]
 pub mod cli;
 pub mod config;
 pub mod env_registry;
 pub mod example;
 pub mod logging;
+#[cfg(feature = "mcp")]
 pub mod mcp;
+#[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
 pub mod runtime;
+#[cfg(any(feature = "cli", feature = "mcp", feature = "api"))]
 pub mod server;
 pub mod token_limit;
+#[cfg(feature = "web")]
 pub mod web;
 
 /// Test helpers — available when `features = ["test-support"]` or in `cfg(test)`.
@@ -31,6 +37,7 @@ pub mod web;
 /// Use these in integration tests to construct `AppState` without real creds.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
+#[cfg(any(feature = "cli", feature = "mcp", feature = "api"))]
 pub mod testing {
     use std::sync::Arc;
 

@@ -103,8 +103,9 @@ The web feature is optional:
 ```toml
 # Cargo.toml
 [features]
-default = ["web"]
-web = ["dep:include_dir"]
+default = ["full"]
+web = ["api", "dep:include_dir"]
+full = ["local-adapter", "server", "web"]
 
 [dependencies]
 include_dir = { version = "0.7", optional = true }

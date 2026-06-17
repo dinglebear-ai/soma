@@ -12,8 +12,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use lab_auth::AuthLayer;
-
 use anyhow::Result;
 
 use crate::{
@@ -21,8 +19,10 @@ use crate::{
     config::{AuthMode, Config, McpConfig},
 };
 
+#[cfg(feature = "mcp-http")]
 pub mod routes;
 
+#[cfg(feature = "mcp-http")]
 pub use routes::router;
 
 /// Authentication policy attached to [`AppState`].
@@ -211,11 +211,12 @@ impl ResponsePageStore {
 
 /// Build an [`AuthLayer`] from an [`AuthPolicy`], or `None` when the trust
 /// boundary is outside the mounted HTTP auth layer.
+#[cfg(feature = "api")]
 pub fn build_auth_layer(
     policy: &AuthPolicy,
     static_token: Option<Arc<str>>,
     resource_url: Option<Arc<str>>,
-) -> Option<AuthLayer> {
+) -> Option<lab_auth::AuthLayer> {
     match policy {
         AuthPolicy::LoopbackDev | AuthPolicy::TrustedGatewayUnscoped => None,
         AuthPolicy::Mounted { auth_state } => {
@@ -226,7 +227,7 @@ pub fn build_auth_layer(
                 );
             }
             Some(
-                AuthLayer::new()
+                lab_auth::AuthLayer::new()
                     .with_static_token(static_token)
                     .with_auth_state(auth_state.clone())
                     .with_static_token_scopes(vec![crate::actions::READ_SCOPE.into()])

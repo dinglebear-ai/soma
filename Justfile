@@ -38,7 +38,7 @@ build:
 
 # Compile the lightweight local/plugin binary only
 build-local:
-    cargo build --bin rtemplate --no-default-features --features cli-mcp
+    cargo build --bin rtemplate --no-default-features --features local-adapter
 
 # Compile optimized release build (slower compile, much faster runtime)
 build-release:
@@ -46,7 +46,7 @@ build-release:
 
 # Compile the lightweight local/plugin release binary only
 build-local-release:
-    cargo build --release --bin rtemplate --no-default-features --features cli-mcp
+    cargo build --release --bin rtemplate --no-default-features --features local-adapter
 
 # Compile the full server release binary only
 build-server-release:

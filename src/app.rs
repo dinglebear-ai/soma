@@ -177,7 +177,7 @@ impl ExampleService {
         let binary_profile = if category == "application-platform" {
             "server-full"
         } else {
-            "cli-mcp"
+            "local-adapter"
         };
         let service_name = input.binary_name.trim().replace('-', "_");
         let env_prefix = input.env_prefix.trim().to_ascii_uppercase();
@@ -222,7 +222,7 @@ impl ExampleService {
                 "upstream_client_surfaces": ["mcp", "cli"],
                 "application_platform_surfaces": ["api", "cli", "mcp", "web"],
                 "binary_profiles": {
-                    "upstream_client_default": "cli-mcp",
+                    "upstream_client_default": "local-adapter",
                     "application_platform_default": "server-full",
                     "gateway_shared_default": "server-full"
                 },

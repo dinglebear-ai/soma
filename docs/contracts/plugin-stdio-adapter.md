@@ -115,8 +115,8 @@ Run these after changing binary profiles, plugin manifests, adapter behavior, or
 transport docs:
 
 ```bash
-cargo check --bin example --no-default-features --features cli-mcp
-cargo check --bin example-server --features full
+cargo check --bin rtemplate --no-default-features --features local-adapter
+cargo check --bin rtemplate-server --features full
 bash scripts/check-plugin-stdio-smoke.sh
 bash scripts/validate-plugin-layout.sh
 cargo test --test plugin_contract

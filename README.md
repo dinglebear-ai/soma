@@ -291,8 +291,9 @@ Set `RTEMPLATE_MCP_AUTH_MODE=oauth` and the OAuth env vars below. The server iss
 ## Development commands
 
 ```bash
-cargo build --bin example --no-default-features --features cli-mcp  # local CLI + stdio MCP
-cargo build --bin example-server --features full                    # full server binary
+cargo build --bin rtemplate --no-default-features --features local-adapter # local CLI + stdio MCP
+cargo build --bin rtemplate-server --no-default-features --features server # API + HTTP/stdio MCP server
+cargo build --bin rtemplate-server --features full                         # full server binary + web
 cargo test            # run tests
 cargo clippy -- -D warnings  # lint
 cargo fmt             # format
