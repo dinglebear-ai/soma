@@ -112,6 +112,124 @@ pub fn sync_cargo() -> Result<()> {
     Ok(())
 }
 
+pub fn run_ascii_check(args: &[String]) -> Result<()> {
+    let fix = match args {
+        [] => false,
+        [arg] if arg == "--fix" => true,
+        [arg] if arg == "--help" || arg == "-h" => {
+            println!("Usage: cargo xtask run-ascii-check [--fix]");
+            return Ok(());
+        }
+        _ => bail!("Usage: cargo xtask run-ascii-check [--fix]"),
+    };
+
+    let output = git_output(&[
+        "ls-files",
+        "*.md",
+        "*.rs",
+        "*.toml",
+        "*.json",
+        "*.yml",
+        "*.yaml",
+        "*.sh",
+        "*.py",
+        ":!:docs/references/**",
+        ":!:docs/sessions/**",
+    ])?;
+    let files: Vec<String> = output
+        .lines()
+        .filter(|path| Path::new(path).is_file())
+        .map(str::to_owned)
+        .collect();
+
+    if files.is_empty() {
+        println!("No files to check");
+        return Ok(());
+    }
+
+    let mut command = Command::new("python3");
+    command.arg("scripts/asciicheck.py");
+    if fix {
+        command.arg("--fix");
+    }
+    command.args(&files);
+    let status = command
+        .stdin(Stdio::null())
+        .status()
+        .context("failed to spawn python3")?;
+    if !status.success() {
+        bail!("ascii check failed with status {status}");
+    }
+    Ok(())
+}
+
+pub fn check_plugin_stdio_smoke() -> Result<()> {
+    let bin = std::env::var("BIN").unwrap_or_else(|_| "rtemplate".to_owned());
+    let timeout_secs = std::env::var("TIMEOUT_SECS").unwrap_or_else(|_| "5".to_owned());
+
+    if !command_on_path(&bin) {
+        bail!("plugin stdio smoke: {bin} is not on PATH\nrun: just install-local");
+    }
+
+    let input = [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"plugin-stdio-smoke","version":"0.0.0"}}}"#,
+        r#"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"example","arguments":{"action":"status"}}}"#,
+    ]
+    .join("\n");
+
+    let mut child = Command::new("timeout")
+        .arg(format!("{timeout_secs}s"))
+        .arg(&bin)
+        .arg("mcp")
+        .env("RTEMPLATE_API_URL", "")
+        .env("RUST_LOG", "warn")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .with_context(|| format!("failed to spawn timeout/{bin}"))?;
+
+    {
+        use std::io::Write;
+        let stdin = child.stdin.as_mut().context("failed to open child stdin")?;
+        stdin
+            .write_all(input.as_bytes())
+            .context("failed to write JSON-RPC smoke input")?;
+        stdin
+            .write_all(b"\n")
+            .context("failed to write trailing newline")?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .context("failed to read plugin stdio smoke output")?;
+    if !output.status.success() {
+        bail!("plugin stdio smoke command exited with {}", output.status);
+    }
+    let stdout =
+        String::from_utf8(output.stdout).context("plugin stdio smoke emitted non-UTF-8 stdout")?;
+
+    for line in stdout.lines().filter(|line| !line.trim().is_empty()) {
+        let value: serde_json::Value = serde_json::from_str(line)
+            .with_context(|| format!("invalid JSON-RPC line from stdio smoke: {line}"))?;
+        if value.get("id").and_then(serde_json::Value::as_i64) != Some(2) {
+            continue;
+        }
+        if value
+            .pointer("/result/structuredContent/status")
+            .and_then(serde_json::Value::as_str)
+            == Some("ok")
+        {
+            println!("plugin stdio smoke passed");
+            return Ok(());
+        }
+        bail!("plugin stdio smoke response for id=2 did not report status=ok: {value}");
+    }
+
+    bail!("plugin stdio smoke did not receive a tools/call response with id=2")
+}
+
 fn current_dir() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
@@ -135,6 +253,16 @@ fn git_ref_exists(ref_name: &str) -> bool {
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
+}
+
+fn command_on_path(name: &str) -> bool {
+    if name.contains('/') {
+        return Path::new(name).is_file();
+    }
+    let Some(paths) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&paths).any(|dir| dir.join(name).is_file())
 }
 
 fn is_blocked_env_path(path: &str) -> bool {
@@ -178,7 +306,7 @@ fn run_cargo_fetch(repo_root: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{changed_path, glob_match, is_blocked_env_path};
+    use super::{changed_path, command_on_path, glob_match, is_blocked_env_path};
 
     #[test]
     fn blocks_env_files_except_examples() {
@@ -205,5 +333,10 @@ mod tests {
         let paths = ["README.md", "scripts/check-coupled-files.sh"];
         assert!(changed_path(&paths, "scripts/*"));
         assert!(!changed_path(&paths, "lefthook.yml"));
+    }
+
+    #[test]
+    fn command_on_path_handles_absolute_missing_path() {
+        assert!(!command_on_path("/definitely/not/a/real/rtemplate"));
     }
 }

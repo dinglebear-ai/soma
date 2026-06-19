@@ -19,6 +19,8 @@
 //!   update-aurora-web Refresh Aurora components, validate apps/web, then sync bundle
 //!   block-env-commits Prevent staged .env secrets from being committed
 //!   check-coupled-files Check common companion-file drift in a diff
+//!   run-ascii-check Check or fix tracked source/config/docs ASCII hygiene
+//!   check-plugin-stdio-smoke Smoke-test installed plugin stdio binary
 //!   sync-cargo   Copy Cargo.lock into plugin data directories
 //!   check-release-versions Validate release component version policy
 //!   release-plan Print changed release components and candidate tags
@@ -73,6 +75,8 @@ fn main() -> Result<()> {
         Some("update-aurora-web") => web_source::update_aurora(),
         Some("block-env-commits") => scripts::block_env_commits(),
         Some("check-coupled-files") => scripts::check_coupled_files(&args[1..]),
+        Some("run-ascii-check") => scripts::run_ascii_check(&args[1..]),
+        Some("check-plugin-stdio-smoke") => scripts::check_plugin_stdio_smoke(),
         Some("sync-cargo") => scripts::sync_cargo(),
         Some("check-test-siblings") => check_test_siblings(),
         Some("check-version-sync") => release_versions::check_version_sync(workspace_root),
@@ -716,6 +720,9 @@ COMMANDS:
   update-aurora-web     Refresh Aurora registry components, validate, then sync
   block-env-commits     Prevent staged .env secrets from being committed
   check-coupled-files   Check common companion-file drift in a diff
+  run-ascii-check       Check or fix tracked source/config/docs ASCII hygiene
+  check-plugin-stdio-smoke
+                        Smoke-test installed plugin stdio binary
   sync-cargo            Copy Cargo.lock into plugin data directories
   check-version-sync    Validate release manifest version-file parity
   check-release-versions [--base REF] [--head REF] [--mode pr|main] [--json]

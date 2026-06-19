@@ -137,11 +137,11 @@ coupled-files-check:
 
 # Check tracked source/config/docs for non-ASCII characters
 ascii-check:
-    bash scripts/run-ascii-check.sh
+    cargo xtask run-ascii-check
 
 # Replace common smart punctuation with ASCII in tracked source/config/docs
 ascii-fix:
-    bash scripts/run-ascii-check.sh --fix
+    cargo xtask run-ascii-check --fix
 
 # Check staged source files against line-count budgets
 file-size-check:

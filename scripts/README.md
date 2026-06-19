@@ -64,7 +64,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 |---|---|---|---|
 | `validate-plugin-layout.sh` | Bash | `just validate-plugin`, CI | Validates Claude, Codex, and Gemini plugin packaging conventions. |
 | `check-plugin-hook-contract.py` | Python | `just plugin-hook-contract` | Audits cross-repo plugin setup hook JSON contracts, optionally executing setup commands. |
-| `check-plugin-stdio-smoke.sh` | Bash | direct, docs/contracts | Smoke-tests the installed stdio plugin binary with JSON-RPC initialize plus `status`. |
+| `check-plugin-stdio-smoke.sh` | Bash wrapper | `cargo xtask check-plugin-stdio-smoke`, docs/contracts | Delegates to xtask to smoke-test the installed stdio plugin binary with JSON-RPC initialize plus `status`. |
 | `test-mcp-auth.sh` | Bash | `just test-mcp-auth` | Smoke-tests HTTP MCP bearer-auth behavior. |
 | `generate-cli.sh` | Bash | `just generate-cli` | Uses mcporter to generate a standalone CLI from a running MCP server schema. |
 | `sync-cargo.sh` | Bash wrapper | `cargo xtask sync-cargo`, plugin hook/runtime support | Delegates to xtask to copy `Cargo.lock` into plugin data directories, falling back to `cargo fetch` if needed. |
@@ -85,7 +85,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `block-env-commits.sh` | Bash wrapper | `cargo xtask block-env-commits`, lefthook pre-commit | Delegates to xtask to prevent staged `.env*` secret files from being committed, except `.env.example`. |
 | `check-file-size.sh` | Bash | `just file-size-check`, lefthook pre-commit | Enforces staged source-file size budgets. |
 | `asciicheck.py` | Python | through `run-ascii-check.sh` | Checks files for unexpected non-ASCII characters and can fix common smart punctuation. |
-| `run-ascii-check.sh` | Bash | `just ascii-check`, `just ascii-fix`, CI | Collects tracked text-like files and runs `asciicheck.py`. |
+| `run-ascii-check.sh` | Bash wrapper | `cargo xtask run-ascii-check`, `just ascii-check`, `just ascii-fix`, CI | Delegates to xtask to collect tracked text-like files and run `asciicheck.py`. |
 | `build-web.sh` | Bash | `just build-web` | Builds the optional Next.js static web UI export. |
 | `web-watch.sh` | Bash | `just web-watch` | Rebuilds the optional web UI on changes using `watchexec`. |
 
@@ -325,19 +325,24 @@ This is an operator/release audit tool, not a normal per-commit check.
 ### `check-plugin-stdio-smoke.sh`
 
 ```bash
+cargo xtask check-plugin-stdio-smoke
+BIN=rtemplate TIMEOUT_SECS=10 cargo xtask check-plugin-stdio-smoke
 bash scripts/check-plugin-stdio-smoke.sh
 BIN=rtemplate TIMEOUT_SECS=10 bash scripts/check-plugin-stdio-smoke.sh
 ```
 
-Smoke-tests the installed stdio MCP binary used by plugin manifests. It sends a
+Compatibility wrapper for `cargo xtask check-plugin-stdio-smoke`.
+
+The xtask command smoke-tests the installed stdio MCP binary used by plugin
+manifests. It sends a
 minimal JSON-RPC sequence:
 
 1. `initialize`
 2. `notifications/initialized`
 3. `tools/call` for the `example` tool with `action=status`
 
-The response is parsed with `jq`; the script passes only when the status result
-is `ok`.
+The response is parsed in Rust; the command passes only when the status result is
+`ok`.
 
 Environment:
 
@@ -530,13 +535,18 @@ Flow:
 ### `run-ascii-check.sh`
 
 ```bash
+cargo xtask run-ascii-check
+cargo xtask run-ascii-check --fix
 bash scripts/run-ascii-check.sh
 bash scripts/run-ascii-check.sh --fix
 just ascii-check
 just ascii-fix
 ```
 
-Collects tracked text-like files and runs `scripts/asciicheck.py`.
+Compatibility wrapper for `cargo xtask run-ascii-check`.
+
+The xtask command collects tracked text-like files and runs
+`scripts/asciicheck.py`.
 
 Included extensions:
 

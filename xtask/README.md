@@ -145,6 +145,38 @@ bash scripts/sync-cargo.sh
 
 ---
 
+### `cargo xtask run-ascii-check`
+
+Collect tracked source/config/docs files and run the repo ASCII checker.
+
+```bash
+cargo xtask run-ascii-check
+cargo xtask run-ascii-check --fix
+# compatibility wrapper:
+bash scripts/run-ascii-check.sh --fix
+```
+
+The command delegates character replacement rules to `scripts/asciicheck.py`
+but owns the tracked-file selection previously implemented in shell.
+
+---
+
+### `cargo xtask check-plugin-stdio-smoke`
+
+Smoke-test the installed stdio MCP binary used by plugin manifests.
+
+```bash
+cargo xtask check-plugin-stdio-smoke
+BIN=rtemplate TIMEOUT_SECS=10 cargo xtask check-plugin-stdio-smoke
+# compatibility wrapper:
+bash scripts/check-plugin-stdio-smoke.sh
+```
+
+The command sends a minimal JSON-RPC initialize plus `example(status)` tool call
+and verifies the `id=2` response reports `structuredContent.status == "ok"`.
+
+---
+
 ### `cargo xtask contract-audit`
 
 Run local static/spec checks without contacting live upstream services. This wraps the high-signal template contract checks used before release.

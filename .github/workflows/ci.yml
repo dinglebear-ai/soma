@@ -440,7 +440,7 @@ jobs:
         run: bash scripts/check-coupled-files.sh origin/main HEAD
 
       - name: ASCII hygiene
-        run: bash scripts/run-ascii-check.sh
+        run: cargo xtask run-ascii-check
 
   # ── deny: dependency advisories, licenses, bans, sources ─────────────────────
   audit:
