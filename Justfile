@@ -145,7 +145,7 @@ ascii-fix:
 
 # Check staged source files against line-count budgets
 file-size-check:
-    bash scripts/check-file-size.sh
+    cargo xtask check-file-size
 
 # Regenerate MCP schema contract docs from crates/rtemplate-mcp/src/schemas.rs
 schema-docs:

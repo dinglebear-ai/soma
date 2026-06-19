@@ -19,6 +19,7 @@
 //!   update-aurora-web Refresh Aurora components, validate apps/web, then sync bundle
 //!   block-env-commits Prevent staged .env secrets from being committed
 //!   check-coupled-files Check common companion-file drift in a diff
+//!   check-file-size Check staged source files against size budgets
 //!   run-ascii-check Check or fix tracked source/config/docs ASCII hygiene
 //!   check-plugin-stdio-smoke Smoke-test installed plugin stdio binary
 //!   sync-cargo   Copy Cargo.lock into plugin data directories
@@ -75,6 +76,7 @@ fn main() -> Result<()> {
         Some("update-aurora-web") => web_source::update_aurora(),
         Some("block-env-commits") => scripts::block_env_commits(),
         Some("check-coupled-files") => scripts::check_coupled_files(&args[1..]),
+        Some("check-file-size") => scripts::check_file_size(),
         Some("run-ascii-check") => scripts::run_ascii_check(&args[1..]),
         Some("check-plugin-stdio-smoke") => scripts::check_plugin_stdio_smoke(),
         Some("sync-cargo") => scripts::sync_cargo(),
@@ -720,6 +722,7 @@ COMMANDS:
   update-aurora-web     Refresh Aurora registry components, validate, then sync
   block-env-commits     Prevent staged .env secrets from being committed
   check-coupled-files   Check common companion-file drift in a diff
+  check-file-size       Check staged source files against size budgets
   run-ascii-check       Check or fix tracked source/config/docs ASCII hygiene
   check-plugin-stdio-smoke
                         Smoke-test installed plugin stdio binary

@@ -61,7 +61,7 @@ pre-commit:
 |---|---|
 | `scripts/block-env-commits.sh` | Blocks staged `.env*` files except `.env.example`. |
 | `scripts/check-version-sync.sh` | Ensures manifest-declared version-bearing files agree. |
-| `scripts/check-file-size.sh` | Warns/fails on staged files above size budgets. |
+| `cargo xtask check-file-size` | Warns/fails on staged files above size budgets. |
 | `taplo check` | Checks TOML formatting (runs on every `.toml` in the commit). |
 
 ## taplo configuration
@@ -100,7 +100,7 @@ fi
 ```bash
 bash scripts/block-env-commits.sh
 bash scripts/check-version-sync.sh
-bash scripts/check-file-size.sh
+cargo xtask check-file-size
 taplo check
 ```
 

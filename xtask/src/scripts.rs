@@ -80,6 +80,50 @@ pub fn check_coupled_files(args: &[String]) -> Result<()> {
     Ok(())
 }
 
+pub fn check_file_size() -> Result<()> {
+    let max_rs = env_usize("MAX_RS", 350)?;
+    let max_ts = env_usize("MAX_TS", 300)?;
+    let staged = git_output(&["diff", "--cached", "--name-only", "--diff-filter=ACM"])?;
+    let mut violations = Vec::new();
+
+    for file in staged.lines() {
+        let path = Path::new(file);
+        if !path.is_file() || is_test_file(file) {
+            continue;
+        }
+
+        let Some(limit) = source_limit(file, max_rs, max_ts) else {
+            continue;
+        };
+        let text =
+            std::fs::read_to_string(path).with_context(|| format!("failed to read {file}"))?;
+        let lines = if file.ends_with(".rs") {
+            rust_production_lines(&text)
+        } else {
+            count_effective_loc(&text, None)
+        };
+
+        if lines > limit {
+            violations.push(format!(
+                "  {file}: {lines} effective lines (limit: {limit})"
+            ));
+        }
+    }
+
+    if violations.is_empty() {
+        return Ok(());
+    }
+
+    eprintln!();
+    eprintln!("Monolithic staged file(s) detected; split them into focused modules:");
+    for violation in &violations {
+        eprintln!("{violation}");
+    }
+    eprintln!();
+    eprintln!("Limits: .rs={max_rs} production lines, .ts/.tsx={max_ts} lines; test files exempt.");
+    bail!("staged source file size budget exceeded")
+}
+
 pub fn sync_cargo() -> Result<()> {
     let repo_root = env_path("CLAUDE_PLUGIN_ROOT").unwrap_or_else(current_dir);
     let data_root = env_path("CLAUDE_PLUGIN_DATA").unwrap_or_else(|| repo_root.clone());
@@ -240,6 +284,16 @@ fn env_path(name: &str) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+fn env_usize(name: &str, default: usize) -> Result<usize> {
+    match std::env::var(name) {
+        Ok(value) => value
+            .parse()
+            .with_context(|| format!("{name} must be a positive integer")),
+        Err(std::env::VarError::NotPresent) => Ok(default),
+        Err(error) => Err(error).with_context(|| format!("failed to read {name}")),
+    }
+}
+
 fn git_output(args: &[&str]) -> Result<String> {
     run_cmd_output("git", args)
 }
@@ -274,6 +328,113 @@ fn is_blocked_env_path(path: &str) -> bool {
         .is_some_and(|name| name.contains(".env"))
 }
 
+fn source_limit(path: &str, max_rs: usize, max_ts: usize) -> Option<usize> {
+    if path.ends_with(".rs") {
+        Some(max_rs)
+    } else if path.ends_with(".ts") || path.ends_with(".tsx") {
+        Some(max_ts)
+    } else {
+        None
+    }
+}
+
+fn is_test_file(path: &str) -> bool {
+    path.contains("/test/")
+        || path.contains("/tests/")
+        || path.ends_with("_test.rs")
+        || path.ends_with("/tests.rs")
+        || path.ends_with(".test.ts")
+        || path.ends_with(".test.tsx")
+        || path.ends_with(".spec.ts")
+        || path.ends_with(".spec.tsx")
+        || path.contains("/__tests__/")
+}
+
+fn rust_production_lines(text: &str) -> usize {
+    count_effective_loc(text, trailing_rust_test_module_start(text))
+}
+
+fn trailing_rust_test_module_start(text: &str) -> Option<usize> {
+    let mut cfg_line: Option<usize> = None;
+    for (index, raw_line) in text.lines().enumerate() {
+        let line_number = index + 1;
+        let line = raw_line.trim_start();
+        if line.contains("#[cfg(test)]") {
+            cfg_line = Some(line_number);
+            continue;
+        }
+        if let Some(start) = cfg_line {
+            if is_rust_mod_line(line) {
+                return Some(start);
+            }
+        }
+        cfg_line = None;
+    }
+    None
+}
+
+fn is_rust_mod_line(line: &str) -> bool {
+    let line = line.strip_prefix("pub ").unwrap_or(line);
+    let Some(rest) = line.strip_prefix("mod ") else {
+        return false;
+    };
+    let Some((name, tail)) = rest.split_once(' ') else {
+        return false;
+    };
+    !name.is_empty()
+        && name.chars().all(|ch| ch.is_ascii_lowercase() || ch == '_')
+        && tail.trim_start().starts_with('{')
+}
+
+fn count_effective_loc(text: &str, stop_before_line: Option<usize>) -> usize {
+    let mut count = 0usize;
+    let mut in_block = false;
+
+    for (index, raw_line) in text.lines().enumerate() {
+        let line_number = index + 1;
+        if stop_before_line.is_some_and(|stop| line_number >= stop) {
+            break;
+        }
+
+        let mut line = raw_line.trim_start();
+        if line.is_empty() {
+            continue;
+        }
+
+        if in_block {
+            if let Some(end) = line.find("*/") {
+                line = line[end + 2..].trim_start();
+                in_block = false;
+                if line.is_empty() {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        }
+
+        if line.starts_with("//") {
+            continue;
+        }
+
+        if line.starts_with("/*") {
+            if let Some(end) = line.find("*/") {
+                line = line[end + 2..].trim_start();
+                if line.is_empty() {
+                    continue;
+                }
+            } else {
+                in_block = true;
+                continue;
+            }
+        }
+
+        count += 1;
+    }
+
+    count
+}
+
 fn changed_path(paths: &[&str], pattern: &str) -> bool {
     paths.iter().any(|path| glob_match(pattern, path))
 }
@@ -306,7 +467,10 @@ fn run_cargo_fetch(repo_root: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{changed_path, command_on_path, glob_match, is_blocked_env_path};
+    use super::{
+        changed_path, command_on_path, count_effective_loc, glob_match, is_blocked_env_path,
+        is_test_file, rust_production_lines, trailing_rust_test_module_start,
+    };
 
     #[test]
     fn blocks_env_files_except_examples() {
@@ -338,5 +502,55 @@ mod tests {
     #[test]
     fn command_on_path_handles_absolute_missing_path() {
         assert!(!command_on_path("/definitely/not/a/real/rtemplate"));
+    }
+
+    #[test]
+    fn test_file_detection_matches_precommit_scope() {
+        assert!(is_test_file("crates/foo/tests/integration.rs"));
+        assert!(is_test_file("src/widget_test.rs"));
+        assert!(is_test_file("src/tests.rs"));
+        assert!(is_test_file("apps/web/button.test.tsx"));
+        assert!(is_test_file("apps/web/__tests__/button.ts"));
+        assert!(!is_test_file("src/app.rs"));
+    }
+
+    #[test]
+    fn effective_loc_ignores_comments_blanks_and_blocks() {
+        let text = r#"
+// comment
+
+/* block
+   comment */
+fn main() {}
+/* inline */ let x = 1;
+"#;
+        assert_eq!(count_effective_loc(text, None), 2);
+    }
+
+    #[test]
+    fn rust_production_lines_cut_before_trailing_test_module() {
+        let text = r#"
+pub fn production() {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn works() {}
+}
+"#;
+        assert_eq!(trailing_rust_test_module_start(text), Some(4));
+        assert_eq!(rust_production_lines(text), 1);
+    }
+
+    #[test]
+    fn rust_production_lines_do_not_cut_for_cfg_test_function() {
+        let text = r#"
+pub fn production() {}
+
+#[cfg(test)]
+fn helper() {}
+"#;
+        assert_eq!(trailing_rust_test_module_start(text), None);
+        assert_eq!(rust_production_lines(text), 3);
     }
 }

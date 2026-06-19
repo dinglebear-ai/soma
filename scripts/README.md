@@ -83,7 +83,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | File | Type | Entry points | What it does |
 |---|---|---|---|
 | `block-env-commits.sh` | Bash wrapper | `cargo xtask block-env-commits`, lefthook pre-commit | Delegates to xtask to prevent staged `.env*` secret files from being committed, except `.env.example`. |
-| `check-file-size.sh` | Bash | `just file-size-check`, lefthook pre-commit | Enforces staged source-file size budgets. |
+| `check-file-size.sh` | Bash wrapper | `cargo xtask check-file-size`, `just file-size-check`, lefthook pre-commit | Delegates to xtask to enforce staged source-file size budgets. |
 | `asciicheck.py` | Python | through `run-ascii-check.sh` | Checks files for unexpected non-ASCII characters and can fix common smart punctuation. |
 | `run-ascii-check.sh` | Bash wrapper | `cargo xtask run-ascii-check`, `just ascii-check`, `just ascii-fix`, CI | Delegates to xtask to collect tracked text-like files and run `asciicheck.py`. |
 | `build-web.sh` | Bash | `just build-web` | Builds the optional Next.js static web UI export. |
@@ -240,14 +240,17 @@ Options:
 ### `check-file-size.sh`
 
 ```bash
+cargo xtask check-file-size
 scripts/check-file-size.sh
-MAX_RS=450 MAX_TS=350 scripts/check-file-size.sh
+MAX_RS=450 MAX_TS=350 cargo xtask check-file-size
 just file-size-check
 ```
 
-Checks staged `.rs`, `.ts`, and `.tsx` files against effective production-line
-budgets. Test files are exempt. Rust trailing inline `#[cfg(test)] mod ...`
-blocks are excluded from the production count.
+Compatibility wrapper for `cargo xtask check-file-size`.
+
+The xtask command checks staged `.rs`, `.ts`, and `.tsx` files against effective
+production-line budgets. Test files are exempt. Rust trailing inline
+`#[cfg(test)] mod ...` blocks are excluded from the production count.
 
 Defaults:
 

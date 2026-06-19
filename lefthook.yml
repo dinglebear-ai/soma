@@ -62,4 +62,4 @@ pre-commit:
     # Test files and Rust inline #[cfg(test)] modules are exempt.
     file_size:
       glob: "**/*.{rs,ts,tsx}"
-      run: bash scripts/check-file-size.sh
+      run: cargo xtask check-file-size

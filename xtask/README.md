@@ -130,6 +130,23 @@ The default range is `origin/main..HEAD`, falling back to `HEAD~1..HEAD` when
 
 ---
 
+### `cargo xtask check-file-size`
+
+Check staged `.rs`, `.ts`, and `.tsx` source files against line-count budgets.
+Test files are exempt, and Rust trailing `#[cfg(test)] mod ...` blocks do not
+count against production lines.
+
+```bash
+cargo xtask check-file-size
+MAX_RS=450 MAX_TS=350 cargo xtask check-file-size
+# compatibility wrapper:
+bash scripts/check-file-size.sh
+```
+
+Defaults are `MAX_RS=350` and `MAX_TS=300`.
+
+---
+
 ### `cargo xtask sync-cargo`
 
 Copy `Cargo.lock` from `CLAUDE_PLUGIN_ROOT` to `CLAUDE_PLUGIN_DATA` when the
