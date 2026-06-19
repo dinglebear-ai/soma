@@ -214,3 +214,7 @@ pub fn classify_execution_error(error: &anyhow::Error) -> ServiceErrorKind {
         ServiceErrorKind::Execution
     }
 }
+
+#[cfg(test)]
+#[path = "errors_tests.rs"]
+mod tests;
