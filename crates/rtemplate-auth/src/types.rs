@@ -24,6 +24,12 @@ pub struct ProtectedResourceMetadata {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClientRegistrationRequest {
     pub redirect_uris: Vec<String>,
+    /// OIDC / RFC 7591 client application type ("web" or "native"). Optional on
+    /// the wire; defaults to "web" (the OIDC default) when omitted. The MCP draft
+    /// (2026-07-28) asks clients to specify this during DCR to avoid OIDC
+    /// redirect-URI conflicts.
+    #[serde(default)]
+    pub application_type: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +37,7 @@ pub struct ClientRegistrationResponse {
     pub client_id: String,
     pub redirect_uris: Vec<String>,
     pub token_endpoint_auth_method: String,
+    pub application_type: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

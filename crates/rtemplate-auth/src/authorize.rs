@@ -145,6 +145,23 @@ pub async fn register_client(
         }
     }
 
+    // RFC 7591 / OIDC application_type. Accept the two registered values and
+    // default to "web" when omitted; reject anything else so misconfigured
+    // clients fail loudly rather than silently registering an unknown type.
+    let application_type = match request.application_type.as_deref() {
+        None | Some("web") => "web".to_string(),
+        Some("native") => "native".to_string(),
+        Some(other) => {
+            warn!(
+                application_type = %other,
+                "oauth register rejected: unsupported application_type"
+            );
+            return Err(AuthError::Validation(format!(
+                "application_type `{other}` is not supported; use `web` or `native`"
+            )));
+        }
+    };
+
     let client = RegisteredClient {
         client_id: random_token(18)?,
         redirect_uris: request.redirect_uris,
@@ -161,6 +178,7 @@ pub async fn register_client(
         client_id: client.client_id,
         redirect_uris: client.redirect_uris,
         token_endpoint_auth_method: "none".to_string(),
+        application_type,
     }))
 }
 
@@ -333,6 +351,11 @@ pub async fn callback(
         .exchange_code(&query.code, &request.provider_code_verifier)
         .await?;
 
+    // RFC 9207: echo the issuer identifier on the authorization response (both
+    // success and error) so the client can detect authorization-server mix-up
+    // attacks. Matches the `issuer` advertised in authorization-server metadata.
+    let issuer = crate::metadata::public_base_url(&state);
+
     // RFC 6749 §4.1.2.1: errors must redirect to the client's redirect_uri,
     // not surface as a JSON HTTP error. The denial reason is sourced from the
     // AuthError so we only log once (inside check_email_allowlist).
@@ -349,7 +372,8 @@ pub async fn callback(
             .query_pairs_mut()
             .append_pair("error", "access_denied")
             .append_pair("error_description", &denial.to_string())
-            .append_pair("state", &request.client_state);
+            .append_pair("state", &request.client_state)
+            .append_pair("iss", &issuer);
         return Ok(Redirect::to(redirect_target.as_str()).into_response());
     }
 
@@ -413,7 +437,8 @@ pub async fn callback(
     redirect_uri
         .query_pairs_mut()
         .append_pair("code", &auth_code)
-        .append_pair("state", &request.client_state);
+        .append_pair("state", &request.client_state)
+        .append_pair("iss", &issuer);
     debug!(
         auth_code_id = %auth_code_id,
         redirect_uri = %redirect_uri,
@@ -799,6 +824,98 @@ pub mod tests {
     }
 
     #[tokio::test]
+    async fn register_accepts_and_echoes_application_type() {
+        let mut config = test_auth_config();
+        config.enable_dynamic_registration = true;
+        let app = router(test_auth_state_with_config(config).await);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/register")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        json!({
+                            "redirect_uris": ["http://127.0.0.1:7777/callback"],
+                            "application_type": "native"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            json.get("application_type").and_then(|v| v.as_str()),
+            Some("native"),
+            "DCR response must echo the registered application_type: {json}"
+        );
+    }
+
+    #[tokio::test]
+    async fn register_defaults_application_type_to_web_when_absent() {
+        let mut config = test_auth_config();
+        config.enable_dynamic_registration = true;
+        let app = router(test_auth_state_with_config(config).await);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/register")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        json!({
+                            "redirect_uris": ["http://127.0.0.1:7777/callback"]
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            json.get("application_type").and_then(|v| v.as_str()),
+            Some("web"),
+            "absent application_type must default to web (OIDC default): {json}"
+        );
+    }
+
+    #[tokio::test]
+    async fn register_rejects_invalid_application_type() {
+        let mut config = test_auth_config();
+        config.enable_dynamic_registration = true;
+        let app = router(test_auth_state_with_config(config).await);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/register")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        json!({
+                            "redirect_uris": ["http://127.0.0.1:7777/callback"],
+                            "application_type": "bogus"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
     async fn register_is_rate_limited_after_configured_burst() {
         let mut config = test_auth_config();
         config.enable_dynamic_registration = true;
@@ -1173,6 +1290,7 @@ pub mod tests {
             (*base_state.signing_keys).clone(),
             google,
         );
+        let expected_iss = crate::metadata::public_base_url(&state);
         let app = router(state);
 
         let response = app
@@ -1200,6 +1318,11 @@ pub mod tests {
             Some("access_denied")
         );
         assert_eq!(params.get("state").map(|v| v.as_ref()), Some("client-abc"));
+        assert_eq!(
+            params.get("iss").map(|v| v.as_ref()),
+            Some(expected_iss.as_str()),
+            "RFC 9207 iss must be present on the error response: {location}"
+        );
     }
 
     #[tokio::test]
@@ -1850,6 +1973,77 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
             assert!(
                 !params.contains_key("error"),
                 "unexpected error in redirect: {location}"
+            );
+        }
+
+        /// RFC 9207: the authorization success response MUST carry the `iss`
+        /// parameter set to the authorization server's issuer identifier so the
+        /// client can detect authorization-server mix-up attacks.
+        #[tokio::test]
+        async fn oauth_client_callback_includes_rfc9207_iss_on_success() {
+            let mut config = test_auth_config();
+            config.admin_email = "admin@example.com".to_string();
+            let base_state = test_auth_state_with_config(config).await;
+
+            base_state
+                .store
+                .register_client(RegisteredClient {
+                    client_id: "client".to_string(),
+                    redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
+                    created_at: now_unix(),
+                })
+                .await
+                .unwrap();
+            base_state
+                .store
+                .add_allowed_user("user@example.com", "admin", now_unix())
+                .await
+                .unwrap();
+
+            let state = state_with_mock_google_from(&base_state).await;
+            state
+                .store
+                .insert_authorization_request(AuthorizationRequestRow {
+                    state: "oauth-state".to_string(),
+                    client_id: "client".to_string(),
+                    redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
+                    client_state: "client-xyz".to_string(),
+                    resource: "https://lab.example.com/mcp".to_string(),
+                    scope: "lab".to_string(),
+                    provider_code_verifier: "provider-verifier".to_string(),
+                    code_challenge: "challenge".to_string(),
+                    code_challenge_method: "S256".to_string(),
+                    created_at: now_unix(),
+                    expires_at: now_unix() + 300,
+                })
+                .await
+                .unwrap();
+
+            let expected_iss = crate::metadata::public_base_url(&state);
+            let app = router(state);
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .uri("/auth/google/callback?state=oauth-state&code=upstream-code")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), StatusCode::SEE_OTHER);
+            let location = response
+                .headers()
+                .get(header::LOCATION)
+                .unwrap()
+                .to_str()
+                .unwrap();
+            let redirect = Url::parse(location).unwrap();
+            let params: std::collections::HashMap<_, _> = redirect.query_pairs().collect();
+            assert_eq!(
+                params.get("iss").map(|v| v.as_ref()),
+                Some(expected_iss.as_str()),
+                "RFC 9207 iss must equal the issuer identifier on success: {location}"
             );
         }
 

@@ -1,0 +1,48 @@
+# MCP conformance expected-failures baseline (official @modelcontextprotocol/conformance).
+#
+# Scenarios the rmcp-template server does not satisfy out of the box, recorded so
+# `just conformance` fails only on a NEW regression — and flags any baselined
+# scenario that starts passing as a stale entry to remove.
+#
+# Captured 2026-06-21 against the `active` suite (current dated spec) on a no-auth
+# loopback server. Result: 8 passed, 22 expected-failures.
+#
+# The CORE protocol scenarios PASS — server-initialize, ping, tools-list,
+# resources-list, prompts-list, completion-complete, dns-rebinding-protection —
+# so the server is structurally conformant with the current spec. The entries
+# below fail for two benign reasons, not protocol violations:
+#
+#   1. Fixture scenarios call named reference tools/resources/prompts that a
+#      generic template does not expose (e.g. a `test_simple_text` tool). The
+#      template ships a single action-dispatched `example` tool instead.
+#   2. Optional-feature scenarios exercise features the template does not
+#      implement: logging/setLevel, sampling, progress, resource subscribe, and
+#      elicitation SEP variants.
+#
+# Regenerate the failing list with: just conformance
+server:
+  # Server runs in JSON-response mode (with_json_response(true)), so the
+  # multiple-concurrent-SSE-streams scenario does not apply.
+  - server-sse-multiple-streams
+  - logging-set-level
+  - tools-call-simple-text
+  - tools-call-image
+  - tools-call-audio
+  - tools-call-embedded-resource
+  - tools-call-mixed-content
+  - tools-call-with-logging
+  - tools-call-error
+  - tools-call-with-progress
+  - tools-call-sampling
+  - tools-call-elicitation
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+  - resources-read-text
+  - resources-read-binary
+  - resources-templates-read
+  - resources-subscribe
+  - resources-unsubscribe
+  - prompts-get-simple
+  - prompts-get-with-args
+  - prompts-get-embedded-resource
+  - prompts-get-with-image

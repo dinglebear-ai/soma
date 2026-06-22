@@ -404,6 +404,52 @@ test-mcporter:
     fi
     bash crates/rmcp-template/tests/mcporter/test-mcp.sh
 
+# ── MCP conformance ────────────────────────────────────────────────────────────
+
+# Run the official MCP conformance suite against a locally booted server.
+# Boots a loopback no-auth server, waits for /health, runs the suite, tears down.
+# Requires npx (Node). Suite: active (latest dated spec, default) | all | pending
+# Defaults to port 41060 to avoid colliding with a live server on the default 40060.
+# TEMPLATE: adjust the default port and binary name if you renamed them.
+conformance suite="active" port="41060":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v npx >/dev/null 2>&1; then
+        echo "npx (Node.js) not found — install Node to run the conformance suite."
+        exit 1
+    fi
+    PORT={{port}}
+    URL="http://127.0.0.1:${PORT}/mcp"
+    # Pre-flight: refuse to run if the port is already taken — otherwise we would
+    # silently test whatever server already owns it (e.g. a live deployment).
+    if ss -tlnH 2>/dev/null | grep -qE "[^0-9]${PORT}\b"; then
+        echo "Port ${PORT} is already in use. Pick a free port: just conformance {{suite}} <port>"
+        exit 1
+    fi
+    echo "Building server (default features)..."
+    cargo build --bin rtemplate-server
+    echo "Starting loopback no-auth server on ${PORT}..."
+    RTEMPLATE_MCP_HOST=127.0.0.1 RTEMPLATE_MCP_PORT=${PORT} RTEMPLATE_MCP_NO_AUTH=true \
+        ./target/debug/rtemplate-server serve mcp >/tmp/rtemplate-conformance-server.log 2>&1 &
+    SERVER_PID=$!
+    trap 'kill ${SERVER_PID} 2>/dev/null || true' EXIT
+    echo "Waiting for /health on ${PORT}..."
+    for _ in $(seq 1 50); do
+        if curl -sf "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then break; fi
+        sleep 0.2
+    done
+    # Hard guard: ensure OUR server is the one answering, not a pre-existing one.
+    if ! kill -0 ${SERVER_PID} 2>/dev/null; then
+        echo "Server failed to start (likely bind error). Log:"
+        cat /tmp/rtemplate-conformance-server.log
+        exit 1
+    fi
+    echo "Running MCP conformance suite '{{suite}}' against ${URL}..."
+    # --expected-failures fences known gaps so this exits non-zero only on a NEW
+    # regression (or flags a baselined scenario that started passing as stale).
+    npx -y @modelcontextprotocol/conformance server --url "${URL}" --suite {{suite}} \
+        --expected-failures conformance-baseline.yml
+
 # Run the release-readiness gate
 pre-release:
     cargo xtask pre-release-check

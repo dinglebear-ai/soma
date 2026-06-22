@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- OAuth authorization responses now include the RFC 9207 `iss` parameter on both the
+  success and error redirects, set to the authorization server's issuer identifier, so
+  MCP clients can detect authorization-server mix-up attacks. First step toward MCP draft
+  spec (2026-07-28) compatibility.
+- OAuth dynamic client registration now accepts the RFC 7591 / OIDC `application_type`
+  field (`web` or `native`, defaulting to `web`), validates it, and echoes it in the
+  registration response. Toward MCP draft spec (2026-07-28) compatibility.
+- CORS now permits the MCP protocol headers on the `/mcp` route — `Mcp-Protocol-Version`
+  (2025-06-18+) plus the draft `Mcp-Method`, `Mcp-Name`, and `x-mcp-header` (SEP-2243) —
+  so browser-based MCP clients clear preflight. Toward MCP draft spec (2026-07-28)
+  compatibility.
+- Added a `just conformance` recipe and `conformance-baseline.yml` that boot a no-auth
+  loopback server and run the official MCP conformance suite
+  (`@modelcontextprotocol/conformance`), gating on a known-failure baseline (fails only on
+  new regressions). Current baseline: the core protocol scenarios pass; fixture and
+  optional-feature scenarios are fenced as expected failures.
+- Documented the MCP draft (2026-07-28) migration plan, ownership/gap analysis, schema
+  provenance, and conformance workflow in `docs/specs/mcp-draft-2026-07-28-migration.md`.
+
 ## [0.4.2] — 2026-06-19
 
 

@@ -13,7 +13,7 @@
 use std::sync::Arc;
 
 use axum::{
-    http::{HeaderValue, Method, StatusCode},
+    http::{HeaderName, HeaderValue, Method, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
@@ -135,6 +135,13 @@ fn cors_layer(config: &rtemplate_contracts::config::McpConfig) -> CorsLayer {
             axum::http::header::AUTHORIZATION,
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
+            // MCP protocol headers: Mcp-Protocol-Version (2025-06-18+) and the
+            // draft (2026-07-28 / SEP-2243) Mcp-Method, Mcp-Name, and x-mcp-header.
+            // Permitting them lets browser-based MCP clients clear CORS preflight.
+            HeaderName::from_static("mcp-protocol-version"),
+            HeaderName::from_static("mcp-method"),
+            HeaderName::from_static("mcp-name"),
+            HeaderName::from_static("x-mcp-header"),
         ])
 }
 

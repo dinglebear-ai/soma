@@ -27,7 +27,6 @@ fn plugin_manifests_exist_for_all_supported_hosts() {
         "plugins/rtemplate/.claude-plugin/plugin.json",
         "plugins/rtemplate/.codex-plugin/plugin.json",
         "plugins/rtemplate/gemini-extension.json",
-        "plugins/rtemplate/.mcp.json",
         "plugins/rtemplate/hooks/hooks.json",
         "plugins/rtemplate/skills/rtemplate/SKILL.md",
     ] {
@@ -40,7 +39,6 @@ fn plugin_manifests_share_identity_and_connection_settings() {
     let claude = json("plugins/rtemplate/.claude-plugin/plugin.json");
     let codex = json("plugins/rtemplate/.codex-plugin/plugin.json");
     let gemini = json("plugins/rtemplate/gemini-extension.json");
-    let mcp = json("plugins/rtemplate/.mcp.json");
 
     assert_eq!(claude["name"], "rtemplate");
     assert_eq!(codex["name"], "rtemplate-mcp");
@@ -94,39 +92,8 @@ fn plugin_manifests_share_identity_and_connection_settings() {
         );
     }
 
-    assert_eq!(mcp["mcpServers"]["rtemplate"]["type"], "stdio");
-    assert_eq!(mcp["mcpServers"]["rtemplate"]["command"], "rtemplate");
-    assert_eq!(
-        mcp["mcpServers"]["rtemplate"]["args"],
-        serde_json::json!(["mcp"])
-    );
-    assert_eq!(
-        mcp["mcpServers"]["rtemplate"]["env"]["RTEMPLATE_API_URL"],
-        "${user_config.rtemplate_api_url}"
-    );
-    assert_eq!(
-        mcp["mcpServers"]["rtemplate"]["env"]["RTEMPLATE_API_KEY"],
-        "${user_config.rtemplate_api_key}"
-    );
-    assert!(mcp["mcpServers"]["rtemplate"].get("url").is_none());
-    assert!(mcp["mcpServers"]["rtemplate"].get("headers").is_none());
-
-    assert_eq!(gemini["mcpServers"]["rtemplate"]["type"], "stdio");
-    assert_eq!(gemini["mcpServers"]["rtemplate"]["command"], "rtemplate");
-    assert_eq!(
-        gemini["mcpServers"]["rtemplate"]["args"],
-        serde_json::json!(["mcp"])
-    );
-    assert_eq!(
-        gemini["mcpServers"]["rtemplate"]["env"]["RTEMPLATE_API_URL"],
-        "${settings.rtemplate_api_url}"
-    );
-    assert_eq!(
-        gemini["mcpServers"]["rtemplate"]["env"]["RTEMPLATE_API_KEY"],
-        "${settings.rtemplate_api_key}"
-    );
-    assert!(gemini["mcpServers"]["rtemplate"].get("url").is_none());
-    assert!(gemini["mcpServers"]["rtemplate"].get("headers").is_none());
+    // Marketplace manifests intentionally omit MCP server registration
+    // (see plugins/README.md); there is no .mcp.json or mcpServers block to assert.
 }
 
 #[test]

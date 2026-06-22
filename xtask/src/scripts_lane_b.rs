@@ -171,9 +171,6 @@ pub fn validate_plugin_layout(repo_root: &Path, plugin_root: Option<&Path>) -> R
     checks.check_result("Claude plugin has no version field", || {
         json_has_no_version(&layout.claude)
     });
-    checks.check_result("Claude plugin points to MCP config", || {
-        json_field_eq(&layout.claude, "/mcpServers", "./.mcp.json")
-    });
     checks.check_result("Claude plugin points to hooks config", || {
         json_field_eq(&layout.claude, "/hooks", "./hooks/hooks.json")
     });
@@ -212,9 +209,6 @@ pub fn validate_plugin_layout(repo_root: &Path, plugin_root: Option<&Path>) -> R
     checks.check_result("Codex plugin has no version field", || {
         json_has_no_version(&layout.codex)
     });
-    checks.check_result("Codex plugin points to MCP config", || {
-        json_field_eq(&layout.codex, "/mcpServers", "./.mcp.json")
-    });
     checks.check_result("Codex plugin points to skills directory", || {
         json_field_eq(&layout.codex, "/skills", "./skills/")
     });
@@ -234,63 +228,10 @@ pub fn validate_plugin_layout(repo_root: &Path, plugin_root: Option<&Path>) -> R
     checks.check_result("Gemini extension points to skills directory", || {
         json_field_eq(&layout.gemini, "/skills", "./skills")
     });
-    checks.check_result("Gemini MCP server is named rtemplate", || {
-        json_pointer_exists(&layout.gemini, "/mcpServers/rtemplate")
-    });
-    checks.check_result("Gemini MCP transport is stdio", || {
-        json_field_eq(&layout.gemini, "/mcpServers/rtemplate/type", "stdio")
-    });
-    checks.check_result("Gemini MCP command uses PATH binary", || {
-        json_field_eq(&layout.gemini, "/mcpServers/rtemplate/command", "rtemplate")
-    });
-    checks.check_result("Gemini MCP args run stdio mode", || {
-        json_array_eq(&layout.gemini, "/mcpServers/rtemplate/args", &["mcp"])
-    });
-    checks.check_result("Gemini MCP env maps API URL", || {
-        json_field_eq(
-            &layout.gemini,
-            "/mcpServers/rtemplate/env/RTEMPLATE_API_URL",
-            "${settings.rtemplate_api_url}",
-        )
-    });
-    checks.check_result("Gemini MCP env maps API key", || {
-        json_field_eq(
-            &layout.gemini,
-            "/mcpServers/rtemplate/env/RTEMPLATE_API_KEY",
-            "${settings.rtemplate_api_key}",
-        )
-    });
 
-    checks.check_result("MCP config exists", || file_exists(&layout.mcp));
-    checks.check_result("MCP config is valid JSON", || {
-        read_json(&layout.mcp).map(|_| ())
-    });
-    checks.check_result("MCP server is named rtemplate", || {
-        json_pointer_exists(&layout.mcp, "/mcpServers/rtemplate")
-    });
-    checks.check_result("MCP transport is stdio", || {
-        json_field_eq(&layout.mcp, "/mcpServers/rtemplate/type", "stdio")
-    });
-    checks.check_result("MCP command uses PATH binary", || {
-        json_field_eq(&layout.mcp, "/mcpServers/rtemplate/command", "rtemplate")
-    });
-    checks.check_result("MCP args run stdio mode", || {
-        json_array_eq(&layout.mcp, "/mcpServers/rtemplate/args", &["mcp"])
-    });
-    checks.check_result("MCP env maps API URL", || {
-        json_field_eq(
-            &layout.mcp,
-            "/mcpServers/rtemplate/env/RTEMPLATE_API_URL",
-            "${user_config.rtemplate_api_url}",
-        )
-    });
-    checks.check_result("MCP env maps API key", || {
-        json_field_eq(
-            &layout.mcp,
-            "/mcpServers/rtemplate/env/RTEMPLATE_API_KEY",
-            "${user_config.rtemplate_api_key}",
-        )
-    });
+    // Marketplace manifests intentionally do not bundle MCP server registration
+    // (see plugins/README.md): the server connects through the user's gateway or
+    // local MCP setup. No .mcp.json / mcpServers checks here by design.
 
     checks.check_result("hooks config exists", || file_exists(&layout.hooks));
     checks.check_result("hooks config is valid JSON", || {
@@ -507,7 +448,6 @@ struct PluginLayout {
     claude: PathBuf,
     codex: PathBuf,
     gemini: PathBuf,
-    mcp: PathBuf,
     hooks: PathBuf,
     skills: PathBuf,
 }
@@ -518,7 +458,6 @@ impl PluginLayout {
             claude: plugin_root.join(".claude-plugin/plugin.json"),
             codex: plugin_root.join(".codex-plugin/plugin.json"),
             gemini: plugin_root.join("gemini-extension.json"),
-            mcp: plugin_root.join(".mcp.json"),
             hooks: plugin_root.join("hooks/hooks.json"),
             skills: plugin_root.join("skills"),
         }
@@ -586,31 +525,9 @@ fn read_json(path: &Path) -> Result<Value> {
     serde_json::from_str(&content).with_context(|| format!("invalid JSON in {}", path.display()))
 }
 
-fn json_pointer_exists(path: &Path, pointer: &str) -> Result<()> {
-    let value = read_json(path)?;
-    value
-        .pointer(pointer)
-        .with_context(|| format!("missing JSON value at {pointer}"))?;
-    Ok(())
-}
-
 fn json_field_eq(path: &Path, pointer: &str, expected: &str) -> Result<()> {
     let value = read_json(path)?;
     require_json_str(&value, pointer, expected)
-}
-
-fn json_array_eq(path: &Path, pointer: &str, expected: &[&str]) -> Result<()> {
-    let value = read_json(path)?;
-    let actual = value
-        .pointer(pointer)
-        .and_then(Value::as_array)
-        .with_context(|| format!("missing JSON array at {pointer}"))?;
-    let actual: Vec<&str> = actual.iter().filter_map(Value::as_str).collect();
-    if actual == expected {
-        Ok(())
-    } else {
-        bail!("expected {pointer} to be {expected:?}, found {actual:?}")
-    }
 }
 
 fn json_has_no_version(path: &Path) -> Result<()> {
