@@ -37,7 +37,7 @@ jobs:
   # ── advisories: weekly RUSTSEC refresh + on-demand full dependency audit ──────
   advisories:
     name: Dependency Advisories
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

@@ -44,7 +44,7 @@ jobs:
   # -- actionlint: GitHub Actions workflow syntax and shell checks -------------
   actionlint:
     name: Actionlint
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -60,7 +60,7 @@ jobs:
   # ── fmt: cargo fmt --check ──────────────────────────────────────────────────
   fmt:
     name: Format
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -76,7 +76,7 @@ jobs:
   # ── clippy: zero warnings ────────────────────────────────────────────────────
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -104,7 +104,7 @@ jobs:
   # ── test: cargo nextest run --profile ci ─────────────────────────────────────
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -132,7 +132,7 @@ jobs:
   # ── web: pnpm install, lint, audit, static build ─────────────────────────────
   frontend-assets:
     name: Frontend Assets
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     defaults:
       run:
@@ -174,7 +174,7 @@ jobs:
   # packaging and GitHub Release publication.
   build-linux:
     name: Build Linux
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     needs: frontend-assets
     timeout-minutes: 45
     steps:
@@ -272,7 +272,7 @@ jobs:
   # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
   mcp-smoke:
     name: MCP Smoke
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     needs: frontend-assets
     timeout-minutes: 35
     steps:
@@ -350,7 +350,7 @@ jobs:
   # -- container-smoke: compose config plus Docker build on PRs/main ------------
   container-smoke:
     name: Container Smoke
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -380,7 +380,7 @@ jobs:
   # ── toml: taplo check ─────────────────────────────────────────────────────────
   toml:
     name: TOML Format
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -396,7 +396,7 @@ jobs:
   # -- lefthook-speed: pre-commit must stay staged and fast ---------------------
   lefthook-speed:
     name: Lefthook Speed
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -407,7 +407,7 @@ jobs:
   # ── template: generated docs, plugin layout, coupled files ───────────────────
   template:
     name: Template Contracts
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -459,7 +459,7 @@ jobs:
   # ── deny: dependency advisories, licenses, bans, sources ─────────────────────
   audit:
     name: Cargo Deny
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -473,7 +473,7 @@ jobs:
   # ── gitleaks: secret scanning ─────────────────────────────────────────────────
   gitleaks:
     name: Secret Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 20
     permissions:
       contents: read
@@ -510,7 +510,7 @@ jobs:
       - template
       - audit
       - gitleaks
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, rmcp-template, dookie]
     timeout-minutes: 5
     steps:
       - name: Verify all required jobs passed

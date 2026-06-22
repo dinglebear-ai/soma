@@ -2,5 +2,6 @@ self-hosted-runner:
   labels:
     - rmcp-template
     - steamy
+    - dookie
 
 config-variables: null
