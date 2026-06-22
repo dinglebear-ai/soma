@@ -42,7 +42,7 @@ rtemplate-service = { path = "../rtemplate-service", default-features = false }
 rtemplate-web = { path = "../rtemplate-web", optional = true }
 rmcp = { version = "1.7.0", default-features = false, optional = true }
 serde_json = { version = "1", optional = true }
-tower-http = { version = "0.6", features = ["cors", "limit", "trace"], optional = true }
+tower-http = { version = "0.7", features = ["cors", "limit", "trace"], optional = true }
 
 [features]
 default = ["full"]
