@@ -34,6 +34,11 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Disable the repo's dev-only rustc-wrapper (scripts/cargo-rustc-wrapper auto-
+  # installs binaries to ./bin) for CI. It is a bash script, so it cannot run as
+  # a rustc wrapper on the Windows self-hosted runner ("not a valid Win32
+  # application"); CI gets no benefit from it on any platform.
+  CARGO_BUILD_RUSTC_WRAPPER: ""
   # Keep Windows artifacts portable even on self-hosted runners whose user-level
   # Cargo config may contain target-cpu=native or machine-specific SIMD flags.
   WINDOWS_PORTABLE_RUSTFLAGS: >-
