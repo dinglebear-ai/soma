@@ -1,115 +1,73 @@
 # rmcp-template
 
-A reusable Rust template for building MCP servers using the [rmcp](https://crates.io/crates/rmcp) crate. Clone this, rename a handful of identifiers, drop in your API client, and you have a working MCP server with both stdio and Streamable HTTP transports, bearer token or Google OAuth authentication, elicitation support, resources, and prompts.
+A configurable Rust scaffold for building agent-ready applications from a
+single codebase. Start with a thin CLI, a local CLI + stdio MCP adapter, or a
+full application platform with REST API, Streamable HTTP MCP, embedded web UI,
+auth, observability, plugin packaging, Docker/runtime templates, and release
+automation.
 
-## Rust Server Family
+The repository is intentionally a real, compilable app before it is a
+generator. The stub service runs, the action surfaces are wired, and
+`cargo xtask scaffold` turns that working shape into a renamed project with a
+scaffold report and verification checks.
 
-This template is the reference point for the local Rust MCP/server family:
+## What You Can Scaffold
 
-| Local path | GitHub repo | Binary |
-| --- | --- | --- |
-| `../lab` | `jmagar/lab` | `labby` |
-| `../axon_rust` | `jmagar/axon` | `axon` |
-| `../syslog-mcp` | `jmagar/syslog-mcp` | `syslog` |
-| `../rustify` | `jmagar/rustify` | `gotify` |
-| `../rustifi` | `jmagar/rustifi` | `unifi` |
-| `../apprise-mcp` | `jmagar/apprise-mcp` | `apprise` |
-| `../rustscale` | `jmagar/rustscale` | `tailscale` |
-| `../rustarr` | `jmagar/rustarr` | `rustarr` |
-| `../rustcane` | `jmagar/rustcane` | `rustcane` |
-| `../synapse2` | `jmagar/synapse2` | `synapse2` |
-| `../rmcp-template` | `jmagar/rmcp-template` | `example` |
-| `../unrust` | `jmagar/unrust` | `unraid` |
+Choose the amount of surface area you want instead of starting from one fixed
+server shape.
 
-## Plugin Surfaces
+| Target | Best fit | Default profile | Includes |
+|---|---|---|---|
+| CLI-only or custom local tool | Scripts, operator utilities, one-machine tools | Custom feature set, usually starting from `cli` | CLI parser and shared service layer. The stock packaged local binary currently uses `local-adapter`, so CLI-only projects may prune MCP or adjust binary feature gates after generation. |
+| Local agent adapter | Thin wrapper over an upstream API | `local-adapter` | CLI + stdio MCP in one local binary. No REST/Web mirror by default. |
+| Shared API/MCP server | Service used by multiple clients or a gateway | `server` | CLI + REST API + Streamable HTTP MCP + stdio MCP + health/status routes + auth-capable runtime. |
+| Full application platform | App owns state, jobs, dashboards, workflows, or human UI | `full` | `server` plus embedded web UI, OAuth, observability, and plugin support. |
 
-The template ships Claude Code, Codex, and Gemini plugin surfaces from one shared `plugins/rtemplate/` package. See [docs/PLUGINS.md](docs/PLUGINS.md) for the manifest layout, shared MCP config, skills, hook setup contract, and per-host adaptation checklist.
+Lower-level Cargo features are available when you need a custom shape:
 
-## Server surface policy
+| Feature | Purpose |
+|---|---|
+| `cli` | CLI shim and command parsing. |
+| `mcp` | MCP tool, schema, resource, prompt, and scope layers. |
+| `mcp-stdio` | Local stdio MCP transport. |
+| `api` | REST handlers and OpenAPI-backed business routes. |
+| `auth` | Shared auth policy and bearer-token enforcement. |
+| `oauth` | Google OAuth and JWT issuance on top of `auth`. |
+| `mcp-http` | Streamable HTTP MCP mounted in Axum. |
+| `web` | Embedded static web UI fallback. |
+| `observability` | Metrics/tracing hooks. |
+| `plugin` | Plugin setup/support helpers. |
+| `local-adapter` | Lean local binary: `cli` + `mcp-stdio`. |
+| `server` | Deployable server binary: `cli` + `api` + HTTP MCP + stdio MCP. |
+| `full` | Complete platform profile: local adapter, server, web, OAuth, observability, and plugin support. |
 
-Every scaffolded business action must have **MCP + CLI** parity. MCP is the agent-facing surface; CLI is the scripting/debugging/test surface.
+## Quickstart
 
-REST API and Web UI are required only for servers that are more than a thin client over another service API:
-
-| Server category | Required surfaces | Examples |
-|---|---|---|
-| Upstream-client MCP server | MCP + CLI | `unrust`, `rustifi`, `rustify`, `rustscale`, `apprise`, `rustarr`, `rustcane`, `synapse2` |
-| Application/platform server | API + CLI + MCP + Web | `axon`, `lab`, `syslog` |
-
-For upstream-client servers, do not mirror the upstream HTTP API locally by default. Add REST/Web only when the server owns meaningful state, workflows, dashboards, or non-MCP consumers.
-
-`scaffold_intent` is the template's explicit MCP-only exception: it combines MCP elicitation with plugin skill handoff, so there is no true CLI equivalent inside the user's agent/editor permission model.
-
-### Binary and transport profiles
-
-Choose the runtime profile from the server's ownership model:
-
-| Server kind | Best default | Notes |
-|---|---|---|
-| Upstream-client MCP server | `CLI + stdio MCP` binary | Local/plugin install path. Calls the upstream API directly; no local REST/Web mirror by default. |
-| Application/platform server | Docker/server binary with API + Web + HTTP MCP, plus optional local `CLI + stdio MCP` adapter | Use when the project owns state, jobs, dashboards, or multiple non-MCP consumers. The local adapter targets the deployed platform API via `RTEMPLATE_API_URL`. |
-| Gateway-shared tool | HTTP MCP retained | Needed for shared gateway/catalog use and remote clients. |
-
-The stdio adapter should expose MCP-native behavior and delegate business
-actions to the deployed platform API. The REST API should expose business
-actions, not MCP protocol semantics. In this template, leaving `RTEMPLATE_API_URL`
-empty selects offline stub mode; setting it forwards local CLI/stdio calls to
-direct `{RTEMPLATE_API_URL}/v1/*` business routes with `RTEMPLATE_API_KEY` as
-bearer auth when set.
-The accepted decision is recorded in
-[ADR 0001](docs/adr/0001-stdio-first-plugin-adapter.md); the testable adapter
-contract lives in
-[docs/contracts/plugin-stdio-adapter.md](docs/contracts/plugin-stdio-adapter.md).
-
-## What this template gives you
-
-- **Layered architecture** — transport client → service → MCP/CLI shims, enforced by convention
-- **Action-based dispatch** — one MCP tool with an `action` parameter routes to any number of operations
-- **Both transports** — `example-server serve` (Streamable HTTP) and `example mcp` (stdio)
-- **Both auth modes** — static bearer token or full Google OAuth with RS256 JWT issuance
-- **MCP elicitation** — server-asks-user mid-call (spec 2025-06-18), with graceful fallback
-- **MCP resources** — exposes the tool schema as a readable resource
-- **MCP prompts** — pre-canned `quick_start` prompt for clients that support them
-- **CLI** — same service layer, human-readable output, mandatory MCP parity
-- **Test helpers** — `loopback_state()` and `bearer_state()` for tests without real credentials
-
-## Architecture
-
-```
-ExampleClient  (crates/rtemplate-service/src/example.rs)
-                                     ← upstream calls or deployed API adapter
-      ↓
-ExampleService (crates/rtemplate-service/src/app.rs)
-                                     ← all business logic lives here
-      ↓
-  ┌──────────────────────────────────┐
-  │  MCP shim (crates/rtemplate-mcp/src/tools.rs)       │  parse JSON args → call service → return Value
-  │  CLI shim (crates/rtemplate-cli/src/lib.rs)          │  parse CLI args  → call service → print
-  └──────────────────────────────────┘
-```
-
-The rule: **zero business logic in `tools.rs` or `cli.rs`**. Both are pure shims. All logic belongs in `app.rs` (or `example.rs` for transport concerns). For business actions, MCP + CLI parity is mandatory; REST/Web are project-type dependent.
-
-## Quickstart — run the stub
+Run the template as-is:
 
 ```bash
 git clone https://github.com/jmagar/rmcp-template
 cd rmcp-template
-cargo run --bin example-server -- serve          # Streamable HTTP on :40060
-# or
-cargo run --bin example -- mcp            # stdio transport
-# or
-cargo run --bin example -- greet --name Alice
+
+# Full server binary: REST API + HTTP MCP + web fallback on :40060
+cargo run --bin rtemplate-server -- serve mcp
+
+# Local binary: stdio MCP
+cargo run --bin rtemplate -- mcp
+
+# Local binary: CLI
+cargo run --bin rtemplate -- greet --name Alice
 ```
 
-Health check:
+Useful smoke checks:
 
 ```bash
 curl http://localhost:40060/health
-# {"status":"ok"}
+cargo run --bin rtemplate -- status
+cargo run --bin rtemplate -- doctor
 ```
 
-Call the MCP tool directly:
+Call the MCP endpoint directly:
 
 ```bash
 curl -s -X POST http://localhost:40060/mcp \
@@ -118,151 +76,141 @@ curl -s -X POST http://localhost:40060/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"example","arguments":{"action":"greet","name":"Alice"}}}'
 ```
 
-## Generate a New Server
+## Scaffold A New Project
 
-Use [cargo xtask scaffold](docs/SCAFFOLD.md) when starting a new rmcp-family
-server:
+`cargo xtask scaffold` is the front door. It can plan without touching files,
+generate with `cargo-generate` plus the Rust post-processor, write
+`docs/scaffold-report.md`, and verify the generated project.
+
+Plan from a short service name:
 
 ```bash
 cargo xtask scaffold --name myservice --category upstream-client --port auto --plan
+```
+
+Plan from MCP `scaffold_intent` JSON:
+
+```bash
+cargo xtask scaffold --intent scaffold-intent.json --plan
+```
+
+Generate into an output parent directory:
+
+```bash
 cargo xtask scaffold --intent scaffold-intent.json --apply ../generated
+```
+
+Verify an existing generated project:
+
+```bash
 cargo xtask scaffold --verify ../generated/myservice-mcp
 ```
 
-The scaffold command can plan from a short service name or from
-`scaffold_intent` JSON returned by the MCP elicitation wizard. It feeds
-`cargo-generate`, runs the Rust post-processor, writes a scaffold report, and
-verifies the generated project. Use the lower-level
-[cargo-generate guide](docs/CARGO_GENERATE.md) when debugging the generator
-itself.
-
-## Step-by-step: build your own MCP server from this template
-
-### 1. Clone and rename
+Add starter action snippets:
 
 ```bash
-git clone https://github.com/jmagar/rmcp-template myservice-mcp
-cd myservice-mcp
+cargo xtask scaffold \
+  --intent scaffold-intent.json \
+  --actions actions.json \
+  --plan
 ```
 
-Find and replace these identifiers across the project:
+Example action manifest:
 
-| Find | Replace with |
-|------|-------------|
-| `rmcp-template` | `myservice-mcp` (Cargo.toml package name) |
-  | `example` / `example-server` (binary names) | `myservice` / `myservice-server` (Cargo.toml `[[bin]] name`) |
-| `ExampleClient` | `MyServiceClient` |
-| `ExampleService` | `MyServiceService` |
-| `ExampleConfig` | `MyServiceConfig` |
-| `ExampleRmcpServer` | `MyServiceRmcpServer` |
-| `RTEMPLATE_API_URL` | `MYSERVICE_API_URL` |
-| `RTEMPLATE_MCP_*` | `MYSERVICE_MCP_*` |
-| `example:read` | `myservice:read` |
-| `example://schema/mcp-tool` | `myservice://schema/mcp-tool` |
-
-### 2. Replace ExampleClient with your API client
-
-Edit `crates/rtemplate-service/src/example.rs`. This is the only file that makes network calls.
-
-```rust
-pub struct MyServiceClient {
-    client: reqwest::Client,
-    base_url: String,
-    api_key: String,
-}
-
-impl MyServiceClient {
-    pub fn new(cfg: &MyServiceConfig) -> Result<Self> {
-        if cfg.api_url.is_empty() { anyhow::bail!("MYSERVICE_API_URL is not set"); }
-        let client = reqwest::ClientBuilder::new()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
-        Ok(Self { client, base_url: cfg.api_url.clone(), api_key: cfg.api_key.clone() })
+```json
+{
+  "actions": [
+    {
+      "name": "list_things",
+      "description": "List visible things.",
+      "scope": "read",
+      "params": [
+        { "name": "kind", "type": "string", "required": false }
+      ]
     }
-
-    pub async fn get_things(&self) -> Result<Value> {
-        let resp = self.client
-            .get(format!("{}/things", self.base_url))
-            .bearer_auth(&self.api_key)
-            .send().await?
-            .json::<Value>().await?;
-        Ok(resp)
-    }
+  ]
 }
 ```
 
-### 3. Add service methods
+Use:
 
-Edit `crates/rtemplate-service/src/app.rs`. Delegate to the client; add caching, retries, or transformation here:
+- `--category upstream-client` for a lean local adapter around an existing API.
+- `--category application-platform` for API + CLI + MCP + web defaults.
+- `--no-cargo-check` only when you need fast static verification while iterating.
 
-```rust
-pub async fn get_things(&self) -> Result<Value> {
-    self.client.get_things().await
-}
+See [docs/SCAFFOLD.md](docs/SCAFFOLD.md), [docs/CARGO_GENERATE.md](docs/CARGO_GENERATE.md),
+and [docs/contracts/scaffold-intent.schema.json](docs/contracts/scaffold-intent.schema.json)
+for the full scaffold contract.
+
+## Architecture
+
+The template keeps all domain behavior in the service layer. Every transport is
+a thin parser/formatter around the same service methods.
+
+```text
+ExampleClient
+  crates/rtemplate-service/src/example.rs
+  Upstream API client or deployed-platform adapter.
+
+ExampleService
+  crates/rtemplate-service/src/app.rs
+  Business logic, validation, enrichment, retries, caching, and domain rules.
+
+Transport shims
+  crates/rtemplate-cli/src/lib.rs        CLI parser and output formatting.
+  crates/rtemplate-mcp/src/tools.rs      MCP JSON args to service calls.
+  crates/rtemplate-api/src/api.rs        REST extractors to service calls.
+  crates/rmcp-template/src/routes.rs     Axum router, auth, MCP, API, web fallback.
 ```
 
-### 4. Add tool actions
+The thin-shim rule is strict:
 
-For each new action:
+1. Parse input at the surface.
+2. Call the service.
+3. Return or print the result.
 
-**a. `crates/rtemplate-contracts/src/actions.rs`** — add one entry to `ACTION_SPECS`:
+Do not put business rules in CLI, MCP, REST handlers, or `main.rs`.
 
-```rust
-ActionSpec {
-    name: "get_things",
-    required_scope: Some(READ_SCOPE),
-    transport: ActionTransport::Any,
-}
+## Runtime Surfaces
+
+The full server binary can run the whole app from one executable:
+
+```bash
+rtemplate-server serve mcp   # HTTP server: REST API + Streamable HTTP MCP + web fallback
+rtemplate-server mcp         # stdio MCP transport
+rtemplate-server status      # CLI command through the server binary
 ```
 
-Then add any new parameters to `tool_definitions()` in `crates/rtemplate-mcp/src/schemas.rs`.
+The local adapter binary is optimized for plugin/local use:
 
-**b. `crates/rtemplate-mcp/src/tools.rs`** — add a match arm in `dispatch_example()`:
-
-```rust
-"get_things" => state.service.get_things().await,
+```bash
+rtemplate mcp                # stdio MCP transport
+rtemplate greet --name Alice # CLI command
+rtemplate doctor             # operator pre-flight checks
+rtemplate watch              # poll /health and emit state changes
+rtemplate setup check        # plugin/appdata setup checks
 ```
 
-Scope rules are derived from `ACTION_SPECS`.
+HTTP routes in the server profile:
 
-**c. `crates/rtemplate-cli/src/lib.rs`** — add a `Command` variant and dispatch arm:
+| Route | Purpose |
+|---|---|
+| `/mcp` | Streamable HTTP MCP transport. |
+| `/health` | Unauthenticated liveness. |
+| `/readyz` | Readiness check. |
+| `/status` | Public redacted runtime status. |
+| `/openapi.json` | Generated REST OpenAPI schema. |
+| `/metrics` | Prometheus metrics when built with `observability`. |
+| `/v1/capabilities` | REST route inventory. |
+| `/v1/greet`, `/v1/echo`, `/v1/status`, `/v1/help` | Direct REST business routes. |
+| `/v1/example` | Deprecated compatibility action envelope. |
+| `/mcp/.well-known/*` | OAuth metadata when OAuth is enabled. |
+| `/*` | Embedded web UI fallback when built with `web`. |
 
-```rust
-pub enum Command { ..., GetThings }
+## MCP Tool Actions
 
-// in parse_args():
-"get-things" => Some(Command::GetThings),
-
-// in run():
-Command::GetThings => service.get_things().await?,
-```
-
-**d. Add tests** in `crates/rmcp-template/tests/tool_dispatch.rs` and the relevant sidecar unit test.
-Cover both the success path and at least one negative MCP path. Tool-originated
-failures must be returned as structured tool errors with `isError: true`, a
-stable `code`, an optional `field`/`bad_value`, and a remediation hint; reserve
-MCP protocol errors for auth/scope, unknown tool names, resources, prompts, and
-server serialization defects.
-
-### 5. Update config
-
-Edit `crates/rtemplate-contracts/src/config.rs` to rename `ExampleConfig` fields and env var names. Edit `config.toml` and `.env.example`.
-
-## Command modes
-
-```
-example mcp              Start stdio MCP transport
-example-server [serve]   Start Streamable HTTP MCP + REST + Web server
-example greet [--name]   CLI: greet
-example echo --message   CLI: echo
-example status           CLI: server status
-example --help           Usage
-example --version        Version
-```
-
-## MCP tool actions
-
-The single `example` tool dispatches on the `action` parameter:
+The template exposes one MCP tool, `example`, with an `action` argument. Generated
+projects replace the example actions with their real service actions.
 
 <!-- BEGIN GENERATED README_ACTION_TABLE -->
 <!-- Generated by scripts/generate-docs.py; do not edit by hand. -->
@@ -275,313 +223,227 @@ The single `example` tool dispatches on the `action` parameter:
 | `scaffold_intent` | `example:read` | `moderate` | MCP-only | - | `_MCP-only_` | none | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
 | `help` | public | `cheap` | MCP + CLI + REST | `GET /v1/help` | `rtemplate --help` | none | Show the action reference. |
 <!-- END GENERATED README_ACTION_TABLE -->
+
+Business actions must keep MCP + CLI parity unless there is a protocol reason
+they cannot. `elicit_name` and `scaffold_intent` are MCP-only because they rely
+on MCP elicitation. `serve`, `mcp`, `doctor`, `watch`, and `setup` are CLI
+operator commands, not business actions.
+
 ## Authentication
 
-### Bearer token (default)
+The HTTP server supports four auth policies:
 
-Set `RTEMPLATE_MCP_TOKEN`. All `/mcp` requests must include `Authorization: Bearer <token>`.
+| Policy | When | Effect |
+|---|---|---|
+| Loopback development | Loopback bind, or `RTEMPLATE_MCP_NO_AUTH=true` on loopback | No auth middleware, no scope checks. |
+| Bearer token | `RTEMPLATE_MCP_TOKEN` set | `/mcp` and `/v1/*` require `Authorization: Bearer <token>`. |
+| OAuth | `RTEMPLATE_MCP_AUTH_MODE=oauth` with Google OAuth settings | Browser-based Google OAuth issues JWT bearer tokens. |
+| Trusted gateway | `RTEMPLATE_NOAUTH=true` on non-loopback | Local auth and scope checks disabled because an upstream gateway is responsible. |
 
-### No auth (loopback only)
+The startup guard refuses non-loopback unauthenticated binds unless bearer,
+OAuth, or trusted-gateway mode is configured. `/health`, `/readyz`, `/status`,
+and `/openapi.json` are public by design and return only safe runtime metadata.
 
-Set `RTEMPLATE_MCP_NO_AUTH=true` or bind to `127.*`. Only legal for local development.
+See [docs/AUTH.md](docs/AUTH.md) for the detailed auth model.
 
-### OAuth (Google)
+## Configuration
 
-Set `RTEMPLATE_MCP_AUTH_MODE=oauth` and the OAuth env vars below. The server issues RS256 JWTs after Google authentication. OAuth and bearer can coexist when `RTEMPLATE_MCP_TOKEN` is also configured.
-
-`/health` is always unauthenticated.
-
-## Environment variables
+Values load from `config.toml`, local appdata files, and environment variables;
+explicit environment variables win. The template stub works without real
+credentials, but generated projects should mark their real upstream/platform
+credentials as required.
 
 | Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `RTEMPLATE_API_URL` | no | — | Upstream service base URL |
-| `RTEMPLATE_API_KEY` | no | — | Upstream service API key |
-| `RTEMPLATE_MCP_HOST` | no | `127.0.0.1` | Bind host |
-| `RTEMPLATE_MCP_PORT` | no | `40060` | Bind port |
-| `RTEMPLATE_MCP_NO_AUTH` | no | `false` | Disable auth (loopback only; 1/true/yes) |
-| `RTEMPLATE_MCP_TOKEN` | no | — | Static bearer token for `/mcp` |
-| `RTEMPLATE_MCP_ALLOWED_HOSTS` | no | — | Extra comma-separated Host header values |
-| `RTEMPLATE_MCP_ALLOWED_ORIGINS` | no | — | Extra comma-separated CORS origins |
-| `RTEMPLATE_MCP_PUBLIC_URL` | OAuth | — | Public URL (e.g. `https://myservice.example.com`) |
-| `RTEMPLATE_MCP_AUTH_MODE` | no | `bearer` | `bearer` or `oauth` |
-| `RTEMPLATE_MCP_GOOGLE_CLIENT_ID` | OAuth | — | Google OAuth client ID |
-| `RTEMPLATE_MCP_GOOGLE_CLIENT_SECRET` | OAuth | — | Google OAuth client secret |
-| `RTEMPLATE_MCP_AUTH_ADMIN_EMAIL` | OAuth | — | Admin email address |
-| `RUST_LOG` | no | `info` | Log filter (e.g. `info,rmcp=warn`) |
+|---|---|---|---|
+| `RTEMPLATE_API_URL` | no | empty | Deployed platform API or upstream service URL. Empty selects stub/offline behavior. |
+| `RTEMPLATE_API_KEY` | no | empty | Bearer token or upstream service API key. |
+| `RTEMPLATE_MCP_HOST` | no | `127.0.0.1` | HTTP server bind host. |
+| `RTEMPLATE_MCP_PORT` | no | `40060` | HTTP server bind port. |
+| `RTEMPLATE_MCP_SERVER_NAME` | no | `rtemplate-mcp` | MCP server name advertised to clients. |
+| `RTEMPLATE_MCP_NO_AUTH` | no | `false` | Disable auth for loopback development. |
+| `RTEMPLATE_NOAUTH` | no | `false` | Trusted-gateway non-loopback no-auth mode. |
+| `RTEMPLATE_MCP_TOKEN` | bearer | empty | Static bearer token. |
+| `RTEMPLATE_MCP_ALLOWED_HOSTS` | no | empty | Extra comma-separated Host header values. |
+| `RTEMPLATE_MCP_ALLOWED_ORIGINS` | no | empty | Extra comma-separated CORS origins. |
+| `RTEMPLATE_MCP_AUTH_MODE` | no | `bearer` | `bearer` or `oauth`. |
+| `RTEMPLATE_MCP_PUBLIC_URL` | OAuth | empty | Public URL for OAuth metadata and callbacks. |
+| `RTEMPLATE_MCP_GOOGLE_CLIENT_ID` | OAuth | empty | Google OAuth client ID. |
+| `RTEMPLATE_MCP_GOOGLE_CLIENT_SECRET` | OAuth | empty | Google OAuth client secret. |
+| `RTEMPLATE_MCP_AUTH_ADMIN_EMAIL` | OAuth | empty | Initial/admin OAuth email. |
+| `RUST_LOG` | no | `info` | Log filter. Stdio mode suppresses noisy logs to avoid corrupting JSON-RPC. |
 
-## Development commands
+Templates:
+
+- [.env.example](.env.example) for secrets, URLs, and runtime env.
+- [config.example.toml](config.example.toml) for non-secret defaults.
+
+## Development Commands
 
 ```bash
-cargo build --bin rtemplate --no-default-features --features local-adapter # local CLI + stdio MCP
-cargo build --bin rtemplate-server --no-default-features --features server # API + HTTP/stdio MCP server
-cargo build --bin rtemplate-server --features full                         # full server binary + web
-cargo test            # run tests
-cargo clippy -- -D warnings  # lint
-cargo fmt             # format
-cargo xtask contract-audit  # local static/spec contract audit
-
-just dev              # run example-server on loopback with no auth
-just test             # cargo test
-just lint             # cargo clippy -- -D warnings
-just fmt              # cargo fmt
-just build-local      # build only the local CLI + stdio MCP binary
-just build-full       # build web assets, then build the full server binary
-just gen-token        # openssl rand -hex 32
-just health           # curl http://localhost:40060/health | jq .
-```
-
-## Portable automation
-
-This template includes reusable automation pulled from the local Rust server
-family and generalized for new MCP services:
-
-| Command | Purpose |
-|---|---|
-| `just install-tools` / `just bootstrap` | Install common local tools (`cargo-nextest`, `taplo`, `cargo-deny`, `bacon`, `cargo-llvm-cov`, `lefthook`, `cargo-audit`) |
-| `just install-hooks` | Enable the fast lefthook pre-commit checks |
-| `just deps-check` | Report lockfile-compatible and latest direct dependency updates |
-| `just blob-size-check` | Block oversized changed blobs before they land in git |
-| `just file-size-check` | Check staged source files against line-count budgets |
-| `just ascii-check` / `just ascii-fix` | Find or rewrite unexpected non-ASCII characters in tracked source/config/docs |
-| `just test-cov` | Generate an HTML Rust coverage report with `cargo llvm-cov` |
-| `just watch` | Run interactive Rust checks with `bacon` |
-| `just validate-plugin` | Validate plugin manifests, shared MCP config, hook config, and skills |
-| `just runtime-current` | Detect whether Docker/systemd is running the current built artifact |
-| `just schema-docs` / `just schema-docs-check` | Generate or verify [docs/MCP_SCHEMA.md](docs/MCP_SCHEMA.md) from the MCP action schema |
-| `just openapi` / `just openapi-check` | Generate or verify [docs/generated/openapi.json](docs/generated/openapi.json) for the REST API surface |
-| `just scaffold-contract-check` | Validate scaffold intent JSON Schema and examples in `docs/contracts/` |
-| `just contract-audit` | Run local static/spec checks without contacting live upstream services |
-| `just template-check` | Run plugin layout plus the local static/spec contract audit |
-| `just auth-smoke` | Smoke-test bearer-token MCP HTTP auth against a running server |
-| `just pre-release` | Run the release-readiness gate |
-| `just up` / `just down` | Short aliases for Docker Compose start/stop |
-
-See [scripts/README.md](scripts/README.md) for script-level options and
-template adaptation notes.
-
-## Documentation map
-
-When changing template automation or generated surfaces, update the matching
-docs in the same change:
-
-| Surface | Documentation |
-|---|---|
-| Just recipes and portable commands | This README's portable automation table |
-| Script options and environment variables | [scripts/README.md](scripts/README.md) |
-| MCP actions, scopes, and schema resource | [docs/MCP_SCHEMA.md](docs/MCP_SCHEMA.md), generated by `just schema-docs` |
-| REST OpenAPI schema | [docs/generated/openapi.json](docs/generated/openapi.json), generated by `just openapi` |
-| Claude/Codex/Gemini plugin manifests, skills, and hook contract | [docs/PLUGINS.md](docs/PLUGINS.md) |
-| Scaffold setup wizard handoff | [docs/specs/scaffold-intent-handoff.md](docs/specs/scaffold-intent-handoff.md) and [docs/contracts/scaffold-intent.schema.json](docs/contracts/scaffold-intent.schema.json) |
-| Test layers and template checks | [crates/rmcp-template/tests/README.md](crates/rmcp-template/tests/README.md) |
-| MCP registry publishing | [docs/MCP-REGISTRY-PUBLISH-GUIDE.md](docs/MCP-REGISTRY-PUBLISH-GUIDE.md) |
-
-`just template-check` and CI enforce the highest-risk drift points: plugin
-layout, schema docs, shell template smoke tests, and coupled file changes.
-
-## MCP client configuration
-
-### Streamable HTTP (Claude.app, mcpx, etc.)
-
-```json
-{
-  "mcpServers": {
-    "example": {
-      "url": "http://localhost:40060/mcp",
-      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
-    }
-  }
-}
-```
-
-### stdio (Claude Desktop, local clients)
-
-```json
-{
-  "mcpServers": {
-    "example": {
-      "command": "/path/to/example",
-      "args": ["mcp"],
-      "env": { "RUST_LOG": "warn" }
-    }
-  }
-}
-```
-
-## Using this template
-
-This checklist covers everything you need to adapt rmcp-template for a real service. Work through it top-to-bottom; each step is independent.
-
-### Checklist
-
-#### Core: rename and implement
-
-1. **Replace all occurrences of `example`/`Example`/`EXAMPLE` with your service name**
-
-   Global search-replace across the entire project:
-
-   | Find | Replace with |
-   |------|-------------|
-   | `rmcp-template` | `myservice-mcp` (Cargo.toml package name) |
-   | `example` (binary name) | `myservice` (Cargo.toml `[[bin]] name`) |
-   | `ExampleClient` | `MyServiceClient` |
-   | `ExampleService` | `MyServiceService` |
-   | `ExampleConfig` | `MyServiceConfig` |
-   | `ExampleRmcpServer` | `MyServiceRmcpServer` |
-   | `RTEMPLATE_API_URL` | `MYSERVICE_API_URL` |
-   | `RTEMPLATE_MCP_*` | `MYSERVICE_MCP_*` |
-   | `RTEMPLATE_NOAUTH` | `MYSERVICE_NOAUTH` |
-   | `example:read` | `myservice:read` |
-   | `example://schema/mcp-tool` | `myservice://schema/mcp-tool` |
-   | `.example` (data dir) | `.myservice` (in `config.rs` and `docker-compose.yml`) |
-
-2. **Implement your API client in `crates/rtemplate-service/src/example.rs`**
-
-   Replace the stub methods with real HTTP/GraphQL/gRPC calls. See the inline comments for the `reqwest::Client` pattern.
-
-3. **Add service methods to `crates/rtemplate-service/src/app.rs`**
-
-   Each public method on `ExampleService` corresponds to one MCP action. Business logic, caching, and retries go here — not in `tools.rs`.
-
-4. **Add MCP actions to `crates/rtemplate-contracts/src/actions.rs`, `crates/rtemplate-mcp/src/tools.rs`, and `crates/rtemplate-mcp/src/schemas.rs`**
-
-   - `actions.rs`: add action metadata to `ACTION_SPECS`
-   - `schemas.rs`: add any new action parameters to the schema
-   - `tools.rs`: add match arms in `dispatch_example()`
-
-5. **Add CLI commands to `crates/rtemplate-cli/src/lib.rs`**
-
-   One `Command` enum variant and one `fmt_*` formatter per action. Keep CLI output human-readable; the MCP layer handles machine-readable JSON.
-
-6. **Update `crates/rtemplate-contracts/src/config.rs`** with service-specific config fields
-
-   Rename `ExampleConfig` and add any fields your service needs. Update env prefixes throughout.
-
-7. **Add required env vars to `check-env` in `xtask/src/main.rs`**
-
-   Uncomment the `REQUIRED_VARS` entries (or add your own) so `cargo xtask check-env` catches missing credentials.
-
-#### Docker and deployment
-
-8. **Update `config/Dockerfile` binary name, port, and cache IDs**
-
-   Replace every occurrence of `example` (binary copy, cache IDs, CMD, LABEL) with your binary name. Update `EXPOSE` to your port.
-
-9. **Update `docker-compose.yml`**
-
-   - Change `40060` to your service's port (must match `config.toml [mcp] port`)
-   - The `${HOME}/.example:/data` volume is already set; rename `.example` to your service
-
-10. **Update `entrypoint.sh`**
-
-    Uncomment the `REQUIRED_VARS` check block and add your service's required env vars. Replace `RTEMPLATE_API_KEY` references with your prefix.
-
-11. **Update `config/Dockerfile` to use `entrypoint.sh`**
-
-    Already wired in the template (ENTRYPOINT + CMD split). The Debian image uses `gosu`; Alpine-based adaptations should switch the entrypoint to `su-exec`.
-
-#### Infrastructure
-
-12. **Choose a binary distribution path**
-
-    GitHub release tags build Linux and Windows artifacts and attach them to the release. PR CI also uploads native Linux and Windows build artifacts for smoke testing. Local `just dist` is an operator convenience for preparing files under `dist/`; it does not push generated binaries back to `main`.
-
-13. **Run `just symlink-docs`** after any new CLAUDE.md
-
-    Creates `AGENTS.md` + `GEMINI.md` symlinks next to every `CLAUDE.md` in the repo.
-
-14. **Update GitHub workflow files** (`.github/workflows/`)
-
-    In all three workflows, replace:
-    - `rmcp-template` → your repo name (cache keys)
-    - `rtemplate-mcp` → your Docker image name
-    - `example` → your binary name
-    - `example-linux-x86_64` / `example-windows-x86_64` → your artifact names
-    - `jmagar` → your GitHub org/username (image registry path)
-
-15. **Update `.env.example`** with your service's actual variable names and descriptions
-
-16. **Update `config.example.toml`** with your service's actual config fields
-
-#### Plugin and skills
-
-17. **Update plugin.json userConfig for your service's credentials**
-
-    Edit `plugins/rtemplate/.claude-plugin/plugin.json`. Replace the `rtemplate_api_url` / `rtemplate_api_key` fields with your service's actual credential names and descriptions.
-
-18. **Update `apply_plugin_options()` in `crates/rtemplate-cli/src/setup.rs`**
-
-    This function maps `CLAUDE_PLUGIN_OPTION_*` plugin options to the binary's `RTEMPLATE_*` env vars (it replaces the old `plugin-setup.sh` wrapper). Replace `RTEMPLATE_*` env var names and add any service-specific credentials your binary needs.
-
-19. **Update `plugins/rtemplate/skills/`**
-
-    Replace the action table in `plugins/rtemplate/skills/example/SKILL.md` with your actual actions and documented response shapes. Keep or adapt `plugins/rtemplate/skills/scaffold-project/SKILL.md` if you want the elicitation setup wizard to generate approval-first scaffold plans. Good skill docs drive better AI tool use.
-
-20. **Update `plugins/rtemplate/.codex-plugin/plugin.json`** for Codex plugin registry
-
-    Every field marked `TEMPLATE:` must be replaced. Key fields:
-    - `name` — `<your-service>-mcp`
-    - `interface.displayName` — human-readable name
-    - `interface.shortDescription` — 50-char tagline
-    - `interface.capabilities` — `["Read"]` or `["Read", "Write"]` based on your server
-    - `interface.defaultPrompt` — 3 sample prompts demonstrating your actions
-    - `interface.brandColor` — hex color matching your service's brand
-
-    See `plugins/rtemplate/.codex-plugin/README.md` for the full field reference.
-
-21. **Write `server.json`** for MCP registry publishing
-
-    Update every `TEMPLATE:` field in `server.json` at the repo root:
-    - `name` — your reverse-DNS namespace (e.g. `yourdomain.com/myservice-mcp`)
-    - `description` — one-sentence description
-    - `repository.url` — your GitHub repo URL
-    - `packages[0].identifier` — your OCI image ref
-    - `environmentVariables` — your service's actual env vars
-
-    See `docs/MCP-REGISTRY-PUBLISH-GUIDE.md` for step-by-step publishing instructions.
-
-#### Tests
-
-22. **Update `crates/rmcp-template/tests/mcporter/test-mcp.sh`**
-
-    Add semantic checks for your actions. Validate actual field values, not just key existence.
-
-23. **Run all checks**
-
-    ```bash
-    cargo check               # must compile clean
-    cargo nextest run         # all tests pass
-    taplo check               # TOML format valid
-    cargo xtask check-env     # required env vars set
-    ```
-
-### After renaming
-
-```bash
-# Verify it compiles
-cargo check
-
-# Run tests with nextest
+# Build profiles
+cargo build --bin rtemplate --no-default-features --features local-adapter
+cargo build --bin rtemplate-server --no-default-features --features server
+cargo build --bin rtemplate-server --features full
+
+# Run checks
+cargo fmt -- --check
+cargo clippy --all-targets -- -D warnings
 cargo nextest run
-
-# Run local static/spec contract checks
 cargo xtask contract-audit
 
-# Check environment variables
-cargo xtask check-env
-
-# Start the server in dev mode
-just dev       # no-auth mode on :40060
-
-# Start the static web UI after `pnpm build`
-cd apps/web && pnpm start
-
-# Symlink docs for all AI systems
-just symlink-docs
-
-# In another terminal, run integration tests
-just test-mcporter
+# Common just recipes
+just dev                 # loopback HTTP server with local no-auth
+just mcp                 # stdio MCP
+just greet               # CLI smoke test
+just doctor              # pre-flight check
+just build-local         # local adapter binary
+just build-full          # web assets + full server binary
+just verify              # fmt, lint, check, test
+just check-docs          # generated docs/metadata current
+just scaffold-contract-check
+just validate-plugin
 ```
+
+`cargo xtask ci` runs the main local CI sequence. Optional tools such as
+`cargo-nextest`, `taplo`, and `cargo-audit` are used when installed.
+
+## MCP Client Configuration
+
+Streamable HTTP:
+
+```json
+{
+  "mcpServers": {
+    "rtemplate": {
+      "url": "http://localhost:40060/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Stdio:
+
+```json
+{
+  "mcpServers": {
+    "rtemplate": {
+      "command": "/path/to/rtemplate",
+      "args": ["mcp"],
+      "env": {
+        "RTEMPLATE_API_URL": "https://api.example.com/v1",
+        "RTEMPLATE_API_KEY": "YOUR_API_KEY",
+        "RUST_LOG": "warn"
+      }
+    }
+  }
+}
+```
+
+For generated projects, replace `rtemplate`, `RTEMPLATE_*`, tool names, scopes,
+and paths with the generated service names.
+
+## Plugin Surfaces
+
+The repo ships one shared plugin package under [plugins/rtemplate](plugins/rtemplate)
+for Claude Code, Codex, and Gemini surfaces. Plugin manifests are versionless;
+release tooling derives version identity from git state. The plugin package can
+use the local stdio adapter and includes setup/doctor support for appdata and
+environment files.
+
+Primary docs:
+
+- [docs/PLUGINS.md](docs/PLUGINS.md)
+- [plugins/rtemplate/.codex-plugin/README.md](plugins/rtemplate/.codex-plugin/README.md)
+- [plugins/rtemplate/skills/rtemplate/SKILL.md](plugins/rtemplate/skills/rtemplate/SKILL.md)
+- [plugins/rtemplate/skills/scaffold-project/SKILL.md](plugins/rtemplate/skills/scaffold-project/SKILL.md)
+
+## Web UI
+
+The `web` feature serves the static export bundled by `rtemplate-web`. Editable
+frontend source lives in [apps/web](apps/web), and `cargo xtask sync-web-source`
+copies that source into the Rust crate bundle.
+
+Useful commands:
+
+```bash
+cargo xtask build-web
+cargo xtask sync-web-source
+cargo xtask check-web-source-sync
+pnpm -C apps/web validate
+```
+
+Generated projects that do not need a human UI should use `local-adapter`,
+`server`, or a custom feature set without `web`.
+
+## Deployment Templates
+
+The full server profile is designed for one deployable binary. The repository
+also includes Docker and Compose templates:
+
+- [config/Dockerfile](config/Dockerfile)
+- [docker-compose.prod.yml](docker-compose.prod.yml)
+- [entrypoint.sh](entrypoint.sh)
+
+When adapting a generated project, verify the server binary name, exposed port,
+healthcheck port, image labels, service user/group, data volume, and required
+environment variables. The scaffold verifier catches several template-only
+artifacts, but deployment files still need service-specific review before
+publishing an image.
+
+## Adapting The Scaffold
+
+After generation, replace the example domain with your real service.
+
+1. Replace the stub client in `crates/rtemplate-service/src/example.rs`.
+2. Put domain logic in `crates/rtemplate-service/src/app.rs` or focused service modules.
+3. Add action metadata in `crates/rtemplate-contracts/src/actions.rs`.
+4. Add MCP schema parameters in `crates/rtemplate-mcp/src/schemas.rs`.
+5. Add MCP dispatch arms in `crates/rtemplate-mcp/src/tools.rs`.
+6. Add CLI command variants in `crates/rtemplate-cli/src/lib.rs`.
+7. Add REST handlers only when the selected profile includes API.
+8. Update config fields and env prefixes in `crates/rtemplate-contracts/src/config.rs`.
+9. Update `.env.example`, `config.example.toml`, plugin options, and setup mappings.
+10. Update `server.json`, plugin metadata, repository URLs, Docker labels, and release metadata.
+11. Add tests for MCP dispatch, CLI parsing, REST routes, and service behavior.
+12. Run scaffold verification and the local quality gates.
+
+For public repositories, also review tracked docs, generated metadata, CI runner
+configuration, and secret-scanning allowlists before publishing.
+
+## Documentation Map
+
+| Topic | Docs |
+|---|---|
+| Architecture and layering | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/PATTERNS.md](docs/PATTERNS.md) |
+| Scaffold workflow | [docs/SCAFFOLD.md](docs/SCAFFOLD.md), [docs/CARGO_GENERATE.md](docs/CARGO_GENERATE.md) |
+| Scaffold intent contract | [docs/specs/scaffold-intent-handoff.md](docs/specs/scaffold-intent-handoff.md), [docs/contracts/scaffold-intent.schema.json](docs/contracts/scaffold-intent.schema.json) |
+| MCP action schema | [docs/MCP_SCHEMA.md](docs/MCP_SCHEMA.md) |
+| REST OpenAPI | [docs/generated/openapi.json](docs/generated/openapi.json) |
+| Auth | [docs/AUTH.md](docs/AUTH.md) |
+| Plugins | [docs/PLUGINS.md](docs/PLUGINS.md) |
+| Release/versioning | [release/components.toml](release/components.toml), [docs/MCP-REGISTRY-PUBLISH-GUIDE.md](docs/MCP-REGISTRY-PUBLISH-GUIDE.md) |
+| Automation | [xtask/README.md](xtask/README.md), [scripts/README.md](scripts/README.md) |
+| Tests | [crates/rmcp-template/tests/README.md](crates/rmcp-template/tests/README.md) |
+
+## Verification
+
+Common local gates:
+
+```bash
+cargo xtask scaffold --verify ../generated/myservice-mcp
+cargo xtask check-docs
+cargo xtask check-schema-docs --check
+cargo xtask check-openapi --check
+cargo xtask check-scaffold-intent-contract
+cargo xtask validate-plugin-layout
+cargo xtask check-version-sync
+just verify
+```
+
+Use targeted checks while iterating, then run the broader gates before release.
 
 ## License
 
