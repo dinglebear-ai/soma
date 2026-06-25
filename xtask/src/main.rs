@@ -22,6 +22,8 @@
 //!   check-file-size Check staged source files against size budgets
 //!   run-ascii-check Check or fix tracked source/config/docs ASCII hygiene
 //!   check-plugin-stdio-smoke Smoke-test installed plugin stdio binary
+//!   apply-no-mcp-marketplace Apply deterministic no-MCP marketplace branch transform
+//!   check-no-mcp-drift Validate marketplace-no-mcp branch invariants and drift
 //!   sync-cargo   Copy Cargo.lock into plugin data directories
 //!   check-release-versions Validate release component version policy
 //!   release-plan Print changed release components and candidate tags
@@ -41,6 +43,7 @@ use walkdir::WalkDir;
 
 mod cargo_generate;
 mod cargo_generate_post;
+mod no_mcp;
 mod patterns;
 mod release_versions;
 mod scripts;
@@ -99,6 +102,8 @@ fn main() -> Result<()> {
         Some("check-runtime-current") => scripts_lane_c::check_runtime_current(&args[1..]),
         Some("check-schema-docs") => scripts_lane_d::check_schema_docs(&args[1..]),
         Some("check-scaffold-intent-contract") => scripts_lane_d::check_scaffold_intent_contract(),
+        Some("apply-no-mcp-marketplace") => no_mcp::apply_cmd(),
+        Some("check-no-mcp-drift") => no_mcp::check_cmd(&args[1..]),
         Some("sync-cargo") => scripts::sync_cargo(),
         Some("pre-release-check") => scripts_lane_b::pre_release_check(&args[1..]),
         Some("refresh-docs") => scripts_lane_c::refresh_docs(&args[1..]),
@@ -772,6 +777,9 @@ COMMANDS:
   check-schema-docs     Generate/check docs/MCP_SCHEMA.md
   check-scaffold-intent-contract
                         Validate scaffold intent schema/examples
+  apply-no-mcp-marketplace
+                        Remove bundled MCP registrations for the no-MCP branch
+  check-no-mcp-drift    Validate marketplace-no-MCP invariants and branch drift
   sync-cargo            Copy Cargo.lock into plugin data directories
   pre-release-check     Run release-readiness gate
   refresh-docs          Refresh ignored reference docs

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Compatibility wrapper. Canonical implementation: cargo xtask check-no-mcp-drift.
+set -euo pipefail
+
+cargo xtask check-no-mcp-drift "$@"
