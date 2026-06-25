@@ -232,6 +232,7 @@ cargo xtask scaffold --name myservice --category upstream-client --port auto --p
 cargo xtask scaffold --intent scaffold-intent.json --apply ../generated
 cargo xtask scaffold --verify ../generated/myservice-mcp
 cargo xtask scaffold --adapt-plan ../generated/myservice-mcp
+cargo xtask scaffold --write-action-starters ../generated/myservice-mcp --actions actions.json
 ```
 
 The command bridges `scaffold_intent` JSON to `cargo-generate` definitions,
@@ -239,7 +240,9 @@ defaults upstream-client servers to the lean `local-adapter` feature set, can
 render starter snippets from an action manifest, writes
 `docs/scaffold-report.md` after generation, verifies generated-project cleanup
 before publishing, and prints a read-only adaptation checklist for the generated
-project.
+project. It can also materialize `docs/action-starters/` snippets in a generated
+project from the action manifest, giving users reviewable starter code for the
+repetitive action-wiring steps.
 
 ### `cargo xtask cargo-generate-post`
 

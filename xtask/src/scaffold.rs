@@ -143,6 +143,21 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
             print!("{}", render_adapt_plan(root)?);
             Ok(())
         }
+        Mode::WriteActionStarters { ref root } => {
+            let actions = options
+                .actions
+                .as_ref()
+                .context("--actions is required with --write-action-starters")?;
+            let text = fs::read_to_string(actions)
+                .with_context(|| format!("failed to read action manifest {}", actions.display()))?;
+            let manifest = ActionManifest::from_json(&text)?;
+            write_action_starters(root, &manifest)?;
+            println!(
+                "Wrote action starter artifacts to {}",
+                root.join("docs/action-starters").display()
+            );
+            Ok(())
+        }
         Mode::Plan => {
             let plan = build_plan(&options)?;
             print!("{}", plan.render());
@@ -322,6 +337,20 @@ impl ActionManifest {
     pub(crate) fn render_snippets(&self, service_type: &str) -> String {
         let mut output = String::new();
         output.push_str("### crates/rtemplate-contracts/src/actions.rs\n\n```rust\n");
+        output.push_str(&self.render_action_specs_snippet());
+        output.push_str("```\n\n### crates/rtemplate-mcp/src/tools.rs\n\n```rust\n");
+        output.push_str(&self.render_tools_snippet());
+        output.push_str("```\n\n### crates/rtemplate-cli/src/lib.rs\n\n```rust\n");
+        output.push_str(&self.render_cli_snippet());
+        output.push_str("```\n\n### crates/rtemplate-service/src/app.rs\n\n```rust\n");
+        output.push_str(&self.render_service_snippet(service_type));
+        output.push_str("```\n\n### tests\n\n");
+        output.push_str(&self.render_tests_guide());
+        output
+    }
+
+    fn render_action_specs_snippet(&self) -> String {
+        let mut output = String::new();
         for action in &self.actions {
             output.push_str("ActionSpec {\n");
             output.push_str(&format!("    name: \"{}\",\n", action.name));
@@ -354,7 +383,11 @@ impl ActionManifest {
             output.push_str("    cli: None,\n");
             output.push_str("},\n\n");
         }
-        output.push_str("```\n\n### crates/rtemplate-mcp/src/tools.rs\n\n```rust\n");
+        output
+    }
+
+    fn render_tools_snippet(&self) -> String {
+        let mut output = String::new();
         for action in &self.actions {
             output.push_str(&format!("\"{}\" => {{\n", action.name));
             for param in &action.params {
@@ -376,16 +409,66 @@ impl ActionManifest {
             );
             output.push_str(").await\n},\n");
         }
-        output.push_str("```\n\n### crates/rtemplate-cli/src/lib.rs\n\n```rust\n");
+        output
+    }
+
+    fn render_cli_snippet(&self) -> String {
+        let mut output = String::new();
         for action in &self.actions {
             output.push_str(&format!("Command::{},\n", pascal_case(&action.name)));
         }
+        output
+    }
+
+    fn render_service_snippet(&self, service_type: &str) -> String {
+        let mut output = String::new();
+        output.push_str(&format!("impl {service_type} {{\n"));
+        for action in &self.actions {
+            output.push_str(&format!("    pub async fn {}(", action.name));
+            output.push_str(
+                &action
+                    .params
+                    .iter()
+                    .map(|param| format!("{}: Option<String>", param.name))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+            output.push_str(") -> anyhow::Result<serde_json::Value> {\n");
+            output.push_str("        todo!(\"replace with service implementation\")\n");
+            output.push_str("    }\n\n");
+        }
+        output.push_str("}\n");
+        output
+    }
+
+    fn render_tests_guide(&self) -> String {
+        let mut output = String::new();
+        output.push_str("Add service and tool_dispatch coverage for every action.\n");
         output.push_str(
-            "```\n\n### tests\n\nAdd service and tool_dispatch coverage for every action.\n",
+            "- `crates/rmcp-template/tests/tool_dispatch.rs`: MCP success and validation paths.\n",
         );
+        output.push_str("- `crates/rmcp-template/tests/cli_parse.rs`: CLI command/flag parsing.\n");
+        output.push_str("- Service-layer tests near `crates/rtemplate-service/src/app.rs` or focused modules.\n");
         output.push_str(&format!(
-            "Use `{service_type}` methods as the single business-logic boundary.\n"
+            "- Actions: {}\n",
+            self.actions
+                .iter()
+                .map(|action| action.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
+        output
+    }
+
+    fn render_starter_readme(&self) -> String {
+        let mut output = String::new();
+        output.push_str("# Action Starters\n\n");
+        output.push_str("Generated by `cargo xtask scaffold --write-action-starters`.\n");
+        output.push_str("Review and move these snippets into the real source files; they are intentionally not applied automatically.\n\n");
+        output.push_str("Actions:\n");
+        for action in &self.actions {
+            output.push_str(&format!("- `{}` - {}\n", action.name, action.description));
+        }
         output
     }
 }
@@ -875,6 +958,7 @@ enum Mode {
     Apply { parent: PathBuf },
     Verify { root: PathBuf },
     AdaptPlan { root: PathBuf },
+    WriteActionStarters { root: PathBuf },
 }
 
 impl Options {
@@ -916,6 +1000,12 @@ impl Options {
                     index += 1;
                     options.mode = Mode::AdaptPlan {
                         root: PathBuf::from(value_arg(args, index, "--adapt-plan")?),
+                    };
+                }
+                "--write-action-starters" => {
+                    index += 1;
+                    options.mode = Mode::WriteActionStarters {
+                        root: PathBuf::from(value_arg(args, index, "--write-action-starters")?),
                     };
                 }
                 "--intent" => {
@@ -993,8 +1083,39 @@ fn print_help() {
   cargo xtask scaffold --intent scaffold-intent.json [--actions actions.json] --plan
   cargo xtask scaffold --intent scaffold-intent.json --apply <output-parent> [--no-cargo-check]
   cargo xtask scaffold --verify <generated-root> [--no-cargo-check]
-  cargo xtask scaffold --adapt-plan <generated-root>"
+  cargo xtask scaffold --adapt-plan <generated-root>
+  cargo xtask scaffold --write-action-starters <generated-root> --actions actions.json"
     );
+}
+
+fn write_action_starters(root: &Path, manifest: &ActionManifest) -> Result<()> {
+    if !root.exists() {
+        bail!("generated root does not exist: {}", root.display());
+    }
+    let dir = root.join("docs/action-starters");
+    fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
+    fs::write(dir.join("README.md"), manifest.render_starter_readme())
+        .context("failed to write action starter README")?;
+    fs::write(
+        dir.join("actions.rs.snippet"),
+        manifest.render_action_specs_snippet(),
+    )
+    .context("failed to write actions.rs snippet")?;
+    fs::write(
+        dir.join("tools.rs.snippet"),
+        manifest.render_tools_snippet(),
+    )
+    .context("failed to write tools.rs snippet")?;
+    fs::write(dir.join("cli.rs.snippet"), manifest.render_cli_snippet())
+        .context("failed to write cli.rs snippet")?;
+    fs::write(
+        dir.join("service.rs.snippet"),
+        manifest.render_service_snippet("ExampleService"),
+    )
+    .context("failed to write service.rs snippet")?;
+    fs::write(dir.join("tests.md"), manifest.render_tests_guide())
+        .context("failed to write tests guide")?;
+    Ok(())
 }
 
 fn render_adapt_plan(root: &Path) -> Result<String> {
@@ -1257,5 +1378,50 @@ mod tests {
         assert!(plan.contains("apps/web"));
         assert!(plan.contains("server.json"));
         assert!(plan.contains("cargo xtask scaffold --verify"));
+    }
+
+    #[test]
+    fn action_manifest_writes_starter_artifacts_into_generated_project() {
+        let fixture = TempDir::new().unwrap();
+        let manifest = ActionManifest::from_json(
+            r#"{
+              "actions": [
+                {
+                  "name": "list_things",
+                  "description": "List visible things.",
+                  "scope": "read",
+                  "params": [
+                    { "name": "kind", "type": "string", "required": false }
+                  ]
+                }
+              ]
+            }"#,
+        )
+        .expect("manifest");
+
+        write_action_starters(fixture.path(), &manifest).expect("write starters");
+
+        let readme = fs::read_to_string(fixture.path().join("docs/action-starters/README.md"))
+            .expect("readme");
+        let actions = fs::read_to_string(
+            fixture
+                .path()
+                .join("docs/action-starters/actions.rs.snippet"),
+        )
+        .expect("actions snippet");
+        let service = fs::read_to_string(
+            fixture
+                .path()
+                .join("docs/action-starters/service.rs.snippet"),
+        )
+        .expect("service snippet");
+        let tests = fs::read_to_string(fixture.path().join("docs/action-starters/tests.md"))
+            .expect("tests guide");
+
+        assert!(readme.contains("list_things"));
+        assert!(actions.contains("ActionSpec"));
+        assert!(actions.contains("name: \"list_things\""));
+        assert!(service.contains("pub async fn list_things"));
+        assert!(tests.contains("tool_dispatch"));
     }
 }

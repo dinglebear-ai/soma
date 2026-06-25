@@ -62,6 +62,23 @@ profile and surfaces, and prints the concrete files to update for service
 implementation, action wiring, optional API/Web/plugin surfaces, tests, and
 verification. It is read-only and does not mutate the generated project.
 
+## Write action starters
+
+Use the same action manifest to materialize starter artifacts in a generated
+project:
+
+```bash
+cargo xtask scaffold \
+  --write-action-starters ../generated/myservice-mcp \
+  --actions actions.json
+```
+
+This writes `docs/action-starters/` with reviewable snippets for action
+metadata, MCP dispatch, CLI variants, service stubs, and test coverage. The
+command intentionally does not patch source files directly; generated projects
+can have custom names and partially adapted code, so reviewable snippets are the
+safe automation boundary.
+
 ## Lean upstream-client default
 
 `upstream-client` projects default to `local-adapter`, which keeps the generated

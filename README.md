@@ -112,6 +112,14 @@ Print a path-aware follow-up plan for adapting the generated stub:
 cargo xtask scaffold --adapt-plan ../generated/myservice-mcp
 ```
 
+Materialize starter artifacts from an action manifest:
+
+```bash
+cargo xtask scaffold \
+  --write-action-starters ../generated/myservice-mcp \
+  --actions actions.json
+```
+
 Add starter action snippets:
 
 ```bash
@@ -408,6 +416,17 @@ Start by printing the generated project's profile-aware checklist:
 ```bash
 cargo xtask scaffold --adapt-plan ../generated/myservice-mcp
 ```
+
+Then generate reviewable starter artifacts for the repetitive action wiring:
+
+```bash
+cargo xtask scaffold \
+  --write-action-starters ../generated/myservice-mcp \
+  --actions actions.json
+```
+
+This writes `docs/action-starters/` in the generated project with snippets for
+action metadata, MCP dispatch, CLI variants, service stubs, and test coverage.
 
 1. Replace the stub client in `crates/rtemplate-service/src/example.rs`.
 2. Put domain logic in `crates/rtemplate-service/src/app.rs` or focused service modules.
