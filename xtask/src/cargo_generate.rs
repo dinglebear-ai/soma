@@ -97,10 +97,28 @@ fn cases() -> Vec<Case> {
                 "server,web,oauth,observability",
             ],
         },
+        Case {
+            name: "upstream-client-local-adapter",
+            values: BTreeMap::from([
+                ("package_name", "lean-mcp"),
+                ("crate_prefix", "lean"),
+                ("binary_name", "lean"),
+                ("server_binary_name", "lean-server"),
+                ("service_slug", "lean"),
+                ("type_prefix", "Lean"),
+                ("env_prefix", "LEAN"),
+                ("scope_prefix", "lean"),
+                ("default_port", "40090"),
+                ("github_owner", "jmagar"),
+                ("github_repo", "lean-mcp"),
+                ("default_features", "local-adapter"),
+            ]),
+            feature_checks: &["local-adapter", "cli", "mcp-stdio"],
+        },
     ]
 }
 
-fn stage_template(repo: &Path, template: &Path) -> Result<()> {
+pub(crate) fn stage_template(repo: &Path, template: &Path) -> Result<()> {
     for entry in WalkDir::new(repo).into_iter().filter_entry(|entry| {
         let relative = match entry.path().strip_prefix(repo) {
             Ok(path) => path,
@@ -423,12 +441,12 @@ fn run_cmd_in(program: &str, args: &[&str], cwd: &Path, cargo_home: &Path) -> Re
     Ok(())
 }
 
-struct TempDir {
+pub(crate) struct TempDir {
     path: PathBuf,
 }
 
 impl TempDir {
-    fn new(prefix: &str) -> Result<Self> {
+    pub(crate) fn new(prefix: &str) -> Result<Self> {
         let mut path = std::env::temp_dir();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -440,7 +458,7 @@ impl TempDir {
         Ok(Self { path })
     }
 
-    fn path(&self) -> &Path {
+    pub(crate) fn path(&self) -> &Path {
         &self.path
     }
 }

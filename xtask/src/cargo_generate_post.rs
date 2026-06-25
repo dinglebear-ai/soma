@@ -80,6 +80,7 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
     rename_paths(&root, &values)?;
     cleanup_template_files(&root)?;
     cleanup_generated_readme(&root)?;
+    ensure_agent_memory_symlinks(&root)?;
     Ok(())
 }
 
@@ -495,6 +496,35 @@ fn cleanup_generated_readme(root: &Path) -> Result<()> {
     Ok(())
 }
 
+fn ensure_agent_memory_symlinks(root: &Path) -> Result<()> {
+    for entry in WalkDir::new(root).into_iter().filter_entry(|entry| {
+        let relative = entry.path().strip_prefix(root).unwrap_or(entry.path());
+        !should_skip_dir(relative)
+    }) {
+        let entry = entry?;
+        if !entry.file_type().is_file() || entry.file_name() != "CLAUDE.md" {
+            continue;
+        }
+        let dir = entry
+            .path()
+            .parent()
+            .with_context(|| format!("{} has no parent", entry.path().display()))?;
+        for link_name in ["AGENTS.md", "GEMINI.md"] {
+            let link = dir.join(link_name);
+            if link.exists() || link.symlink_metadata().is_ok() {
+                continue;
+            }
+            #[cfg(unix)]
+            std::os::unix::fs::symlink("CLAUDE.md", &link)
+                .with_context(|| format!("failed to create {}", link.display()))?;
+            #[cfg(windows)]
+            std::os::windows::fs::symlink_file("CLAUDE.md", &link)
+                .with_context(|| format!("failed to create {}", link.display()))?;
+        }
+    }
+    Ok(())
+}
+
 fn should_skip_dir(path: &Path) -> bool {
     path.components().any(|component| {
         let name = component.as_os_str().to_string_lossy();
@@ -531,4 +561,33 @@ fn should_rewrite(path: &Path) -> bool {
                     | "GEMINI.md"
             )
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn agent_memory_symlinks_are_recreated_after_cargo_generate_skips_them() {
+        let fixture = TempDir::new().unwrap();
+        fs::write(fixture.path().join("CLAUDE.md"), "# Root\n").unwrap();
+        fs::create_dir_all(fixture.path().join("docs")).unwrap();
+        fs::write(fixture.path().join("docs/CLAUDE.md"), "# Docs\n").unwrap();
+
+        ensure_agent_memory_symlinks(fixture.path()).unwrap();
+
+        assert_eq!(
+            fs::read_link(fixture.path().join("AGENTS.md")).unwrap(),
+            Path::new("CLAUDE.md")
+        );
+        assert_eq!(
+            fs::read_link(fixture.path().join("GEMINI.md")).unwrap(),
+            Path::new("CLAUDE.md")
+        );
+        assert_eq!(
+            fs::read_link(fixture.path().join("docs/AGENTS.md")).unwrap(),
+            Path::new("CLAUDE.md")
+        );
+    }
 }

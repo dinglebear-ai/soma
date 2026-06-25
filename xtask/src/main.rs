@@ -9,6 +9,7 @@
 //!   check-env    Validate required environment variables are set
 //!   patterns     Check static contracts from docs/PATTERNS.md
 //!   contract-audit Run local static/spec checks for REST-client MCP servers
+//!   scaffold     Plan, generate, or verify a new project from this template
 //!   cargo-generate Smoke-test cargo-generate output
 //!   cargo-generate-post Apply cargo-generate post-processing rewrites
 //!   generate-docs Generate volatile docs and metadata from canonical specs
@@ -46,6 +47,8 @@ mod cargo_generate_post;
 mod no_mcp;
 mod patterns;
 mod release_versions;
+mod rmcp_release_monitor;
+mod scaffold;
 mod scripts;
 mod scripts_lane_a;
 mod scripts_lane_b;
@@ -73,6 +76,7 @@ fn main() -> Result<()> {
         Some("check-env") => check_env(),
         Some("patterns") => patterns_cmd(&args[1..]),
         Some("contract-audit") => contract_audit(),
+        Some("scaffold") => scaffold::run(&args[1..]),
         Some("cargo-generate") => cargo_generate(&args[1..]),
         Some("cargo-generate-post") => cargo_generate_post::run(&args[1..]),
         Some("generate-docs") => generate_docs(),
@@ -118,6 +122,7 @@ fn main() -> Result<()> {
         }
         Some("check-release-versions") => check_release_versions_cmd(workspace_root, &args[1..]),
         Some("release-plan") => release_plan_cmd(workspace_root, &args[1..]),
+        Some("rmcp-release-monitor") => rmcp_release_monitor::run(&args[1..]),
         Some("bump-version") => bump_version_cmd(workspace_root, &args[1..]),
         Some("bump-template-version") => scripts_lane_b::bump_version(workspace_root, &args[1..]),
         Some("--help") | Some("-h") | Some("help") | None => {
@@ -746,6 +751,7 @@ COMMANDS:
   check-test-siblings   Verify every src/*.rs has a sibling *_tests.rs
   patterns              Check static contracts from docs/PATTERNS.md (--strict, --json)
   contract-audit        Run local static/spec checks without live upstream calls
+  scaffold             Plan/apply/verify a generated project from this template
   cargo-generate        Smoke-test real cargo-generate output (--no-cargo-check)
   cargo-generate-post   Internal generated-project rewrite command
   generate-docs         Generate volatile docs and metadata from canonical specs

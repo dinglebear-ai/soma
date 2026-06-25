@@ -1,4 +1,5 @@
 //! Route-level tests for REST dispatch, status, and mounted auth behavior.
+#![cfg(feature = "mcp-http")]
 
 use axum::{
     body::{to_bytes, Body},

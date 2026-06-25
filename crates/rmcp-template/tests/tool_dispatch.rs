@@ -168,6 +168,7 @@ async fn test_greet_target_defaults_to_world() {
 }
 
 #[test]
+#[cfg(feature = "mcp-http")]
 fn test_schemas_actions_list_is_non_empty() {
     // Verify the schema action list compiles and has the expected entries
     use rmcp_template::server;

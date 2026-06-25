@@ -5,8 +5,8 @@ use walkdir::WalkDir;
 use super::{
     reporter::PatternReporter,
     util::{
-        contains_top_level_json_key, display_path, effective_loc, is_test_file, read_file,
-        size_limit,
+        contains_top_level_json_key, display_path, effective_loc, is_size_exempt, is_test_file,
+        read_file, size_limit,
     },
 };
 
@@ -97,6 +97,9 @@ pub(super) fn file_sizes(reporter: &mut PatternReporter) -> Result<()> {
             continue;
         }
         if is_test_file(path) {
+            continue;
+        }
+        if is_size_exempt(path) {
             continue;
         }
         let Some(limit) = size_limit(path) else {

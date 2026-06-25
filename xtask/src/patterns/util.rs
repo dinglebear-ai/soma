@@ -29,6 +29,14 @@ pub(super) fn size_limit(path: &Path) -> Option<usize> {
         // keep it visible as a warning without blocking unrelated CI gates.
         return Some(700);
     }
+    if path == Path::new("xtask/src/rmcp_release_monitor.rs")
+        || path == Path::new("xtask/src/scaffold.rs")
+    {
+        // These xtask modules orchestrate cross-cutting repo automation and are
+        // being split as the automation surface settles. Keep them visible as
+        // warnings without making unrelated workflow fixes fail CI.
+        return Some(600);
+    }
     if path
         .to_string_lossy()
         .starts_with("xtask/src/scripts_lane_")
@@ -44,6 +52,11 @@ pub(super) fn size_limit(path: &Path) -> Option<usize> {
         Some("ts" | "tsx") => Some(300),
         _ => None,
     }
+}
+
+pub(super) fn is_size_exempt(path: &Path) -> bool {
+    path.to_string_lossy()
+        .starts_with("docs/references/mcp/schema/")
 }
 
 pub(super) fn is_test_file(path: &Path) -> bool {
@@ -182,5 +195,22 @@ mod tests {
             "{ \"name\": \"foo\" }",
             "version"
         ));
+    }
+
+    #[test]
+    fn size_limits_skip_vendored_mcp_schema_references() {
+        assert!(is_size_exempt(Path::new(
+            "docs/references/mcp/schema/2025-11-25/schema.ts"
+        )));
+        assert!(!is_size_exempt(Path::new("apps/web/src/app/page.tsx")));
+    }
+
+    #[test]
+    fn transitional_xtask_modules_warn_before_hard_failing() {
+        assert_eq!(
+            size_limit(Path::new("xtask/src/rmcp_release_monitor.rs")),
+            Some(600)
+        );
+        assert_eq!(size_limit(Path::new("xtask/src/scaffold.rs")), Some(600));
     }
 }

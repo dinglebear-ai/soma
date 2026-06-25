@@ -71,6 +71,7 @@ rmcp-template = { path = ".", features = ["test-support"] }
 rtemplate-contracts = { path = "../rtemplate-contracts" }
 rtemplate-service = { path = "../rtemplate-service" }
 rtemplate-test-support = { path = "../rtemplate-test-support" }
+serde_json = "1"
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"

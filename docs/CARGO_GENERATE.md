@@ -14,7 +14,20 @@ and plugin paths in the generated copy.
 cargo install cargo-generate
 ```
 
-## Generate
+## Recommended: xtask scaffold
+
+For new projects, prefer the higher-level scaffold command:
+
+```bash
+cargo xtask scaffold --name myservice --category upstream-client --port auto --plan
+cargo xtask scaffold --intent scaffold-intent.json --apply ../generated
+cargo xtask scaffold --verify ../generated/myservice-mcp
+```
+
+See [docs/SCAFFOLD.md](SCAFFOLD.md) for the intent JSON bridge, action starter
+manifest, generated report, and verification workflow.
+
+## Lower-level cargo-generate
 
 ```bash
 cargo generate \
@@ -90,8 +103,9 @@ cargo xtask cargo-generate --no-cargo-check
 ```
 
 The smoke test generates both a simple project and a project with hyphenated
-Cargo package names, runs the Rust `cargo-generate-post` rewrite command, checks
-plugin/repository metadata, verifies template-only files were removed, and runs
+Cargo package names, plus an upstream-client `local-adapter` project. It runs
+the Rust `cargo-generate-post` rewrite command, checks plugin/repository
+metadata, verifies template-only files were removed, and runs
 `cargo check --workspace --all-targets` inside each generated project.
 `scripts/check-cargo-generate.py` is only a compatibility wrapper for the xtask
 command.

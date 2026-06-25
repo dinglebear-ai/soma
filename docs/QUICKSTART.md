@@ -118,6 +118,7 @@ Or use Streamable HTTP (server must be running):
 ## Next steps
 
 - Read the [README](../README.md) for the step-by-step guide to adapting this template for your own API.
+- Use [docs/SCAFFOLD.md](SCAFFOLD.md) for the one-command scaffold plan/apply/verify workflow.
 - Read [CLAUDE.md](../CLAUDE.md) for the thin-shim rule and how to add actions.
 - For OAuth setup, set `RTEMPLATE_MCP_AUTH_MODE=oauth` and the `RTEMPLATE_MCP_GOOGLE_*` env vars — see the env var table in the README.
 
@@ -154,3 +155,11 @@ Use this when creating a real service from rmcp-template:
 - [ ] Run `cargo check` — must compile clean, zero warnings
 - [ ] Run `cargo nextest run` — all tests pass
 - [ ] Run `./crates/rmcp-template/tests/mcporter/test-mcp.sh` against a live server instance
+
+For new projects, replace the manual rename checklist with:
+
+```bash
+cargo xtask scaffold --name myservice --category upstream-client --port auto --plan
+cargo xtask scaffold --intent scaffold-intent.json --apply ../generated
+cargo xtask scaffold --verify ../generated/myservice-mcp
+```

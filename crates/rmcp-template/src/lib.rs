@@ -50,6 +50,7 @@ pub mod server {
 #[doc(hidden)]
 #[cfg(any(feature = "cli", feature = "mcp", feature = "api"))]
 pub mod testing {
+    #[cfg(feature = "auth")]
     use std::sync::Arc;
 
     use crate::{
@@ -86,13 +87,14 @@ pub mod testing {
                 api_token: Some(token.to_string()),
                 ..McpConfig::default()
             },
-            auth_policy: AuthPolicy::Mounted { auth_state: None },
+            auth_policy: mounted_test_policy(),
             service: stub_service(),
             response_pages: Default::default(),
         }
     }
 
     /// `AppState` with full OAuth (requires data directory for SQLite + key file).
+    #[cfg(feature = "auth")]
     pub async fn oauth_state(data_dir: &std::path::Path) -> AppState {
         let auth_state = build_auth_state(data_dir).await;
         AppState {
@@ -111,6 +113,7 @@ pub mod testing {
         }
     }
 
+    #[cfg(feature = "auth")]
     pub async fn build_auth_state(data_dir: &std::path::Path) -> rtemplate_auth::state::AuthState {
         let vars: Vec<(String, String)> = vec![
             ("RTEMPLATE_MCP_AUTH_MODE".into(), "oauth".into()),
@@ -155,5 +158,15 @@ pub mod testing {
         rtemplate_auth::state::AuthState::new(auth_config)
             .await
             .expect("test auth state should init")
+    }
+
+    #[cfg(feature = "auth")]
+    fn mounted_test_policy() -> AuthPolicy {
+        AuthPolicy::Mounted { auth_state: None }
+    }
+
+    #[cfg(not(feature = "auth"))]
+    fn mounted_test_policy() -> AuthPolicy {
+        AuthPolicy::Mounted {}
     }
 }
