@@ -222,10 +222,33 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
         .with_context(|| format!("failed to write {}", options.issue_body.display()))?;
 
     println!("drift={}", report.drift);
+    println!("rmcp_drift={}", report.rmcp_drift);
+    println!("mcp_schema_drift={}", report.mcp_schema_drift);
+    println!("conformance_drift={}", report.conformance_drift);
     println!("current_version={}", report.current_version);
     println!("latest_version={}", report.latest_version);
     println!("issue_title={}", report.issue_title);
     write_github_output("drift", if report.drift { "true" } else { "false" })?;
+    write_github_output(
+        "rmcp_drift",
+        if report.rmcp_drift { "true" } else { "false" },
+    )?;
+    write_github_output(
+        "mcp_schema_drift",
+        if report.mcp_schema_drift {
+            "true"
+        } else {
+            "false"
+        },
+    )?;
+    write_github_output(
+        "conformance_drift",
+        if report.conformance_drift {
+            "true"
+        } else {
+            "false"
+        },
+    )?;
     write_github_output("current_version", &report.current_version)?;
     write_github_output("latest_version", &report.latest_version)?;
     write_github_output("issue_title", &report.issue_title)?;
