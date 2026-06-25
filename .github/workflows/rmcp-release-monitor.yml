@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
+      MCP_SCHEMA_PATH: schema/2025-11-25/schema.ts
+      MCP_SCHEMA_RAW_URL: https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-11-25/schema.ts
+      MCP_SCHEMA_WEB_URL: https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/schema/2025-11-25/schema.ts
+      MCP_CONFORMANCE_REPO: modelcontextprotocol/conformance
+      MCP_CONFORMANCE_URL: https://github.com/modelcontextprotocol/conformance
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -37,13 +42,35 @@ jobs:
             "repos/modelcontextprotocol/rust-sdk/releases?per_page=100" \
             > rmcp-releases.json
 
+      - name: Fetch MCP schema
+        run: |
+          curl -fsSL "$MCP_SCHEMA_RAW_URL" -o mcp-schema-upstream.ts
+          gh api \
+            "repos/modelcontextprotocol/modelcontextprotocol/commits?path=${MCP_SCHEMA_PATH}&per_page=5" \
+            > mcp-schema-commits.json
+
+      - name: Fetch MCP conformance metadata
+        run: |
+          baseline="$(tr -d '[:space:]' < docs/references/mcp/conformance/main.sha)"
+          gh api "repos/${MCP_CONFORMANCE_REPO}/commits/main" > mcp-conformance-head.json
+          gh api "repos/${MCP_CONFORMANCE_REPO}/compare/${baseline}...main" \
+            > mcp-conformance-compare.json
+
       - name: Render rmcp release issue body
         id: monitor
         run: |
           cargo xtask rmcp-release-monitor \
             --crate-json rmcp-crate.json \
             --releases-json rmcp-releases.json \
-            --issue-body rmcp-release-issue.md
+            --issue-body rmcp-release-issue.md \
+            --schema-baseline docs/references/mcp/schema/2025-11-25/schema.ts \
+            --schema-upstream mcp-schema-upstream.ts \
+            --schema-commits-json mcp-schema-commits.json \
+            --schema-url "$MCP_SCHEMA_WEB_URL" \
+            --conformance-baseline docs/references/mcp/conformance/main.sha \
+            --conformance-head-json mcp-conformance-head.json \
+            --conformance-compare-json mcp-conformance-compare.json \
+            --conformance-url "$MCP_CONFORMANCE_URL"
 
       - name: Open or update rmcp release issue
         if: steps.monitor.outputs.drift == 'true'
@@ -78,7 +105,7 @@ jobs:
           )"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" \
-              --body "The template rmcp pin now matches the latest published rmcp crate; closing this release-monitor issue."
+              --body "The template rmcp pin, MCP schema baseline, and MCP conformance baseline are current; closing this release-monitor issue."
             gh issue close "$existing" \
               --comment "rmcp release monitor resolved."
           fi
