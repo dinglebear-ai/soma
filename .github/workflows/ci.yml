@@ -125,6 +125,9 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-nextest
 
+      - name: Build stdio test binary
+        run: cargo build --bin rtemplate
+
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
 
