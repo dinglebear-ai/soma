@@ -139,6 +139,10 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
             println!("Scaffold verification passed for {}", root.display());
             Ok(())
         }
+        Mode::AdaptPlan { ref root } => {
+            print!("{}", render_adapt_plan(root)?);
+            Ok(())
+        }
         Mode::Plan => {
             let plan = build_plan(&options)?;
             print!("{}", plan.render());
@@ -870,6 +874,7 @@ enum Mode {
     Plan,
     Apply { parent: PathBuf },
     Verify { root: PathBuf },
+    AdaptPlan { root: PathBuf },
 }
 
 impl Options {
@@ -905,6 +910,12 @@ impl Options {
                     index += 1;
                     options.mode = Mode::Verify {
                         root: PathBuf::from(value_arg(args, index, "--verify")?),
+                    };
+                }
+                "--adapt-plan" => {
+                    index += 1;
+                    options.mode = Mode::AdaptPlan {
+                        root: PathBuf::from(value_arg(args, index, "--adapt-plan")?),
                     };
                 }
                 "--intent" => {
@@ -981,8 +992,110 @@ fn print_help() {
   cargo xtask scaffold --name <service> [--category upstream-client|application-platform] [--port auto|PORT] --plan
   cargo xtask scaffold --intent scaffold-intent.json [--actions actions.json] --plan
   cargo xtask scaffold --intent scaffold-intent.json --apply <output-parent> [--no-cargo-check]
-  cargo xtask scaffold --verify <generated-root> [--no-cargo-check]"
+  cargo xtask scaffold --verify <generated-root> [--no-cargo-check]
+  cargo xtask scaffold --adapt-plan <generated-root>"
     );
+}
+
+fn render_adapt_plan(root: &Path) -> Result<String> {
+    if !root.exists() {
+        bail!("generated root does not exist: {}", root.display());
+    }
+    let report_path = root.join("docs/scaffold-report.md");
+    let report = fs::read_to_string(&report_path).unwrap_or_default();
+    let profile = report_value(&report, "Default Cargo features").unwrap_or("unknown");
+    let category = report_value(&report, "Category").unwrap_or("unknown");
+    let surfaces = report_value(&report, "Required surfaces").unwrap_or("unknown");
+    let has_api = profile_contains(profile, "full")
+        || profile_contains(profile, "server")
+        || surface_contains(surfaces, "api");
+    let has_web = profile_contains(profile, "full") || surface_contains(surfaces, "web");
+    let has_plugin = profile_contains(profile, "full") || profile_contains(profile, "plugin");
+
+    let mut output = String::new();
+    output.push_str("# Adaptation Plan\n\n");
+    output.push_str(&format!("Root: {}\n", root.display()));
+    output.push_str(&format!("Category: {category}\n"));
+    output.push_str(&format!("Profile: {profile}\n"));
+    output.push_str(&format!("Surfaces: {surfaces}\n"));
+    if report.is_empty() {
+        output.push_str(&format!(
+            "Scaffold report: missing ({})\n",
+            report_path.display()
+        ));
+    } else {
+        output.push_str(&format!("Scaffold report: {}\n", report_path.display()));
+    }
+
+    output.push_str("\n## 1. Domain and config\n\n");
+    output.push_str("- Replace the stub client in `crates/rtemplate-service/src/example.rs`.\n");
+    output.push_str("- Put validation, defaults, retries, caching, and domain rules in `crates/rtemplate-service/src/app.rs` or focused modules under `crates/rtemplate-service/src/`.\n");
+    output.push_str(
+        "- Update config structs and env prefixes in `crates/rtemplate-contracts/src/config.rs`.\n",
+    );
+    output.push_str("- Update `.env.example` and `config.example.toml` with real required credentials and non-secret defaults.\n");
+
+    output.push_str("\n## 2. Business actions\n\n");
+    output.push_str("- Add action metadata in `crates/rtemplate-contracts/src/actions.rs`.\n");
+    output.push_str("- Add MCP schema parameters in `crates/rtemplate-mcp/src/schemas.rs`.\n");
+    output.push_str("- Add MCP dispatch arms in `crates/rtemplate-mcp/src/tools.rs`.\n");
+    output
+        .push_str("- Add CLI command variants and parsing in `crates/rtemplate-cli/src/lib.rs`.\n");
+    if has_api {
+        output.push_str("- Add REST handlers/routes in `crates/rtemplate-api/src/api.rs` and `crates/rmcp-template/src/routes.rs`.\n");
+    } else {
+        output.push_str("- REST handlers are optional for this profile; add them only if the project needs an API surface.\n");
+    }
+
+    output.push_str("\n## 3. Optional surfaces\n\n");
+    if has_web {
+        output.push_str("- Replace or remove the bundled web app under `apps/web`.\n");
+        output.push_str("- Run `cargo xtask sync-web-source` after web source changes.\n");
+    } else {
+        output.push_str("- Web is not selected by this profile; remove web-specific assumptions if you keep the scaffold lean.\n");
+    }
+    if has_plugin {
+        output.push_str("- Update plugin options, skills, and setup mappings under `plugins/rtemplate/` and `crates/rtemplate-cli/src/setup.rs`.\n");
+    } else {
+        output.push_str("- Plugin support is not selected by this profile; keep plugin files only if you plan to publish editor integrations.\n");
+    }
+    output.push_str("- Update `server.json`, repository URLs, Docker labels, release metadata, and package names before publishing.\n");
+
+    output.push_str("\n## 4. Tests and verification\n\n");
+    output.push_str("- Add service behavior tests near the service modules.\n");
+    output.push_str(
+        "- Add MCP dispatch coverage in `crates/rmcp-template/tests/tool_dispatch.rs`.\n",
+    );
+    output.push_str("- Add CLI parsing coverage in `crates/rmcp-template/tests/cli_parse.rs`.\n");
+    if has_api {
+        output.push_str("- Add REST route coverage for every API action.\n");
+    }
+    output.push_str("- Run `cargo xtask scaffold --verify <generated-root>`.\n");
+    output.push_str("- Run `cargo xtask check-docs`, `cargo xtask check-schema-docs --check`, `cargo xtask check-openapi --check`, and `just verify`.\n");
+    output.push_str("\nUse this plan as an implementation checklist; it does not mutate files.\n");
+    Ok(output)
+}
+
+fn report_value<'a>(report: &'a str, label: &str) -> Option<&'a str> {
+    report.lines().find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        if key.trim() == label {
+            Some(value.trim())
+        } else {
+            None
+        }
+    })
+}
+
+fn profile_contains(profile: &str, needle: &str) -> bool {
+    profile.split(',').map(str::trim).any(|part| part == needle)
+}
+
+fn surface_contains(surfaces: &str, needle: &str) -> bool {
+    surfaces
+        .split(',')
+        .map(str::trim)
+        .any(|part| part == needle)
 }
 
 #[cfg(test)]
@@ -1123,5 +1236,26 @@ mod tests {
         assert!(errors
             .to_string()
             .contains("must not contain a version field"));
+    }
+
+    #[test]
+    fn adapt_plan_is_profile_aware_and_path_specific() {
+        let fixture = TempDir::new().unwrap();
+        fs::create_dir_all(fixture.path().join("docs")).unwrap();
+        fs::write(
+            fixture.path().join("docs/scaffold-report.md"),
+            "Category: application-platform\nRequired surfaces: api, cli, mcp, web\nDefault Cargo features: full\n",
+        )
+        .unwrap();
+
+        let plan = render_adapt_plan(fixture.path()).expect("adapt plan");
+
+        assert!(plan.contains("# Adaptation Plan"));
+        assert!(plan.contains("Profile: full"));
+        assert!(plan.contains("crates/rtemplate-service/src/example.rs"));
+        assert!(plan.contains("crates/rtemplate-api/src/api.rs"));
+        assert!(plan.contains("apps/web"));
+        assert!(plan.contains("server.json"));
+        assert!(plan.contains("cargo xtask scaffold --verify"));
     }
 }

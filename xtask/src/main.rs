@@ -47,6 +47,7 @@ mod cargo_generate_post;
 mod no_mcp;
 mod patterns;
 mod release_versions;
+mod rmcp_release_monitor;
 mod scaffold;
 mod scripts;
 mod scripts_lane_a;
@@ -121,6 +122,7 @@ fn main() -> Result<()> {
         }
         Some("check-release-versions") => check_release_versions_cmd(workspace_root, &args[1..]),
         Some("release-plan") => release_plan_cmd(workspace_root, &args[1..]),
+        Some("rmcp-release-monitor") => rmcp_release_monitor::run(&args[1..]),
         Some("bump-version") => bump_version_cmd(workspace_root, &args[1..]),
         Some("bump-template-version") => scripts_lane_b::bump_version(workspace_root, &args[1..]),
         Some("--help") | Some("-h") | Some("help") | None => {

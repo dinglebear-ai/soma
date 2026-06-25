@@ -48,6 +48,20 @@ The verifier rejects copied template-only files, plugin manifests containing a
 exists. By default it also runs `cargo check --workspace --all-targets`; pass
 `--no-cargo-check` for a static-only check while iterating.
 
+## Adapt
+
+After generation, print a path-aware adaptation checklist for the generated
+project:
+
+```bash
+cargo xtask scaffold --adapt-plan ../generated/myservice-mcp
+```
+
+The adapt plan reads `docs/scaffold-report.md` when present, infers the selected
+profile and surfaces, and prints the concrete files to update for service
+implementation, action wiring, optional API/Web/plugin surfaces, tests, and
+verification. It is read-only and does not mutate the generated project.
+
 ## Lean upstream-client default
 
 `upstream-client` projects default to `local-adapter`, which keeps the generated

@@ -106,6 +106,12 @@ Verify an existing generated project:
 cargo xtask scaffold --verify ../generated/myservice-mcp
 ```
 
+Print a path-aware follow-up plan for adapting the generated stub:
+
+```bash
+cargo xtask scaffold --adapt-plan ../generated/myservice-mcp
+```
+
 Add starter action snippets:
 
 ```bash
@@ -396,6 +402,12 @@ publishing an image.
 ## Adapting The Scaffold
 
 After generation, replace the example domain with your real service.
+
+Start by printing the generated project's profile-aware checklist:
+
+```bash
+cargo xtask scaffold --adapt-plan ../generated/myservice-mcp
+```
 
 1. Replace the stub client in `crates/rtemplate-service/src/example.rs`.
 2. Put domain logic in `crates/rtemplate-service/src/app.rs` or focused service modules.
