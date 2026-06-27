@@ -1,7 +1,13 @@
 fn workflow_job_block<'a>(workflow: &'a str, job_name: &str) -> &'a str {
     let marker = format!("  {job_name}:");
     let start = workflow
-        .find(&marker)
+        .lines()
+        .scan(0, |offset, line| {
+            let line_start = *offset;
+            *offset += line.len() + 1;
+            Some((line_start, line))
+        })
+        .find_map(|(offset, line)| (line == marker).then_some(offset))
         .unwrap_or_else(|| panic!("missing workflow job {job_name}"));
     let rest = &workflow[start + marker.len()..];
     let end = rest
