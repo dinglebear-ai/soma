@@ -38,6 +38,19 @@ Use for: every PR, every push to `main`, and manual full verification.
 
 Do not use for: tag-only packaging or marketplace-no-mcp branch maintenance.
 
+CI is path-aware. The first job, `Changes`, runs
+`cargo xtask changed-paths` and publishes routing booleans consumed by the
+expensive jobs. Workflow changes fail safe to full CI; manual
+`workflow_dispatch` runs full CI; `.agents/skills/**` and `docs/sessions/**`
+changes intentionally skip heavyweight runtime, web, Docker, release, and
+security jobs. Branch protection should require the stable aggregate `CI Gate`
+status instead of individual path-skipped jobs.
+
+For branch protection, require stable aggregate gates (`CI Gate` and `MSRV Gate`)
+rather than individual path-skipped jobs. GitHub reports skipped jobs
+inconsistently as required checks; the aggregate gates turn "passed or
+intentionally skipped" into one predictable status.
+
 The jobs run on self-hosted runners: Linux on the TOOTIE Docker runner
 (`runs-on: [self-hosted, tootie, rmcp-template]`, see `docs/LINUX-RUNNER.md`)
 and Windows on steamy (`runs-on: [self-hosted, Windows, rmcp-template, steamy]`,
@@ -53,6 +66,7 @@ allocate self-hosted runners. Add a GitHub-hosted fork fallback before accepting
 outside PRs that need CI feedback.
 
 Jobs:
+- `changes`: classifies changed files into CI routing categories
 - `actionlint`: validates workflow syntax and self-hosted labels
 - `fmt`: `cargo fmt -- --check`
 - `clippy`: `cargo clippy -- -D warnings`
@@ -85,7 +99,11 @@ Use for: proving the declared `rust-version` remains honest.
 Do not use for: full behavior testing; it only checks that the workspace still
 builds on the minimum supported toolchain.
 
-Runs on PRs and pushes to `main` with Rust 1.96.0 and sccache.
+Runs on PRs and pushes to `main` with Rust 1.96.0 and sccache. It is also
+path-aware: `MSRV Changes` skips the self-hosted MSRV build for docs-only,
+session-log, and agent-skill changes, while workflow and Rust/TOML changes still
+run the real MSRV check. Require `MSRV Gate` if this workflow is part of branch
+protection.
 
 ### `.github/workflows/auto-tag.yml`
 
@@ -116,22 +134,26 @@ Use for: publishing container images after code has landed.
 Do not use for: PR smoke tests. `ci.yml` has a non-pushing `container-smoke` job
 for that.
 
-Runs on push to `main` and tags:
-- Multi-platform build (linux/amd64, linux/arm64)
-- Push to `ghcr.io/jmagar/<repo>:latest` on main, `:<version>` on tags
+Runs only on `v*` tags. Do not path-gate this workflow: a release tag is already
+an explicit publish action, and the image plus MCP registry manifest should stay
+coupled to the tag.
+
+Tag jobs:
+- Docker build and push
 - Trivy vulnerability scan
-- SBOM generation
-- MCP registry publish on version tags
+- MCP Registry manifest publish when credentials are configured
 
 ### `.github/workflows/scheduled.yml`
 
-Use for: surfacing new RUSTSEC advisories after code has already merged.
+Use for: surfacing new RUSTSEC advisories after code has already merged, plus
+manual full dependency audits.
 
 Do not use for: replacing the PR-time `audit` job. This is a periodic safety
 net, not the merge gate.
 
-Scheduled runs check advisories only; manual dispatch can run the full
-`cargo-deny` suite.
+Do not path-gate scheduled runs: the point is to catch advisory database changes
+that happen when no repository paths changed. Scheduled runs check advisories
+only; manual dispatch can run the full `cargo-deny` suite.
 
 ### `.github/workflows/check-no-mcp-drift.yml`
 

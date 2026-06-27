@@ -29,6 +29,7 @@
 //!   check-release-versions Validate release component version policy
 //!   release-plan Print changed release components and candidate tags
 //!   bump-version Bump a release component version
+//!   changed-paths Classify changed files into CI routing categories
 //!
 //! TEMPLATE: Add your own commands by adding arms to the match block below.
 //!           Keep each command as a separate `fn` for readability.
@@ -44,6 +45,7 @@ use walkdir::WalkDir;
 
 mod cargo_generate;
 mod cargo_generate_post;
+mod ci_paths;
 mod no_mcp;
 mod patterns;
 mod release_versions;
@@ -125,6 +127,7 @@ fn main() -> Result<()> {
         Some("rmcp-release-monitor") => rmcp_release_monitor::run(&args[1..]),
         Some("bump-version") => bump_version_cmd(workspace_root, &args[1..]),
         Some("bump-template-version") => scripts_lane_b::bump_version(workspace_root, &args[1..]),
+        Some("changed-paths") => ci_paths::run(&args[1..]),
         Some("--help") | Some("-h") | Some("help") | None => {
             print_help();
             Ok(())
@@ -799,6 +802,7 @@ COMMANDS:
   release-plan          Print changed release components and candidate tags
   bump-version          Bump a component: cargo xtask bump-version template patch
   bump-template-version Bump template component: cargo xtask bump-template-version patch
+  changed-paths         Classify changed files into CI routing categories
   help                  Show this help
 
 TEMPLATE:

@@ -46,10 +46,50 @@ env:
     -C target-feature=-avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd,-avx512ifma,-avx512vbmi,-avx512vbmi2,-avx512vnni,-avx512bitalg,-avx512vpopcntdq
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      all: ${{ steps.classify.outputs.all }}
+      docs: ${{ steps.classify.outputs.docs }}
+      workflow: ${{ steps.classify.outputs.workflow }}
+      rust: ${{ steps.classify.outputs.rust }}
+      web: ${{ steps.classify.outputs.web }}
+      native: ${{ steps.classify.outputs.native }}
+      mcp: ${{ steps.classify.outputs.mcp }}
+      docker: ${{ steps.classify.outputs.docker }}
+      toml: ${{ steps.classify.outputs.toml }}
+      template: ${{ steps.classify.outputs.template }}
+      security: ${{ steps.classify.outputs.security }}
+      secrets: ${{ steps.classify.outputs.secrets }}
+      release: ${{ steps.classify.outputs.release }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: >
+          cargo run --manifest-path xtask/Cargo.toml -- changed-paths
+          --event "$EVENT_NAME"
+          --output "$GITHUB_OUTPUT"
+          --write-changed-files changed-files.txt
+
+      - name: Show changed files
+        run: cat changed-files.txt || true
+
   # -- actionlint: GitHub Actions workflow syntax and shell checks -------------
   actionlint:
     name: Actionlint
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 10
     steps:
@@ -66,7 +106,8 @@ jobs:
   # ── fmt: cargo fmt --check ──────────────────────────────────────────────────
   fmt:
     name: Format
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
@@ -83,7 +124,8 @@ jobs:
   # ── clippy: zero warnings ────────────────────────────────────────────────────
   clippy:
     name: Clippy
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
@@ -110,7 +152,8 @@ jobs:
   # ── test: cargo nextest run --profile ci ─────────────────────────────────────
   test:
     name: Test
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 30
     steps:
@@ -149,7 +192,8 @@ jobs:
   # ── web: pnpm install, lint, audit, static build ─────────────────────────────
   frontend-assets:
     name: Frontend Assets
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ (needs.changes.outputs.web == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.mcp == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     defaults:
@@ -197,9 +241,9 @@ jobs:
   # packaging and GitHub Release publication.
   build-linux:
     name: Build Linux
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, tootie, rmcp-template]
-    needs: frontend-assets
+    needs: [changes, frontend-assets]
+    if: ${{ always() && needs.changes.outputs.native == 'true' && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -236,9 +280,9 @@ jobs:
 
   build-windows:
     name: Build Windows
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Windows, rmcp-template, steamy]
-    needs: frontend-assets
+    needs: [changes, frontend-assets]
+    if: ${{ always() && needs.changes.outputs.native == 'true' && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -344,9 +388,9 @@ jobs:
   # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
   mcp-smoke:
     name: MCP Smoke
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, tootie, rmcp-template]
-    needs: frontend-assets
+    needs: [changes, frontend-assets]
+    if: ${{ always() && (needs.changes.outputs.mcp == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true') && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -426,7 +470,8 @@ jobs:
   # -- container-smoke: compose config plus Docker build on PRs/main ------------
   container-smoke:
     name: Container Smoke
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.docker == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 45
     steps:
@@ -471,7 +516,8 @@ jobs:
   # ── toml: taplo check ─────────────────────────────────────────────────────────
   toml:
     name: TOML Format
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.toml == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
@@ -494,7 +540,8 @@ jobs:
   # -- lefthook-speed: pre-commit must stay staged and fast ---------------------
   lefthook-speed:
     name: Lefthook Speed
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ (needs.changes.outputs.workflow == 'true' || needs.changes.outputs.template == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 5
     steps:
@@ -506,7 +553,8 @@ jobs:
   # ── template: generated docs, plugin layout, coupled files ───────────────────
   template:
     name: Template Contracts
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.template == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
@@ -559,7 +607,8 @@ jobs:
   # ── deny: dependency advisories, licenses, bans, sources ─────────────────────
   audit:
     name: Cargo Deny
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.security == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
@@ -579,7 +628,8 @@ jobs:
   # ── gitleaks: secret scanning ─────────────────────────────────────────────────
   gitleaks:
     name: Secret Scan
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ needs.changes.outputs.secrets == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     permissions:
@@ -603,6 +653,7 @@ jobs:
     name: CI Gate
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     needs:
+      - changes
       - actionlint
       - fmt
       - clippy

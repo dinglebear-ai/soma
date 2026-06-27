@@ -20,9 +20,40 @@ env:
   SCCACHE_DIR: ${{ github.workspace }}/../.sccache
 
 jobs:
+  changes:
+    name: MSRV Changes
+    runs-on: ubuntu-latest
+    outputs:
+      workflow: ${{ steps.classify.outputs.workflow }}
+      rust: ${{ steps.classify.outputs.rust }}
+      native: ${{ steps.classify.outputs.native }}
+      toml: ${{ steps.classify.outputs.toml }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: >
+          cargo run --manifest-path xtask/Cargo.toml -- changed-paths
+          --event "$EVENT_NAME"
+          --output "$GITHUB_OUTPUT"
+          --write-changed-files changed-files.txt
+
+      - name: Show changed files
+        run: cat changed-files.txt || true
+
   msrv:
     name: Minimum Supported Rust Version (1.96)
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [changes]
+    if: ${{ (needs.changes.outputs.rust == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.toml == 'true' || needs.changes.outputs.workflow == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
@@ -48,3 +79,26 @@ jobs:
 
       - name: cargo test --no-run (MSRV)
         run: cargo test --no-run --all-targets --locked
+
+  msrv-gate:
+    name: MSRV Gate
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    needs:
+      - changes
+      - msrv
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify MSRV jobs passed or were intentionally skipped
+        run: |
+          set -euo pipefail
+          require_success_or_skipped() {
+            local name="$1"
+            local result="$2"
+            case "$result" in
+              success|skipped) printf '%s=%s\n' "$name" "$result" ;;
+              *) echo "::error::$name concluded $result" >&2; exit 1 ;;
+            esac
+          }
+          require_success_or_skipped changes "${{ needs.changes.result }}"
+          require_success_or_skipped msrv "${{ needs.msrv.result }}"
