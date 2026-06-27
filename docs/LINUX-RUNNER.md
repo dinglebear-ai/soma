@@ -139,8 +139,10 @@ The runner container needs:
 - A persistent `/mnt/cache/appdata/actions-runner/rmcp-template` tree.
 - `GITHUB_PAT` in the compose `.env` file for runner registration.
 
-Rust and sccache are installed by `.github/actions/setup-rust-sccache` inside the
-workflow, so the container does not need them baked in.
+Rust, sccache, and basic Linux build prerequisites (`build-essential`,
+`pkg-config`, `libssl-dev`) are installed by
+`.github/actions/setup-rust-sccache` inside the workflow, so the container does
+not need them baked in.
 
 ## When To Use This Runner
 
