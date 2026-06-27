@@ -197,6 +197,7 @@ jobs:
   # packaging and GitHub Release publication.
   build-linux:
     name: Build Linux
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, tootie, rmcp-template]
     needs: frontend-assets
     timeout-minutes: 45
@@ -235,6 +236,7 @@ jobs:
 
   build-windows:
     name: Build Windows
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Windows, rmcp-template, steamy]
     needs: frontend-assets
     timeout-minutes: 60
@@ -342,6 +344,7 @@ jobs:
   # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
   mcp-smoke:
     name: MCP Smoke
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, tootie, rmcp-template]
     needs: frontend-assets
     timeout-minutes: 35
