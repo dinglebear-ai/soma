@@ -78,6 +78,7 @@ services:
       - CARGO_HOME=/home/runner/.cargo
       - RUSTUP_HOME=/home/runner/.rustup
       - SCCACHE_DIR=/home/runner/_work/.sccache
+      - SCCACHE_CACHE_SIZE=5G
     env_file:
       - .env
     volumes:
@@ -134,6 +135,7 @@ Cargo and sccache data persist under the runner appdata volume:
 - `CARGO_HOME=/home/runner/.cargo`
 - `RUSTUP_HOME=/home/runner/.rustup`
 - `SCCACHE_DIR=/home/runner/_work/.sccache`
+- `SCCACHE_CACHE_SIZE=5G`
 
 Workflow Rust jobs also set:
 
@@ -148,6 +150,17 @@ SCCACHE_DIR: ${{ github.workspace }}/../.sccache
 not compose cleanly. `CARGO_BUILD_RUSTC_WRAPPER=sccache` intentionally overrides
 the repo's local `scripts/cargo-rustc-wrapper`; CI should cache compilation, not
 sync freshly built binaries into `./bin`.
+
+The persistent mounts are bounded by two guardrails:
+
+- `SCCACHE_CACHE_SIZE=5G` caps each runner's local sccache store.
+- `start.sh` prunes stale storage every time the JIT runner starts: `/tmp` and
+  `_work/_temp` are cleared, old work directories are removed after 7 days,
+  runner diagnostic logs after 14 days, and stale Cargo registry/git cache
+  entries after 30 days.
+
+These guards intentionally preserve warm caches for active work while preventing
+old checkouts, temp files, and compile cache entries from growing without bound.
 
 ## Required Host Capabilities
 
