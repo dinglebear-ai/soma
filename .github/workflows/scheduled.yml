@@ -29,6 +29,12 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_INCREMENTAL: "0"
+  RUSTC_WRAPPER: sccache
+  CARGO_BUILD_RUSTC_WRAPPER: sccache
+  SCCACHE_DIR: ${{ github.workspace }}/../.sccache
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -42,18 +48,20 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      - name: Install Rust and sccache
+        uses: ./.github/actions/setup-rust-sccache
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-deny
+        with:
+          tool: cargo-deny
+
       # Scheduled runs only refresh advisories (fast, the part that goes stale
       # between pushes). A manual dispatch can opt into the full suite.
       - name: cargo deny check (advisories)
         if: ${{ github.event_name == 'schedule' || !inputs.full_audit }}
-        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2
-        with:
-          command: check
-          arguments: --all-features advisories
+        run: cargo deny check --all-features advisories
 
       - name: cargo deny check (full suite)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_audit }}
-        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2
-        with:
-          command: check
-          arguments: --all-features
+        run: cargo deny check --all-features

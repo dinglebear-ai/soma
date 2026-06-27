@@ -81,13 +81,7 @@ fn auto_tag_uses_xtask_release_plan() {
             < release.find("Create and push tag").expect("tag step"),
         "auto-tag must wait for CI before creating release tags"
     );
-    for required in [
-        "--branch main",
-        "--event push",
-        ".headSha == $sha",
-        ".event == \"push\"",
-        ".headBranch == \"main\"",
-    ] {
+    for required in ["branch=main", "event=push", "head_sha=${SHA}"] {
         assert!(
             release.contains(required),
             "auto-tag CI polling must constrain {required}"
