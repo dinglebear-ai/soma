@@ -39,9 +39,9 @@ Current runners:
 
 | Runner | Labels |
 |---|---|
-| `tootie-rmcp-template-linux-1` | `self-hosted`, `Linux`, `X64`, `linux-lab`, `rmcp-template`, `tootie` |
-| `tootie-rmcp-template-linux-2` | `self-hosted`, `Linux`, `X64`, `linux-lab`, `rmcp-template`, `tootie` |
-| `tootie-rmcp-template-linux-3` | `self-hosted`, `Linux`, `X64`, `linux-lab`, `rmcp-template`, `tootie` |
+| `tootie-rmcp-template-linux-a` | `self-hosted`, `Linux`, `X64`, `linux-lab`, `rmcp-template`, `tootie` |
+| `tootie-rmcp-template-linux-b` | `self-hosted`, `Linux`, `X64`, `linux-lab`, `rmcp-template`, `tootie` |
+| `tootie-rmcp-template-linux-c` | `self-hosted`, `Linux`, `X64`, `linux-lab`, `rmcp-template`, `tootie` |
 
 Verify from this repo:
 
