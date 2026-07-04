@@ -33,3 +33,6 @@ server:
   - elicitation-sep1330-enums
   - resources-subscribe
   - resources-unsubscribe
+  # Pending SEP-1699 transport experiment. Removed in the draft protocol and not
+  # implemented by this JSON-response template harness.
+  - server-sse-polling

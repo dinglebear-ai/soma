@@ -41,13 +41,22 @@ pub(super) fn tool_definitions() -> Vec<Tool> {
             "test_error_handling",
             "Returns an MCP tool result with isError=true.",
         ),
+        (
+            "json_schema_2020_12_tool",
+            "Tool with JSON Schema 2020-12 features.",
+        ),
     ]
     .into_iter()
     .map(|(name, description)| {
+        let schema = if name == "json_schema_2020_12_tool" {
+            json_schema_2020_12_input_schema()
+        } else {
+            empty_input_schema()
+        };
         Tool::new_with_raw(
             Cow::Owned(name.to_string()),
             Some(Cow::Owned(description.to_string())),
-            Arc::new(empty_input_schema()),
+            Arc::new(schema),
         )
     })
     .collect()
@@ -226,6 +235,41 @@ fn empty_input_schema() -> Map<String, Value> {
     .expect("static conformance input schema must be a JSON object")
 }
 
+fn json_schema_2020_12_input_schema() -> Map<String, Value> {
+    serde_json::from_value(json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "$defs": {
+            "address": {
+                "$anchor": "addressDef",
+                "type": "object",
+                "properties": {
+                    "street": { "type": "string" },
+                    "city": { "type": "string" }
+                }
+            }
+        },
+        "properties": {
+            "name": { "type": "string" },
+            "address": { "$ref": "#/$defs/address" },
+            "contactMethod": { "type": "string", "enum": ["phone", "email"] },
+            "phone": { "type": "string" },
+            "email": { "type": "string" }
+        },
+        "allOf": [
+            { "anyOf": [{ "required": ["phone"] }, { "required": ["email"] }] }
+        ],
+        "if": {
+            "properties": { "contactMethod": { "const": "phone" } },
+            "required": ["contactMethod"]
+        },
+        "then": { "required": ["phone"] },
+        "else": { "required": ["email"] },
+        "additionalProperties": false
+    }))
+    .expect("static JSON Schema 2020-12 fixture must be a JSON object")
+}
+
 fn prompt_arg(args: Option<&Map<String, Value>>, name: &str) -> String {
     args.and_then(|m| m.get(name))
         .and_then(Value::as_str)
@@ -250,8 +294,32 @@ mod tests {
         assert!(names.contains(&"test_embedded_resource".to_string()));
         assert!(names.contains(&"test_multiple_content_types".to_string()));
         assert!(names.contains(&"test_error_handling".to_string()));
+        assert!(names.contains(&"json_schema_2020_12_tool".to_string()));
         assert!(!names.contains(&"test_tool_with_logging".to_string()));
         assert!(!names.contains(&"test_sampling".to_string()));
+    }
+
+    #[test]
+    fn json_schema_2020_12_fixture_preserves_extended_keywords() {
+        let tool = tool_definitions()
+            .into_iter()
+            .find(|tool| tool.name == "json_schema_2020_12_tool")
+            .expect("fixture should exist");
+        let schema = tool.input_schema.as_ref();
+
+        assert_eq!(
+            schema.get("$schema").and_then(Value::as_str),
+            Some("https://json-schema.org/draft/2020-12/schema")
+        );
+        assert!(schema.contains_key("$defs"));
+        assert!(schema.contains_key("allOf"));
+        assert!(schema.contains_key("if"));
+        assert!(schema.contains_key("then"));
+        assert!(schema.contains_key("else"));
+        assert_eq!(
+            schema.get("additionalProperties"),
+            Some(&Value::Bool(false))
+        );
     }
 
     #[test]
