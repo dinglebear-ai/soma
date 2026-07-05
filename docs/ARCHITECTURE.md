@@ -22,7 +22,6 @@ last_reviewed: "2026-05-15"
 ```
 ExampleClient  (crates/rtemplate-service/src/example.rs) → HTTP/API transport ONLY — network calls, no logic
 ExampleService (crates/rtemplate-service/src/app.rs)     → ALL business logic, validation, enrichment
-ActionRegistry (crates/rtemplate-service/src/actions.rs) → Action metadata, validation, native dispatch
 MCP shim       (crates/rtemplate-mcp/src/tools.rs)       → parse JSON args → call service → return Value
 CLI shim       (crates/rtemplate-cli/src/lib.rs)         → parse argv → call service → print
 REST shim      (crates/rtemplate-api/src/api.rs)       → parse HTTP JSON → call service → return JSON
@@ -55,8 +54,7 @@ crates/
 |---|---|
 | `crates/rtemplate-service/src/example.rs` | Upstream/client transport stub. Replace with your service API client. |
 | `crates/rtemplate-service/src/app.rs` | Service layer. All business rules live here. |
-| `crates/rtemplate-service/src/actions.rs` | Canonical native action registry, validation, cached catalog/help, and dispatch. |
-| `crates/rtemplate-contracts/src/actions.rs` | Shared action metadata types and provider-independent helper functions. |
+| `crates/rtemplate-contracts/src/actions.rs` | Canonical action metadata, parsing, REST dispatch helpers. |
 | `crates/rtemplate-mcp/src/tools.rs` | MCP tool dispatch and elicitation-only actions. |
 | `crates/rtemplate-mcp/src/schemas.rs` | Tool input schema generated from action metadata. |
 | `crates/rtemplate-mcp/src/rmcp_server.rs` | `ServerHandler`, scope enforcement, tools/resources/prompts. |
@@ -116,9 +114,6 @@ Port 40060
   └── /*                    → SPA fallback (serves embedded web UI)
 ```
 
-REST exposes direct routes only. MCP keeps the single action-dispatched `example`
-tool; REST does not mount `/v1/example`.
-
 ```rust
 // crates/rmcp-template/src/routes.rs
 pub fn router(state: AppState) -> Router {
@@ -128,9 +123,10 @@ pub fn router(state: AppState) -> Router {
 
     let api = Router::new()
         .route("/v1/capabilities", get(v1_capabilities))
+        .route("/v1/greet", post(v1_greet))
+        .route("/v1/echo", post(v1_echo))
         .route("/v1/status", get(v1_service_status))
         .route("/v1/help", get(v1_help))
-        .route("/v1/{action}", post(v1_action_post))
         .route_layer(auth_layer.clone());
 
     let mcp = Router::new()
@@ -234,7 +230,7 @@ Zero validation, zero defaults, zero error message crafting in shims. All of tha
 ## Invariants
 
 - Shims do not contain business logic.
-- All action metadata starts in `crates/rtemplate-service/src/actions.rs`; shared contract types stay provider-independent.
+- All action metadata starts in `crates/rtemplate-contracts/src/actions.rs`.
 - Read actions require `example:read`; write actions require `example:write`; `help` is public.
 - Stdio is local trusted transport; HTTP is protected unless in loopback or explicit trusted-gateway mode.
 - Plugin setup is binary-owned: hook scripts delegate to `example setup plugin-hook`.

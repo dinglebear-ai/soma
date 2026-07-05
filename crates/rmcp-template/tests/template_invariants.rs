@@ -122,7 +122,7 @@ fn plugin_manifests_do_not_have_version_fields() {
 #[test]
 fn schema_contract_doc_tracks_known_actions() {
     let doc = read("docs/MCP_SCHEMA.md");
-    let actions = read("crates/rtemplate-service/src/actions.rs");
+    let actions = read("crates/rtemplate-contracts/src/actions.rs");
     let schemas = read("crates/rtemplate-mcp/src/schemas.rs");
     for action in ["greet", "echo", "status", "elicit_name", "help"] {
         assert!(actions.contains(action), "actions.rs missing {action}");
@@ -132,7 +132,8 @@ fn schema_contract_doc_tracks_known_actions() {
         );
     }
     assert!(
-        schemas.contains("rtemplate_service::action_specs()"),
-        "schemas.rs should derive action enum from action metadata"
+        schemas.contains("tool_definitions_for_catalogs")
+            && schemas.contains("fn action_names(catalogs: &[ProviderCatalog])"),
+        "schemas.rs should derive action enum from provider catalog metadata"
     );
 }

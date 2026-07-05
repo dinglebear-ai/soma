@@ -40,6 +40,7 @@ The provider registry is the source of truth.
 ProviderRegistry
   StaticRustProvider
   OpenApiProvider
+  McpProvider
   AiSdkToolProvider
   WasmProvider
 ```
@@ -48,6 +49,11 @@ Each provider returns a `ProviderManifest` and implements execution for the
 capabilities it owns. The registry validates manifests, normalizes defaults,
 detects conflicts, computes a fingerprint, and exposes a single merged catalog
 to every generic surface.
+
+`StaticRustProvider` is the proof path for the registry. The built-in Rust
+actions move through the provider registry first so the public MCP, REST, CLI,
+OpenAPI, docs, plugin, and Palette surfaces prove the immutable snapshot and
+dispatch rules before dynamic provider code is trusted.
 
 ```text
 ProviderManifest

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "route-dupe",
+    "kind": "static-rust"
+  },
+  "tools": [
+    {
+      "name": "one",
+      "description": "First route.",
+      "input_schema": { "type": "object" },
+      "rest": { "enabled": true, "method": "POST", "path": "/v1/shared" }
+    },
+    {
+      "name": "two",
+      "description": "Second route.",
+      "input_schema": { "type": "object" },
+      "rest": { "enabled": true, "method": "POST", "path": "/v1/shared" }
+    }
+  ]
+}

@@ -1,68 +1,12 @@
 use serde_json::json;
 
 use rtemplate_contracts::{
-    actions::{required_scope_for_action, ExampleAction, ValidationError, READ_SCOPE, WRITE_SCOPE},
+    actions::{ExampleAction, ValidationError},
     token_limit::MAX_RESPONSE_BYTES,
 };
 use rtemplate_service::classify_service_error;
 
-#[cfg(feature = "auth")]
-use super::check_scope;
-use super::{scope_satisfied, tool_error_result, unknown_action_payload, unknown_tool_error};
-
-fn scopes(s: &[&str]) -> Vec<String> {
-    s.iter().map(|x| x.to_string()).collect()
-}
-
-#[test]
-fn read_scope_satisfies_read_requirement() {
-    assert!(scope_satisfied(&scopes(&[READ_SCOPE]), READ_SCOPE));
-}
-
-#[test]
-fn write_scope_satisfies_read_requirement() {
-    assert!(
-        scope_satisfied(&scopes(&[WRITE_SCOPE]), READ_SCOPE),
-        "write scope should satisfy read requirement (write includes read)"
-    );
-}
-
-#[test]
-fn empty_scopes_denied() {
-    assert!(!scope_satisfied(&[], READ_SCOPE));
-}
-
-#[test]
-fn unrelated_scope_denied() {
-    assert!(!scope_satisfied(&scopes(&["other:scope"]), READ_SCOPE));
-}
-
-#[test]
-fn read_scope_does_not_satisfy_write() {
-    assert!(
-        !scope_satisfied(&scopes(&[READ_SCOPE]), WRITE_SCOPE),
-        "read scope must not satisfy write requirement"
-    );
-}
-
-#[test]
-fn greet_requires_read_scope() {
-    assert_eq!(required_scope_for_action("greet"), Some(READ_SCOPE));
-}
-
-#[test]
-fn help_requires_no_scope() {
-    assert_eq!(required_scope_for_action("help"), None);
-}
-
-#[test]
-fn unknown_action_gets_deny_scope() {
-    use rtemplate_contracts::actions::DENY_SCOPE;
-    assert_eq!(
-        required_scope_for_action("nonexistent_action"),
-        Some(DENY_SCOPE)
-    );
-}
+use super::{tool_error_result, unknown_tool_error};
 
 #[test]
 fn validation_errors_become_structured_tool_errors() {
@@ -108,21 +52,6 @@ fn parser_validation_errors_become_structured_tool_errors() {
     assert_eq!(structured["tool"], "example");
     assert_eq!(structured["action"], "echo");
     assert_eq!(structured["field"], "message");
-}
-
-#[test]
-fn unknown_actions_become_retryable_tool_errors() {
-    let result = tool_error_result(unknown_action_payload("example", "missing"))
-        .expect("unknown action payload should serialize");
-
-    assert_eq!(result.is_error, Some(true));
-    let structured = result.structured_content.as_ref().unwrap();
-    assert_eq!(structured["code"], "unknown_action");
-    assert_eq!(structured["bad_value"], "missing");
-    assert!(structured["available_actions"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("help")));
 }
 
 #[test]
@@ -185,29 +114,4 @@ fn execution_errors_do_not_expose_raw_error_text() {
         })
     );
     assert!(!payload.to_string().contains("secret-api-key"));
-}
-
-#[cfg(feature = "auth")]
-#[test]
-fn insufficient_scope_uses_structured_protocol_error_data() {
-    let auth = rtemplate_auth::AuthContext {
-        sub: "agent-subject".to_owned(),
-        actor_key: None,
-        scopes: scopes(&[READ_SCOPE]),
-        issuer: "test".to_owned(),
-        via_session: false,
-        csrf_token: None,
-        email: None,
-    };
-
-    let error = check_scope(&auth, WRITE_SCOPE, "echo").expect_err("write scope should be denied");
-    let data = error
-        .data
-        .expect("insufficient scope should include structured data");
-    assert_eq!(data["kind"], "mcp_auth_error");
-    assert_eq!(data["code"], "insufficient_scope");
-    assert_eq!(data["action"], "echo");
-    assert_eq!(data["required_scope"], WRITE_SCOPE);
-    assert_eq!(data["granted_scopes"], json!([READ_SCOPE]));
-    assert_eq!(data["retryable"], false);
 }

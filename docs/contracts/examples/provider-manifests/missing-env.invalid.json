@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "bad-env",
+    "kind": "ai-sdk"
+  },
+  "env": [
+    {
+      "name": "LAB_OPENAI_API_KEY",
+      "description": "Incorrectly declares a server-prefixed env name"
+    }
+  ],
+  "tools": [
+    {
+      "name": "summarize",
+      "description": "Summarize text.",
+      "input_schema": { "type": "object" }
+    }
+  ]
+}

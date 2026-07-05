@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "denied-capability",
+    "kind": "wasm"
+  },
+  "capabilities": {
+    "filesystem": {
+      "enabled": true
+    }
+  },
+  "tools": [
+    {
+      "name": "read-home",
+      "description": "Declares host filesystem access without a scoped root.",
+      "input_schema": { "type": "object" }
+    }
+  ]
+}

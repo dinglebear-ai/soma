@@ -1,6 +1,6 @@
 # MCP Schema Contract
 
-Generated from `crates/rtemplate-service/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.
+Generated from `crates/rtemplate-contracts/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.
 
 Run:
 
@@ -24,15 +24,15 @@ cargo xtask check-schema-docs --check
 | `greet` | `example:read` | `cheap` | Return a greeting. |
 | `echo` | `example:read` | `cheap` | Echo a message back unchanged. |
 | `status` | `example:read` | `cheap` | Return server status and configuration info. |
-| `help` | public | `cheap` | Show the action reference. |
 | `elicit_name` | `example:read` | `cheap` | Ask the MCP client to collect a name, then return a personalised greeting. |
 | `scaffold_intent` | `example:read` | `moderate` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
+| `help` | public | `cheap` | Show the action reference. |
 
 ## Drift Rules
 
-- `action_specs()` in `crates/rtemplate-service/src/actions.rs` is the canonical action and scope list.
+- `ACTION_SPECS` in `crates/rtemplate-contracts/src/actions.rs` is the canonical action and scope list.
 - Action cost is planner metadata. Use `cheap` for first-pass reads, `moderate` for bounded workflow setup, `expensive` for broad scans or long-running work, and `write` for mutating operations.
-- `crates/rtemplate-mcp/src/schemas.rs` must derive its enum from `rtemplate_service::action_specs()`.
+- `crates/rtemplate-mcp/src/schemas.rs` must derive its enum from `ACTION_SPECS`.
 - The MCP tool schema must reject unknown top-level parameters except reserved `_response_*` continuation fields, and encode action-specific requirements that fit the single-tool dispatch model.
 - `help` is intentionally public and must have no required scope.
 - `crates/rtemplate-mcp/src/tools.rs`, `README.md`, and `plugins/rtemplate/skills/example/SKILL.md` must mention every action.

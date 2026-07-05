@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "math-wasm",
+    "kind": "wasm",
+    "title": "Math WASM"
+  },
+  "tools": [
+    {
+      "name": "add",
+      "description": "Add two numbers in a sandboxed module.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["a", "b"],
+        "properties": {
+          "a": { "type": "number" },
+          "b": { "type": "number" }
+        }
+      },
+      "limits": {
+        "timeout_ms": 250,
+        "max_input_bytes": 4096,
+        "max_response_bytes": 4096
+      },
+      "cli": {
+        "enabled": true,
+        "command": "add"
+      }
+    }
+  ]
+}

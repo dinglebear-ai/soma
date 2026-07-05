@@ -143,5 +143,6 @@ fn help_text_is_generated_from_action_metadata() {
     assert!(text.contains("Echo a message back unchanged."));
     assert!(text.contains("`message` (string, required)"));
     assert!(text.contains("- Surface: MCP only"));
-    assert!(text.contains("crates/rtemplate-service/src/actions.rs"));
+    assert!(text.contains("ACTION_SPECS"));
+    assert!(text.contains("actions.rs"));
 }

@@ -14,12 +14,16 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+#[cfg(test)]
 use std::sync::OnceLock;
 
-use rtemplate_contracts::actions::ActionTransport;
+#[cfg(test)]
+use rtemplate_contracts::actions::{ActionTransport, ACTION_SPECS};
 use rtemplate_runtime::server::AppState;
 use rtemplate_service::app::{ElicitedNameOutcome, ExampleService, ScaffoldIntent};
-use rtemplate_service::dispatch_action;
+use rtemplate_service::{
+    ProviderAuthMode, ProviderCall, ProviderPrincipal, ProviderRequestLimits, ProviderSurface,
+};
 
 /// Dispatch an incoming MCP tool call to the appropriate handler.
 ///
@@ -31,9 +35,11 @@ pub(super) async fn execute_tool(
     name: &str,
     args: Value,
     peer: &Peer<RoleServer>,
+    principal: ProviderPrincipal,
+    auth_mode: ProviderAuthMode,
 ) -> anyhow::Result<Value> {
     match name {
-        "example" => dispatch_example(state, args, peer).await,
+        "example" => dispatch_example(state, args, peer, principal, auth_mode).await,
         _ => Err(anyhow::anyhow!("unknown tool: {name}")),
     }
 }
@@ -46,7 +52,15 @@ pub async fn execute_tool_without_peer_for_test(
     args: Value,
 ) -> anyhow::Result<Value> {
     match name {
-        "example" => dispatch_example_without_peer(state, args).await,
+        "example" => {
+            dispatch_example_without_peer(
+                state,
+                args,
+                ProviderPrincipal::loopback_dev(),
+                ProviderAuthMode::LoopbackDev,
+            )
+            .await
+        }
         _ => Err(anyhow::anyhow!("unknown tool: {name}")),
     }
 }
@@ -55,35 +69,71 @@ async fn dispatch_example(
     state: &AppState,
     args: Value,
     peer: &Peer<RoleServer>,
+    principal: ProviderPrincipal,
+    auth_mode: ProviderAuthMode,
 ) -> anyhow::Result<Value> {
-    let action = rtemplate_contracts::actions::action_name_from_mcp_args(&args)?;
+    let action = action_name(&args)?.to_owned();
 
-    match action {
+    match action.as_str() {
         "elicit_name" => elicit_name(&state.service, peer).await,
         "scaffold_intent" => scaffold_intent(&state.service, peer).await,
-        "help" => mcp_help(&args),
-        other => dispatch_action(&state.service, other, &args, "mcp").await,
+        other => dispatch_non_elicitation_action(state, other, args, principal, auth_mode).await,
     }
 }
 
 #[cfg(any(test, feature = "test-support"))]
-async fn dispatch_example_without_peer(state: &AppState, args: Value) -> anyhow::Result<Value> {
-    let action = rtemplate_contracts::actions::action_name_from_mcp_args(&args)?;
-    match action {
+async fn dispatch_example_without_peer(
+    state: &AppState,
+    args: Value,
+    principal: ProviderPrincipal,
+    auth_mode: ProviderAuthMode,
+) -> anyhow::Result<Value> {
+    let action = action_name(&args)?.to_owned();
+    match action.as_str() {
         "elicit_name" | "scaffold_intent" => {
-            Err(anyhow::anyhow!("action={action} requires an MCP peer"))
+            Err(anyhow::anyhow!("action={} requires an MCP peer", action))
         }
-        "help" => mcp_help(&args),
-        other => dispatch_action(&state.service, other, &args, "mcp").await,
+        other => dispatch_non_elicitation_action(state, other, args, principal, auth_mode).await,
     }
 }
 
-fn mcp_help(args: &Value) -> anyhow::Result<Value> {
-    let spec = rtemplate_service::action_registry()
-        .action("help")
-        .expect("help action should be registered");
-    rtemplate_service::validate_mcp_params(spec, args)?;
-    Ok(json!({ "help": help_text() }))
+async fn dispatch_non_elicitation_action(
+    state: &AppState,
+    action: &str,
+    args: Value,
+    principal: ProviderPrincipal,
+    auth_mode: ProviderAuthMode,
+) -> anyhow::Result<Value> {
+    let params = strip_action_arg(args);
+    let call = ProviderCall {
+        provider: String::new(),
+        action: action.to_owned(),
+        params,
+        principal,
+        auth_mode,
+        surface: ProviderSurface::Mcp,
+        destructive_confirmed: false,
+        limits: ProviderRequestLimits::default(),
+        snapshot_id: String::new(),
+    };
+    Ok(state.provider_registry.dispatch(call).await?.value)
+}
+
+fn action_name(args: &Value) -> anyhow::Result<&str> {
+    args.get("action")
+        .and_then(Value::as_str)
+        .filter(|action| !action.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("action is required"))
+}
+
+fn strip_action_arg(mut args: Value) -> Value {
+    if let Value::Object(map) = &mut args {
+        map.remove("action");
+        map.remove("_response_offset");
+        map.remove("_response_page_bytes");
+        map.remove("_response_cursor");
+    }
+    args
 }
 
 // ── elicitation ───────────────────────────────────────────────────────────────
@@ -264,18 +314,21 @@ async fn elicit_name(service: &ExampleService, peer: &Peer<RoleServer>) -> anyho
 
 // ── help text ─────────────────────────────────────────────────────────────────
 
+#[cfg(test)]
 static HELP_TEXT: OnceLock<String> = OnceLock::new();
 
+#[cfg(test)]
 fn help_text() -> &'static str {
     HELP_TEXT.get_or_init(build_help_text).as_str()
 }
 
+#[cfg(test)]
 fn build_help_text() -> String {
     let mut text = String::from(
         "# example MCP Tool\n\nA template demonstrating the action-based dispatch pattern for MCP servers.\nSet the `action` argument to select an operation.\n\n## Actions\n",
     );
 
-    for spec in rtemplate_service::action_specs() {
+    for spec in ACTION_SPECS {
         text.push_str("\n### ");
         text.push_str(spec.name);
         text.push('\n');
@@ -316,7 +369,7 @@ fn build_help_text() -> String {
                 text.push_str("  - `");
                 text.push_str(param.name);
                 text.push_str("` (");
-                text.push_str(param.ty.as_str());
+                text.push_str(param.ty);
                 text.push_str(", ");
                 text.push_str(required);
                 text.push_str("): ");
@@ -329,11 +382,12 @@ fn build_help_text() -> String {
     text.push_str(
         "\n## Adding a new action
 
-1. Add the action metadata to `crates/rtemplate-service/src/actions.rs`.
+1. Add the action metadata to `ACTION_SPECS` in `actions.rs`.
 2. Add any new parameters to the action's `params` metadata.
 3. Add a method to `ExampleClient` in `example.rs` (transport).
 4. Add a method to `ExampleService` in `app.rs` (business logic).
-5. Add a test covering parser, schema, and dispatch behavior.
+5. Add a match arm in `dispatch_example()` in `mcp/tools.rs`.
+6. Add a test covering parser, schema, and dispatch behavior.
 ",
     );
     text

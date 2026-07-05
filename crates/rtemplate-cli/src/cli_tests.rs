@@ -1,10 +1,11 @@
-use rtemplate_contracts::actions::{ActionCost, ActionSpec, ActionTransport, CatalogVisibility};
+use rtemplate_contracts::actions::{
+    ActionCost, ActionSpec, ActionTransport, ExampleAction, ACTION_SPECS,
+};
 use rtemplate_contracts::errors::ToolError;
-use serde_json::json;
 
 use super::{
     confirm_destructive_action_allowed, confirm_destructive_action_from_io, parse_args_from, run,
-    usage, Command, SetupCommand,
+    service_action_from_command, usage, Command, SetupCommand,
 };
 use rtemplate_contracts::config::ExampleConfig;
 
@@ -21,7 +22,6 @@ const TEST_DESTRUCTIVE_ACTIONS: &[ActionSpec] = &[ActionSpec {
     params: &[],
     returns: "DeleteResult",
     cli: None,
-    catalog_visibility: CatalogVisibility::Hidden,
 }];
 
 #[test]
@@ -31,22 +31,21 @@ fn empty_args_returns_none() {
 }
 
 #[test]
-fn unknown_subcommand_returns_none() {
+fn unknown_subcommand_becomes_dynamic_provider_command() {
     let result = parse_args_from(["unknown-command"]).unwrap();
-    assert!(result.is_none());
+    assert_eq!(
+        result,
+        Some(Command::Provider {
+            command: "unknown-command".to_owned(),
+            json: serde_json::json!({})
+        })
+    );
 }
 
 #[test]
 fn greet_no_name() {
     let cmd = parse_args_from(["greet"]).unwrap().unwrap();
-    assert_eq!(
-        cmd,
-        Command::Action {
-            name: "greet".to_owned(),
-            params: json!({}),
-            yes: false,
-        }
-    );
+    assert_eq!(cmd, Command::Greet { name: None });
 }
 
 #[test]
@@ -56,10 +55,8 @@ fn greet_with_name_flag() {
         .unwrap();
     assert_eq!(
         cmd,
-        Command::Action {
-            name: "greet".to_owned(),
-            params: json!({"name": "Alice"}),
-            yes: false,
+        Command::Greet {
+            name: Some("Alice".into())
         }
     );
 }
@@ -71,10 +68,8 @@ fn echo_with_message_flag() {
         .unwrap();
     assert_eq!(
         cmd,
-        Command::Action {
-            name: "echo".to_owned(),
-            params: json!({"message": "hello"}),
-            yes: false,
+        Command::Echo {
+            message: "hello".into()
         }
     );
 }
@@ -88,93 +83,46 @@ fn echo_missing_message_is_error() {
 #[test]
 fn status_subcommand() {
     let cmd = parse_args_from(["status"]).unwrap().unwrap();
-    assert_eq!(
-        cmd,
-        Command::Action {
-            name: "status".to_owned(),
-            params: json!({}),
-            yes: false,
-        }
-    );
+    assert_eq!(cmd, Command::Status);
 }
 
 #[test]
 fn help_subcommand() {
     let cmd = parse_args_from(["help"]).unwrap().unwrap();
+    assert_eq!(cmd, Command::Help);
+}
+
+#[test]
+fn service_commands_convert_to_shared_actions() {
     assert_eq!(
-        cmd,
-        Command::Action {
-            name: "help".to_owned(),
-            params: json!({}),
-            yes: false,
-        }
+        service_action_from_command(&Command::Greet {
+            name: Some("Alice".into())
+        }),
+        Some(ExampleAction::Greet {
+            name: Some("Alice".into())
+        })
     );
-}
-
-#[test]
-fn dynamic_action_command_parses_registered_string_flags() {
-    let command = parse_args_from(["echo", "--message", "hello"])
-        .unwrap()
-        .expect("command should parse");
     assert_eq!(
-        command,
-        Command::Action {
-            name: "echo".to_owned(),
-            params: json!({"message": "hello"}),
-            yes: false,
-        }
+        service_action_from_command(&Command::Echo {
+            message: "hello".into()
+        }),
+        Some(ExampleAction::Echo {
+            message: "hello".into()
+        })
     );
-}
-
-#[test]
-fn dynamic_action_command_parses_confirmation_flags() {
-    for flag in ["--yes", "-y"] {
-        let command = parse_args_from(["echo", "--message", "hello", flag])
-            .unwrap()
-            .expect("command should parse");
-        assert_eq!(
-            command,
-            Command::Action {
-                name: "echo".to_owned(),
-                params: json!({"message": "hello"}),
-                yes: true,
-            }
-        );
-    }
-}
-
-#[test]
-fn dynamic_action_rejects_duplicate_confirmation_flags() {
-    let error = parse_args_from(["echo", "--message", "hello", "--yes", "-y"]).unwrap_err();
-    assert!(error.to_string().contains("duplicate flag -y"));
-}
-
-#[test]
-fn dynamic_action_rejects_duplicate_flags() {
-    let error = parse_args_from(["echo", "--message", "one", "--message", "two"]).unwrap_err();
-    assert!(error.to_string().contains("duplicate flag --message"));
-}
-
-#[test]
-fn dynamic_action_rejects_flag_like_values() {
-    let error = parse_args_from(["echo", "--message", "--bogus"]).unwrap_err();
-    assert!(error.to_string().contains("looks like a flag"));
-}
-
-#[test]
-fn dynamic_action_rejects_missing_required_flags() {
-    let error = parse_args_from(["echo"]).unwrap_err();
-    assert!(error
-        .to_string()
-        .contains("missing required flag --message"));
+    assert_eq!(
+        service_action_from_command(&Command::Status),
+        Some(ExampleAction::Status)
+    );
+    assert_eq!(
+        service_action_from_command(&Command::Help),
+        Some(ExampleAction::Help)
+    );
 }
 
 #[test]
 fn cli_parser_covers_every_cli_action_in_registry() {
-    for spec in rtemplate_service::action_specs()
-        .iter()
-        .filter(|spec| spec.cli.is_some())
-    {
+    for spec in ACTION_SPECS.iter().filter(|spec| spec.cli.is_some()) {
         let cli = spec.cli.unwrap();
         let args = match spec.name {
             "greet" => vec![cli.command],
@@ -185,13 +133,9 @@ fn cli_parser_covers_every_cli_action_in_registry() {
         let command = parse_args_from(args)
             .unwrap()
             .unwrap_or_else(|| panic!("registered CLI action `{}` did not parse", spec.name));
-        let Command::Action { name, .. } = command else {
-            panic!(
-                "registered CLI action `{}` parsed to non-action command",
-                spec.name
-            );
-        };
-        assert_eq!(name, spec.name);
+        let action = service_action_from_command(&command)
+            .unwrap_or_else(|| panic!("registered CLI action `{}` did not dispatch", spec.name));
+        assert_eq!(action.name(), spec.name);
     }
 }
 
@@ -283,37 +227,29 @@ fn setup_plugin_hook_no_repair_flag() {
 }
 
 #[test]
-fn operational_commands_parse_outside_service_action_path() {
-    let doctor = parse_args_from(["doctor", "--json"]).unwrap().unwrap();
-    assert!(matches!(doctor, Command::Doctor { json: true }));
-
-    let watch = parse_args_from(["watch", "--url", "http://localhost:40060"])
-        .unwrap()
-        .unwrap();
-    assert!(matches!(watch, Command::Watch { .. }));
-
-    let setup = parse_args_from(["setup", "check"]).unwrap().unwrap();
-    assert!(matches!(setup, Command::Setup(SetupCommand::Check)));
-}
-
-#[test]
-fn dynamic_action_rejects_single_dash_flag_looking_values() {
-    let err = parse_args_from(["echo", "--message", "-y"]).unwrap_err();
-    assert!(err.to_string().contains("value looks like a flag"));
+fn operational_commands_do_not_convert_to_service_actions() {
+    assert_eq!(
+        service_action_from_command(&Command::Doctor { json: true }),
+        None
+    );
+    assert_eq!(
+        service_action_from_command(&Command::Watch {
+            url: None,
+            interval: 10
+        }),
+        None
+    );
+    assert_eq!(
+        service_action_from_command(&Command::Setup(SetupCommand::Check)),
+        None
+    );
 }
 
 #[tokio::test]
 async fn run_service_command_uses_shared_dispatch_path() {
-    run(
-        Command::Action {
-            name: "status".to_owned(),
-            params: json!({}),
-            yes: false,
-        },
-        &ExampleConfig::default(),
-    )
-    .await
-    .expect("status should run through shared service dispatch");
+    run(Command::Status, &ExampleConfig::default())
+        .await
+        .expect("status should run through shared service dispatch");
 }
 
 #[test]
@@ -356,7 +292,7 @@ fn parser_rejects_unknown_and_malformed_flags() {
 #[test]
 fn parser_reports_duplicate_value_flags() {
     let err = parse_args_from(["greet", "--name", "Alice", "--name", "Bob"]).unwrap_err();
-    assert!(err.to_string().contains("duplicate flag --name"));
+    assert!(err.to_string().contains("duplicate --name"));
 }
 
 #[test]

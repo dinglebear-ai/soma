@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "example-static",
+    "kind": "static-rust",
+    "title": "Example Static Actions"
+  },
+  "tools": [
+    {
+      "name": "status",
+      "description": "Return service status.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "scope": "example:read",
+      "rest": {
+        "enabled": true,
+        "method": "GET",
+        "path": "/v1/status"
+      },
+      "cli": {
+        "enabled": true,
+        "command": "status"
+      },
+      "palette": {
+        "enabled": true,
+        "category": "Service"
+      }
+    }
+  ]
+}

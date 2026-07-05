@@ -6,7 +6,7 @@
 use anyhow::Result;
 use axum::{
     extract::{rejection::JsonRejection, Extension, Path, State},
-    http::{header, StatusCode},
+    http::{Method, StatusCode},
     response::{IntoResponse, Json},
 };
 #[cfg(feature = "auth")]
@@ -16,93 +16,99 @@ struct AuthContext {
     sub: String,
     scopes: Vec<String>,
 }
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use rtemplate_contracts::{actions::ActionSpec, token_limit::MAX_RESPONSE_BYTES};
+use rtemplate_contracts::actions::ExampleAction;
+use rtemplate_contracts::token_limit::MAX_RESPONSE_BYTES;
 use rtemplate_runtime::server::{AppState, AuthPolicy};
-use rtemplate_service::{classify_service_error, dispatch_action, validate_params};
+use rtemplate_service::{
+    classify_service_error, ProviderAuthMode, ProviderCall, ProviderError, ProviderPrincipal,
+    ProviderRequestLimits, ProviderSurface,
+};
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 pub struct RestRoute {
-    pub method: String,
-    pub path: String,
-    pub action: Option<String>,
-    pub auth: String,
-    pub description: String,
+    pub method: &'static str,
+    pub path: &'static str,
+    pub action: Option<&'static str>,
+    pub auth: &'static str,
+    pub description: &'static str,
 }
 
-pub const INFRA_REST_ROUTES: &[(&str, &str, &str, &str)] = &[
-    ("GET", "/health", "public", "Fast liveness probe."),
-    (
-        "GET",
-        "/readyz",
-        "public",
-        "Readiness probe; 503 when the upstream dependency is unreachable.",
-    ),
-    (
-        "GET",
-        "/metrics",
-        "public",
-        "Prometheus metrics (text exposition format; requires the observability feature).",
-    ),
-    ("GET", "/status", "public", "Local redacted runtime status."),
-    (
-        "GET",
-        "/openapi.json",
-        "public",
-        "Generated OpenAPI schema.",
-    ),
-    (
-        "GET",
-        "/v1/capabilities",
-        "mounted auth policy",
-        "Direct REST route inventory and server metadata.",
-    ),
-];
-
-pub fn rest_routes() -> Vec<RestRoute> {
-    let mut routes: Vec<RestRoute> = INFRA_REST_ROUTES
-        .iter()
-        .map(|(method, path, auth, description)| RestRoute {
-            method: (*method).to_owned(),
-            path: (*path).to_owned(),
-            action: None,
-            auth: (*auth).to_owned(),
-            description: (*description).to_owned(),
-        })
-        .collect();
-    routes.extend(
-        rtemplate_service::action_specs()
-            .iter()
-            .filter(|spec| spec.transport.rest())
-            .map(rest_route_from_action),
-    );
-    routes
-}
-
-fn rest_route_from_action(spec: &ActionSpec) -> RestRoute {
+pub const REST_ROUTES: &[RestRoute] = &[
     RestRoute {
-        method: spec.rest_method.unwrap_or("POST").to_owned(),
-        path: spec.rest_path.unwrap_or("/v1/{action}").to_owned(),
-        action: Some(spec.name.to_owned()),
-        auth: rest_auth_description(spec).to_owned(),
-        description: spec.description.to_owned(),
-    }
-}
-
-fn rest_auth_description(spec: &ActionSpec) -> &'static str {
-    match spec.required_scope {
-        Some(scope) if scope == rtemplate_contracts::actions::READ_SCOPE => {
-            "mounted auth policy; requires example:read when scoped"
-        }
-        Some(scope) if scope == rtemplate_contracts::actions::WRITE_SCOPE => {
-            "mounted auth policy; requires example:write when scoped"
-        }
-        Some(_) => "mounted auth policy; requires configured action scope when scoped",
-        None => "mounted auth policy",
-    }
-}
+        method: "GET",
+        path: "/health",
+        action: None,
+        auth: "public",
+        description: "Fast liveness probe.",
+    },
+    RestRoute {
+        method: "GET",
+        path: "/readyz",
+        action: None,
+        auth: "public",
+        description: "Readiness probe; 503 when the upstream dependency is unreachable.",
+    },
+    RestRoute {
+        method: "GET",
+        path: "/metrics",
+        action: None,
+        auth: "public",
+        description:
+            "Prometheus metrics (text exposition format; requires the observability feature).",
+    },
+    RestRoute {
+        method: "GET",
+        path: "/status",
+        action: None,
+        auth: "public",
+        description: "Local redacted runtime status.",
+    },
+    RestRoute {
+        method: "GET",
+        path: "/openapi.json",
+        action: None,
+        auth: "public",
+        description: "Generated OpenAPI schema.",
+    },
+    RestRoute {
+        method: "GET",
+        path: "/v1/capabilities",
+        action: None,
+        auth: "mounted auth policy",
+        description: "Direct REST route inventory and server metadata.",
+    },
+    RestRoute {
+        method: "POST",
+        path: "/v1/greet",
+        action: Some("greet"),
+        auth: "mounted auth policy; requires example:read when scoped",
+        description: "Return a greeting.",
+    },
+    RestRoute {
+        method: "POST",
+        path: "/v1/echo",
+        action: Some("echo"),
+        auth: "mounted auth policy; requires example:read when scoped",
+        description: "Echo a message back unchanged.",
+    },
+    RestRoute {
+        method: "GET",
+        path: "/v1/status",
+        action: Some("status"),
+        auth: "mounted auth policy; requires example:read when scoped",
+        description: "Return authenticated service status.",
+    },
+    RestRoute {
+        method: "GET",
+        path: "/v1/help",
+        action: Some("help"),
+        auth: "mounted auth policy",
+        description: "Return the action catalog and route help.",
+    },
+];
 
 #[derive(Debug, Serialize)]
 pub struct CapabilitiesResponse {
@@ -110,41 +116,67 @@ pub struct CapabilitiesResponse {
     pub version: &'static str,
     pub preferred_rest_style: &'static str,
     pub supported_routes: Vec<String>,
-    pub routes: Vec<RestRoute>,
+    pub routes: &'static [RestRoute],
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GreetRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EchoRequest {
+    pub message: String,
 }
 
 pub async fn v1_capabilities() -> impl IntoResponse {
-    let routes = rest_routes();
     Json(CapabilitiesResponse {
         server: "rtemplate-mcp",
         version: env!("CARGO_PKG_VERSION"),
         preferred_rest_style: "direct_routes",
-        supported_routes: routes
+        supported_routes: REST_ROUTES
             .iter()
             .map(|route| format!("{} {}", route.method, route.path))
             .collect(),
-        routes,
+        routes: REST_ROUTES,
     })
 }
 
-pub async fn v1_action_post(
+pub async fn v1_greet(
     State(state): State<AppState>,
     auth: Option<Extension<AuthContext>>,
-    Path(action): Path<String>,
-    body: Result<Json<Value>, JsonRejection>,
+    body: Result<Json<GreetRequest>, JsonRejection>,
 ) -> axum::response::Response {
-    let Json(params) = match body {
+    let Json(body) = match body {
         Ok(body) => body,
         Err(error) => return rest_json_rejection_response(error),
-    };
-    let Some(spec) = rtemplate_service::action_registry().rest_post(&action) else {
-        return (StatusCode::NOT_FOUND, Json(json!({"error": "not_found"}))).into_response();
     };
     run_rest_action_request(
         state,
         auth.as_ref().map(|Extension(auth)| auth),
-        spec.name,
-        params,
+        ExampleAction::from_rest("greet", &optional_name_params(body.name)),
+        "greet",
+    )
+    .await
+}
+
+pub async fn v1_echo(
+    State(state): State<AppState>,
+    auth: Option<Extension<AuthContext>>,
+    body: Result<Json<EchoRequest>, JsonRejection>,
+) -> axum::response::Response {
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(error) => return rest_json_rejection_response(error),
+    };
+    run_rest_action_request(
+        state,
+        auth.as_ref().map(|Extension(auth)| auth),
+        ExampleAction::from_rest("echo", &json!({ "message": body.message })),
+        "echo",
     )
     .await
 }
@@ -156,8 +188,8 @@ pub async fn v1_service_status(
     run_rest_action_request(
         state,
         auth.as_ref().map(|Extension(auth)| auth),
+        Ok(ExampleAction::Status),
         "status",
-        json!({}),
     )
     .await
 }
@@ -169,8 +201,58 @@ pub async fn v1_help(
     run_rest_action_request(
         state,
         auth.as_ref().map(|Extension(auth)| auth),
+        Ok(ExampleAction::Help),
         "help",
-        json!({}),
+    )
+    .await
+}
+
+pub async fn v1_dynamic_provider_route(
+    State(state): State<AppState>,
+    auth: Option<Extension<AuthContext>>,
+    method: Method,
+    Path(path): Path<String>,
+    body: Result<Json<Value>, JsonRejection>,
+) -> axum::response::Response {
+    let route_path = format!("/v1/{path}");
+    let method = method.as_str().to_ascii_uppercase();
+    let action = match state
+        .provider_registry
+        .snapshot()
+        .route_action(&method, &route_path)
+        .map(str::to_owned)
+    {
+        Some(action) => action,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "error": "not_found",
+                    "message": format!("No provider route registered for {method} {route_path}"),
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let params = if method == "GET" || method == "DELETE" {
+        match body {
+            Ok(Json(value)) => value,
+            Err(JsonRejection::MissingJsonContentType(_)) => json!({}),
+            Err(error) => return rest_json_rejection_response(error),
+        }
+    } else {
+        match body {
+            Ok(Json(value)) => value,
+            Err(error) => return rest_json_rejection_response(error),
+        }
+    };
+
+    run_provider_rest_action(
+        state,
+        auth.as_ref().map(|Extension(auth)| auth),
+        action,
+        params,
     )
     .await
 }
@@ -178,58 +260,38 @@ pub async fn v1_help(
 async fn run_rest_action_request(
     state: AppState,
     auth: Option<&AuthContext>,
+    action: Result<ExampleAction>,
     action_name: &str,
+) -> axum::response::Response {
+    match action {
+        Ok(action) => {
+            let action_name = action.name().to_owned();
+            run_provider_rest_action(state, auth, action_name, rest_params(&action)).await
+        }
+        Err(error) => rest_error_response(error, action_name),
+    }
+}
+
+async fn run_provider_rest_action(
+    state: AppState,
+    auth: Option<&AuthContext>,
+    action_name: String,
     params: Value,
 ) -> axum::response::Response {
-    let Some(spec) = rtemplate_service::action_registry().action(action_name) else {
-        return rest_error_response(
-            rtemplate_contracts::actions::action_error(
-                rtemplate_contracts::actions::ValidationError::UnknownAction {
-                    action: action_name.to_owned(),
-                },
-            ),
-            action_name,
-        );
+    let call = ProviderCall {
+        provider: String::new(),
+        action: action_name.clone(),
+        params,
+        principal: rest_principal(auth),
+        auth_mode: rest_auth_mode(&state),
+        surface: ProviderSurface::Rest,
+        destructive_confirmed: false,
+        limits: ProviderRequestLimits::default(),
+        snapshot_id: String::new(),
     };
-    if !spec.transport.rest() {
-        return (StatusCode::NOT_FOUND, Json(json!({"error": "not_found"}))).into_response();
-    }
-    if let Some(response) = enforce_rest_scope(&state, auth, action_name) {
-        return response;
-    }
-    if spec.requires_admin {
-        let Some(auth) = auth else {
-            return (
-                StatusCode::FORBIDDEN,
-                Json(json!({"error": "forbidden: missing auth context"})),
-            )
-                .into_response();
-        };
-        if !auth.scopes.iter().any(|scope| scope == "admin") {
-            return (
-                StatusCode::FORBIDDEN,
-                Json(json!({"error": "forbidden: requires admin"})),
-            )
-                .into_response();
-        }
-    }
-    if let Err(error) = rtemplate_contracts::actions::require_confirmation_if_destructive_from(
-        rtemplate_service::action_specs(),
-        action_name,
-        &params,
-    ) {
-        return (
-            StatusCode::from_u16(error.http_status_code()).unwrap_or(StatusCode::BAD_REQUEST),
-            Json(error.to_rest_payload()),
-        )
-            .into_response();
-    }
-    if let Err(error) = validate_params(spec, &params) {
-        return rest_error_response(error, action_name);
-    }
 
-    match dispatch_action(&state.service, action_name, &params, "rest").await {
-        Ok(value) => match cap_rest_response(value) {
+    match state.provider_registry.dispatch(call).await {
+        Ok(output) => match cap_rest_response(output.value) {
             Ok(value) => Json(value).into_response(),
             Err(e) => {
                 tracing::error!(error = %e, action = %action_name, "REST response serialization failed");
@@ -240,7 +302,36 @@ async fn run_rest_action_request(
                     .into_response()
             }
         },
-        Err(e) => rest_error_response(e, action_name),
+        Err(e) => provider_rest_error_response(e),
+    }
+}
+
+fn rest_params(action: &ExampleAction) -> Value {
+    match action {
+        ExampleAction::Greet { name } => optional_name_params(name.clone()),
+        ExampleAction::Echo { message } => json!({ "message": message }),
+        ExampleAction::Status
+        | ExampleAction::Help
+        | ExampleAction::ElicitName
+        | ExampleAction::ScaffoldIntent => json!({}),
+    }
+}
+
+fn rest_principal(auth: Option<&AuthContext>) -> ProviderPrincipal {
+    match auth {
+        Some(auth) => ProviderPrincipal {
+            subject: auth.sub.clone(),
+            scopes: auth.scopes.clone(),
+        },
+        None => ProviderPrincipal::anonymous(),
+    }
+}
+
+fn rest_auth_mode(state: &AppState) -> ProviderAuthMode {
+    match &state.auth_policy {
+        AuthPolicy::LoopbackDev => ProviderAuthMode::LoopbackDev,
+        AuthPolicy::TrustedGatewayUnscoped => ProviderAuthMode::TrustedGateway,
+        AuthPolicy::Mounted { .. } => ProviderAuthMode::Mounted,
     }
 }
 
@@ -277,6 +368,30 @@ fn rest_json_rejection_response(error: JsonRejection) -> axum::response::Respons
     (status, Json(json!({"error": error.to_string()}))).into_response()
 }
 
+fn provider_rest_error_response(error: ProviderError) -> axum::response::Response {
+    let status = match &*error.code {
+        "unknown_action" | "surface_not_exposed" => StatusCode::NOT_FOUND,
+        "insufficient_scope" | "capability_denied" => StatusCode::FORBIDDEN,
+        "input_too_large" | "response_too_large" => StatusCode::PAYLOAD_TOO_LARGE,
+        "input_schema_failed" | "confirmation_required" => StatusCode::BAD_REQUEST,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    let (provider, action, code) = error.log_code();
+    tracing::warn!(provider, action, code, "REST provider call failed");
+    (
+        status,
+        Json(serde_json::to_value(error).unwrap_or_else(|_| json!({"error":"provider_error"}))),
+    )
+        .into_response()
+}
+
+fn optional_name_params(name: Option<String>) -> Value {
+    match name {
+        Some(name) => json!({ "name": name }),
+        None => json!({}),
+    }
+}
+
 fn cap_rest_response(value: Value) -> Result<Value> {
     let serialized = serde_json::to_vec(&value)?;
     if serialized.len() <= MAX_RESPONSE_BYTES {
@@ -288,47 +403,6 @@ fn cap_rest_response(value: Value) -> Result<Value> {
         "max_response_bytes": MAX_RESPONSE_BYTES,
         "hint": "Use limit/offset parameters or more specific filters to get a smaller result.",
     }))
-}
-
-fn enforce_rest_scope(
-    state: &AppState,
-    auth: Option<&AuthContext>,
-    action: &str,
-) -> Option<axum::response::Response> {
-    if !matches!(&state.auth_policy, AuthPolicy::Mounted { .. }) {
-        return None;
-    }
-    let required_scope = rtemplate_contracts::actions::required_scope_for_action_from(
-        rtemplate_service::action_specs(),
-        action,
-    )?;
-    let Some(auth) = auth else {
-        tracing::warn!(action = %action, "REST action denied: missing auth context");
-        return Some(
-            (
-                StatusCode::FORBIDDEN,
-                Json(json!({"error": "forbidden: missing auth context"})),
-            )
-                .into_response(),
-        );
-    };
-    let satisfied = rtemplate_contracts::actions::scopes_satisfy(&auth.scopes, required_scope);
-    if satisfied {
-        return None;
-    }
-    tracing::warn!(
-        subject = %auth.sub,
-        action = %action,
-        required_scope = %required_scope,
-        "REST action denied: insufficient scope"
-    );
-    Some(
-        (
-            StatusCode::FORBIDDEN,
-            Json(json!({"error": format!("forbidden: requires scope: {required_scope}")})),
-        )
-            .into_response(),
-    )
 }
 
 /// `GET /health` — liveness probe (unauthenticated).
@@ -358,11 +432,19 @@ pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// `GET /openapi.json` — generated OpenAPI schema for the REST surface.
-pub async fn openapi_json() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
-        include_str!("../../../docs/generated/openapi.json"),
-    )
+pub async fn openapi_json(State(state): State<AppState>) -> axum::response::Response {
+    match serde_json::from_slice::<Value>(&state.provider_registry.snapshot().cached_openapi_bytes)
+    {
+        Ok(value) => Json(value).into_response(),
+        Err(error) => {
+            tracing::error!(%error, "runtime OpenAPI snapshot failed to deserialize");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "openapi_unavailable"})),
+            )
+                .into_response()
+        }
+    }
 }
 
 /// `GET /status` — local runtime status (unauthenticated, redacts secrets).

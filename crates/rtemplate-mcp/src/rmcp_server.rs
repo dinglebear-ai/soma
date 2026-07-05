@@ -29,16 +29,10 @@ struct AuthContext {
 }
 use serde_json::{json, Map, Value};
 
-use rtemplate_contracts::{
-    actions::{
-        is_known_action_from, require_confirmation_if_destructive_from,
-        required_scope_for_action_from, ValidationError,
-    },
-    errors::ServiceErrorKind,
-    token_limit::MAX_RESPONSE_BYTES,
-};
+use rtemplate_contracts::{errors::ServiceErrorKind, token_limit::MAX_RESPONSE_BYTES};
 
 use rtemplate_runtime::server::{AppState, AuthPolicy};
+use rtemplate_service::{ProviderAuthMode, ProviderPrincipal};
 
 use super::{
     conformance, prompts,
@@ -46,7 +40,7 @@ use super::{
         response_page_request, strip_response_page_params, tool_result_from_cached_page,
         tool_result_from_json,
     },
-    schemas::tool_definitions,
+    schemas::tool_definitions_for_catalogs as tool_definitions,
     tools::execute_tool,
 };
 
@@ -70,7 +64,7 @@ impl ServerHandler for ExampleRmcpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         require_auth_context(&self.state, &context)?;
-        let mut tools = rmcp_tool_definitions()?;
+        let mut tools = rmcp_tool_definitions(&self.state)?;
         if self.state.config.conformance_fixtures {
             tools.extend(conformance::tool_definitions());
         }
@@ -107,26 +101,6 @@ impl ServerHandler for ExampleRmcpServer {
         if tool_name != "example" {
             return Err(unknown_tool_error(&tool_name));
         }
-        if let Some(action_str) = action_opt.as_deref() {
-            if !is_known_action_from(rtemplate_service::action_specs(), action_str) {
-                tracing::warn!(
-                    tool = %tool_name,
-                    action = %action_str,
-                    "MCP tool rejected unknown action"
-                );
-                return tool_error_result(unknown_action_payload(&tool_name, action_str));
-            }
-        }
-        // Only scope-check when a known action is present; dispatch_example will
-        // return the validation error for a missing action below.
-        if let (Some(auth), Some(action_str)) = (auth, action_opt.as_deref()) {
-            if let Some(required_scope) =
-                required_scope_for_action_from(rtemplate_service::action_specs(), action_str)
-            {
-                check_scope(auth, required_scope, action_str)?;
-            }
-        }
-
         let action: String = action_opt.unwrap_or_default();
         if let Some(cursor) = response_page.cursor().map(str::to_owned) {
             return tool_result_from_cached_page(
@@ -145,27 +119,25 @@ impl ServerHandler for ExampleRmcpServer {
         strip_response_page_params(&mut arguments);
         let continuation_args = arguments.as_object().cloned();
 
-        // Destructive actions require an explicit "confirm": true. No-op for the
-        // template's current (non-destructive) actions; gates any future one with
-        // a structured validation error consistent with the dispatch error path.
-        if let Err(tool_error) = require_confirmation_if_destructive_from(
-            rtemplate_service::action_specs(),
-            &action,
-            &arguments,
-        ) {
-            return tool_error_result(
-                tool_error.to_mcp_payload(&tool_name, empty_action_as_none(&action)),
-            );
-        }
-
         // Clone the peer so we can pass it to the tool dispatcher.
         // The peer is needed for elicitation (asking the client for user input).
         let peer: Peer<RoleServer> = context.peer.clone();
+        let principal = provider_principal(auth);
+        let auth_mode = provider_auth_mode(&self.state.auth_policy);
 
         let started = Instant::now();
         tracing::info!(tool = %tool_name, action = %action, "MCP tool execution started");
 
-        match execute_tool(&self.state, &tool_name, arguments, &peer).await {
+        match execute_tool(
+            &self.state,
+            &tool_name,
+            arguments,
+            &peer,
+            principal,
+            auth_mode,
+        )
+        .await
+        {
             Ok(result) => {
                 tracing::info!(
                     tool = %tool_name,
@@ -199,7 +171,10 @@ impl ServerHandler for ExampleRmcpServer {
                     );
                 }
                 tool_error_result(
-                    tool_error.to_mcp_payload(&tool_name, empty_action_as_none(&action)),
+                    provider_error_payload(&error, &tool_name, empty_action_as_none(&action))
+                        .unwrap_or_else(|| {
+                            tool_error.to_mcp_payload(&tool_name, empty_action_as_none(&action))
+                        }),
                 )
             }
         }
@@ -240,7 +215,7 @@ impl ServerHandler for ExampleRmcpServer {
                 None,
             ));
         }
-        let schema = tool_definitions();
+        let schema = tool_definitions_for_state(&self.state);
         let text = serde_json::to_string_pretty(&schema)
             .map_err(|e| ErrorData::internal_error(format!("serialization error: {e}"), None))?;
         Ok(ReadResourceResult::new(vec![ResourceContents::text(
@@ -309,12 +284,16 @@ fn schema_resource() -> Resource {
 
 // ── tool definition conversion ────────────────────────────────────────────────
 
-fn rmcp_tool_definitions() -> Result<Vec<Tool>, ErrorData> {
-    tool_definitions()
-        .iter()
-        .cloned()
+fn rmcp_tool_definitions(state: &AppState) -> Result<Vec<Tool>, ErrorData> {
+    tool_definitions_for_state(state)
+        .into_iter()
         .map(rmcp_tool_from_json)
         .collect()
+}
+
+fn tool_definitions_for_state(state: &AppState) -> Vec<Value> {
+    let snapshot = state.provider_registry.snapshot();
+    tool_definitions(&snapshot.catalogs)
 }
 
 fn rmcp_tool_from_json(value: Value) -> Result<Tool, ErrorData> {
@@ -369,34 +348,24 @@ fn error_overflow_payload(value: &Value, serialized_bytes: usize) -> Value {
     })
 }
 
-fn validation_error_payload_from_validation_error(
+fn provider_error_payload(
+    error: &anyhow::Error,
     tool: &str,
-    action: Option<&str>,
-    error: &ValidationError,
-) -> Value {
-    let payload_action = action.or(match error {
-        ValidationError::UnknownAction { action }
-        | ValidationError::NotAvailableOverRest { action } => Some(action.as_str()),
-        _ => None,
-    });
-    rtemplate_contracts::errors::ToolError::from_action_validation_with_actions(
-        error,
-        rtemplate_service::action_specs()
-            .iter()
-            .map(|spec| spec.name)
-            .collect(),
-    )
-    .to_mcp_payload(tool, payload_action)
-}
-
-fn unknown_action_payload(tool: &str, action: &str) -> Value {
-    validation_error_payload_from_validation_error(
-        tool,
-        Some(action),
-        &ValidationError::UnknownAction {
-            action: action.to_owned(),
-        },
-    )
+    fallback_action: Option<&str>,
+) -> Option<Value> {
+    let error = error.downcast_ref::<rtemplate_service::ProviderError>()?;
+    Some(json!({
+        "kind": "mcp_tool_error",
+        "schema_version": error.schema_version,
+        "code": error.code,
+        "tool": tool,
+        "provider": error.provider,
+        "action": error.action.as_deref().or(fallback_action),
+        "message": error.message,
+        "retryable": error.retryable,
+        "remediation": error.remediation,
+        "provider_error_kind": error.kind,
+    }))
 }
 
 fn empty_action_as_none(action: &str) -> Option<&str> {
@@ -463,30 +432,22 @@ fn require_auth_context<'a>(
     }
 }
 
-fn check_scope(auth: &AuthContext, required_scope: &str, action: &str) -> Result<(), ErrorData> {
-    if scope_satisfied(&auth.scopes, required_scope) {
-        return Ok(());
+fn provider_principal(auth: Option<&AuthContext>) -> ProviderPrincipal {
+    match auth {
+        Some(auth) => ProviderPrincipal {
+            subject: auth.sub.clone(),
+            scopes: auth.scopes.clone(),
+        },
+        None => ProviderPrincipal::loopback_dev(),
     }
-    tracing::warn!(
-        subject = %auth.sub,
-        action = %action,
-        required_scope = %required_scope,
-        "MCP tool denied: insufficient scope"
-    );
-    Err(ErrorData::invalid_request(
-        format!("forbidden: requires scope: {required_scope}"),
-        Some(json!({
-            "kind": "mcp_auth_error",
-            "schema_version": 1,
-            "code": "insufficient_scope",
-            "action": action,
-            "required_scope": required_scope,
-            "granted_scopes": auth.scopes,
-            "message": "Authenticated caller does not have the required MCP scope for this action.",
-            "retryable": false,
-            "remediation": "Request a token/session with the required scope, or choose an action allowed by the current token scopes.",
-        })),
-    ))
+}
+
+fn provider_auth_mode(policy: &AuthPolicy) -> ProviderAuthMode {
+    match policy {
+        AuthPolicy::LoopbackDev => ProviderAuthMode::LoopbackDev,
+        AuthPolicy::TrustedGatewayUnscoped => ProviderAuthMode::TrustedGateway,
+        AuthPolicy::Mounted { .. } => ProviderAuthMode::Mounted,
+    }
 }
 
 fn auth_protocol_error_payload(
@@ -502,10 +463,6 @@ fn auth_protocol_error_payload(
         "retryable": false,
         "remediation": remediation.into(),
     })
-}
-
-fn scope_satisfied(token_scopes: &[String], required: &str) -> bool {
-    rtemplate_contracts::actions::scopes_satisfy(token_scopes, required)
 }
 
 #[cfg(test)]

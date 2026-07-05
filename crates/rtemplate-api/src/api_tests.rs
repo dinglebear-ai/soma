@@ -1,7 +1,7 @@
 use rtemplate_contracts::token_limit::MAX_RESPONSE_BYTES;
 use serde_json::json;
 
-use super::cap_rest_response;
+use super::{cap_rest_response, rest_principal};
 
 #[test]
 fn cap_rest_response_leaves_small_json_unchanged() {
@@ -28,4 +28,12 @@ fn cap_rest_response_returns_json_safe_truncation_envelope() {
         serde_json::to_vec(&capped).unwrap().len() < MAX_RESPONSE_BYTES,
         "{capped}"
     );
+}
+
+#[test]
+fn missing_rest_auth_context_uses_anonymous_principal() {
+    let principal = rest_principal(None);
+
+    assert_eq!(principal.subject, "anonymous");
+    assert!(principal.scopes.is_empty());
 }

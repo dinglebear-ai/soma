@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "weather-openapi",
+    "kind": "openapi",
+    "title": "Weather API"
+  },
+  "tools": [
+    {
+      "name": "weather-current",
+      "description": "Fetch current weather for a city.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["city"],
+        "properties": {
+          "city": { "type": "string", "minLength": 1 }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "city": { "type": "string" },
+          "celsius": { "type": "number" }
+        }
+      },
+      "env": [
+        {
+          "name": "WEATHER_API_KEY",
+          "description": "Weather API token"
+        }
+      ],
+      "rest": {
+        "enabled": true,
+        "method": "POST",
+        "path": "/v1/weather/current",
+        "tags": ["weather"]
+      },
+      "cli": {
+        "enabled": true,
+        "command": "weather-current"
+      }
+    }
+  ],
+  "capabilities": {
+    "network": {
+      "enabled": true,
+      "allowed_hosts": ["api.weather.example"]
+    }
+  }
+}

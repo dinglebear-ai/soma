@@ -32,10 +32,14 @@ mod testing {
             api_key: "test".into(),
         })
         .expect("stub client should always build");
+        let service = ExampleService::new(client);
+        let provider_registry =
+            rtemplate_service::static_provider_registry(service.clone()).expect("static registry");
         AppState {
             config: McpConfig::default(),
             auth_policy: AuthPolicy::LoopbackDev,
-            service: ExampleService::new(client),
+            service,
+            provider_registry,
             response_pages: Default::default(),
         }
     }

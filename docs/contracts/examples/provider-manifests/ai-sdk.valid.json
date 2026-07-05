@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "ai-sdk-tools",
+    "kind": "ai-sdk",
+    "title": "AI SDK Tools"
+  },
+  "tools": [
+    {
+      "name": "summarize",
+      "description": "Summarize short input text through an isolated sidecar.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 }
+        }
+      },
+      "env": [
+        {
+          "name": "OPENAI_API_KEY",
+          "description": "OpenAI API key for the sidecar"
+        }
+      ],
+      "cli": {
+        "enabled": true,
+        "command": "summarize"
+      },
+      "palette": {
+        "enabled": true,
+        "category": "AI"
+      }
+    }
+  ]
+}

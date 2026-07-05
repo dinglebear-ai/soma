@@ -46,8 +46,10 @@ use walkdir::WalkDir;
 mod cargo_generate;
 mod cargo_generate_post;
 mod ci_paths;
+mod generated_surfaces;
 mod no_mcp;
 mod patterns;
+mod provider_manifest;
 mod release_versions;
 mod rmcp_release_monitor;
 mod scaffold;
@@ -100,6 +102,9 @@ fn main() -> Result<()> {
         Some("check-dependency-updates") => scripts_lane_c::check_dependency_updates(&args[1..]),
         Some("check-file-size") => scripts::check_file_size(),
         Some("check-openapi") => scripts_lane_d::check_openapi(&args[1..]),
+        Some("check-openapi-drift") => scripts_lane_d::check_openapi(&args[1..]),
+        Some("check-palette-manifest") => generated_surfaces::check_palette_manifest(&args[1..]),
+        Some("check-provider-manifest-contract") => provider_manifest::check(),
         Some("check-plugin-hook-contract") => {
             scripts_lane_c::check_plugin_hook_contract(&args[1..])
         }
@@ -251,30 +256,37 @@ fn cargo_generate(args: &[String]) -> Result<()> {
 /// the static contract surfaces that every derived server should keep current.
 fn contract_audit() -> Result<()> {
     println!("==> contract-audit: local static/spec checks only");
-    println!("==> [1/8] cargo xtask patterns");
+    println!("==> [1/10] cargo xtask patterns");
     patterns::run(patterns::PatternOptions::default()).context("patterns contract check failed")?;
 
-    println!("==> [2/8] cargo xtask check-test-siblings");
+    println!("==> [2/10] cargo xtask check-test-siblings");
     check_test_siblings().context("test sibling check failed")?;
 
-    println!("==> [3/8] cargo xtask check-docs");
+    println!("==> [3/10] cargo xtask check-docs");
     check_docs().context("generated docs check failed")?;
 
-    println!("==> [4/8] cargo xtask check-stale-claims");
+    println!("==> [4/10] cargo xtask check-stale-claims");
     check_stale_claims().context("stale claim check failed")?;
 
-    println!("==> [5/8] cargo xtask check-schema-docs --check");
+    println!("==> [5/10] cargo xtask check-schema-docs --check");
     scripts_lane_d::check_schema_docs(&["--check".to_owned()])
         .context("schema docs check failed")?;
 
-    println!("==> [6/8] cargo xtask check-openapi --check");
+    println!("==> [6/10] cargo xtask check-openapi --check");
     scripts_lane_d::check_openapi(&["--check".to_owned()]).context("OpenAPI docs check failed")?;
 
-    println!("==> [7/8] cargo xtask check-scaffold-intent-contract");
+    println!("==> [7/10] cargo xtask check-provider-manifest-contract");
+    provider_manifest::check().context("provider manifest contract check failed")?;
+
+    println!("==> [8/10] cargo xtask check-palette-manifest --check");
+    generated_surfaces::check_palette_manifest(&["--check".to_owned()])
+        .context("Palette manifest check failed")?;
+
+    println!("==> [9/10] cargo xtask check-scaffold-intent-contract");
     scripts_lane_d::check_scaffold_intent_contract()
         .context("scaffold intent contract check failed")?;
 
-    println!("==> [8/8] cargo xtask test-template-features");
+    println!("==> [10/10] cargo xtask test-template-features");
     scripts_lane_b::test_template_features(std::path::Path::new("."))
         .context("template feature smoke failed")?;
 
@@ -340,13 +352,13 @@ fn dist() -> Result<()> {
 ///
 /// TEMPLATE: Add or remove steps to match your CI pipeline.
 fn ci() -> Result<()> {
-    println!("==> [1/9] cargo fmt --check");
+    println!("==> [1/12] cargo fmt --check");
     run_cargo(&["fmt", "--all", "--", "--check"]).context("fmt failed — run `cargo fmt` to fix")?;
 
-    println!("==> [2/9] cargo clippy");
+    println!("==> [2/12] cargo clippy");
     run_cargo(&["clippy", "--all-targets", "--", "-D", "warnings"]).context("clippy failed")?;
 
-    println!("==> [3/9] cargo nextest run --profile ci");
+    println!("==> [3/12] cargo nextest run --profile ci");
     // Falls back to cargo test if nextest isn't installed.
     // TEMPLATE: Remove the fallback once nextest is in your CI environment.
     if command_exists("cargo-nextest") {
@@ -356,7 +368,7 @@ fn ci() -> Result<()> {
         run_cargo(&["test"]).context("cargo test failed")?;
     }
 
-    println!("==> [4/9] taplo check");
+    println!("==> [4/12] taplo check");
     // TEMPLATE: Remove this step if you don't use taplo.
     if command_exists("taplo") {
         run_cmd("taplo", &["check"]).context("taplo check failed — run `taplo format` to fix")?;
@@ -364,23 +376,30 @@ fn ci() -> Result<()> {
         eprintln!("  (taplo not installed — skipping TOML format check)");
     }
 
-    println!("==> [5/9] cargo xtask patterns");
+    println!("==> [5/12] cargo xtask patterns");
     patterns::run(patterns::PatternOptions::default())
         .context("PATTERNS.md contract check failed")?;
 
-    println!("==> [6/9] cargo xtask check-test-siblings");
+    println!("==> [6/12] cargo xtask check-test-siblings");
     check_test_siblings().context("test sibling check failed")?;
 
-    println!("==> [7/9] cargo xtask check-docs");
+    println!("==> [7/12] cargo xtask check-docs");
     check_docs().context("generated docs check failed")?;
 
-    println!("==> [8/10] cargo xtask check-stale-claims");
+    println!("==> [8/12] cargo xtask check-stale-claims");
     check_stale_claims().context("stale claim check failed")?;
 
-    println!("==> [9/10] cargo xtask check-web-source-sync");
+    println!("==> [9/12] cargo xtask check-provider-manifest-contract");
+    provider_manifest::check().context("provider manifest contract check failed")?;
+
+    println!("==> [10/12] cargo xtask check-palette-manifest --check");
+    generated_surfaces::check_palette_manifest(&["--check".to_owned()])
+        .context("Palette manifest check failed")?;
+
+    println!("==> [11/12] cargo xtask check-web-source-sync");
     web_source::check().context("web source bundle drifted from apps/web")?;
 
-    println!("==> [10/10] cargo audit");
+    println!("==> [12/12] cargo audit");
     // TEMPLATE: Remove if you don't want advisory audits in local CI.
     if command_exists("cargo-audit") {
         run_cargo(&["audit"]).context("cargo audit found vulnerabilities")?;

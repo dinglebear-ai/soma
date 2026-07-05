@@ -106,7 +106,7 @@ src/
   │
   ├── config.rs               ← Config structs + env overrides (single file is fine)
   │
-  ├── api.rs                  ← REST API handlers: v1_action_post, health, status
+  ├── api.rs                  ← REST API handlers: direct /v1/* routes, health, status
   │   or api/                 ← split into a directory when ≥ 2 resource groups
   │       things.rs           ← GET/POST/PUT/DELETE /things → service calls
   │       users.rs
@@ -1065,8 +1065,8 @@ Use this when creating a new server from rmcp-template:
 - [ ] Replace every occurrence of `example`/`Example`/`EXAMPLE` with your service name
 - [ ] Implement API client in `crates/rtemplate-service/src/example.rs` (transport only)
 - [ ] Add service methods to `crates/rtemplate-service/src/app.rs` (all logic here)
-- [ ] Add tool actions to `crates/rtemplate-service/src/actions.rs`
-- [ ] Regenerate MCP schema docs and OpenAPI after changing the service registry
+- [ ] Add tool actions to `crates/rtemplate-contracts/src/actions.rs`, `crates/rtemplate-mcp/src/tools.rs`, and `crates/rtemplate-mcp/src/schemas.rs`
+- [ ] Add CLI commands to `crates/rtemplate-cli/src/lib.rs`
 - [ ] Update `crates/rtemplate-contracts/src/config.rs` with service-specific config fields
 - [ ] Set correct port in `config.toml` and `docker-compose.yml`
 - [ ] Update `EXPOSE` in `config/Dockerfile`
@@ -1551,8 +1551,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Replace `example`/`EXAMPLE` with your service name throughout
 - [ ] Implement API client in `crates/rtemplate-service/src/example.rs` (transport only)
 - [ ] Add service methods to `crates/rtemplate-service/src/app.rs` (ALL logic here)
-- [ ] Add actions to `crates/rtemplate-service/src/actions.rs` and keep MCP/CLI/REST shims registry-driven
-- [ ] Regenerate schema docs and OpenAPI after changing the service registry
+- [ ] Add actions to `crates/rtemplate-contracts/src/actions.rs`, `crates/rtemplate-mcp/src/tools.rs`, and `crates/rtemplate-mcp/src/schemas.rs` (thin shim ONLY)
+- [ ] Add CLI commands to `crates/rtemplate-cli/src/lib.rs` (thin shim ONLY)
 - [ ] Update `crates/rtemplate-contracts/src/config.rs` with service-specific fields
 - [ ] Add elicitation to destructive actions (or confirm flag fallback)
 - [ ] Set port in `config.toml` + `docker-compose.yml` + Dockerfile
@@ -1752,7 +1752,7 @@ Maintain a parity table in `CLAUDE.md`:
 
 ### Common parity gaps to check
 
-- `help` action in MCP → `example help` in CLI; `example --help` remains generic CLI usage
+- `help` action in MCP → `example --help` or `example help` in CLI
 - Resource listing in MCP → no CLI equivalent needed (resources are MCP-only)
 - Prompts in MCP → no CLI equivalent needed (prompts are MCP-only)
 - `health` action in MCP → `example health` in CLI
@@ -1765,7 +1765,7 @@ Maintain a parity table in `CLAUDE.md`:
 | `service.greet(name)` | `example(action="greet", name="...")` | `example greet [--name N]` |
 | `service.echo(message)` | `example(action="echo", message="...")` | `example echo <message>` |
 | `service.status()` | `example(action="status")` | `example status` |
-| `service.help()` | `example(action="help")` | `example help` |
+| `service.help()` | `example(action="help")` | `example --help` |
 
 ---
 
@@ -2982,10 +2982,8 @@ Port 40060
   ├── /health                → Unauthenticated liveness probe
   ├── /status                → Public redacted runtime state
   ├── /openapi.json          → Public generated REST OpenAPI schema
-  ├── /v1/greet              → Direct REST action route
-  │     POST {"name":"Alice"}
-  ├── /v1/echo               → Direct REST action route
-  │     POST {"message":"Hello"}
+  ├── /v1/<service>          → REST API action dispatch
+  │     POST {"action":"greet","params":{"name":"Alice"}}
   ├── /.well-known/*         → OAuth metadata (when auth_mode=oauth)
   ├── /authorize, /token     → OAuth flow endpoints
   └── /*                     → SPA fallback (serves embedded web UI)
@@ -3011,9 +3009,10 @@ pub fn router(state: AppState) -> Router {
     // 2. REST API — direct routes over the same service methods as MCP tools
     let api = Router::new()
         .route("/v1/capabilities", get(v1_capabilities))
+        .route("/v1/greet", post(v1_greet))
+        .route("/v1/echo", post(v1_echo))
         .route("/v1/status", get(v1_service_status))
         .route("/v1/help", get(v1_help))
-        .route("/v1/{action}", post(v1_action_post))
         .route_layer(auth_layer.clone());
 
     // 3. MCP transport
@@ -3052,30 +3051,50 @@ pub fn router(state: AppState) -> Router {
 
 ---
 
-## A2. REST API — Direct Routes Over the Service Registry
+## A2. REST API — Direct Routes Share Service Dispatch
 
-REST uses direct action routes such as `POST /v1/greet` and `POST /v1/echo`.
-MCP keeps the compact single-tool `action` argument; REST intentionally does
-not expose an action envelope.
-
-This means:
-- **One service registry** defines action metadata, validation, scopes, and dispatch.
-- REST gets product-shaped request bodies.
-- MCP gets the single-tool action-dispatch shape.
-- CLI gets natural action subcommands.
+REST uses traditional typed routes while MCP keeps the compact `action` argument
+inside a single tool. Both surfaces still converge on the same `ExampleAction`
+and service dispatcher:
+- **One service method** serves MCP, REST, and CLI — no duplicated business logic
+- REST stays natural for humans, HTTP clients, OpenAPI, and generated SDKs
+- MCP stays compact for agents by exposing one action-dispatched tool
 
 ```rust
 // src/api.rs
-async fn v1_action_post(
+async fn v1_echo(
     State(state): State<AppState>,
     auth: Option<Extension<AuthContext>>,
-    Path(action): Path<String>,
-    Json(params): Json<Value>,
-) -> axum::response::Response {
-    let Some(spec) = rtemplate_service::action_registry().rest_post(&action) else {
-        return (StatusCode::NOT_FOUND, Json(json!({"error": "not_found"}))).into_response();
+    Json(body): Json<EchoRequest>,
+) -> impl IntoResponse {
+    let params = serde_json::json!({ "message": body.message });
+    let result = match ExampleAction::from_rest("echo", &params) {
+        Ok(action) => {
+            if let Some(response) = enforce_rest_scope(
+                &state,
+                auth.as_ref().map(|Extension(auth)| auth),
+                action.name(),
+            ) {
+                return response;
+            }
+            dispatch_action(&state.service, &action, "rest").await
+        }
+        Err(error) => Err(error),
     };
-    run_rest_action_request(state, auth.as_ref().map(|Extension(auth)| auth), spec.name, params).await
+
+    match result {
+        Ok(value) => match cap_rest_response(value) {
+            Ok(value) => Json(value).into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ).into_response(),
+        },
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": e.to_string()})),
+        ).into_response(),
+    }
 }
 ```
 
@@ -3289,10 +3308,10 @@ apps/web/
   components/
     ui/                 ← Aurora components (installed via shadcn CLI)
     server-status.tsx   ← Polls /health every 30s
-    tool-runner.tsx     ← Form to call direct /v1/{action} routes
+    tool-runner.tsx     ← Form to call /v1/<service> actions
     log-viewer.tsx      ← Tails /v1/logs (if log API available)
   lib/
-    api.ts              ← Typed client for direct /v1/{action} REST routes
+    api.ts              ← Typed client for /v1/<service> REST API
   next.config.ts        ← output: "export", trailingSlash: true
 ```
 

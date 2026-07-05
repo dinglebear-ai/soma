@@ -14,9 +14,14 @@
 //! ```
 
 use anyhow::{anyhow, Result};
-use rtemplate_contracts::{actions::ActionSpec, config::ExampleConfig};
-use rtemplate_service::{classify_service_error, dispatch_action, ExampleClient, ExampleService};
-use serde_json::{Map, Value};
+use rtemplate_contracts::{
+    actions::{ActionSpec, ExampleAction},
+    config::ExampleConfig,
+};
+use rtemplate_service::{
+    static_provider_registry, ExampleClient, ExampleService, ProviderAuthMode, ProviderCall,
+    ProviderPrincipal, ProviderRequestLimits, ProviderSurface,
+};
 use std::io::{BufRead, IsTerminal, Write};
 
 // TEMPLATE: The doctor module is the §48 reference implementation.
@@ -59,11 +64,14 @@ pub fn usage() -> &'static str {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
-    Action {
-        name: String,
-        params: Value,
-        yes: bool,
+    Greet {
+        name: Option<String>,
     },
+    Echo {
+        message: String,
+    },
+    Status,
+    Help,
     /// Pre-flight environment validation (§48).
     ///
     /// TEMPLATE: Always keep this command. It is the operator's first stop
@@ -81,6 +89,10 @@ pub enum Command {
         url: Option<String>,
         /// Poll interval in seconds (default: 10).
         interval: u64,
+    },
+    Provider {
+        command: String,
+        json: serde_json::Value,
     },
     Setup(SetupCommand),
 }
@@ -110,6 +122,24 @@ where
     let command = match args.as_slice() {
         [] => None,
         [subcommand, rest @ ..] => match subcommand.as_str() {
+            "greet" => {
+                let name = parse_optional_value_flag(rest, "greet", "--name")?;
+                Some(Command::Greet { name })
+            }
+            "echo" => {
+                let message = parse_required_value_flag(rest, "echo", "--message")?
+                    .filter(|m| !m.is_empty())
+                    .ok_or_else(|| anyhow!("echo requires non-empty --message"))?;
+                Some(Command::Echo { message })
+            }
+            "status" => {
+                reject_args(rest, "status")?;
+                Some(Command::Status)
+            }
+            "help" => {
+                reject_args(rest, "help")?;
+                Some(Command::Help)
+            }
             // §48: doctor is always parsed here, dispatched via run_cli in main.rs.
             // TEMPLATE: Keep this arm. It routes to doctor::run_doctor() which needs
             //           the full Config (not just ExampleConfig), so main.rs handles it.
@@ -151,7 +181,7 @@ where
                 }
                 _ => None,
             },
-            _ => parse_dynamic_action_command(subcommand, rest)?,
+            other => Some(parse_provider_command(other, rest)?),
         },
     };
     Ok(command)
@@ -166,22 +196,58 @@ where
 pub async fn run(cmd: Command, cfg: &ExampleConfig) -> Result<()> {
     let client = ExampleClient::new(cfg)?;
     let service = ExampleService::new(client);
-    confirm_command_if_destructive(&cmd)?;
+    let registry = static_provider_registry(service.clone())?;
+    let destructive_confirmed = confirm_command_if_destructive(&cmd, &registry)?;
 
-    let result = match &cmd {
-        Command::Action { name, params, .. } => {
-            match dispatch_action(&service, name, params, "cli").await {
-                Ok(value) => value,
+    let result = match service_action_from_command(&cmd) {
+        Some(action) => match registry
+            .dispatch(ProviderCall {
+                provider: String::new(),
+                action: action.name().to_owned(),
+                params: cli_params(&action),
+                principal: ProviderPrincipal::loopback_dev(),
+                auth_mode: ProviderAuthMode::LoopbackDev,
+                surface: ProviderSurface::Cli,
+                destructive_confirmed,
+                limits: ProviderRequestLimits::default(),
+                snapshot_id: String::new(),
+            })
+            .await
+        {
+            Ok(output) => output.value,
+            Err(error) => {
+                eprintln!("{}", serde_json::to_string_pretty(&error)?);
+                return Err(anyhow!(error.message));
+            }
+        },
+        None if matches!(cmd, Command::Provider { .. }) => {
+            let Command::Provider { command, json } = &cmd else {
+                unreachable!()
+            };
+            match registry
+                .dispatch(ProviderCall {
+                    provider: String::new(),
+                    action: command.clone(),
+                    params: json.clone(),
+                    principal: ProviderPrincipal::loopback_dev(),
+                    auth_mode: ProviderAuthMode::LoopbackDev,
+                    surface: ProviderSurface::Cli,
+                    destructive_confirmed,
+                    limits: ProviderRequestLimits::default(),
+                    snapshot_id: String::new(),
+                })
+                .await
+            {
+                Ok(output) => output.value,
                 Err(error) => {
-                    let tool_error = classify_service_error(&error);
-                    eprintln!("{}", format_cli_tool_error(&tool_error));
-                    return Err(anyhow!(tool_error.message));
+                    eprintln!("{}", serde_json::to_string_pretty(&error)?);
+                    return Err(anyhow!(error.message));
                 }
             }
         }
         // Doctor, Watch, and Setup are never dispatched via this function — main.rs
         // handles them directly because they need config.mcp fields.
-        Command::Doctor { .. } | Command::Watch { .. } | Command::Setup(_) => {
+        None => {
             unreachable!("dispatched directly in main.rs::run_cli")
         }
     };
@@ -190,6 +256,7 @@ pub async fn run(cmd: Command, cfg: &ExampleConfig) -> Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
 fn format_cli_tool_error(error: &rtemplate_contracts::errors::ToolError) -> String {
     let mut lines = vec![
         format!("error: {}", error.message),
@@ -207,15 +274,89 @@ fn format_cli_tool_error(error: &rtemplate_contracts::errors::ToolError) -> Stri
     lines.join("\n")
 }
 
-fn confirm_command_if_destructive(cmd: &Command) -> Result<()> {
-    let Command::Action { name, yes, .. } = cmd else {
-        return Ok(());
+fn confirm_command_if_destructive(
+    cmd: &Command,
+    registry: &rtemplate_service::ProviderRegistry,
+) -> Result<bool> {
+    let Some(action) = command_action_name(cmd) else {
+        return Ok(false);
     };
-    confirm_destructive_action_allowed(
-        rtemplate_service::action_specs(),
-        name,
-        *yes,
-        std::io::stdin().is_terminal(),
+    if !registry.snapshot().action_requires_confirmation(&action) {
+        return Ok(false);
+    }
+    if !std::io::stdin().is_terminal() {
+        return Err(anyhow!(
+            "pass -y / --yes to confirm destructive action `{action}`"
+        ));
+    }
+    confirm_destructive_action_from_io(
+        &action,
+        &mut std::io::stdin().lock(),
+        &mut std::io::stderr(),
+    )?;
+    Ok(true)
+}
+
+fn command_action_name(cmd: &Command) -> Option<String> {
+    match cmd {
+        Command::Provider { command, .. } => Some(command.clone()),
+        _ => service_action_from_command(cmd).map(|action| action.name().to_owned()),
+    }
+}
+
+fn service_action_from_command(cmd: &Command) -> Option<ExampleAction> {
+    match cmd {
+        Command::Greet { name } => Some(ExampleAction::Greet { name: name.clone() }),
+        Command::Echo { message } => Some(ExampleAction::Echo {
+            message: message.clone(),
+        }),
+        Command::Status => Some(ExampleAction::Status),
+        Command::Help => Some(ExampleAction::Help),
+        Command::Doctor { .. }
+        | Command::Watch { .. }
+        | Command::Provider { .. }
+        | Command::Setup(_) => None,
+    }
+}
+
+fn cli_params(action: &ExampleAction) -> serde_json::Value {
+    match action {
+        ExampleAction::Greet { name } => match name {
+            Some(name) => serde_json::json!({ "name": name }),
+            None => serde_json::json!({}),
+        },
+        ExampleAction::Echo { message } => serde_json::json!({ "message": message }),
+        ExampleAction::Status
+        | ExampleAction::Help
+        | ExampleAction::ElicitName
+        | ExampleAction::ScaffoldIntent => serde_json::json!({}),
+    }
+}
+
+fn parse_provider_command(command: &str, args: &[String]) -> Result<Command> {
+    if reserved_cli_command(command) {
+        return Err(anyhow!("`{command}` is a reserved infrastructure command"));
+    }
+    match args {
+        [flag, payload] if flag == "--json" => Ok(Command::Provider {
+            command: command.to_owned(),
+            json: serde_json::from_str(payload)
+                .map_err(|error| anyhow!("{command} --json must be valid JSON: {error}"))?,
+        }),
+        [] => Ok(Command::Provider {
+            command: command.to_owned(),
+            json: serde_json::json!({}),
+        }),
+        [unexpected, ..] => Err(anyhow!(
+            "{command} requires --json for dynamic provider inputs; unexpected `{unexpected}`"
+        )),
+    }
+}
+
+fn reserved_cli_command(command: &str) -> bool {
+    matches!(
+        command,
+        "serve" | "mcp" | "doctor" | "watch" | "setup" | "tools" | "providers" | "openapi" | "help"
     )
 }
 
@@ -289,58 +430,37 @@ fn parse_bool_flag(args: &[String], command: &str, flag: &str) -> Result<bool> {
     Ok(found)
 }
 
-fn parse_dynamic_action_command(action: &str, rest: &[String]) -> Result<Option<Command>> {
-    let Some(spec) = rtemplate_service::action_registry().cli_command(action) else {
-        return Ok(None);
-    };
-    let Some(cli) = spec.cli else {
-        return Ok(None);
-    };
-    let mut params = Map::new();
-    let mut yes = false;
-    let mut index = 0;
-    while index < rest.len() {
-        let flag = rest[index].as_str();
-        if flag == "--yes" || flag == "-y" {
-            if yes {
-                return Err(anyhow!("duplicate flag {flag} for action {action}"));
+fn parse_optional_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
+    match args {
+        [] => Ok(None),
+        [found_flag, value] if found_flag == flag => {
+            if value.starts_with("--") {
+                Err(anyhow!("{command} requires a value after {flag}"))
+            } else {
+                Ok(Some(value.clone()))
             }
-            yes = true;
-            index += 1;
-            continue;
         }
-        let Some(flag_spec) = cli.flags.iter().find(|candidate| candidate.name == flag) else {
-            return Err(anyhow!("unknown flag {flag} for action {action}"));
-        };
-        let key = flag.trim_start_matches("--");
-        if params.contains_key(key) {
-            return Err(anyhow!("duplicate flag {flag} for action {action}"));
+        [found_flag] if found_flag == flag => {
+            Err(anyhow!("{command} requires a value after {flag}"))
         }
-        let Some(value) = rest.get(index + 1) else {
-            return Err(anyhow!(
-                "{action} {flag} requires {}",
-                flag_spec.value_name.unwrap_or("VALUE")
-            ));
-        };
-        if value.starts_with('-') {
-            return Err(anyhow!("{action} {flag} value looks like a flag: {value}"));
+        [found_flag, value, rest @ ..] if found_flag == flag => {
+            if value.starts_with("--") {
+                Err(anyhow!("{command} requires a value after {flag}"))
+            } else if rest.iter().any(|arg| arg == flag) {
+                Err(anyhow!("{command} received duplicate {flag}"))
+            } else {
+                Err(anyhow!("{command} does not accept argument `{}`", rest[0]))
+            }
         }
-        params.insert(key.to_owned(), Value::String(value.clone()));
-        index += 2;
+        [unexpected, ..] => Err(anyhow!("{command} does not accept argument `{unexpected}`")),
     }
-    for flag in cli.flags.iter().filter(|flag| flag.required) {
-        let key = flag.name.trim_start_matches("--");
-        if !params.contains_key(key) {
-            return Err(anyhow!("missing required flag {}", flag.name));
-        }
+}
+
+fn parse_required_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
+    match parse_optional_value_flag(args, command, flag)? {
+        Some(value) => Ok(Some(value)),
+        None => Ok(None),
     }
-    let params = Value::Object(params);
-    rtemplate_service::validate_params(spec, &params)?;
-    Ok(Some(Command::Action {
-        name: spec.name.to_owned(),
-        params,
-        yes,
-    }))
 }
 
 fn parse_watch_flags(args: &[String]) -> Result<(Option<String>, Option<String>)> {

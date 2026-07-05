@@ -43,19 +43,21 @@ Preferred REST routes use ordinary product-shaped request bodies:
 }
 ```
 
-`GET` routes such as `/v1/status` and `/v1/help` do not require a body. REST does not expose an action envelope; `/v1/example` is intentionally absent.
+`GET` routes such as `/v1/status` and `/v1/help` do not require a body. REST does not expose an action-envelope route; action dispatch is reserved for the single MCP tool surface.
 
 ## REST handler
 
 ```rust
 // src/api.rs
-async fn v1_action_post(
+async fn v1_echo(
     State(state): State<AppState>,
     auth: Option<Extension<AuthContext>>,
-    Path(action): Path<String>,
-    Json(params): Json<Value>,
+    Json(body): Json<Value>,
 ) -> axum::response::Response {
-    run_rest_action_request(state, auth.as_ref().map(|Extension(auth)| auth), &action, params).await
+    match ExampleAction::from_rest("echo", &body) {
+        Ok(action) => run_rest_action(state, auth.as_ref().map(|Extension(auth)| auth), action).await,
+        Err(error) => rest_error_response(error, "echo"),
+    }
 }
 ```
 
@@ -79,7 +81,7 @@ All three call `state.service.greet(Some("Alice"))`.
 {"echo":"hello"}
 ```
 
-Responses are JSON values produced by `ExampleService` via `crates/rtemplate-service/src/actions.rs`.
+Responses are JSON values produced by `ExampleService` via `crates/rtemplate-contracts/src/actions.rs`.
 If a REST result exceeds the response cap, the route returns a valid JSON
 truncation envelope instead of raw truncated JSON.
 

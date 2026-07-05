@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "dupe-provider",
+    "kind": "static-rust"
+  },
+  "tools": [
+    {
+      "name": "dupe",
+      "description": "First duplicate.",
+      "input_schema": { "type": "object" }
+    },
+    {
+      "name": "dupe",
+      "description": "Second duplicate.",
+      "input_schema": { "type": "object" }
+    }
+  ]
+}

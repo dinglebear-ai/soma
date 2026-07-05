@@ -7,7 +7,7 @@
 
 [package]
 name = "rmcp-template"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2021"
 rust-version = "1.96"
 description = "Template for building MCP servers with the rmcp crate"
@@ -67,6 +67,7 @@ full = ["local-adapter", "server", "web", "oauth", "observability", "plugin"]
 test-support = ["rtemplate-mcp?/test-support"]
 
 [dev-dependencies]
+async-trait = "0.1"
 rmcp-template = { path = ".", features = ["test-support"] }
 rtemplate-contracts = { path = "../rtemplate-contracts" }
 rtemplate-service = { path = "../rtemplate-service" }

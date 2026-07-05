@@ -6,14 +6,20 @@
 //! **Template**: rename `example` to your tool name. Add/remove actions and
 //! parameters to match your service. Use `"required": [...]` for mandatory args.
 
+#[cfg(test)]
 use std::sync::OnceLock;
 
 use serde_json::{json, Map, Value};
 
-use rtemplate_contracts::actions::ActionTransport;
+use rtemplate_contracts::providers::{ProviderCatalog, ProviderTool};
+#[cfg(test)]
+use rtemplate_service::StaticRustProvider;
 
 /// Cached JSON schema definitions (static data, built once at first call).
+#[cfg(test)]
 static TOOL_DEFINITIONS: OnceLock<Vec<Value>> = OnceLock::new();
+#[cfg(test)]
+static STATIC_CATALOG: OnceLock<ProviderCatalog> = OnceLock::new();
 
 /// Return the JSON schema definitions for all tools (cached after first call).
 ///
@@ -21,14 +27,20 @@ static TOOL_DEFINITIONS: OnceLock<Vec<Value>> = OnceLock::new();
 /// the MCP `Tool` schema: `{ name, description, inputSchema }`.
 ///
 /// This is also used by the schema resource (`example://schema/mcp-tool`).
+#[cfg(test)]
 pub(super) fn tool_definitions() -> &'static Vec<Value> {
     TOOL_DEFINITIONS.get_or_init(build_tool_definitions)
 }
 
+#[cfg(test)]
 fn build_tool_definitions() -> Vec<Value> {
-    let properties = build_input_properties();
-    let mut all_of = required_param_conditionals();
-    let mcp_only = mcp_only_action_names();
+    tool_definitions_for_catalogs(std::slice::from_ref(static_catalog()))
+}
+
+pub(super) fn tool_definitions_for_catalogs(catalogs: &[ProviderCatalog]) -> Vec<Value> {
+    let properties = build_input_properties(catalogs);
+    let mut all_of = required_param_conditionals(catalogs);
+    let mcp_only = mcp_only_action_names(catalogs);
     if !mcp_only.is_empty() {
         all_of.push(json!({
             "if": {
@@ -46,7 +58,7 @@ fn build_tool_definitions() -> Vec<Value> {
     vec![json!({
         "name": "example",
         "description": "Example MCP tool demonstrating the action-based dispatch pattern. Use action=help for full documentation.",
-        "x-template-action-metadata": action_metadata(),
+        "x-template-action-metadata": action_metadata(catalogs),
         "x-template-agent-guidance": {
             "cost_order": ["cheap", "moderate", "expensive", "write"],
             "first_pass": ["status", "help"],
@@ -66,37 +78,44 @@ fn build_tool_definitions() -> Vec<Value> {
     })]
 }
 
-fn action_metadata() -> Vec<Value> {
-    rtemplate_service::action_specs()
+fn action_metadata(catalogs: &[ProviderCatalog]) -> Vec<Value> {
+    catalogs
         .iter()
-        .map(|spec| {
+        .flat_map(|catalog| catalog.tools.iter())
+        .map(|tool| {
             json!({
-                "name": spec.name,
-                "cost": spec.cost.as_str(),
-                "description": spec.description,
-                "destructive": spec.destructive,
-                "requires_admin": spec.requires_admin,
+                "name": tool.name,
+                "cost": tool.cost.as_deref().unwrap_or("cheap"),
+                "description": tool.description,
+                "destructive": tool.destructive,
+                "requires_admin": tool.requires_admin,
             })
         })
         .collect()
 }
 
-fn build_input_properties() -> Map<String, Value> {
+fn build_input_properties(catalogs: &[ProviderCatalog]) -> Map<String, Value> {
     let mut properties = Map::new();
     properties.insert(
         "action".to_owned(),
         json!({
             "type": "string",
             "description": "The operation to perform.",
-            "enum": rtemplate_service::action_specs().iter().map(|spec| spec.name).collect::<Vec<_>>()
+            "enum": action_names(catalogs)
         }),
     );
 
-    for spec in rtemplate_service::action_specs() {
-        for param in spec.params {
-            properties
-                .entry(param.name.to_owned())
-                .or_insert_with(|| param_schema(param));
+    for tool in catalogs.iter().flat_map(|catalog| catalog.tools.iter()) {
+        if let Some(params) = tool
+            .input_schema
+            .get("properties")
+            .and_then(Value::as_object)
+        {
+            for (name, schema) in params {
+                properties
+                    .entry(name.to_owned())
+                    .or_insert_with(|| schema.clone());
+            }
         }
     }
 
@@ -127,38 +146,29 @@ fn build_input_properties() -> Map<String, Value> {
     properties
 }
 
-fn param_schema(param: &rtemplate_contracts::actions::ParamSpec) -> Value {
-    let json_type = param.ty.json_schema_type();
-    let mut schema = json!({
-        "type": json_type,
-        "description": param.description,
-    });
-    if param.required && json_type == "string" {
-        schema["minLength"] = json!(1);
-    }
-    if let Some(max_len) = param.max_len {
-        schema["maxLength"] = json!(max_len);
-    }
-    if !param.enum_values.is_empty() {
-        schema["enum"] = json!(param.enum_values);
-    }
-    schema
+fn action_names(catalogs: &[ProviderCatalog]) -> Vec<&str> {
+    catalogs
+        .iter()
+        .flat_map(|catalog| catalog.tools.iter())
+        .map(|tool| tool.name.as_str())
+        .collect()
 }
 
-fn required_param_conditionals() -> Vec<Value> {
-    rtemplate_service::action_specs()
+fn required_param_conditionals(catalogs: &[ProviderCatalog]) -> Vec<Value> {
+    catalogs
         .iter()
-        .filter_map(|spec| {
-            let required = spec
-                .params
-                .iter()
-                .filter(|param| param.required)
-                .map(|param| Value::String(param.name.to_owned()))
-                .collect::<Vec<_>>();
+        .flat_map(|catalog| catalog.tools.iter())
+        .filter_map(|tool| {
+            let required = tool
+                .input_schema
+                .get("required")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
             (!required.is_empty()).then(|| {
                 json!({
                     "if": {
-                        "properties": { "action": { "const": spec.name } },
+                        "properties": { "action": { "const": tool.name } },
                         "required": ["action"]
                     },
                     "then": { "required": required }
@@ -168,12 +178,24 @@ fn required_param_conditionals() -> Vec<Value> {
         .collect()
 }
 
-fn mcp_only_action_names() -> Vec<&'static str> {
-    rtemplate_service::action_specs()
+fn mcp_only_action_names(catalogs: &[ProviderCatalog]) -> Vec<&str> {
+    catalogs
         .iter()
-        .filter(|spec| spec.transport == ActionTransport::McpOnly)
-        .map(|spec| spec.name)
+        .flat_map(|catalog| catalog.tools.iter())
+        .filter(|tool| is_mcp_only(tool))
+        .map(|tool| tool.name.as_str())
         .collect()
+}
+
+fn is_mcp_only(tool: &ProviderTool) -> bool {
+    tool.mcp.as_ref().map(|mcp| mcp.enabled).unwrap_or(true)
+        && !tool.rest.as_ref().map(|rest| rest.enabled).unwrap_or(false)
+        && !tool.cli.as_ref().map(|cli| cli.enabled).unwrap_or(false)
+}
+
+#[cfg(test)]
+fn static_catalog() -> &'static ProviderCatalog {
+    STATIC_CATALOG.get_or_init(StaticRustProvider::catalog_static)
 }
 
 #[cfg(test)]

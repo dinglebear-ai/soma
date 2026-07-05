@@ -590,6 +590,12 @@ jobs:
       - name: Check OpenAPI docs
         run: cargo xtask check-openapi --check
 
+      - name: Check provider manifest contract
+        run: cargo xtask check-provider-manifest-contract
+
+      - name: Check Palette manifest
+        run: cargo xtask check-palette-manifest --check
+
       - name: Check scaffold intent contract
         run: cargo xtask check-scaffold-intent-contract
 

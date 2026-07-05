@@ -11,8 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.4]
+## [0.4.5]
 
+### Added
+
+- Dynamic provider runtime registry with manifest-backed MCP, REST, CLI, palette, and
+  generated OpenAPI surfaces, including provider capability enforcement and contract
+  checks for generated provider/palette metadata.
+
+## [0.4.4]
 
 ### Removed
 
@@ -21,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its single tool surface.
 
 ## [0.4.3]
-
 
 ### Added
 
@@ -75,8 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   build-fast` and `just sync-container` recipes for fast local container iteration.
 - `serial_test` dev-dependency; the env-mutating `config_tests` are now `#[serial]` so
   they cannot race under `cargo test` (nextest already isolates them per process).
-- Added a native Rust service action registry so MCP, REST, and CLI surfaces derive
-  business actions from one service-owned registry.
 
 ### Changed
 

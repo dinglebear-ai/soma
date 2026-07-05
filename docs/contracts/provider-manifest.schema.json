@@ -74,21 +74,13 @@
         "name": { "$ref": "#/$defs/name" },
         "kind": {
           "type": "string",
-          "enum": ["static-rust", "openapi", "ai-sdk", "wasm"]
+          "enum": ["static-rust", "openapi", "ai-sdk", "wasm", "mcp"]
         },
         "title": { "type": "string" },
         "description": { "type": "string" },
         "version": { "type": "string" },
         "homepage": { "type": "string", "format": "uri" },
-        "source": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "path": { "type": "string" },
-            "url": { "type": "string", "format": "uri" },
-            "fingerprint": { "type": "string" }
-          }
-        },
+        "source": { "type": "string" },
         "enabled": { "type": "boolean", "default": true }
       }
     },
@@ -228,23 +220,6 @@
           "default": "POST"
         },
         "path": { "type": "string", "pattern": "^/v1(/.*)?$" },
-        "path_params": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/parameter" },
-          "default": []
-        },
-        "query_params": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/parameter" },
-          "default": []
-        },
-        "request_body_schema": { "$ref": "#/$defs/jsonSchema" },
-        "response_schema": { "$ref": "#/$defs/jsonSchema" },
-        "status_codes": {
-          "type": "array",
-          "items": { "type": "integer", "minimum": 100, "maximum": 599 },
-          "default": [200]
-        },
         "tags": {
           "type": "array",
           "items": { "type": "string" },
@@ -252,20 +227,6 @@
         },
         "summary": { "type": "string" },
         "description": { "type": "string" },
-        "content_types": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": ["application/json"]
-        },
-        "streaming": {
-          "type": "string",
-          "enum": ["none", "sse", "ndjson", "file"],
-          "default": "none"
-        },
-        "pagination": {
-          "type": "object",
-          "additionalProperties": true
-        },
         "deprecated": { "type": "boolean", "default": false }
       }
     },
@@ -282,11 +243,6 @@
         },
         "about": { "type": "string" },
         "long_about": { "type": "string" },
-        "positional_args": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/cliPositional" },
-          "default": []
-        },
         "flags": {
           "type": "array",
           "items": { "$ref": "#/$defs/cliFlag" },
@@ -298,12 +254,7 @@
           "default": "json"
         },
         "interactive": { "type": "boolean", "default": false },
-        "hidden": { "type": "boolean", "default": false },
-        "examples": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": []
-        }
+        "hidden": { "type": "boolean", "default": false }
       }
     },
     "paletteOverlay": {

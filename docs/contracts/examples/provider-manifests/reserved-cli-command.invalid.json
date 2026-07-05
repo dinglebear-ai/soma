@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "reserved-cli",
+    "kind": "static-rust"
+  },
+  "tools": [
+    {
+      "name": "provider-doctor",
+      "description": "Attempts to shadow doctor.",
+      "input_schema": { "type": "object" },
+      "cli": { "enabled": true, "command": "doctor" }
+    }
+  ]
+}

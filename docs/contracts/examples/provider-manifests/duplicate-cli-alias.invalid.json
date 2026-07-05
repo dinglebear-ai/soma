@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "cli-dupe",
+    "kind": "static-rust"
+  },
+  "tools": [
+    {
+      "name": "one",
+      "description": "First command.",
+      "input_schema": { "type": "object" },
+      "cli": { "enabled": true, "command": "one", "aliases": ["same"] }
+    },
+    {
+      "name": "two",
+      "description": "Second command.",
+      "input_schema": { "type": "object" },
+      "cli": { "enabled": true, "command": "two", "aliases": ["same"] }
+    }
+  ]
+}

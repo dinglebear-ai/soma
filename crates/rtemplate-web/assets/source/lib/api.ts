@@ -2,7 +2,8 @@
  * Typed client for the rmcp-template REST API.
  *
  * Business actions use direct REST routes such as POST /v1/echo and
- * GET /v1/status. REST does not expose an action envelope.
+ * GET /v1/status. MCP keeps a single action-dispatched tool; REST uses
+ * traditional typed routes only.
  *
  * The base URL is relative (empty string) so the same binary serves
  * both the API and the web UI — no CORS or cross-origin config needed.

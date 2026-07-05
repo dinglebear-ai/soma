@@ -70,7 +70,7 @@ The short version:
 - `example` must provide CLI commands and `example mcp`.
 - `example-server` must provide direct `/v1/*` business routes, `/v1/capabilities`,
   `/mcp`, `/health`, `/status`, `/openapi.json`, and the optional web/static
-  surface. REST is direct-route-only and does not expose an action envelope.
+  surface.
 - The stdio adapter calls the business REST API, not the MCP protocol endpoint.
 - Shared plugin validation must assert the stdio config and run a stdio smoke
   test.

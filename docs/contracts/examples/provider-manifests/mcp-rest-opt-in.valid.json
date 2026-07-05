@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "mcp-rest-opt-in",
+    "kind": "mcp"
+  },
+  "tools": [
+    {
+      "name": "remote-tool",
+      "description": "A remote MCP tool explicitly exposed as a REST route.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "rest": {
+        "enabled": true,
+        "method": "POST",
+        "path": "/v1/remote-tool"
+      }
+    }
+  ]
+}

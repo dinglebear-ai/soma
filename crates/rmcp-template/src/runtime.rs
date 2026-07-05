@@ -83,10 +83,12 @@ pub async fn serve_http_mcp() -> Result<()> {
 pub async fn serve_stdio_mcp() -> Result<()> {
     let config = Config::load()?;
     let service = ExampleService::new(ExampleClient::new(&config.example)?);
+    let provider_registry = rtemplate_service::static_provider_registry(service.clone())?;
     let state = AppState {
         config: config.mcp,
         auth_policy: AuthPolicy::LoopbackDev,
         service,
+        provider_registry,
         response_pages: Default::default(),
     };
     let svc = mcp::rmcp_server(state).serve(stdio()).await?;
@@ -126,10 +128,12 @@ pub async fn run_cli() -> Result<()> {
 async fn build_state(config: Config) -> Result<AppState> {
     let auth_policy = build_auth_policy(&config).await?;
     let service = ExampleService::new(ExampleClient::new(&config.example)?);
+    let provider_registry = rtemplate_service::static_provider_registry(service.clone())?;
     Ok(AppState {
         config: config.mcp,
         auth_policy,
         service,
+        provider_registry,
         response_pages: Default::default(),
     })
 }

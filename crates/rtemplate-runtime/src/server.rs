@@ -15,7 +15,7 @@ use std::{
 use anyhow::Result;
 
 use rtemplate_contracts::config::{AuthMode, Config, McpConfig};
-use rtemplate_service::ExampleService;
+use rtemplate_service::{ExampleService, ProviderRegistry};
 
 /// Authentication policy attached to [`AppState`].
 ///
@@ -153,6 +153,7 @@ pub struct AppState {
     pub config: McpConfig,
     pub auth_policy: AuthPolicy,
     pub service: ExampleService,
+    pub provider_registry: ProviderRegistry,
     pub response_pages: ResponsePageStore,
 }
 

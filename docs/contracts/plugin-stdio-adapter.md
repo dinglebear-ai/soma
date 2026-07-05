@@ -91,9 +91,14 @@ Direct REST body shapes are action-specific:
 }
 ```
 
-REST is direct-route-only. Adapters call routes such as
-`POST {RTEMPLATE_API_URL}/v1/echo` or `GET {RTEMPLATE_API_URL}/v1/status`;
-there is no `/v1/example` action envelope.
+Adapters should call direct REST routes such as `GET {RTEMPLATE_API_URL}/v1/status`
+or `POST {RTEMPLATE_API_URL}/v1/echo`. REST does not expose an action envelope:
+
+```json
+{
+  "message": "hello"
+}
+```
 
 The MCP tool argument shape remains:
 

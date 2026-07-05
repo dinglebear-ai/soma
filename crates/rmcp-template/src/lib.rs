@@ -72,23 +72,31 @@ pub mod testing {
     /// `AppState` with no auth (loopback trust boundary).
     /// Use this for unit tests that don't need auth.
     pub fn loopback_state() -> AppState {
+        let service = stub_service();
+        let provider_registry =
+            rtemplate_service::static_provider_registry(service.clone()).expect("static registry");
         AppState {
             config: McpConfig::default(),
             auth_policy: AuthPolicy::LoopbackDev,
-            service: stub_service(),
+            service,
+            provider_registry,
             response_pages: Default::default(),
         }
     }
 
     /// `AppState` requiring a static bearer token.
     pub fn bearer_state(token: &str) -> AppState {
+        let service = stub_service();
+        let provider_registry =
+            rtemplate_service::static_provider_registry(service.clone()).expect("static registry");
         AppState {
             config: McpConfig {
                 api_token: Some(token.to_string()),
                 ..McpConfig::default()
             },
             auth_policy: mounted_test_policy(),
-            service: stub_service(),
+            service,
+            provider_registry,
             response_pages: Default::default(),
         }
     }
@@ -97,6 +105,9 @@ pub mod testing {
     #[cfg(feature = "auth")]
     pub async fn oauth_state(data_dir: &std::path::Path) -> AppState {
         let auth_state = build_auth_state(data_dir).await;
+        let service = stub_service();
+        let provider_registry =
+            rtemplate_service::static_provider_registry(service.clone()).expect("static registry");
         AppState {
             config: McpConfig {
                 auth: rtemplate_contracts::config::AuthConfig {
@@ -108,7 +119,8 @@ pub mod testing {
             auth_policy: AuthPolicy::Mounted {
                 auth_state: Some(Arc::new(auth_state)),
             },
-            service: stub_service(),
+            service,
+            provider_registry,
             response_pages: Default::default(),
         }
     }

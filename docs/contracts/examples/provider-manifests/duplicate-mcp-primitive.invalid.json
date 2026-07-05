@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "primitive-dupe",
+    "kind": "mcp"
+  },
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search upstream data.",
+      "input_schema": { "type": "object" }
+    }
+  ],
+  "prompts": [
+    {
+      "name": "brief",
+      "description": "Brief a topic."
+    }
+  ],
+  "resources": [
+    {
+      "name": "brief",
+      "uri_template": "example://brief/{id}",
+      "description": "Brief resource."
+    }
+  ]
+}

@@ -44,7 +44,7 @@
     },
     "schemas": {
       "ActionName": {
-        "description": "REST-capable action names from crates/rtemplate-service/src/actions.rs.",
+        "description": "REST-capable action names from crates/rtemplate-contracts/src/actions.rs.",
         "enum": [
           "greet",
           "echo",
@@ -112,7 +112,6 @@
         "properties": {
           "message": {
             "description": "Message to echo back. Must not be empty.",
-            "maxLength": 4096,
             "minLength": 1,
             "type": "string"
           }
@@ -151,7 +150,6 @@
         "properties": {
           "name": {
             "description": "Name to greet. Omit to greet the world.",
-            "maxLength": 4096,
             "type": "string"
           }
         },
@@ -314,7 +312,7 @@
   "info": {
     "description": "Generated OpenAPI schema for rmcp-template's direct REST surface. TEMPLATE: rename Example identifiers and action schemas when adapting. Auth modes: loopback/trusted-gateway deployments may have no local auth; mounted bearer mode uses RTEMPLATE_MCP_TOKEN; OAuth mode uses bearer JWTs. REST actions require their action-specific scopes when auth is mounted.",
     "title": "Example MCP REST API",
-    "version": "0.4.4"
+    "version": "0.4.5"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -636,7 +634,7 @@
       "name": "capabilities"
     },
     {
-      "description": "Preferred typed REST routes",
+      "description": "Typed REST routes",
       "name": "direct-rest"
     }
   ],
@@ -649,7 +647,7 @@
       "scaffold_intent": "moderate",
       "status": "cheap"
     },
-    "action_metadata": "crates/rtemplate-service/src/actions.rs",
+    "action_metadata": "crates/rtemplate-contracts/src/actions.rs",
     "direct_rest_routes": {
       "echo": {
         "method": "POST",
@@ -679,6 +677,6 @@
       "status",
       "help"
     ],
-    "source": "cargo xtask check-openapi"
+    "source": "scripts/check-openapi.py"
   }
 }

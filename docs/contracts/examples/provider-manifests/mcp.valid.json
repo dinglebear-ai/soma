@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "upstream-mcp",
+    "kind": "mcp",
+    "title": "Upstream MCP"
+  },
+  "tools": [
+    {
+      "name": "search-notes",
+      "description": "Search allowlisted upstream notes.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": { "type": "string" }
+        }
+      },
+      "mcp": {
+        "enabled": true
+      },
+      "palette": {
+        "enabled": true
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "name": "summarize-notes",
+      "description": "Summarize selected note results.",
+      "arguments_schema": {
+        "type": "object",
+        "properties": {
+          "topic": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
