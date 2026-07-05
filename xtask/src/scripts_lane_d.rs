@@ -12,7 +12,7 @@
 
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -41,6 +41,23 @@ struct ActionEntry {
     rest_method: Option<String>,
     rest_path: Option<String>,
     cost: String,
+    params: Vec<ParamEntry>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ParamEntry {
+    name: String,
+    ty: String,
+    required: bool,
+    description: String,
+    max_len: Option<usize>,
+    enum_values: Vec<String>,
+}
+
+impl ActionEntry {
+    fn is_rest(&self) -> bool {
+        self.transport != "McpOnly" && self.rest_method.is_some() && self.rest_path.is_some()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -338,8 +355,8 @@ fn escape_char(ch: char) -> String {
 }
 
 fn render_openapi(root: &Path) -> Result<Value> {
-    let specs = rtemplate_service::action_specs();
-    let rest_actions: Vec<_> = specs.iter().filter(|spec| spec.transport.rest()).collect();
+    let specs = action_entries(root)?;
+    let rest_actions: Vec<_> = specs.iter().filter(|spec| spec.is_rest()).collect();
     let action_names: Vec<String> = rest_actions
         .iter()
         .map(|spec| spec.name.to_owned())
@@ -366,7 +383,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
     );
 
     for action in &rest_actions {
-        let Some((fallback_request_schema, response_schema)) = rest_schemas(action.name) else {
+        let Some((fallback_request_schema, response_schema)) = rest_schemas(&action.name) else {
             continue;
         };
         let request_schema = if action.params.is_empty() {
@@ -376,16 +393,18 @@ fn render_openapi(root: &Path) -> Result<Value> {
         };
         let method = action
             .rest_method
+            .as_deref()
             .expect("rest actions are filtered to require method")
             .to_ascii_lowercase();
         let path = action
             .rest_path
+            .as_deref()
             .expect("rest actions are filtered to require path");
         let mut operation = json!({
             "tags": ["direct-rest"],
             "summary": format!("Run {}", action.name),
             "description": "Direct REST route over the shared service layer.",
-            "operationId": format!("{method}{}", title_no_underscore(action.name)),
+            "operationId": format!("{method}{}", title_no_underscore(&action.name)),
             "security": [{"BearerAuth":[]},{}],
             "responses": {
                 "200": {"description": format!("{} result", action.name), "content": {"application/json": {"schema": schema_ref(response_schema)}}},
@@ -401,7 +420,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
                 "content": {
                     "application/json": {
                         "schema": schema_ref(request_schema),
-                        "examples": { action.name: { "value": param_example(action.name) } }
+                        "examples": { action.name.clone(): { "value": param_example(&action.name) } }
                     }
                 }
             });
@@ -415,8 +434,8 @@ fn render_openapi(root: &Path) -> Result<Value> {
             (
                 action.name.to_owned(),
                 json!({
-                    "method": action.rest_method.unwrap_or_default().to_uppercase(),
-                    "path": action.rest_path.unwrap_or_default(),
+                    "method": action.rest_method.as_deref().unwrap_or_default().to_uppercase(),
+                    "path": action.rest_path.as_deref().unwrap_or_default(),
                 }),
             )
         })
@@ -427,7 +446,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
         .collect::<serde_json::Map<_, _>>();
     let mcp_only: Vec<String> = specs
         .iter()
-        .filter(|spec| !spec.transport.rest())
+        .filter(|spec| !spec.is_rest())
         .map(|spec| spec.name.to_owned())
         .collect();
 
@@ -467,10 +486,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
     }))
 }
 
-fn openapi_schemas(
-    action_names: Vec<String>,
-    rest_actions: &[&rtemplate_contracts::actions::ActionSpec],
-) -> Value {
+fn openapi_schemas(action_names: Vec<String>, rest_actions: &[&ActionEntry]) -> Value {
     let mut schemas = serde_json::Map::new();
     schemas.insert(
         "ActionName".to_owned(),
@@ -481,7 +497,7 @@ fn openapi_schemas(
         .filter(|action| !action.params.is_empty())
     {
         schemas.insert(
-            format!("{}Request", title_no_underscore(action.name)),
+            format!("{}Request", title_no_underscore(&action.name)),
             request_schema_for_action(action),
         );
     }
@@ -500,17 +516,17 @@ fn openapi_schemas(
     Value::Object(schemas)
 }
 
-fn request_schema_for_action(action: &rtemplate_contracts::actions::ActionSpec) -> Value {
+fn request_schema_for_action(action: &ActionEntry) -> Value {
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
-    for param in action.params {
+    for param in &action.params {
         let mut schema = json!({
-            "type": openapi_type_for_param(param.ty),
+            "type": openapi_type_for_param(&param.ty),
             "description": param.description,
         });
         if param.required {
             required.push(Value::String(param.name.to_owned()));
-            if param.ty == rtemplate_contracts::actions::ParamType::String {
+            if param.ty == "String" {
                 schema["minLength"] = json!(1);
             }
         }
@@ -533,8 +549,11 @@ fn request_schema_for_action(action: &rtemplate_contracts::actions::ActionSpec) 
     schema
 }
 
-fn openapi_type_for_param(ty: rtemplate_contracts::actions::ParamType) -> &'static str {
-    ty.json_schema_type()
+fn openapi_type_for_param(ty: &str) -> &'static str {
+    match ty {
+        "String" => "string",
+        _ => "string",
+    }
 }
 
 fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
@@ -565,7 +584,6 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
         }
     }
 
-    let specs = rtemplate_service::action_specs();
     if action_entries(root)?.len() != action_spec_count(root)? {
         failures.push(format!(
             "ActionSpec parser drifted: parsed {} entries from {} specs",
@@ -576,9 +594,10 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
     if value.pointer("/paths/~1v1~1example").is_some() {
         failures.push("/v1/example must not be present; REST uses direct routes only".to_owned());
     }
+    let specs = action_entries(root)?;
     let expected: Vec<String> = specs
         .iter()
-        .filter(|spec| spec.transport.rest())
+        .filter(|spec| spec.is_rest())
         .map(|spec| spec.name.to_owned())
         .collect();
     let action_enum = value
@@ -592,7 +611,7 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
     }
     let missing_route_metadata: Vec<String> = specs
         .iter()
-        .filter(|spec| spec.transport.rest())
+        .filter(|spec| spec.is_rest())
         .filter(|spec| spec.rest_method.is_none() || spec.rest_path.is_none())
         .map(|spec| spec.name.to_owned())
         .collect();
@@ -603,8 +622,8 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
     }
     for name in specs
         .iter()
-        .filter(|spec| !spec.transport.rest())
-        .map(|spec| spec.name)
+        .filter(|spec| !spec.is_rest())
+        .map(|spec| spec.name.as_str())
     {
         if action_enum
             .as_array()
@@ -625,19 +644,23 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
     }
     let expected_mcp_only: Vec<String> = specs
         .iter()
-        .filter(|spec| !spec.transport.rest())
+        .filter(|spec| !spec.is_rest())
         .map(|spec| spec.name.to_owned())
         .collect();
     if value.pointer("/x-template/mcp_only_actions") != Some(&json!(expected_mcp_only)) {
         failures.push("x-template mcp_only_actions drifted".to_owned());
     }
-    for action in specs.iter().filter(|spec| spec.transport.rest()) {
-        let Some(path) = action.rest_path else {
+    for action in specs.iter().filter(|spec| spec.is_rest()) {
+        let Some(path) = action.rest_path.as_deref() else {
             failures.push(format!("REST action {} is missing rest_path", action.name));
             continue;
         };
-        let method = action.rest_method.unwrap_or("POST").to_ascii_lowercase();
-        if !expected.iter().any(|expected| expected == action.name) {
+        let method = action
+            .rest_method
+            .as_deref()
+            .unwrap_or("POST")
+            .to_ascii_lowercase();
+        if !expected.iter().any(|expected| expected == &action.name) {
             continue;
         }
         if value
@@ -1247,7 +1270,7 @@ fn validate_policy(value: &Value, source: &Path) -> Result<()> {
 fn action_entries(root: &Path) -> Result<Vec<ActionEntry>> {
     let text = read(root.join("crates/rtemplate-service/src/actions.rs"))?;
     let action_specs = action_specs_body(&text).unwrap_or(&text);
-    Ok(parse_action_entries(action_specs))
+    Ok(parse_action_entries_with_params(&text, action_specs))
 }
 
 fn extract_actions(root: &Path) -> Result<Vec<ActionEntry>> {
@@ -1261,7 +1284,13 @@ fn action_specs_body(text: &str) -> Option<&str> {
     Some(&after_start[..end])
 }
 
+#[cfg(test)]
 fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
+    parse_action_entries_with_params(text, text)
+}
+
+fn parse_action_entries_with_params(source: &str, text: &str) -> Vec<ActionEntry> {
+    let params = param_specs_by_const(source);
     action_blocks(text)
         .into_iter()
         .filter_map(|entry| {
@@ -1272,6 +1301,11 @@ fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
             let rest_method = option_string_expr(field_expr(entry, "rest_method")?.as_str())?;
             let rest_path = option_string_expr(field_expr(entry, "rest_path")?.as_str())?;
             let cost = enum_variant(entry, "cost", "ActionCost")?.to_lowercase();
+            let params_expr = field_expr(entry, "params").unwrap_or_else(|| "&[]".to_owned());
+            let action_params = match params_expr.trim() {
+                "&[]" => Vec::new(),
+                name => params.get(name).cloned().unwrap_or_default(),
+            };
             let (scope, doc_scope) = match scope_expr.trim() {
                 "None" => ("public".to_owned(), "public".to_owned()),
                 "Some(READ_SCOPE)" => ("example:read".to_owned(), "`example:read`".to_owned()),
@@ -1290,9 +1324,72 @@ fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
                 rest_method,
                 rest_path,
                 cost,
+                params: action_params,
             })
         })
         .collect()
+}
+
+fn param_specs_by_const(source: &str) -> BTreeMap<String, Vec<ParamEntry>> {
+    let constants = usize_constants(source);
+    let mut specs = BTreeMap::new();
+    let mut rest = source;
+    while let Some(start) = rest.find("const ") {
+        rest = &rest[start + "const ".len()..];
+        let Some((name, after_name)) = rest.split_once(':') else {
+            break;
+        };
+        let name = name.trim();
+        if !after_name.trim_start().starts_with("&[ParamSpec]") {
+            continue;
+        }
+        let Some((_, after_body_start)) = after_name.split_once("= &[") else {
+            continue;
+        };
+        let Some(end) = after_body_start.find("];") else {
+            break;
+        };
+        let body = &after_body_start[..end];
+        let entries = struct_blocks(body, "ParamSpec")
+            .into_iter()
+            .filter_map(|entry| parse_param_entry(entry, &constants))
+            .collect::<Vec<_>>();
+        specs.insert(name.to_owned(), entries);
+        rest = &after_body_start[end + "];".len()..];
+    }
+    specs
+}
+
+fn parse_param_entry(entry: &str, constants: &BTreeMap<String, usize>) -> Option<ParamEntry> {
+    Some(ParamEntry {
+        name: field_string(entry, "name")?,
+        ty: enum_variant(entry, "ty", "ParamType")?,
+        required: bool_expr(&field_expr(entry, "required")?)?,
+        description: field_string(entry, "description")?,
+        max_len: option_usize_expr(&field_expr(entry, "max_len")?, constants)?,
+        enum_values: string_slice_expr(&field_expr(entry, "enum_values")?)?,
+    })
+}
+
+fn usize_constants(source: &str) -> BTreeMap<String, usize> {
+    let mut constants = BTreeMap::new();
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("const ") else {
+            continue;
+        };
+        let Some((name, rest)) = rest.split_once(": usize") else {
+            continue;
+        };
+        let Some((_, value)) = rest.split_once('=') else {
+            continue;
+        };
+        let value = value.trim().trim_end_matches(';').trim();
+        if let Ok(value) = value.parse::<usize>() {
+            constants.insert(name.trim().to_owned(), value);
+        }
+    }
+    constants
 }
 
 fn action_spec_count(root: &Path) -> Result<usize> {
@@ -1305,10 +1402,14 @@ fn action_spec_count(root: &Path) -> Result<usize> {
 }
 
 fn action_blocks(text: &str) -> Vec<&str> {
+    struct_blocks(text, "ActionSpec")
+}
+
+fn struct_blocks<'a>(text: &'a str, struct_name: &str) -> Vec<&'a str> {
     let mut blocks = Vec::new();
     let mut rest = text;
-    while let Some(start) = rest.find("ActionSpec") {
-        rest = &rest[start + "ActionSpec".len()..];
+    while let Some(start) = rest.find(struct_name) {
+        rest = &rest[start + struct_name.len()..];
         let Some(open) = rest.find('{') else {
             break;
         };
@@ -1395,6 +1496,46 @@ fn option_string_expr(value: &str) -> Option<Option<String>> {
     Some(Some(inner.to_owned()))
 }
 
+fn option_usize_expr(value: &str, constants: &BTreeMap<String, usize>) -> Option<Option<usize>> {
+    let value = value.trim();
+    if value == "None" {
+        return Some(None);
+    }
+    let inner = value.strip_prefix("Some(")?.strip_suffix(')')?.trim();
+    if let Ok(value) = inner.parse::<usize>() {
+        return Some(Some(value));
+    }
+    constants.get(inner).copied().map(Some)
+}
+
+fn bool_expr(value: &str) -> Option<bool> {
+    match value.trim() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn string_slice_expr(value: &str) -> Option<Vec<String>> {
+    let value = value.trim();
+    if value == "&[]" {
+        return Some(Vec::new());
+    }
+    let inner = value.strip_prefix("&[")?.strip_suffix(']')?;
+    Some(
+        inner
+            .split(',')
+            .filter_map(|part| {
+                let part = part.trim();
+                if part.is_empty() {
+                    return None;
+                }
+                Some(part.trim_matches('"').to_owned())
+            })
+            .collect(),
+    )
+}
+
 fn schema_ref(name: &str) -> Value {
     json!({"$ref": format!("#/components/schemas/{name}")})
 }
@@ -1428,7 +1569,7 @@ fn title_no_underscore(value: &str) -> String {
         .collect()
 }
 
-fn required_openapi_paths(_root: &Path) -> Result<Vec<String>> {
+fn required_openapi_paths(root: &Path) -> Result<Vec<String>> {
     let mut paths = vec![
         "/health".to_owned(),
         "/openapi.json".to_owned(),
@@ -1436,10 +1577,10 @@ fn required_openapi_paths(_root: &Path) -> Result<Vec<String>> {
         "/v1/capabilities".to_owned(),
     ];
     paths.extend(
-        rtemplate_service::action_specs()
+        action_entries(root)?
             .iter()
-            .filter(|spec| spec.transport.rest())
-            .filter_map(|spec| spec.rest_path.map(ToOwned::to_owned)),
+            .filter(|spec| spec.is_rest())
+            .filter_map(|spec| spec.rest_path.clone()),
     );
     Ok(paths)
 }
@@ -1675,6 +1816,15 @@ mod tests {
     #[test]
     fn parses_action_specs_like_python_regex() {
         let text = r#"
+            const MAX_STRING_PARAM_LEN: usize = 4096;
+            const GREET_PARAMS: &[ParamSpec] = &[ParamSpec {
+                name: "name",
+                ty: ParamType::String,
+                required: false,
+                description: "Name to greet.",
+                max_len: Some(MAX_STRING_PARAM_LEN),
+                enum_values: &[],
+            }];
             ActionSpec {
                 name: "greet",
                 description: "Return a greeting.",
@@ -1683,6 +1833,7 @@ mod tests {
                 rest_method: Some("POST"),
                 rest_path: Some("/v1/greet"),
                 cost: ActionCost::Cheap,
+                params: GREET_PARAMS,
             },
             ActionSpec {
                 name: "elicit_name",
@@ -1710,6 +1861,8 @@ mod tests {
         assert_eq!(entries[0].scope, "example:read");
         assert_eq!(entries[0].rest_method.as_deref(), Some("POST"));
         assert_eq!(entries[0].rest_path.as_deref(), Some("/v1/greet"));
+        assert_eq!(entries[0].params[0].name, "name");
+        assert_eq!(entries[0].params[0].max_len, Some(4096));
         assert_eq!(entries[1].transport, "McpOnly");
         assert_eq!(entries[1].rest_method, None);
         assert_eq!(entries[2].doc_scope, "public");
