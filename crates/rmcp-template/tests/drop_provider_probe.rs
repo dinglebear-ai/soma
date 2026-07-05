@@ -51,15 +51,22 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
     fs::write(
         providers.join("live-ai-sdk.ts"),
         format!(
-            "export default {};\n",
+            "export default {};\nexport async function call(input) {{ return {{ ok: true, action: input.action }}; }}\n",
             provider_manifest("live-ai-sdk", "ai-sdk", "live_ts_probe")
         ),
     )?;
+    fs::write(providers.join("live-wasm-provider.wasm"), wasm_provider()?)?;
     fs::write(
-        providers.join("live-wasm-provider.wasm"),
-        wasm_provider(
-            provider_manifest("live-wasm-provider", "wasm", "live_wasm_probe").as_bytes(),
-        ),
+        providers.join("live-wasm-provider.json"),
+        serde_json::to_vec_pretty(&json!({
+            "schema_version": 1,
+            "provider": {
+                "name": "live-wasm-provider-docs",
+                "kind": "static-rust",
+                "enabled": false
+            },
+            "tools": []
+        }))?,
     )?;
     println!("dropped_files={}", providers.display());
 
@@ -103,30 +110,51 @@ fn provider_manifest(name: &str, kind: &str, action: &str) -> String {
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {}
-            },
-            "meta": {
-                "result": {
-                    "ok": true,
-                    "action": action
-                }
             }
         }]
     })
     .to_string()
 }
 
-fn wasm_provider(manifest: &[u8]) -> Vec<u8> {
+fn wasm_provider() -> anyhow::Result<Vec<u8>> {
+    let mut bytes = wat::parse_str(
+        r#"
+(module
+  (memory (export "memory") 1)
+  (global $input_ptr (mut i32) (i32.const 1024))
+  (global $output_ptr (mut i32) (i32.const 2048))
+  (global $output_len (mut i32) (i32.const 38))
+  (func (export "rtemplate_input_alloc") (param $len i32) (result i32)
+    (global.set $input_ptr (i32.const 1024))
+    (global.get $input_ptr))
+  (func (export "rtemplate_input_ptr") (result i32)
+    (global.get $input_ptr))
+  (func (export "rtemplate_call") (result i32)
+    (i32.const 0))
+  (func (export "rtemplate_output_ptr") (result i32)
+    (global.get $output_ptr))
+  (func (export "rtemplate_output_len") (result i32)
+    (global.get $output_len))
+  (data (i32.const 2048) "{\"ok\":true,\"action\":\"live_wasm_probe\"}"))
+"#,
+    )?;
+    append_provider_manifest(
+        &mut bytes,
+        provider_manifest("live-wasm-provider", "wasm", "live_wasm_probe").as_bytes(),
+    );
+    Ok(bytes)
+}
+
+fn append_provider_manifest(bytes: &mut Vec<u8>, manifest: &[u8]) {
     let name = b"rtemplate.provider";
     let mut payload = Vec::new();
     write_leb(name.len() as u32, &mut payload);
     payload.extend_from_slice(name);
     payload.extend_from_slice(manifest);
 
-    let mut bytes = b"\0asm\x01\0\0\0".to_vec();
     bytes.push(0);
-    write_leb(payload.len() as u32, &mut bytes);
+    write_leb(payload.len() as u32, bytes);
     bytes.extend(payload);
-    bytes
 }
 
 fn write_leb(mut value: u32, bytes: &mut Vec<u8>) {
