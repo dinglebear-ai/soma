@@ -3009,6 +3009,7 @@ name = "rtemplate-cli"
 version = "0.4.1"
 dependencies = [
  "anyhow",
+ "async-trait",
  "dirs",
  "reqwest 0.12.28",
  "rtemplate-contracts",

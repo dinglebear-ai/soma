@@ -224,13 +224,14 @@ pub async fn run(cmd: Command, cfg: &ExampleConfig) -> Result<()> {
             }
         },
         None if matches!(cmd, Command::Provider { .. }) => {
-            let Command::Provider { command, json } = &cmd else {
+            let Command::Provider { json, .. } = &cmd else {
                 unreachable!()
             };
+            let action = provider_action_from_command(&cmd, &registry)?;
             match registry
                 .dispatch(ProviderCall {
                     provider: String::new(),
-                    action: command.clone(),
+                    action,
                     params: json.clone(),
                     principal: ProviderPrincipal::loopback_dev(),
                     auth_mode: ProviderAuthMode::LoopbackDev,
@@ -281,7 +282,7 @@ fn confirm_command_if_destructive(
     cmd: &Command,
     registry: &rtemplate_service::ProviderRegistry,
 ) -> Result<bool> {
-    let Some(action) = command_action_name(cmd) else {
+    let Some(action) = command_action_name(cmd, registry)? else {
         return Ok(false);
     };
     if !registry.snapshot().action_requires_confirmation(&action) {
@@ -300,11 +301,28 @@ fn confirm_command_if_destructive(
     Ok(true)
 }
 
-fn command_action_name(cmd: &Command) -> Option<String> {
+fn command_action_name(
+    cmd: &Command,
+    registry: &rtemplate_service::ProviderRegistry,
+) -> Result<Option<String>> {
     match cmd {
-        Command::Provider { command, .. } => Some(command.clone()),
-        _ => service_action_from_command(cmd).map(|action| action.name().to_owned()),
+        Command::Provider { .. } => provider_action_from_command(cmd, registry).map(Some),
+        _ => Ok(service_action_from_command(cmd).map(|action| action.name().to_owned())),
     }
+}
+
+fn provider_action_from_command(
+    cmd: &Command,
+    registry: &rtemplate_service::ProviderRegistry,
+) -> Result<String> {
+    let Command::Provider { command, .. } = cmd else {
+        return Err(anyhow!("command is not a dynamic provider command"));
+    };
+    registry
+        .snapshot()
+        .cli_action(command)
+        .map(str::to_owned)
+        .ok_or_else(|| anyhow!("unknown dynamic provider CLI command `{command}`"))
 }
 
 fn service_action_from_command(cmd: &Command) -> Option<ExampleAction> {
@@ -350,9 +368,47 @@ fn parse_provider_command(command: &str, args: &[String]) -> Result<Command> {
             command: command.to_owned(),
             json: serde_json::json!({}),
         }),
-        [unexpected, ..] => Err(anyhow!(
-            "{command} requires --json for dynamic provider inputs; unexpected `{unexpected}`"
-        )),
+        _ => Ok(Command::Provider {
+            command: command.to_owned(),
+            json: parse_provider_flags(command, args)?,
+        }),
+    }
+}
+
+fn parse_provider_flags(command: &str, args: &[String]) -> Result<serde_json::Value> {
+    let mut object = serde_json::Map::new();
+    let mut chunks = args.chunks_exact(2);
+    for pair in &mut chunks {
+        let [flag, value] = pair else { unreachable!() };
+        let key = flag
+            .strip_prefix("--")
+            .filter(|key| !key.is_empty())
+            .ok_or_else(|| {
+                anyhow!("{command} dynamic provider flags must use --name value pairs or --json")
+            })?;
+        object.insert(key.replace('-', "_"), scalar_json(value));
+    }
+    if !chunks.remainder().is_empty() {
+        return Err(anyhow!(
+            "{command} dynamic provider flags must use --name value pairs or --json"
+        ));
+    }
+    Ok(serde_json::Value::Object(object))
+}
+
+fn scalar_json(value: &str) -> serde_json::Value {
+    if value == "true" {
+        serde_json::Value::Bool(true)
+    } else if value == "false" {
+        serde_json::Value::Bool(false)
+    } else if let Ok(number) = value.parse::<i64>() {
+        serde_json::Value::Number(number.into())
+    } else if let Ok(number) = value.parse::<f64>() {
+        serde_json::Number::from_f64(number)
+            .map(serde_json::Value::Number)
+            .unwrap_or_else(|| serde_json::Value::String(value.to_owned()))
+    } else {
+        serde_json::Value::String(value.to_owned())
     }
 }
 

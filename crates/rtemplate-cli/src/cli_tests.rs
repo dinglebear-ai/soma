@@ -1,11 +1,22 @@
-use rtemplate_contracts::actions::{
-    ActionCost, ActionSpec, ActionTransport, ExampleAction, ACTION_SPECS,
-};
+use std::sync::Arc;
+
+use async_trait::async_trait;
 use rtemplate_contracts::errors::ToolError;
+use rtemplate_contracts::{
+    actions::{ActionCost, ActionSpec, ActionTransport, ExampleAction, ACTION_SPECS},
+    providers::{
+        CliOverlay, HostCapabilities, ProviderCatalog, ProviderIdentity, ProviderKind,
+        ProviderManifest, ProviderTool,
+    },
+};
+use rtemplate_service::{
+    provider_registry::{Provider, ProviderCall, ProviderOutput, ProviderRegistry},
+    ProviderError,
+};
 
 use super::{
-    confirm_destructive_action_allowed, confirm_destructive_action_from_io, parse_args_from, run,
-    service_action_from_command, usage, Command, SetupCommand,
+    confirm_destructive_action_allowed, confirm_destructive_action_from_io, parse_args_from,
+    provider_action_from_command, run, service_action_from_command, usage, Command, SetupCommand,
 };
 use rtemplate_contracts::config::ExampleConfig;
 
@@ -24,6 +35,82 @@ const TEST_DESTRUCTIVE_ACTIONS: &[ActionSpec] = &[ActionSpec {
     cli: None,
 }];
 
+#[derive(Clone)]
+struct CliProvider {
+    catalog: ProviderCatalog,
+}
+
+#[async_trait]
+impl Provider for CliProvider {
+    fn catalog(&self) -> ProviderCatalog {
+        self.catalog.clone()
+    }
+
+    async fn call(&self, _call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
+        Ok(ProviderOutput::json(serde_json::json!({})))
+    }
+}
+
+fn provider_catalog() -> ProviderCatalog {
+    ProviderManifest {
+        schema_version: 1,
+        provider: ProviderIdentity {
+            name: "weather".to_owned(),
+            kind: ProviderKind::StaticRust,
+            title: None,
+            description: None,
+            homepage: None,
+            source: None,
+            version: None,
+            enabled: Some(true),
+        },
+        tools: vec![ProviderTool {
+            name: "weather-current".to_owned(),
+            description: "Fetch current weather.".to_owned(),
+            title: None,
+            input_schema: serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {}
+            }),
+            output_schema: None,
+            scope: None,
+            destructive: false,
+            requires_admin: false,
+            cost: None,
+            env: Vec::new(),
+            limits: None,
+            mcp: None,
+            rest: None,
+            cli: Some(CliOverlay {
+                enabled: true,
+                command: Some("forecast".to_owned()),
+                aliases: vec!["wx".to_owned()],
+                about: None,
+                long_about: None,
+                hidden: false,
+                flags: Vec::new(),
+                default_output: None,
+                interactive: false,
+            }),
+            palette: None,
+            ui: None,
+            examples: Vec::new(),
+            meta: serde_json::json!({}),
+        }],
+        prompts: Vec::new(),
+        resources: Vec::new(),
+        tasks: Vec::new(),
+        elicitation: Vec::new(),
+        env: Vec::new(),
+        capabilities: HostCapabilities::default(),
+        docs: None,
+        plugin: None,
+        ui: None,
+        meta: serde_json::json!({}),
+    }
+}
+
 #[test]
 fn empty_args_returns_none() {
     let result = parse_args_from::<_, String>([]).unwrap();
@@ -39,6 +126,54 @@ fn unknown_subcommand_becomes_dynamic_provider_command() {
             command: "unknown-command".to_owned(),
             json: serde_json::json!({})
         })
+    );
+}
+
+#[test]
+fn dynamic_provider_command_accepts_flat_flags_without_json() {
+    let result = parse_args_from(["weather-current", "--city", "Paris", "--units", "metric"])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        Command::Provider {
+            command: "weather-current".to_owned(),
+            json: serde_json::json!({
+                "city": "Paris",
+                "units": "metric"
+            })
+        }
+    );
+}
+
+#[test]
+fn dynamic_provider_command_resolves_cli_command_and_alias_to_action() {
+    let registry = ProviderRegistry::new(vec![Arc::new(CliProvider {
+        catalog: provider_catalog(),
+    })])
+    .expect("registry");
+
+    assert_eq!(
+        provider_action_from_command(
+            &Command::Provider {
+                command: "forecast".to_owned(),
+                json: serde_json::json!({})
+            },
+            &registry
+        )
+        .unwrap(),
+        "weather-current"
+    );
+    assert_eq!(
+        provider_action_from_command(
+            &Command::Provider {
+                command: "wx".to_owned(),
+                json: serde_json::json!({})
+            },
+            &registry
+        )
+        .unwrap(),
+        "weather-current"
     );
 }
 

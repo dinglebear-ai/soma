@@ -117,9 +117,17 @@ fn test_dynamic_provider_command_accepts_json_escape_hatch() {
 }
 
 #[test]
-fn test_dynamic_provider_command_requires_json_for_complex_inputs() {
-    let error = parse_args_from(["weather", "--city", "Paris"]).unwrap_err();
-    assert!(error.to_string().contains("requires --json"));
+fn test_dynamic_provider_command_accepts_flat_flags() {
+    assert_eq!(
+        parse_args_from(["weather", "--city", "Paris", "--days", "3"]).unwrap(),
+        Some(Command::Provider {
+            command: "weather".to_owned(),
+            json: serde_json::json!({"city": "Paris", "days": 3})
+        })
+    );
+
+    let error = parse_args_from(["weather", "--filters"]).unwrap_err();
+    assert!(error.to_string().contains("--name value"));
 }
 
 #[test]
