@@ -129,8 +129,8 @@ Use this when creating a real service from rmcp-template:
 - [ ] Replace every occurrence of `example`/`Example`/`EXAMPLE` with your service name
 - [ ] Implement API client in `crates/rtemplate-service/src/example.rs` (transport only — no logic)
 - [ ] Add service methods to `crates/rtemplate-service/src/app.rs` (ALL logic here)
-- [ ] Add actions to `crates/rtemplate-contracts/src/actions.rs`, `crates/rtemplate-mcp/src/tools.rs`, and `crates/rtemplate-mcp/src/schemas.rs` (thin shim only)
-- [ ] Add CLI commands to `crates/rtemplate-cli/src/lib.rs` (thin shim only)
+- [ ] Add native actions to `crates/rtemplate-service/src/actions.rs` and keep MCP/CLI/REST shims registry-driven
+- [ ] Regenerate schema docs and OpenAPI after changing the service registry
 - [ ] Update `crates/rtemplate-contracts/src/config.rs` with service-specific config fields
 - [ ] Add elicitation to destructive actions (or `confirm=true` flag fallback)
 - [ ] Set port in `config.toml`, `docker-compose.yml`, and Dockerfile `EXPOSE`

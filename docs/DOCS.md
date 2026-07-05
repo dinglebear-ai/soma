@@ -192,7 +192,7 @@ just schema-docs
 just schema-docs-check
 ```
 
-The checker treats `crates/rtemplate-contracts/src/actions.rs::ACTION_SPECS` as canonical. `docs/MCP_SCHEMA.md` and `docs/generated/openapi.json` must stay in sync with it.
+The checker treats `crates/rtemplate-service/src/actions.rs::ACTION_SPECS` as canonical. `docs/MCP_SCHEMA.md` and `docs/generated/openapi.json` must stay in sync with it.
 
 ### OpenAPI docs
 

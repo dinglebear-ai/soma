@@ -221,10 +221,10 @@ HTTP routes in the server profile:
 | `/metrics` | Prometheus metrics when built with `observability`. |
 | `/v1/capabilities` | REST route inventory. |
 | `/v1/greet`, `/v1/echo`, `/v1/status`, `/v1/help` | Direct REST business routes. |
-
-REST is direct-route-only: there is no `/v1/example` action envelope. MCP remains one `example` tool with an `action` argument.
 | `/mcp/.well-known/*` | OAuth metadata when OAuth is enabled. |
 | `/*` | Embedded web UI fallback when built with `web`. |
+
+REST is direct-route-only: there is no `/v1/example` action envelope. MCP remains one `example` tool with an `action` argument.
 
 ## MCP Tool Actions
 
@@ -435,11 +435,9 @@ action metadata, MCP dispatch, CLI variants, service stubs, and test coverage.
 
 1. Replace the stub client in `crates/rtemplate-service/src/example.rs`.
 2. Put domain logic in `crates/rtemplate-service/src/app.rs` or focused service modules.
-3. Add action metadata in `crates/rtemplate-contracts/src/actions.rs`.
-4. Add MCP schema parameters in `crates/rtemplate-mcp/src/schemas.rs`.
-5. Add MCP dispatch arms in `crates/rtemplate-mcp/src/tools.rs`.
-6. Add CLI command variants in `crates/rtemplate-cli/src/lib.rs`.
-7. Add REST handlers only when the selected profile includes API.
+3. Add native action metadata and dispatch in `crates/rtemplate-service/src/actions.rs`.
+4. Regenerate MCP schema docs and OpenAPI so generated surfaces reflect the service registry.
+5. Add REST handlers only for infrastructure routes; business actions are routed through the service registry.
 8. Update config fields and env prefixes in `crates/rtemplate-contracts/src/config.rs`.
 9. Update `.env.example`, `config.example.toml`, plugin options, and setup mappings.
 10. Update `server.json`, plugin metadata, repository URLs, Docker labels, and release metadata.

@@ -260,22 +260,23 @@ fn setup_plugin_hook_no_repair_flag() {
 }
 
 #[test]
-fn operational_commands_do_not_convert_to_service_actions() {
-    assert!(matches!(
-        Command::Doctor { json: true },
-        Command::Doctor { .. }
-    ));
-    assert!(matches!(
-        (Command::Watch {
-            url: None,
-            interval: 10
-        }),
-        Command::Watch { .. }
-    ));
-    assert!(matches!(
-        Command::Setup(SetupCommand::Check),
-        Command::Setup(_)
-    ));
+fn operational_commands_parse_outside_service_action_path() {
+    let doctor = parse_args_from(["doctor", "--json"]).unwrap().unwrap();
+    assert!(matches!(doctor, Command::Doctor { json: true }));
+
+    let watch = parse_args_from(["watch", "--url", "http://localhost:40060"])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(watch, Command::Watch { .. }));
+
+    let setup = parse_args_from(["setup", "check"]).unwrap().unwrap();
+    assert!(matches!(setup, Command::Setup(SetupCommand::Check)));
+}
+
+#[test]
+fn dynamic_action_rejects_single_dash_flag_looking_values() {
+    let err = parse_args_from(["echo", "--message", "-y"]).unwrap_err();
+    assert!(err.to_string().contains("value looks like a flag"));
 }
 
 #[tokio::test]

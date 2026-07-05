@@ -325,7 +325,7 @@ fn parse_dynamic_action_command(action: &str, rest: &[String]) -> Result<Option<
                 flag_spec.value_name.unwrap_or("VALUE")
             ));
         };
-        if value.starts_with("--") {
+        if value.starts_with('-') {
             return Err(anyhow!("{action} {flag} value looks like a flag: {value}"));
         }
         params.insert(key.to_owned(), Value::String(value.clone()));

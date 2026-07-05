@@ -456,7 +456,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
             }
         },
         "x-template": {
-            "source": "scripts/check-openapi.py",
+            "source": "cargo xtask check-openapi",
             "action_metadata": "crates/rtemplate-service/src/actions.rs",
             "preferred_rest_style": "direct_routes",
             "rest_actions": action_names,

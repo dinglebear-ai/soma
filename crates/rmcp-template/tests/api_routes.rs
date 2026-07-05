@@ -6,7 +6,7 @@ use axum::{
     http::{header, Method, Request, StatusCode},
 };
 use rmcp_template::{
-    api::REST_ROUTES,
+    api::rest_routes,
     server::{self, AuthPolicy},
     testing::{bearer_state, loopback_state},
 };
@@ -64,13 +64,13 @@ async fn generic_post_route_dispatches_registered_action() {
     let (status, body) = request_json(
         app,
         Method::POST,
-        "/v1/echo",
+        "/v1/greet",
         None,
-        Some(json!({"message": "hello"})),
+        Some(json!({"name": "Registry"})),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["echo"], "hello");
+    assert_eq!(body["greeting"], "Hello, Registry!");
 }
 
 #[tokio::test]
@@ -118,22 +118,24 @@ fn rest_routes_match_action_registry_metadata() {
             .rest_path
             .unwrap_or_else(|| panic!("{} should declare a REST path", spec.name));
         assert!(
-            REST_ROUTES.iter().any(|route| {
-                route.action == Some(spec.name) && route.method == method && route.path == path
+            rest_routes().iter().any(|route| {
+                route.action.as_deref() == Some(spec.name)
+                    && route.method == method
+                    && route.path == path
             }),
             "{} should be exposed as {method} {path}",
             spec.name
         );
     }
 
-    for route in REST_ROUTES.iter().filter(|route| route.action.is_some()) {
-        let action = route.action.unwrap();
+    for route in rest_routes().iter().filter(|route| route.action.is_some()) {
+        let action = route.action.as_deref().unwrap();
         let spec = rtemplate_service::action_specs()
             .iter()
             .find(|spec| spec.name == action)
             .unwrap_or_else(|| panic!("REST route advertises unknown action `{action}`"));
-        assert_eq!(spec.rest_method, Some(route.method));
-        assert_eq!(spec.rest_path, Some(route.path));
+        assert_eq!(spec.rest_method, Some(route.method.as_str()));
+        assert_eq!(spec.rest_path, Some(route.path.as_str()));
     }
 }
 

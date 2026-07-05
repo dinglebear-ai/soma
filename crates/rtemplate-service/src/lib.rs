@@ -77,7 +77,10 @@ pub fn is_validation_error(error: &anyhow::Error) -> bool {
 
 pub fn classify_service_error(error: &anyhow::Error) -> ServiceError {
     if let Some(error) = action_validation_error(error) {
-        return ToolError::from_action_validation(error);
+        return ToolError::from_action_validation_with_actions(
+            error,
+            action_specs().iter().map(|spec| spec.name).collect(),
+        );
     }
     if let Some(error) = error.downcast_ref::<ScaffoldIntentValidationError>() {
         let mut tool_error =

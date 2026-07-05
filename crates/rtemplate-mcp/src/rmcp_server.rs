@@ -358,8 +358,14 @@ fn validation_error_payload_from_validation_error(
         | ValidationError::NotAvailableOverRest { action } => Some(action.as_str()),
         _ => None,
     });
-    rtemplate_contracts::errors::ToolError::from_action_validation(error)
-        .to_mcp_payload(tool, payload_action)
+    rtemplate_contracts::errors::ToolError::from_action_validation_with_actions(
+        error,
+        rtemplate_service::action_specs()
+            .iter()
+            .map(|spec| spec.name)
+            .collect(),
+    )
+    .to_mcp_payload(tool, payload_action)
 }
 
 fn unknown_action_payload(tool: &str, action: &str) -> Value {

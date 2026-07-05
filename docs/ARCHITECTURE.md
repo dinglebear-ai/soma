@@ -234,7 +234,7 @@ Zero validation, zero defaults, zero error message crafting in shims. All of tha
 ## Invariants
 
 - Shims do not contain business logic.
-- All action metadata starts in `crates/rtemplate-contracts/src/actions.rs`.
+- All action metadata starts in `crates/rtemplate-service/src/actions.rs`; shared contract types stay provider-independent.
 - Read actions require `example:read`; write actions require `example:write`; `help` is public.
 - Stdio is local trusted transport; HTTP is protected unless in loopback or explicit trusted-gateway mode.
 - Plugin setup is binary-owned: hook scripts delegate to `example setup plugin-hook`.

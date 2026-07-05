@@ -679,6 +679,6 @@
       "status",
       "help"
     ],
-    "source": "scripts/check-openapi.py"
+    "source": "cargo xtask check-openapi"
   }
 }

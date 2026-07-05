@@ -88,8 +88,15 @@ impl ToolError {
     }
 
     pub fn from_action_validation(error: &ActionValidationError) -> Self {
+        Self::from_action_validation_with_actions(error, action_names())
+    }
+
+    pub fn from_action_validation_with_actions(
+        error: &ActionValidationError,
+        available_actions: Vec<&'static str>,
+    ) -> Self {
         let mut tool_error = Self::validation(error.code(), error.to_string(), error.remediation())
-            .with_available_actions(action_names());
+            .with_available_actions(available_actions);
         if let Some(field) = error.field() {
             tool_error = tool_error.with_field(field);
         }
