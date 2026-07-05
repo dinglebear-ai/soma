@@ -104,6 +104,10 @@ async fn dispatch_non_elicitation_action(
     principal: ProviderPrincipal,
     auth_mode: ProviderAuthMode,
 ) -> anyhow::Result<Value> {
+    state
+        .provider_registry
+        .refresh_file_providers()
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let params = strip_action_arg(args);
     let call = ProviderCall {
         provider: String::new(),

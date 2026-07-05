@@ -64,6 +64,7 @@ impl ServerHandler for ExampleRmcpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         require_auth_context(&self.state, &context)?;
+        refresh_file_providers(&self.state)?;
         let mut tools = rmcp_tool_definitions(&self.state)?;
         if self.state.config.conformance_fixtures {
             tools.extend(conformance::tool_definitions());
@@ -215,6 +216,7 @@ impl ServerHandler for ExampleRmcpServer {
                 None,
             ));
         }
+        refresh_file_providers(&self.state)?;
         let schema = tool_definitions_for_state(&self.state);
         let text = serde_json::to_string_pretty(&schema)
             .map_err(|e| ErrorData::internal_error(format!("serialization error: {e}"), None))?;
@@ -289,6 +291,14 @@ fn rmcp_tool_definitions(state: &AppState) -> Result<Vec<Tool>, ErrorData> {
         .into_iter()
         .map(rmcp_tool_from_json)
         .collect()
+}
+
+fn refresh_file_providers(state: &AppState) -> Result<(), ErrorData> {
+    state
+        .provider_registry
+        .refresh_file_providers()
+        .map(|_| ())
+        .map_err(|error| ErrorData::internal_error(error.to_string(), None))
 }
 
 fn tool_definitions_for_state(state: &AppState) -> Vec<Value> {

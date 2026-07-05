@@ -19,7 +19,7 @@ use rtemplate_contracts::{
     config::ExampleConfig,
 };
 use rtemplate_service::{
-    static_provider_registry, ExampleClient, ExampleService, ProviderAuthMode, ProviderCall,
+    dynamic_provider_registry, ExampleClient, ExampleService, ProviderAuthMode, ProviderCall,
     ProviderPrincipal, ProviderRequestLimits, ProviderSurface,
 };
 use std::io::{BufRead, IsTerminal, Write};
@@ -196,7 +196,10 @@ where
 pub async fn run(cmd: Command, cfg: &ExampleConfig) -> Result<()> {
     let client = ExampleClient::new(cfg)?;
     let service = ExampleService::new(client);
-    let registry = static_provider_registry(service.clone())?;
+    let registry = dynamic_provider_registry(service.clone())?;
+    registry
+        .refresh_file_providers()
+        .map_err(|error| anyhow!(error.to_string()))?;
     let destructive_confirmed = confirm_command_if_destructive(&cmd, &registry)?;
 
     let result = match service_action_from_command(&cmd) {

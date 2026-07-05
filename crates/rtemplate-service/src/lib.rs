@@ -19,6 +19,7 @@ pub use provider_registry::{
     ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal, ProviderRegistry,
     ProviderRequestLimits, ProviderSurface, RegistrySnapshot,
 };
+pub use providers::filesystem::FileProviderSource;
 pub use providers::static_rust::StaticRustProvider;
 
 /// Unified dispatch seam shared by every surface (MCP, REST, CLI).
@@ -59,6 +60,28 @@ pub async fn dispatch_action(
 pub fn static_provider_registry(service: ExampleService) -> Result<ProviderRegistry> {
     ProviderRegistry::new(vec![std::sync::Arc::new(StaticRustProvider::new(service))])
         .map_err(|error| anyhow!(error.to_string()))
+}
+
+pub fn dynamic_provider_registry(service: ExampleService) -> Result<ProviderRegistry> {
+    dynamic_provider_registry_from_dir(service, default_provider_dir())
+}
+
+pub fn dynamic_provider_registry_from_dir(
+    service: ExampleService,
+    provider_dir: impl Into<std::path::PathBuf>,
+) -> Result<ProviderRegistry> {
+    ProviderRegistry::with_file_source(
+        vec![std::sync::Arc::new(StaticRustProvider::new(service))],
+        crate::capabilities::CapabilityBroker::default_deny(),
+        FileProviderSource::new(provider_dir),
+    )
+    .map_err(|error| anyhow!(error.to_string()))
+}
+
+fn default_provider_dir() -> std::path::PathBuf {
+    std::env::var_os("RTEMPLATE_PROVIDER_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("providers"))
 }
 
 #[cfg(feature = "observability")]

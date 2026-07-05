@@ -12,7 +12,7 @@ use axum::{
 #[cfg(feature = "auth")]
 use rtemplate_auth::AuthContext;
 #[cfg(not(feature = "auth"))]
-struct AuthContext {
+pub struct AuthContext {
     sub: String,
     scopes: Vec<String>,
 }
@@ -216,6 +216,9 @@ pub async fn v1_dynamic_provider_route(
 ) -> axum::response::Response {
     let route_path = format!("/v1/{path}");
     let method = method.as_str().to_ascii_uppercase();
+    if let Some(response) = refresh_file_providers(&state) {
+        return response;
+    }
     let action = match state
         .provider_registry
         .snapshot()
@@ -278,6 +281,9 @@ async fn run_provider_rest_action(
     action_name: String,
     params: Value,
 ) -> axum::response::Response {
+    if let Some(response) = refresh_file_providers(&state) {
+        return response;
+    }
     let call = ProviderCall {
         provider: String::new(),
         action: action_name.clone(),
@@ -433,6 +439,9 @@ pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
 
 /// `GET /openapi.json` — generated OpenAPI schema for the REST surface.
 pub async fn openapi_json(State(state): State<AppState>) -> axum::response::Response {
+    if let Some(response) = refresh_file_providers(&state) {
+        return response;
+    }
     match serde_json::from_slice::<Value>(&state.provider_registry.snapshot().cached_openapi_bytes)
     {
         Ok(value) => Json(value).into_response(),
@@ -456,6 +465,25 @@ pub async fn status(State(state): State<AppState>) -> impl IntoResponse {
         "transport": "http",
     }))
     .into_response()
+}
+
+fn refresh_file_providers(state: &AppState) -> Option<axum::response::Response> {
+    match state.provider_registry.refresh_file_providers() {
+        Ok(_) => None,
+        Err(error) => {
+            tracing::error!(%error, "provider refresh failed");
+            Some(
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "error": "provider_refresh_failed",
+                        "message": error.to_string(),
+                    })),
+                )
+                    .into_response(),
+            )
+        }
+    }
 }
 
 #[cfg(test)]

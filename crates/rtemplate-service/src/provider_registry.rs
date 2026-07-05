@@ -14,7 +14,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::{capabilities::CapabilityBroker, provider_errors::ProviderError};
+use crate::{
+    capabilities::CapabilityBroker, provider_errors::ProviderError,
+    providers::filesystem::FileProviderSource,
+};
 
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -163,6 +166,8 @@ struct ToolEntry {
 pub struct ProviderRegistry {
     state: Arc<RwLock<RegistryState>>,
     capabilities: CapabilityBroker,
+    base_providers: Arc<Vec<Arc<dyn Provider>>>,
+    file_source: Option<FileProviderSource>,
 }
 
 struct RegistryState {
@@ -187,6 +192,32 @@ impl ProviderRegistry {
                 snapshot,
             })),
             capabilities,
+            base_providers: Arc::new(Vec::new()),
+            file_source: None,
+        })
+    }
+
+    pub fn with_file_source(
+        providers: Vec<Arc<dyn Provider>>,
+        capabilities: CapabilityBroker,
+        file_source: FileProviderSource,
+    ) -> Result<Self, ProviderValidationError> {
+        let dynamic_providers = file_source.load().map_err(|error| {
+            ProviderValidationError::new("provider_file_load_failed", error.to_string())
+        })?;
+        let base_providers = Arc::new(providers);
+        let mut all_providers = base_providers.iter().cloned().collect::<Vec<_>>();
+        all_providers.extend(dynamic_providers);
+        let providers = provider_map(all_providers)?;
+        let snapshot = Arc::new(build_snapshot(providers.values().cloned().collect())?);
+        Ok(Self {
+            state: Arc::new(RwLock::new(RegistryState {
+                providers,
+                snapshot,
+            })),
+            capabilities,
+            base_providers,
+            file_source: Some(file_source),
         })
     }
 
@@ -196,6 +227,35 @@ impl ProviderRegistry {
             .expect("provider registry lock should not be poisoned")
             .snapshot
             .clone()
+    }
+
+    pub fn refresh_file_providers(&self) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
+        let Some(file_source) = &self.file_source else {
+            return Ok(self.snapshot());
+        };
+        let dynamic_providers = file_source.load().map_err(|error| {
+            ProviderValidationError::new("provider_file_load_failed", error.to_string())
+        })?;
+        let mut providers = self.base_providers.iter().cloned().collect::<Vec<_>>();
+        providers.extend(dynamic_providers);
+        let providers = provider_map(providers)?;
+        let snapshot = Arc::new(build_snapshot(providers.values().cloned().collect())?);
+
+        let mut state = self
+            .state
+            .write()
+            .expect("provider registry lock should not be poisoned");
+        if state.snapshot.fingerprint == snapshot.fingerprint {
+            return Ok(state.snapshot.clone());
+        }
+        state.providers = providers;
+        state.snapshot = snapshot.clone();
+        tracing::info!(
+            provider_dir = %file_source.root().display(),
+            fingerprint = %snapshot.fingerprint,
+            "file providers refreshed"
+        );
+        Ok(snapshot)
     }
 
     pub fn validate_reload(
