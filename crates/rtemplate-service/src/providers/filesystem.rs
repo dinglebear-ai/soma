@@ -10,7 +10,9 @@ use serde_json::json;
 use crate::{
     provider_errors::ProviderError,
     provider_registry::{Provider, ProviderCall, ProviderOutput},
-    providers::{mcp::McpProvider, openapi::OpenApiProvider},
+    providers::{
+        ai_sdk::AiSdkProvider, mcp::McpProvider, openapi::OpenApiProvider, wasm::WasmProvider,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -80,9 +82,9 @@ fn provider_for_catalog(path: PathBuf, catalog: ProviderCatalog) -> std::sync::A
     match catalog.provider.kind {
         ProviderKind::Openapi => OpenApiProvider::arc(catalog),
         ProviderKind::Mcp => McpProvider::arc(catalog),
-        ProviderKind::StaticRust | ProviderKind::AiSdk | ProviderKind::Wasm => {
-            std::sync::Arc::new(FileProvider { path, catalog })
-        }
+        ProviderKind::AiSdk => AiSdkProvider::arc(path, catalog),
+        ProviderKind::Wasm => WasmProvider::arc(path, catalog),
+        ProviderKind::StaticRust => std::sync::Arc::new(FileProvider { path, catalog }),
     }
 }
 
@@ -179,8 +181,35 @@ fn extract_ts_manifest(text: &str) -> Option<&str> {
     let marker = "export default";
     let start = text.find(marker)? + marker.len();
     let rest = text[start..].trim_start();
-    let end = rest.rfind(';').unwrap_or(rest.len());
-    Some(rest[..end].trim())
+    let open = rest.find('{')?;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (offset, ch) in rest[open..].char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    let end = open + offset + ch.len_utf8();
+                    return Some(rest[..end].trim());
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn load_wasm_catalog(path: &Path) -> Result<ProviderCatalog, FileProviderLoadError> {
