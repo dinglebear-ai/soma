@@ -52,9 +52,9 @@
           "name": "RTEMPLATE_MCP_TOKEN"
         }
       ],
-      "identifier": "ghcr.io/jmagar/rtemplate-mcp:0.4.5",
+      "identifier": "ghcr.io/jmagar/rtemplate-mcp:0.4.6",
       "registryType": "oci",
-      "version": "0.4.5"
+      "version": "0.4.6"
     }
   ],
   "remotes": [
@@ -68,5 +68,5 @@
     "url": "https://github.com/jmagar/rtemplate-mcp"
   },
   "title": "Example MCP",
-  "version": "0.4.5"
+  "version": "0.4.6"
 }

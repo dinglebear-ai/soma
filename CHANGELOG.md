@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6]
+
+### Added
+
+- MCP provider manifests can now proxy upstream MCP servers over streamable HTTP. `meta.mcp.url`
+  infers HTTP transport automatically, while existing stdio manifests continue to work.
+
 ## [0.4.5]
 
 ### Added
