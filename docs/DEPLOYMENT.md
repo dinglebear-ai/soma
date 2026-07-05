@@ -144,7 +144,6 @@ The binary must be in `$PATH`. The plugin hook (`<binary> setup plugin-hook`) se
 - `/status` is public but redacted.
 - `/mcp` is the Streamable HTTP MCP endpoint.
 - `/v1/*` direct business routes are the preferred REST API for platform servers.
-- `/v1/example` is a deprecated compatibility action envelope.
 
 ## Port assignments
 

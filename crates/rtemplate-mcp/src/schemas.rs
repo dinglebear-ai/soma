@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 
 use serde_json::{json, Map, Value};
 
-use rtemplate_contracts::actions::{action_names, ActionTransport, ACTION_SPECS};
+use rtemplate_contracts::actions::ActionTransport;
 
 /// Cached JSON schema definitions (static data, built once at first call).
 static TOOL_DEFINITIONS: OnceLock<Vec<Value>> = OnceLock::new();
@@ -67,7 +67,7 @@ fn build_tool_definitions() -> Vec<Value> {
 }
 
 fn action_metadata() -> Vec<Value> {
-    ACTION_SPECS
+    rtemplate_service::action_specs()
         .iter()
         .map(|spec| {
             json!({
@@ -88,11 +88,11 @@ fn build_input_properties() -> Map<String, Value> {
         json!({
             "type": "string",
             "description": "The operation to perform.",
-            "enum": action_names()
+            "enum": rtemplate_service::action_specs().iter().map(|spec| spec.name).collect::<Vec<_>>()
         }),
     );
 
-    for spec in ACTION_SPECS {
+    for spec in rtemplate_service::action_specs() {
         for param in spec.params {
             properties
                 .entry(param.name.to_owned())
@@ -128,15 +128,7 @@ fn build_input_properties() -> Map<String, Value> {
 }
 
 fn param_schema(param: &rtemplate_contracts::actions::ParamSpec) -> Value {
-    let json_type = match param.ty {
-        "string" => "string",
-        "integer" => "integer",
-        "number" => "number",
-        "boolean" => "boolean",
-        "object" => "object",
-        "array" => "array",
-        _ => "string",
-    };
+    let json_type = param.ty.json_schema_type();
     let mut schema = json!({
         "type": json_type,
         "description": param.description,
@@ -144,11 +136,17 @@ fn param_schema(param: &rtemplate_contracts::actions::ParamSpec) -> Value {
     if param.required && json_type == "string" {
         schema["minLength"] = json!(1);
     }
+    if let Some(max_len) = param.max_len {
+        schema["maxLength"] = json!(max_len);
+    }
+    if !param.enum_values.is_empty() {
+        schema["enum"] = json!(param.enum_values);
+    }
     schema
 }
 
 fn required_param_conditionals() -> Vec<Value> {
-    ACTION_SPECS
+    rtemplate_service::action_specs()
         .iter()
         .filter_map(|spec| {
             let required = spec
@@ -171,7 +169,7 @@ fn required_param_conditionals() -> Vec<Value> {
 }
 
 fn mcp_only_action_names() -> Vec<&'static str> {
-    ACTION_SPECS
+    rtemplate_service::action_specs()
         .iter()
         .filter(|spec| spec.transport == ActionTransport::McpOnly)
         .map(|spec| spec.name)

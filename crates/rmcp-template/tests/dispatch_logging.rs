@@ -6,8 +6,8 @@
 //! the tracing output and asserts those fields are present so the observability
 //! contract cannot silently regress.
 
-use rtemplate_contracts::actions::ExampleAction;
 use rtemplate_test_support::{tracing_test_lock, SharedBuf};
+use serde_json::json;
 
 // The capture lock is intentionally held across the await: this is a
 // single-threaded test (current_thread) whose whole purpose is to serialize the
@@ -29,7 +29,7 @@ async fn dispatch_action_emits_structured_log() {
 
     let state = rmcp_template::testing::loopback_state();
     let result =
-        rtemplate_service::dispatch_action(&state.service, &ExampleAction::Status, "rest").await;
+        rtemplate_service::dispatch_action(&state.service, "status", &json!({}), "rest").await;
     assert!(
         result.is_ok(),
         "status dispatch should succeed in stub mode"

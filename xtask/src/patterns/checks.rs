@@ -13,7 +13,7 @@ use super::{
 const REQUIRED_PATTERN_FILES: &[&str] = &[
     "crates/rtemplate-service/src/example.rs",
     "crates/rtemplate-service/src/app.rs",
-    "crates/rtemplate-contracts/src/actions.rs",
+    "crates/rtemplate-service/src/actions.rs",
     "crates/rtemplate-mcp/src/lib.rs",
     "crates/rtemplate-mcp/src/tools.rs",
     "crates/rtemplate-mcp/src/schemas.rs",

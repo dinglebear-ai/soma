@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 
-use rtemplate_contracts::actions::{ActionTransport, ExampleAction, ACTION_SPECS};
+use rtemplate_contracts::actions::ActionTransport;
 use rtemplate_runtime::server::AppState;
 use rtemplate_service::app::{ElicitedNameOutcome, ExampleService, ScaffoldIntent};
 use rtemplate_service::dispatch_action;
@@ -56,35 +56,34 @@ async fn dispatch_example(
     args: Value,
     peer: &Peer<RoleServer>,
 ) -> anyhow::Result<Value> {
-    let action = ExampleAction::from_mcp_args(&args)?;
+    let action = rtemplate_contracts::actions::action_name_from_mcp_args(&args)?;
 
     match action {
-        ExampleAction::ElicitName => elicit_name(&state.service, peer).await,
-        ExampleAction::ScaffoldIntent => scaffold_intent(&state.service, peer).await,
-        other => dispatch_non_elicitation_action(&state.service, &other).await,
+        "elicit_name" => elicit_name(&state.service, peer).await,
+        "scaffold_intent" => scaffold_intent(&state.service, peer).await,
+        "help" => mcp_help(&args),
+        other => dispatch_action(&state.service, other, &args, "mcp").await,
     }
 }
 
 #[cfg(any(test, feature = "test-support"))]
 async fn dispatch_example_without_peer(state: &AppState, args: Value) -> anyhow::Result<Value> {
-    let action = ExampleAction::from_mcp_args(&args)?;
+    let action = rtemplate_contracts::actions::action_name_from_mcp_args(&args)?;
     match action {
-        ExampleAction::ElicitName | ExampleAction::ScaffoldIntent => Err(anyhow::anyhow!(
-            "action={} requires an MCP peer",
-            action.name()
-        )),
-        other => dispatch_non_elicitation_action(&state.service, &other).await,
+        "elicit_name" | "scaffold_intent" => {
+            Err(anyhow::anyhow!("action={action} requires an MCP peer"))
+        }
+        "help" => mcp_help(&args),
+        other => dispatch_action(&state.service, other, &args, "mcp").await,
     }
 }
 
-async fn dispatch_non_elicitation_action(
-    service: &ExampleService,
-    action: &ExampleAction,
-) -> anyhow::Result<Value> {
-    match action {
-        ExampleAction::Help => Ok(json!({ "help": help_text() })),
-        other => dispatch_action(service, other, "mcp").await,
-    }
+fn mcp_help(args: &Value) -> anyhow::Result<Value> {
+    let spec = rtemplate_service::action_registry()
+        .action("help")
+        .expect("help action should be registered");
+    rtemplate_service::validate_mcp_params(spec, args)?;
+    Ok(json!({ "help": help_text() }))
 }
 
 // ── elicitation ───────────────────────────────────────────────────────────────
@@ -276,7 +275,7 @@ fn build_help_text() -> String {
         "# example MCP Tool\n\nA template demonstrating the action-based dispatch pattern for MCP servers.\nSet the `action` argument to select an operation.\n\n## Actions\n",
     );
 
-    for spec in ACTION_SPECS {
+    for spec in rtemplate_service::action_specs() {
         text.push_str("\n### ");
         text.push_str(spec.name);
         text.push('\n');
@@ -317,7 +316,7 @@ fn build_help_text() -> String {
                 text.push_str("  - `");
                 text.push_str(param.name);
                 text.push_str("` (");
-                text.push_str(param.ty);
+                text.push_str(param.ty.as_str());
                 text.push_str(", ");
                 text.push_str(required);
                 text.push_str("): ");
@@ -330,12 +329,11 @@ fn build_help_text() -> String {
     text.push_str(
         "\n## Adding a new action
 
-1. Add the action metadata to `ACTION_SPECS` in `actions.rs`.
+1. Add the action metadata to `crates/rtemplate-service/src/actions.rs`.
 2. Add any new parameters to the action's `params` metadata.
 3. Add a method to `ExampleClient` in `example.rs` (transport).
 4. Add a method to `ExampleService` in `app.rs` (business logic).
-5. Add a match arm in `dispatch_example()` in `mcp/tools.rs`.
-6. Add a test covering parser, schema, and dispatch behavior.
+5. Add a test covering parser, schema, and dispatch behavior.
 ",
     );
     text

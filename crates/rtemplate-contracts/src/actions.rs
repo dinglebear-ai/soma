@@ -25,6 +25,10 @@ pub enum ActionValidationError {
     MissingField { field: String },
     #[error("`{field}` must be a string")]
     WrongType { field: String },
+    #[error("unknown parameter `{field}`")]
+    UnknownField { field: String },
+    #[error("`{field}` is too long; maximum length is {max_len} bytes")]
+    TooLong { field: String, max_len: usize },
     #[error(
         "action={action} is not available over REST; use MCP or action=help for documentation"
     )]
@@ -41,6 +45,8 @@ impl ActionValidationError {
             Self::MissingAction => "missing_action",
             Self::MissingField { .. } => "missing_field",
             Self::WrongType { .. } => "wrong_type",
+            Self::UnknownField { .. } => "unknown_field",
+            Self::TooLong { .. } => "too_long",
             Self::NotAvailableOverRest { .. } => "not_available_over_rest",
             Self::UnknownAction { .. } => "unknown_action",
         }
@@ -49,7 +55,10 @@ impl ActionValidationError {
     pub fn field(&self) -> Option<&str> {
         match self {
             Self::MissingAction => Some("action"),
-            Self::MissingField { field } | Self::WrongType { field } => Some(field.as_str()),
+            Self::MissingField { field }
+            | Self::WrongType { field }
+            | Self::UnknownField { field }
+            | Self::TooLong { field, .. } => Some(field.as_str()),
             Self::NotAvailableOverRest { .. } | Self::UnknownAction { .. } => Some("action"),
         }
     }
@@ -59,7 +68,11 @@ impl ActionValidationError {
             Self::NotAvailableOverRest { action } | Self::UnknownAction { action } => {
                 Some(action.as_str())
             }
-            Self::MissingAction | Self::MissingField { .. } | Self::WrongType { .. } => None,
+            Self::MissingAction
+            | Self::MissingField { .. }
+            | Self::WrongType { .. }
+            | Self::UnknownField { .. }
+            | Self::TooLong { .. } => None,
         }
     }
 
@@ -76,6 +89,12 @@ impl ActionValidationError {
             }
             Self::WrongType { field } => {
                 format!("Pass `{field}` as a JSON string, or use action=help for examples.")
+            }
+            Self::UnknownField { field } => {
+                format!("Remove `{field}` or use action=help for the supported parameters.")
+            }
+            Self::TooLong { field, max_len } => {
+                format!("Shorten `{field}` to at most {max_len} bytes.")
             }
             Self::NotAvailableOverRest { action } => {
                 format!("Call action={action} through MCP, or call action=help over REST.")
@@ -143,11 +162,32 @@ impl ActionCost {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamType {
+    String,
+}
+
+impl ParamType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::String => "string",
+        }
+    }
+
+    pub fn json_schema_type(self) -> &'static str {
+        match self {
+            Self::String => "string",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParamSpec {
     pub name: &'static str,
-    pub ty: &'static str,
+    pub ty: ParamType,
     pub required: bool,
     pub description: &'static str,
+    pub max_len: Option<usize>,
+    pub enum_values: &'static [&'static str],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -180,20 +220,32 @@ pub struct ActionSpec {
     pub params: &'static [ParamSpec],
     pub returns: &'static str,
     pub cli: Option<CliSpec>,
+    pub catalog_visibility: CatalogVisibility,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CatalogVisibility {
+    Public,
+    Authenticated,
+    Hidden,
 }
 
 const GREET_PARAMS: &[ParamSpec] = &[ParamSpec {
     name: "name",
-    ty: "string",
+    ty: ParamType::String,
     required: false,
     description: "Name to greet. Omit to greet the world.",
+    max_len: Some(4096),
+    enum_values: &[],
 }];
 
 const ECHO_PARAMS: &[ParamSpec] = &[ParamSpec {
     name: "message",
-    ty: "string",
+    ty: ParamType::String,
     required: true,
     description: "Message to echo back. Must not be empty.",
+    max_len: Some(4096),
+    enum_values: &[],
 }];
 
 const GREET_CLI_FLAGS: &[CliFlagSpec] = &[CliFlagSpec {
@@ -229,6 +281,7 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
             flags: GREET_CLI_FLAGS,
             description: "Greet NAME, or the world when omitted.",
         }),
+        catalog_visibility: CatalogVisibility::Public,
     },
     ActionSpec {
         name: "echo",
@@ -248,6 +301,7 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
             flags: ECHO_CLI_FLAGS,
             description: "Echo MSG back unchanged.",
         }),
+        catalog_visibility: CatalogVisibility::Public,
     },
     ActionSpec {
         name: "status",
@@ -267,6 +321,7 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
             flags: &[],
             description: "Show service status.",
         }),
+        catalog_visibility: CatalogVisibility::Public,
     },
     ActionSpec {
         name: "elicit_name",
@@ -281,6 +336,7 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
         params: &[],
         returns: "Greeting",
         cli: None,
+        catalog_visibility: CatalogVisibility::Public,
     },
     ActionSpec {
         name: "scaffold_intent",
@@ -295,6 +351,7 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
         params: &[],
         returns: "ScaffoldIntentReport",
         cli: None,
+        catalog_visibility: CatalogVisibility::Public,
     },
     ActionSpec {
         name: "help",
@@ -314,15 +371,19 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
             flags: &[],
             description: "Show JSON action reference.",
         }),
+        catalog_visibility: CatalogVisibility::Public,
     },
 ];
 
+// Transitional compatibility only. New code must pass
+// `rtemplate_service::action_specs()` to the explicit *_from helpers so there is
+// one live registry.
 pub fn action_names() -> Vec<&'static str> {
     ACTION_SPECS.iter().map(|spec| spec.name).collect()
 }
 
 pub fn is_known_action(action: &str) -> bool {
-    ACTION_SPECS.iter().any(|spec| spec.name == action)
+    is_known_action_from(ACTION_SPECS, action)
 }
 
 pub fn rest_action_names() -> Vec<&'static str> {
@@ -363,13 +424,25 @@ pub fn mcp_only_action_names() -> Vec<&'static str> {
 }
 
 pub fn required_scope_for_action(action: &str) -> Option<&'static str> {
-    action_spec(action)
-        .map(|spec| spec.required_scope)
-        .unwrap_or(Some(DENY_SCOPE))
+    required_scope_for_action_from(ACTION_SPECS, action)
 }
 
 pub fn action_spec(action: &str) -> Option<&'static ActionSpec> {
     ACTION_SPECS.iter().find(|spec| spec.name == action)
+}
+
+pub fn action_spec_from<'a>(specs: &'a [ActionSpec], action: &str) -> Option<&'a ActionSpec> {
+    specs.iter().find(|spec| spec.name == action)
+}
+
+pub fn required_scope_for_action_from(specs: &[ActionSpec], action: &str) -> Option<&'static str> {
+    action_spec_from(specs, action)
+        .map(|spec| spec.required_scope)
+        .unwrap_or(Some(DENY_SCOPE))
+}
+
+pub fn is_known_action_from(specs: &[ActionSpec], action: &str) -> bool {
+    action_spec_from(specs, action).is_some()
 }
 
 /// Confirmation gate for destructive actions, shared by every surface.
@@ -384,7 +457,15 @@ pub fn require_confirmation_if_destructive(
     action: &str,
     params: &Value,
 ) -> Result<(), Box<crate::errors::ToolError>> {
-    let Some(spec) = action_spec(action) else {
+    require_confirmation_if_destructive_from(ACTION_SPECS, action, params)
+}
+
+pub fn require_confirmation_if_destructive_from(
+    specs: &[ActionSpec],
+    action: &str,
+    params: &Value,
+) -> Result<(), Box<crate::errors::ToolError>> {
+    let Some(spec) = action_spec_from(specs, action) else {
         return Ok(());
     };
     if !spec.destructive {
@@ -422,6 +503,8 @@ pub struct ParamDoc {
     pub ty: String,
     pub required: bool,
     pub description: String,
+    pub max_len: Option<usize>,
+    pub enum_values: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -458,56 +541,70 @@ pub struct CliDoc {
 }
 
 pub fn action_catalog() -> Vec<ActionDoc> {
-    ACTION_SPECS
+    ACTION_SPECS.iter().map(action_doc_from_spec).collect()
+}
+
+pub fn action_catalog_from(specs: &[&ActionSpec]) -> Vec<ActionDoc> {
+    specs
         .iter()
-        .map(|spec| ActionDoc {
-            service: "example".to_owned(),
-            action: spec.name.to_owned(),
-            description: spec.description.to_owned(),
-            destructive: spec.destructive,
-            requires_admin: spec.requires_admin,
-            cost: spec.cost.as_str().to_owned(),
-            required_scope: spec.required_scope.map(ToOwned::to_owned),
-            params: spec
-                .params
+        .map(|spec| action_doc_from_spec(spec))
+        .collect()
+}
+
+fn action_doc_from_spec(spec: &ActionSpec) -> ActionDoc {
+    ActionDoc {
+        service: "example".to_owned(),
+        action: spec.name.to_owned(),
+        description: spec.description.to_owned(),
+        destructive: spec.destructive,
+        requires_admin: spec.requires_admin,
+        cost: spec.cost.as_str().to_owned(),
+        required_scope: spec.required_scope.map(ToOwned::to_owned),
+        params: spec
+            .params
+            .iter()
+            .map(|param| ParamDoc {
+                name: param.name.to_owned(),
+                ty: param.ty.as_str().to_owned(),
+                required: param.required,
+                description: param.description.to_owned(),
+                max_len: param.max_len,
+                enum_values: param
+                    .enum_values
+                    .iter()
+                    .map(|value| (*value).to_owned())
+                    .collect(),
+            })
+            .collect(),
+        returns: spec.returns.to_owned(),
+        surface_availability: SurfaceAvailability {
+            mcp: spec.transport.mcp(),
+            cli: spec.transport.cli(),
+            rest: spec.transport.rest(),
+            web_ui: false,
+        },
+        auth_posture: match spec.required_scope {
+            Some(scope) => format!("requires `{scope}` on authenticated transports"),
+            None => "public action; no action scope required".to_owned(),
+        },
+        mcp_only_exception: (spec.transport == ActionTransport::McpOnly)
+            .then(|| "MCP-only because it requires client-rendered elicitation.".to_owned()),
+        cli: spec.cli.map(|cli| CliDoc {
+            command: cli.command.to_owned(),
+            usage: cli.usage.to_owned(),
+            description: cli.description.to_owned(),
+            flags: cli
+                .flags
                 .iter()
-                .map(|param| ParamDoc {
-                    name: param.name.to_owned(),
-                    ty: param.ty.to_owned(),
-                    required: param.required,
-                    description: param.description.to_owned(),
+                .map(|flag| CliFlagDoc {
+                    name: flag.name.to_owned(),
+                    value_name: flag.value_name.map(ToOwned::to_owned),
+                    required: flag.required,
+                    description: flag.description.to_owned(),
                 })
                 .collect(),
-            returns: spec.returns.to_owned(),
-            surface_availability: SurfaceAvailability {
-                mcp: spec.transport.mcp(),
-                cli: spec.transport.cli(),
-                rest: spec.transport.rest(),
-                web_ui: false,
-            },
-            auth_posture: match spec.required_scope {
-                Some(scope) => format!("requires `{scope}` on authenticated transports"),
-                None => "public action; no action scope required".to_owned(),
-            },
-            mcp_only_exception: (spec.transport == ActionTransport::McpOnly)
-                .then(|| "MCP-only because it requires client-rendered elicitation.".to_owned()),
-            cli: spec.cli.map(|cli| CliDoc {
-                command: cli.command.to_owned(),
-                usage: cli.usage.to_owned(),
-                description: cli.description.to_owned(),
-                flags: cli
-                    .flags
-                    .iter()
-                    .map(|flag| CliFlagDoc {
-                        name: flag.name.to_owned(),
-                        value_name: flag.value_name.map(ToOwned::to_owned),
-                        required: flag.required,
-                        description: flag.description.to_owned(),
-                    })
-                    .collect(),
-            }),
-        })
-        .collect()
+        }),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -586,18 +683,27 @@ impl ExampleAction {
     }
 }
 
+pub fn action_name_from_mcp_args(args: &Value) -> anyhow::Result<&str> {
+    match args.get("action") {
+        None => Err(action_error(ValidationError::MissingAction)),
+        Some(Value::String(action)) => Ok(action.as_str()),
+        Some(_) => Err(action_error(ValidationError::WrongType {
+            field: "action".into(),
+        })),
+    }
+}
+
 pub fn rest_help() -> Value {
     json!({
         "actions": rest_action_names(),
         "mcp_only_actions": mcp_only_action_names(),
         "catalog": action_catalog(),
         "preferred_rest_style": "direct_routes",
-        "usage": "Use direct REST routes such as POST /v1/echo or GET /v1/status. POST /v1/example remains as a deprecated compatibility action envelope.",
+        "usage": "Use direct REST routes such as POST /v1/echo or GET /v1/status. REST does not expose an action envelope.",
         "examples": {
             "greet":  {"method": "POST", "path": "/v1/greet",  "body": {"name": "Alice"}},
             "echo":   {"method": "POST", "path": "/v1/echo",   "body": {"message": "Hello!"}},
-            "status": {"method": "GET", "path": "/v1/status"},
-            "legacy_envelope": {"method": "POST", "path": "/v1/example", "body": {"action": "echo", "params": {"message": "Hello!"}}},
+            "status": {"method": "GET", "path": "/v1/status"}
         }
     })
 }
@@ -612,7 +718,7 @@ fn optional_string_param(params: &Value, name: &str) -> Result<Option<String>, V
     }
 }
 
-fn action_error(error: ValidationError) -> anyhow::Error {
+pub fn action_error(error: ValidationError) -> anyhow::Error {
     error.into()
 }
 

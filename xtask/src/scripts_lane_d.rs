@@ -12,11 +12,9 @@
 
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const LEGACY_REST_ENDPOINT: &str = "/v1/example";
 
 const REST_SCHEMAS: &[(&str, Option<&str>, &str)] = &[
     ("greet", Some("GreetRequest"), "GreetResponse"),
@@ -43,6 +41,23 @@ struct ActionEntry {
     rest_method: Option<String>,
     rest_path: Option<String>,
     cost: String,
+    params: Vec<ParamEntry>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ParamEntry {
+    name: String,
+    ty: String,
+    required: bool,
+    description: String,
+    max_len: Option<usize>,
+    enum_values: Vec<String>,
+}
+
+impl ActionEntry {
+    fn is_rest(&self) -> bool {
+        self.transport != "McpOnly" && self.rest_method.is_some() && self.rest_path.is_some()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -340,16 +355,11 @@ fn escape_char(ch: char) -> String {
 }
 
 fn render_openapi(root: &Path) -> Result<Value> {
-    let entries = action_entries(root)?;
-    let rest_actions: Vec<&ActionEntry> = entries
-        .iter()
-        .filter(|entry| {
-            entry.transport == "Any" && entry.rest_method.is_some() && entry.rest_path.is_some()
-        })
-        .collect();
+    let specs = action_entries(root)?;
+    let rest_actions: Vec<_> = specs.iter().filter(|spec| spec.is_rest()).collect();
     let action_names: Vec<String> = rest_actions
         .iter()
-        .map(|entry| entry.name.clone())
+        .map(|spec| spec.name.to_owned())
         .collect();
     let version = package_version(root)?;
     let port = default_mcp_port(root)?;
@@ -373,8 +383,13 @@ fn render_openapi(root: &Path) -> Result<Value> {
     );
 
     for action in &rest_actions {
-        let Some((request_schema, response_schema)) = rest_schemas(&action.name) else {
+        let Some((fallback_request_schema, response_schema)) = rest_schemas(&action.name) else {
             continue;
+        };
+        let request_schema = if action.params.is_empty() {
+            None
+        } else {
+            fallback_request_schema
         };
         let method = action
             .rest_method
@@ -413,25 +428,11 @@ fn render_openapi(root: &Path) -> Result<Value> {
         paths.insert(path.to_owned(), json!({method: operation}));
     }
 
-    let examples = rest_actions
-        .iter()
-        .map(|action| {
-            (
-                action.name.clone(),
-                json!({"value":{"action": action.name, "params": param_example(&action.name)}}),
-            )
-        })
-        .collect::<serde_json::Map<_, _>>();
-    paths.insert(
-        LEGACY_REST_ENDPOINT.to_owned(),
-        json!({"post":{"tags":["legacy-actions"],"summary":"Deprecated action-envelope dispatch","description":"Compatibility shim for older clients. New application/platform servers should expose direct product REST routes and reserve action dispatch for MCP.","operationId":"dispatchExampleActionDeprecated","deprecated":true,"security":[{"BearerAuth":[]},{}],"requestBody":{"required":true,"content":{"application/json":{"schema":schema_ref("ActionRequest"),"examples":examples}}},"responses":{"200":{"description":"Action result. Shape depends on the requested action.","content":{"application/json":{"schema":schema_ref("ActionResponse")}}},"400":{"$ref":"#/components/responses/BadRequest"},"401":{"$ref":"#/components/responses/Unauthorized"},"403":{"$ref":"#/components/responses/Forbidden"},"500":{"$ref":"#/components/responses/InternalError"}}}}),
-    );
-
     let direct_rest_routes = rest_actions
         .iter()
         .map(|action| {
             (
-                action.name.clone(),
+                action.name.to_owned(),
                 json!({
                     "method": action.rest_method.as_deref().unwrap_or_default().to_uppercase(),
                     "path": action.rest_path.as_deref().unwrap_or_default(),
@@ -439,14 +440,14 @@ fn render_openapi(root: &Path) -> Result<Value> {
             )
         })
         .collect::<serde_json::Map<_, _>>();
-    let action_costs = entries
+    let action_costs = specs
         .iter()
-        .map(|entry| (entry.name.clone(), json!(entry.cost)))
+        .map(|spec| (spec.name.to_owned(), json!(spec.cost.as_str())))
         .collect::<serde_json::Map<_, _>>();
-    let mcp_only: Vec<String> = entries
+    let mcp_only: Vec<String> = specs
         .iter()
-        .filter(|entry| entry.transport == "McpOnly")
-        .map(|entry| entry.name.clone())
+        .filter(|spec| !spec.is_rest())
+        .map(|spec| spec.name.to_owned())
         .collect();
 
     Ok(json!({
@@ -460,13 +461,12 @@ fn render_openapi(root: &Path) -> Result<Value> {
         "tags": [
             {"name":"health","description":"Unauthenticated runtime probes"},
             {"name":"capabilities","description":"REST route inventory"},
-            {"name":"direct-rest","description":"Preferred typed REST routes"},
-            {"name":"legacy-actions","description":"Deprecated action-envelope compatibility"}
+            {"name":"direct-rest","description":"Preferred typed REST routes"}
         ],
         "paths": paths,
         "components": {
             "securitySchemes": {"BearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"opaque","description":"Static bearer token in bearer mode; OAuth mode also uses bearer JWTs. Loopback and trusted-gateway modes may not require local auth."}},
-            "schemas": openapi_schemas(action_names.clone()),
+            "schemas": openapi_schemas(action_names.clone(), &rest_actions),
             "responses": {
                 "BadRequest":{"description":"Validation error","content":{"application/json":{"schema":schema_ref("ErrorResponse")}}},
                 "Unauthorized":{"description":"Missing or invalid authentication","content":{"application/json":{"schema":schema_ref("ErrorResponse")}}},
@@ -475,8 +475,8 @@ fn render_openapi(root: &Path) -> Result<Value> {
             }
         },
         "x-template": {
-            "source": "scripts/check-openapi.py",
-            "action_metadata": "crates/rtemplate-contracts/src/actions.rs",
+            "source": "cargo xtask check-openapi",
+            "action_metadata": "crates/rtemplate-service/src/actions.rs",
             "preferred_rest_style": "direct_routes",
             "rest_actions": action_names,
             "direct_rest_routes": direct_rest_routes,
@@ -486,23 +486,74 @@ fn render_openapi(root: &Path) -> Result<Value> {
     }))
 }
 
-fn openapi_schemas(action_names: Vec<String>) -> Value {
-    json!({
-        "ActionName":{"type":"string","enum":action_names,"description":"REST-capable action names from crates/rtemplate-contracts/src/actions.rs."},
-        "ActionRequest":{"type":"object","additionalProperties":false,"required":["action"],"properties":{"action":schema_ref("ActionName"),"params":{"type":"object","description":"Action-specific parameters. greet.name is optional; echo.message is required.","additionalProperties":true,"default":{}}}},
-        "GreetRequest":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","description":"Name to greet. Omit to greet the world."}}},
-        "EchoRequest":{"type":"object","additionalProperties":false,"required":["message"],"properties":{"message":{"type":"string","minLength":1,"description":"Message to echo back. Must not be empty."}}},
-        "ActionResponse":{"oneOf":[schema_ref("GreetResponse"),schema_ref("EchoResponse"),schema_ref("StatusResponse"),schema_ref("HelpResponse"),schema_ref("RestTruncationResponse")]},
-        "GreetResponse":{"type":"object","required":["greeting","target"],"properties":{"greeting":{"type":"string"},"target":{"type":"string"},"server":{"type":"string"}},"additionalProperties":true},
-        "EchoResponse":{"type":"object","required":["echo"],"properties":{"echo":{"type":"string"}},"additionalProperties":true},
-        "StatusResponse":{"type":"object","required":["status"],"properties":{"status":{"type":"string"},"note":{"type":"string"},"server":{"type":"string"},"version":{"type":"string"},"transport":{"type":"string"}},"additionalProperties":true},
-        "HealthResponse":{"type":"object","required":["status"],"properties":{"status":{"type":"string","const":"ok"}},"additionalProperties":false},
-        "CapabilitiesResponse":{"type":"object","required":["server","version","preferred_rest_style","supported_routes","routes"],"properties":{"server":{"type":"string"},"version":{"type":"string"},"preferred_rest_style":{"type":"string","const":"direct_routes"},"supported_routes":{"type":"array","items":{"type":"string"}},"routes":{"type":"array","items":schema_ref("RestRoute")}},"additionalProperties":false},
-        "RestRoute":{"type":"object","required":["method","path","auth","description"],"properties":{"method":{"type":"string"},"path":{"type":"string"},"action":{"type":["string","null"]},"auth":{"type":"string"},"description":{"type":"string"}},"additionalProperties":false},
-        "HelpResponse":{"type":"object","required":["actions","mcp_only_actions","usage","examples"],"properties":{"actions":{"type":"array","items":schema_ref("ActionName")},"mcp_only_actions":{"type":"array","items":{"type":"string"}},"usage":{"type":"string"},"examples":{"type":"object","additionalProperties":true}},"additionalProperties":true},
-        "ErrorResponse":{"type":"object","required":["error"],"properties":{"error":{"type":"string"}},"additionalProperties":false},
-        "RestTruncationResponse":{"type":"object","required":["truncated","error","max_response_bytes","hint"],"properties":{"truncated":{"type":"boolean","const":true},"error":{"type":"string","const":"response exceeded REST response size limit"},"max_response_bytes":{"type":"integer","minimum":1},"hint":{"type":"string"}},"additionalProperties":false}
-    })
+fn openapi_schemas(action_names: Vec<String>, rest_actions: &[&ActionEntry]) -> Value {
+    let mut schemas = serde_json::Map::new();
+    schemas.insert(
+        "ActionName".to_owned(),
+        json!({"type":"string","enum":action_names,"description":"REST-capable action names from crates/rtemplate-service/src/actions.rs."}),
+    );
+    for action in rest_actions
+        .iter()
+        .filter(|action| !action.params.is_empty())
+    {
+        schemas.insert(
+            format!("{}Request", title_no_underscore(&action.name)),
+            request_schema_for_action(action),
+        );
+    }
+    schemas.extend([
+        ("ActionResponse".to_owned(), json!({"oneOf":[schema_ref("GreetResponse"),schema_ref("EchoResponse"),schema_ref("StatusResponse"),schema_ref("HelpResponse"),schema_ref("RestTruncationResponse")]})),
+        ("GreetResponse".to_owned(), json!({"type":"object","required":["greeting","target"],"properties":{"greeting":{"type":"string"},"target":{"type":"string"},"server":{"type":"string"}},"additionalProperties":true})),
+        ("EchoResponse".to_owned(), json!({"type":"object","required":["echo"],"properties":{"echo":{"type":"string"}},"additionalProperties":true})),
+        ("StatusResponse".to_owned(), json!({"type":"object","required":["status"],"properties":{"status":{"type":"string"},"note":{"type":"string"},"server":{"type":"string"},"version":{"type":"string"},"transport":{"type":"string"}},"additionalProperties":true})),
+        ("HealthResponse".to_owned(), json!({"type":"object","required":["status"],"properties":{"status":{"type":"string","const":"ok"}},"additionalProperties":false})),
+        ("CapabilitiesResponse".to_owned(), json!({"type":"object","required":["server","version","preferred_rest_style","supported_routes","routes"],"properties":{"server":{"type":"string"},"version":{"type":"string"},"preferred_rest_style":{"type":"string","const":"direct_routes"},"supported_routes":{"type":"array","items":{"type":"string"}},"routes":{"type":"array","items":schema_ref("RestRoute")}},"additionalProperties":false})),
+        ("RestRoute".to_owned(), json!({"type":"object","required":["method","path","auth","description"],"properties":{"method":{"type":"string"},"path":{"type":"string"},"action":{"type":["string","null"]},"auth":{"type":"string"},"description":{"type":"string"}},"additionalProperties":false})),
+        ("HelpResponse".to_owned(), json!({"type":"object","required":["actions","mcp_only_actions","usage","examples"],"properties":{"actions":{"type":"array","items":schema_ref("ActionName")},"mcp_only_actions":{"type":"array","items":{"type":"string"}},"usage":{"type":"string"},"examples":{"type":"object","additionalProperties":true}},"additionalProperties":true})),
+        ("ErrorResponse".to_owned(), json!({"type":"object","required":["error"],"properties":{"error":{"type":"string"}},"additionalProperties":false})),
+        ("RestTruncationResponse".to_owned(), json!({"type":"object","required":["truncated","error","max_response_bytes","hint"],"properties":{"truncated":{"type":"boolean","const":true},"error":{"type":"string","const":"response exceeded REST response size limit"},"max_response_bytes":{"type":"integer","minimum":1},"hint":{"type":"string"}},"additionalProperties":false})),
+    ]);
+    Value::Object(schemas)
+}
+
+fn request_schema_for_action(action: &ActionEntry) -> Value {
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    for param in &action.params {
+        let mut schema = json!({
+            "type": openapi_type_for_param(&param.ty),
+            "description": param.description,
+        });
+        if param.required {
+            required.push(Value::String(param.name.to_owned()));
+            if param.ty == "String" {
+                schema["minLength"] = json!(1);
+            }
+        }
+        if let Some(max_len) = param.max_len {
+            schema["maxLength"] = json!(max_len);
+        }
+        if !param.enum_values.is_empty() {
+            schema["enum"] = json!(param.enum_values);
+        }
+        properties.insert(param.name.to_owned(), schema);
+    }
+    let mut schema = json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": properties,
+    });
+    if !required.is_empty() {
+        schema["required"] = Value::Array(required);
+    }
+    schema
+}
+
+fn openapi_type_for_param(ty: &str) -> &'static str {
+    match ty {
+        "String" => "string",
+        _ => "string",
+    }
 }
 
 fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
@@ -533,18 +584,21 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
         }
     }
 
-    let entries = action_entries(root)?;
-    if entries.len() != action_spec_count(root)? {
+    if action_entries(root)?.len() != action_spec_count(root)? {
         failures.push(format!(
             "ActionSpec parser drifted: parsed {} entries from {} specs",
-            entries.len(),
+            action_entries(root)?.len(),
             action_spec_count(root)?
         ));
     }
-    let expected: Vec<String> = entries
+    if value.pointer("/paths/~1v1~1example").is_some() {
+        failures.push("/v1/example must not be present; REST uses direct routes only".to_owned());
+    }
+    let specs = action_entries(root)?;
+    let expected: Vec<String> = specs
         .iter()
-        .filter(|entry| entry.transport == "Any")
-        .map(|entry| entry.name.clone())
+        .filter(|spec| spec.is_rest())
+        .map(|spec| spec.name.to_owned())
         .collect();
     let action_enum = value
         .pointer("/components/schemas/ActionName/enum")
@@ -555,21 +609,21 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
             "ActionName enum drifted: expected {expected:?}, got {action_enum}"
         ));
     }
-    let missing_route_metadata: Vec<String> = entries
+    let missing_route_metadata: Vec<String> = specs
         .iter()
-        .filter(|entry| entry.transport == "Any")
-        .filter(|entry| entry.rest_method.is_none() || entry.rest_path.is_none())
-        .map(|entry| entry.name.clone())
+        .filter(|spec| spec.is_rest())
+        .filter(|spec| spec.rest_method.is_none() || spec.rest_path.is_none())
+        .map(|spec| spec.name.to_owned())
         .collect();
     if !missing_route_metadata.is_empty() {
         failures.push(format!(
-            "ACTION_SPECS entries are missing REST route metadata: {missing_route_metadata:?}"
+            "service action specs are missing REST route metadata: {missing_route_metadata:?}"
         ));
     }
-    for name in entries
+    for name in specs
         .iter()
-        .filter(|entry| entry.transport == "McpOnly")
-        .map(|entry| &entry.name)
+        .filter(|spec| !spec.is_rest())
+        .map(|spec| spec.name.as_str())
     {
         if action_enum
             .as_array()
@@ -588,21 +642,24 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
                 .unwrap_or(&Value::Null)
         ));
     }
-    let expected_mcp_only: Vec<String> = entries
+    let expected_mcp_only: Vec<String> = specs
         .iter()
-        .filter(|entry| entry.transport == "McpOnly")
-        .map(|entry| entry.name.clone())
+        .filter(|spec| !spec.is_rest())
+        .map(|spec| spec.name.to_owned())
         .collect();
     if value.pointer("/x-template/mcp_only_actions") != Some(&json!(expected_mcp_only)) {
         failures.push("x-template mcp_only_actions drifted".to_owned());
     }
-    for action in entries
-        .iter()
-        .filter(|entry| entry.transport == "Any")
-        .filter(|entry| entry.rest_method.is_some() && entry.rest_path.is_some())
-    {
-        let method = action.rest_method.as_deref().unwrap().to_ascii_lowercase();
-        let path = action.rest_path.as_deref().unwrap();
+    for action in specs.iter().filter(|spec| spec.is_rest()) {
+        let Some(path) = action.rest_path.as_deref() else {
+            failures.push(format!("REST action {} is missing rest_path", action.name));
+            continue;
+        };
+        let method = action
+            .rest_method
+            .as_deref()
+            .unwrap_or("POST")
+            .to_ascii_lowercase();
         if !expected.iter().any(|expected| expected == &action.name) {
             continue;
         }
@@ -611,22 +668,10 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
             .is_none()
         {
             failures.push(format!(
-                "missing direct REST operation {} {path}",
+                "missing OpenAPI path for {} {path}",
                 method.to_uppercase()
             ));
         }
-    }
-    if value
-        .pointer("/paths/~1v1~1example/post/deprecated")
-        .and_then(Value::as_bool)
-        != Some(true)
-    {
-        failures.push(format!("{LEGACY_REST_ENDPOINT} must be marked deprecated"));
-    }
-    if value.pointer("/paths/~1v1~1example/post/security") != Some(&json!([{"BearerAuth":[]},{}])) {
-        failures.push(format!(
-            "{LEGACY_REST_ENDPOINT} security must document bearer auth and no-local-auth modes"
-        ));
     }
     if value.pointer("/paths/~1v1~1capabilities/get/responses/200/content/application~1json/schema")
         != Some(&schema_ref("CapabilitiesResponse"))
@@ -649,7 +694,7 @@ fn render_schema_docs(root: &Path) -> Result<String> {
     let mut lines = vec![
         "# MCP Schema Contract".to_owned(),
         "".to_owned(),
-        "Generated from `crates/rtemplate-contracts/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.".to_owned(),
+        "Generated from `crates/rtemplate-service/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.".to_owned(),
         "".to_owned(),
         "Run:".to_owned(),
         "".to_owned(),
@@ -685,9 +730,9 @@ const SCHEMA_DOC_TAIL: &[&str] = &[
     "",
     "## Drift Rules",
     "",
-    "- `ACTION_SPECS` in `crates/rtemplate-contracts/src/actions.rs` is the canonical action and scope list.",
+    "- `action_specs()` in `crates/rtemplate-service/src/actions.rs` is the canonical action and scope list.",
     "- Action cost is planner metadata. Use `cheap` for first-pass reads, `moderate` for bounded workflow setup, `expensive` for broad scans or long-running work, and `write` for mutating operations.",
-    "- `crates/rtemplate-mcp/src/schemas.rs` must derive its enum from `ACTION_SPECS`.",
+    "- `crates/rtemplate-mcp/src/schemas.rs` must derive its enum from `rtemplate_service::action_specs()`.",
     "- The MCP tool schema must reject unknown top-level parameters except reserved `_response_*` continuation fields, and encode action-specific requirements that fit the single-tool dispatch model.",
     "- `help` is intentionally public and must have no required scope.",
     "- `crates/rtemplate-mcp/src/tools.rs`, `README.md`, and `plugins/rtemplate/skills/example/SKILL.md` must mention every action.",
@@ -745,9 +790,11 @@ fn check_schema_mentions(root: &Path, actions: &[ActionEntry]) -> Result<Vec<Str
         }
     }
     let tools_text = read(root.join("crates/rtemplate-mcp/src/tools.rs"))?;
-    if !tools_text.contains("ACTION_SPECS") || !tools_text.contains("build_help_text") {
+    if !tools_text.contains("rtemplate_service::action_specs()")
+        || !tools_text.contains("build_help_text")
+    {
         failures.push(
-            "crates/rtemplate-mcp/src/tools.rs HELP_TEXT must be derived from ACTION_SPECS"
+            "crates/rtemplate-mcp/src/tools.rs HELP_TEXT must be derived from rtemplate_service::action_specs()"
                 .to_owned(),
         );
     }
@@ -760,10 +807,10 @@ fn check_schema_scope(root: &Path, actions: &[ActionEntry]) -> Result<Vec<String
     let scope_names: BTreeSet<&str> = actions.iter().map(|action| action.name.as_str()).collect();
     let cost_names: BTreeSet<&str> = actions.iter().map(|action| action.name.as_str()).collect();
     if scope_names != action_names {
-        failures.push("ACTION_SPECS action names and scope entries are out of sync".to_owned());
+        failures.push("service action names and scope entries are out of sync".to_owned());
     }
     if cost_names != action_names {
-        failures.push("ACTION_SPECS action names and cost entries are out of sync".to_owned());
+        failures.push("service action names and cost entries are out of sync".to_owned());
     }
     if actions
         .iter()
@@ -782,9 +829,9 @@ fn check_schema_scope(root: &Path, actions: &[ActionEntry]) -> Result<Vec<String
         }
     }
     let schema_text = read(root.join("crates/rtemplate-mcp/src/schemas.rs"))?;
-    if !schema_text.contains("action_names()") {
+    if !schema_text.contains("rtemplate_service::action_specs()") {
         failures.push(
-            "crates/rtemplate-mcp/src/schemas.rs must derive action enum from action_names()"
+            "crates/rtemplate-mcp/src/schemas.rs must derive action enum from rtemplate_service::action_specs()"
                 .to_owned(),
         );
     }
@@ -797,7 +844,7 @@ fn check_schema_scope(root: &Path, actions: &[ActionEntry]) -> Result<Vec<String
     if !schema_text.contains("required_param_conditionals()")
         || !schema_text.contains("\"then\": { \"required\": required }")
     {
-        failures.push("crates/rtemplate-mcp/src/schemas.rs must derive required action parameters from ACTION_SPECS".to_owned());
+        failures.push("crates/rtemplate-mcp/src/schemas.rs must derive required action parameters from service action specs".to_owned());
     }
     let rmcp_server_text = read(root.join("crates/rtemplate-mcp/src/rmcp_server.rs"))?;
     if !rmcp_server_text.contains("example://schema/mcp-tool")
@@ -1221,15 +1268,29 @@ fn validate_policy(value: &Value, source: &Path) -> Result<()> {
 }
 
 fn action_entries(root: &Path) -> Result<Vec<ActionEntry>> {
-    let text = read(root.join("crates/rtemplate-contracts/src/actions.rs"))?;
-    Ok(parse_action_entries(&text))
+    let text = read(root.join("crates/rtemplate-service/src/actions.rs"))?;
+    let action_specs = action_specs_body(&text).unwrap_or(&text);
+    Ok(parse_action_entries_with_params(&text, action_specs))
 }
 
 fn extract_actions(root: &Path) -> Result<Vec<ActionEntry>> {
     action_entries(root)
 }
 
+fn action_specs_body(text: &str) -> Option<&str> {
+    let start = text.find("ACTION_SPECS")?;
+    let after_start = &text[start..];
+    let end = after_start.find("];")?;
+    Some(&after_start[..end])
+}
+
+#[cfg(test)]
 fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
+    parse_action_entries_with_params(text, text)
+}
+
+fn parse_action_entries_with_params(source: &str, text: &str) -> Vec<ActionEntry> {
+    let params = param_specs_by_const(source);
     action_blocks(text)
         .into_iter()
         .filter_map(|entry| {
@@ -1240,6 +1301,11 @@ fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
             let rest_method = option_string_expr(field_expr(entry, "rest_method")?.as_str())?;
             let rest_path = option_string_expr(field_expr(entry, "rest_path")?.as_str())?;
             let cost = enum_variant(entry, "cost", "ActionCost")?.to_lowercase();
+            let params_expr = field_expr(entry, "params").unwrap_or_else(|| "&[]".to_owned());
+            let action_params = match params_expr.trim() {
+                "&[]" => Vec::new(),
+                name => params.get(name).cloned().unwrap_or_default(),
+            };
             let (scope, doc_scope) = match scope_expr.trim() {
                 "None" => ("public".to_owned(), "public".to_owned()),
                 "Some(READ_SCOPE)" => ("example:read".to_owned(), "`example:read`".to_owned()),
@@ -1258,24 +1324,92 @@ fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
                 rest_method,
                 rest_path,
                 cost,
+                params: action_params,
             })
         })
         .collect()
 }
 
+fn param_specs_by_const(source: &str) -> BTreeMap<String, Vec<ParamEntry>> {
+    let constants = usize_constants(source);
+    let mut specs = BTreeMap::new();
+    let mut rest = source;
+    while let Some(start) = rest.find("const ") {
+        rest = &rest[start + "const ".len()..];
+        let Some((name, after_name)) = rest.split_once(':') else {
+            break;
+        };
+        let name = name.trim();
+        if !after_name.trim_start().starts_with("&[ParamSpec]") {
+            continue;
+        }
+        let Some((_, after_body_start)) = after_name.split_once("= &[") else {
+            continue;
+        };
+        let Some(end) = after_body_start.find("];") else {
+            break;
+        };
+        let body = &after_body_start[..end];
+        let entries = struct_blocks(body, "ParamSpec")
+            .into_iter()
+            .filter_map(|entry| parse_param_entry(entry, &constants))
+            .collect::<Vec<_>>();
+        specs.insert(name.to_owned(), entries);
+        rest = &after_body_start[end + "];".len()..];
+    }
+    specs
+}
+
+fn parse_param_entry(entry: &str, constants: &BTreeMap<String, usize>) -> Option<ParamEntry> {
+    Some(ParamEntry {
+        name: field_string(entry, "name")?,
+        ty: enum_variant(entry, "ty", "ParamType")?,
+        required: bool_expr(&field_expr(entry, "required")?)?,
+        description: field_string(entry, "description")?,
+        max_len: option_usize_expr(&field_expr(entry, "max_len")?, constants)?,
+        enum_values: string_slice_expr(&field_expr(entry, "enum_values")?)?,
+    })
+}
+
+fn usize_constants(source: &str) -> BTreeMap<String, usize> {
+    let mut constants = BTreeMap::new();
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("const ") else {
+            continue;
+        };
+        let Some((name, rest)) = rest.split_once(": usize") else {
+            continue;
+        };
+        let Some((_, value)) = rest.split_once('=') else {
+            continue;
+        };
+        let value = value.trim().trim_end_matches(';').trim();
+        if let Ok(value) = value.parse::<usize>() {
+            constants.insert(name.trim().to_owned(), value);
+        }
+    }
+    constants
+}
+
 fn action_spec_count(root: &Path) -> Result<usize> {
-    let text = read(root.join("crates/rtemplate-contracts/src/actions.rs"))?;
-    Ok(action_blocks(&text)
+    let text = read(root.join("crates/rtemplate-service/src/actions.rs"))?;
+    let action_specs = action_specs_body(&text).unwrap_or(&text);
+    Ok(action_blocks(action_specs)
         .into_iter()
         .filter(|block| block.trim_start().starts_with("name:"))
         .count())
 }
 
 fn action_blocks(text: &str) -> Vec<&str> {
+    struct_blocks(text, "ActionSpec")
+}
+
+fn struct_blocks<'a>(text: &'a str, struct_name: &str) -> Vec<&'a str> {
     let mut blocks = Vec::new();
     let mut rest = text;
-    while let Some(start) = rest.find("ActionSpec") {
-        rest = &rest[start + "ActionSpec".len()..];
+    while let Some(start) = rest.find(struct_name) {
+        rest = &rest[start + struct_name.len()..];
         let Some(open) = rest.find('{') else {
             break;
         };
@@ -1362,6 +1496,46 @@ fn option_string_expr(value: &str) -> Option<Option<String>> {
     Some(Some(inner.to_owned()))
 }
 
+fn option_usize_expr(value: &str, constants: &BTreeMap<String, usize>) -> Option<Option<usize>> {
+    let value = value.trim();
+    if value == "None" {
+        return Some(None);
+    }
+    let inner = value.strip_prefix("Some(")?.strip_suffix(')')?.trim();
+    if let Ok(value) = inner.parse::<usize>() {
+        return Some(Some(value));
+    }
+    constants.get(inner).copied().map(Some)
+}
+
+fn bool_expr(value: &str) -> Option<bool> {
+    match value.trim() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn string_slice_expr(value: &str) -> Option<Vec<String>> {
+    let value = value.trim();
+    if value == "&[]" {
+        return Some(Vec::new());
+    }
+    let inner = value.strip_prefix("&[")?.strip_suffix(']')?;
+    Some(
+        inner
+            .split(',')
+            .filter_map(|part| {
+                let part = part.trim();
+                if part.is_empty() {
+                    return None;
+                }
+                Some(part.trim_matches('"').to_owned())
+            })
+            .collect(),
+    )
+}
+
 fn schema_ref(name: &str) -> Value {
     json!({"$ref": format!("#/components/schemas/{name}")})
 }
@@ -1404,11 +1578,10 @@ fn required_openapi_paths(root: &Path) -> Result<Vec<String>> {
     ];
     paths.extend(
         action_entries(root)?
-            .into_iter()
-            .filter(|entry| entry.transport == "Any")
-            .filter_map(|entry| entry.rest_path),
+            .iter()
+            .filter(|spec| spec.is_rest())
+            .filter_map(|spec| spec.rest_path.clone()),
     );
-    paths.push(LEGACY_REST_ENDPOINT.to_owned());
     Ok(paths)
 }
 
@@ -1643,6 +1816,15 @@ mod tests {
     #[test]
     fn parses_action_specs_like_python_regex() {
         let text = r#"
+            const MAX_STRING_PARAM_LEN: usize = 4096;
+            const GREET_PARAMS: &[ParamSpec] = &[ParamSpec {
+                name: "name",
+                ty: ParamType::String,
+                required: false,
+                description: "Name to greet.",
+                max_len: Some(MAX_STRING_PARAM_LEN),
+                enum_values: &[],
+            }];
             ActionSpec {
                 name: "greet",
                 description: "Return a greeting.",
@@ -1651,6 +1833,7 @@ mod tests {
                 rest_method: Some("POST"),
                 rest_path: Some("/v1/greet"),
                 cost: ActionCost::Cheap,
+                params: GREET_PARAMS,
             },
             ActionSpec {
                 name: "elicit_name",
@@ -1678,6 +1861,8 @@ mod tests {
         assert_eq!(entries[0].scope, "example:read");
         assert_eq!(entries[0].rest_method.as_deref(), Some("POST"));
         assert_eq!(entries[0].rest_path.as_deref(), Some("/v1/greet"));
+        assert_eq!(entries[0].params[0].name, "name");
+        assert_eq!(entries[0].params[0].max_len, Some(4096));
         assert_eq!(entries[1].transport, "McpOnly");
         assert_eq!(entries[1].rest_method, None);
         assert_eq!(entries[2].doc_scope, "public");

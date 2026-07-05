@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ACTION_RS = ROOT / "crates/rtemplate-contracts/src/actions.rs"
+ACTION_RS = ROOT / "crates/rtemplate-service/src/actions.rs"
 CONFIG_RS = ROOT / "crates/rtemplate-contracts/src/config.rs"
 ENV_REGISTRY_RS = ROOT / "crates/rtemplate-contracts/src/env_registry.rs"
 ENV_DOC = ROOT / "docs/ENV.md"
@@ -82,6 +82,13 @@ def string_field(block: str, field: str) -> str:
     return match.group(1)
 
 
+def param_type_field(block: str, field: str) -> str:
+    match = re.search(rf"{field}:\s*ParamType::(\w+)", block)
+    if match:
+        return match.group(1).lower()
+    return string_field(block, field)
+
+
 def bool_field(block: str, field: str) -> bool:
     match = re.search(rf"{field}:\s*(true|false)", block)
     if not match:
@@ -105,7 +112,7 @@ def parse_params(text: str) -> dict[str, list[Param]]:
             params.append(
                 Param(
                     name=string_field(block, "name"),
-                    ty=string_field(block, "ty"),
+                    ty=param_type_field(block, "ty"),
                     required=bool_field(block, "required"),
                     description=string_field(block, "description"),
                 )

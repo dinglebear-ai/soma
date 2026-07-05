@@ -78,6 +78,23 @@ export const ACTIONS = [
     },
   },
   {
+    id: "help",
+    label: "help",
+    description: "Show the action reference.",
+    scope: "public",
+    transport: "rest",
+    method: "GET",
+    path: "/v1/help",
+    params: [],
+    example: {
+      action: "help",
+      params: {},
+    },
+    response: {
+      actions: ["greet", "echo", "status", "help"],
+    },
+  },
+  {
     id: "elicit_name",
     label: "elicit_name",
     description: "Ask the MCP client to collect a name, then return a personalised greeting.",
@@ -109,23 +126,6 @@ export const ACTIONS = [
     response: {
       kind: "rmcp_template_scaffold_intent",
       schema_version: 1,
-    },
-  },
-  {
-    id: "help",
-    label: "help",
-    description: "Show the action reference.",
-    scope: "public",
-    transport: "rest",
-    method: "GET",
-    path: "/v1/help",
-    params: [],
-    example: {
-      action: "help",
-      params: {},
-    },
-    response: {
-      actions: ["greet", "echo", "status", "help"],
     },
   },
 ] as const satisfies readonly ActionSpec[];

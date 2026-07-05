@@ -6,7 +6,7 @@ const ACTION_TEST_COVERAGE_EXCEPTIONS: &[&str] = &[
 ];
 
 pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
-    let actions_text = read_file("crates/rtemplate-contracts/src/actions.rs");
+    let actions_text = read_file("crates/rtemplate-service/src/actions.rs");
     let action_specs = action_specs_body(&actions_text).unwrap_or(&actions_text);
     let action_names = extract_action_names(action_specs);
     let mcp_only = extract_mcp_only_actions(action_specs);
@@ -14,7 +14,7 @@ pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
     if action_names.is_empty() {
         reporter.fail(
             "actions",
-            "could not parse ACTION_SPECS from crates/rtemplate-contracts/src/actions.rs",
+            "could not parse ACTION_SPECS from crates/rtemplate-service/src/actions.rs",
         );
         return;
     }
@@ -24,7 +24,7 @@ pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
     let tests = read_file("crates/rmcp-template/tests/tool_dispatch.rs");
     let cli = read_file("crates/rtemplate-cli/src/lib.rs");
 
-    let schema_uses_metadata = schema.contains("action_names()");
+    let schema_uses_metadata = schema.contains("rtemplate_service::action_specs()");
     let missing_schema = if schema_uses_metadata {
         Vec::new()
     } else {
@@ -35,7 +35,7 @@ pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
             .collect::<Vec<_>>()
     };
     let help_uses_metadata =
-        tools.contains("for spec in ACTION_SPECS") && tools.contains("spec.description");
+        tools.contains("rtemplate_service::action_specs()") && tools.contains("spec.description");
     let missing_help = if help_uses_metadata {
         Vec::new()
     } else {

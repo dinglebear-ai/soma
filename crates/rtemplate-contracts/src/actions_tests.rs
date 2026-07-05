@@ -54,6 +54,13 @@ fn action_catalog_projects_surfaces_and_auth_posture() {
     assert!(!greet.surface_availability.web_ui);
     assert_eq!(greet.required_scope.as_deref(), Some(READ_SCOPE));
     assert_eq!(greet.cost, "cheap");
+    let name_param = greet
+        .params
+        .iter()
+        .find(|param| param.name == "name")
+        .expect("greet should document name param");
+    assert_eq!(name_param.max_len, Some(4096));
+    assert!(name_param.enum_values.is_empty());
     assert_eq!(greet.cli.as_ref().unwrap().command, "greet");
     assert_eq!(
         greet.cli.as_ref().unwrap().usage,

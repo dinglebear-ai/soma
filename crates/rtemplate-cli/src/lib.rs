@@ -14,11 +14,9 @@
 //! ```
 
 use anyhow::{anyhow, Result};
-use rtemplate_contracts::{
-    actions::{ActionSpec, ExampleAction, ACTION_SPECS},
-    config::ExampleConfig,
-};
+use rtemplate_contracts::{actions::ActionSpec, config::ExampleConfig};
 use rtemplate_service::{classify_service_error, dispatch_action, ExampleClient, ExampleService};
+use serde_json::{Map, Value};
 use std::io::{BufRead, IsTerminal, Write};
 
 // TEMPLATE: The doctor module is the §48 reference implementation.
@@ -61,14 +59,11 @@ pub fn usage() -> &'static str {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
-    Greet {
-        name: Option<String>,
+    Action {
+        name: String,
+        params: Value,
+        yes: bool,
     },
-    Echo {
-        message: String,
-    },
-    Status,
-    Help,
     /// Pre-flight environment validation (§48).
     ///
     /// TEMPLATE: Always keep this command. It is the operator's first stop
@@ -115,24 +110,6 @@ where
     let command = match args.as_slice() {
         [] => None,
         [subcommand, rest @ ..] => match subcommand.as_str() {
-            "greet" => {
-                let name = parse_optional_value_flag(rest, "greet", "--name")?;
-                Some(Command::Greet { name })
-            }
-            "echo" => {
-                let message = parse_required_value_flag(rest, "echo", "--message")?
-                    .filter(|m| !m.is_empty())
-                    .ok_or_else(|| anyhow!("echo requires non-empty --message"))?;
-                Some(Command::Echo { message })
-            }
-            "status" => {
-                reject_args(rest, "status")?;
-                Some(Command::Status)
-            }
-            "help" => {
-                reject_args(rest, "help")?;
-                Some(Command::Help)
-            }
             // §48: doctor is always parsed here, dispatched via run_cli in main.rs.
             // TEMPLATE: Keep this arm. It routes to doctor::run_doctor() which needs
             //           the full Config (not just ExampleConfig), so main.rs handles it.
@@ -174,7 +151,7 @@ where
                 }
                 _ => None,
             },
-            _ => None,
+            _ => parse_dynamic_action_command(subcommand, rest)?,
         },
     };
     Ok(command)
@@ -191,18 +168,20 @@ pub async fn run(cmd: Command, cfg: &ExampleConfig) -> Result<()> {
     let service = ExampleService::new(client);
     confirm_command_if_destructive(&cmd)?;
 
-    let result = match service_action_from_command(&cmd) {
-        Some(action) => match dispatch_action(&service, &action, "cli").await {
-            Ok(value) => value,
-            Err(error) => {
-                let tool_error = classify_service_error(&error);
-                eprintln!("{}", format_cli_tool_error(&tool_error));
-                return Err(anyhow!(tool_error.message));
+    let result = match &cmd {
+        Command::Action { name, params, .. } => {
+            match dispatch_action(&service, name, params, "cli").await {
+                Ok(value) => value,
+                Err(error) => {
+                    let tool_error = classify_service_error(&error);
+                    eprintln!("{}", format_cli_tool_error(&tool_error));
+                    return Err(anyhow!(tool_error.message));
+                }
             }
-        },
+        }
         // Doctor, Watch, and Setup are never dispatched via this function — main.rs
         // handles them directly because they need config.mcp fields.
-        None => {
+        Command::Doctor { .. } | Command::Watch { .. } | Command::Setup(_) => {
             unreachable!("dispatched directly in main.rs::run_cli")
         }
     };
@@ -229,26 +208,15 @@ fn format_cli_tool_error(error: &rtemplate_contracts::errors::ToolError) -> Stri
 }
 
 fn confirm_command_if_destructive(cmd: &Command) -> Result<()> {
-    let Some(action) = command_action_name(cmd) else {
+    let Command::Action { name, yes, .. } = cmd else {
         return Ok(());
     };
-    confirm_destructive_action_allowed(ACTION_SPECS, action, false, std::io::stdin().is_terminal())
-}
-
-fn command_action_name(cmd: &Command) -> Option<&'static str> {
-    service_action_from_command(cmd).map(|action| action.name())
-}
-
-fn service_action_from_command(cmd: &Command) -> Option<ExampleAction> {
-    match cmd {
-        Command::Greet { name } => Some(ExampleAction::Greet { name: name.clone() }),
-        Command::Echo { message } => Some(ExampleAction::Echo {
-            message: message.clone(),
-        }),
-        Command::Status => Some(ExampleAction::Status),
-        Command::Help => Some(ExampleAction::Help),
-        Command::Doctor { .. } | Command::Watch { .. } | Command::Setup(_) => None,
-    }
+    confirm_destructive_action_allowed(
+        rtemplate_service::action_specs(),
+        name,
+        *yes,
+        std::io::stdin().is_terminal(),
+    )
 }
 
 pub fn confirm_destructive_action_allowed(
@@ -321,37 +289,58 @@ fn parse_bool_flag(args: &[String], command: &str, flag: &str) -> Result<bool> {
     Ok(found)
 }
 
-fn parse_optional_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
-    match args {
-        [] => Ok(None),
-        [found_flag, value] if found_flag == flag => {
-            if value.starts_with("--") {
-                Err(anyhow!("{command} requires a value after {flag}"))
-            } else {
-                Ok(Some(value.clone()))
+fn parse_dynamic_action_command(action: &str, rest: &[String]) -> Result<Option<Command>> {
+    let Some(spec) = rtemplate_service::action_registry().cli_command(action) else {
+        return Ok(None);
+    };
+    let Some(cli) = spec.cli else {
+        return Ok(None);
+    };
+    let mut params = Map::new();
+    let mut yes = false;
+    let mut index = 0;
+    while index < rest.len() {
+        let flag = rest[index].as_str();
+        if flag == "--yes" || flag == "-y" {
+            if yes {
+                return Err(anyhow!("duplicate flag {flag} for action {action}"));
             }
+            yes = true;
+            index += 1;
+            continue;
         }
-        [found_flag] if found_flag == flag => {
-            Err(anyhow!("{command} requires a value after {flag}"))
+        let Some(flag_spec) = cli.flags.iter().find(|candidate| candidate.name == flag) else {
+            return Err(anyhow!("unknown flag {flag} for action {action}"));
+        };
+        let key = flag.trim_start_matches("--");
+        if params.contains_key(key) {
+            return Err(anyhow!("duplicate flag {flag} for action {action}"));
         }
-        [found_flag, value, rest @ ..] if found_flag == flag => {
-            if value.starts_with("--") {
-                Err(anyhow!("{command} requires a value after {flag}"))
-            } else if rest.iter().any(|arg| arg == flag) {
-                Err(anyhow!("{command} received duplicate {flag}"))
-            } else {
-                Err(anyhow!("{command} does not accept argument `{}`", rest[0]))
-            }
+        let Some(value) = rest.get(index + 1) else {
+            return Err(anyhow!(
+                "{action} {flag} requires {}",
+                flag_spec.value_name.unwrap_or("VALUE")
+            ));
+        };
+        if value.starts_with('-') {
+            return Err(anyhow!("{action} {flag} value looks like a flag: {value}"));
         }
-        [unexpected, ..] => Err(anyhow!("{command} does not accept argument `{unexpected}`")),
+        params.insert(key.to_owned(), Value::String(value.clone()));
+        index += 2;
     }
-}
-
-fn parse_required_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
-    match parse_optional_value_flag(args, command, flag)? {
-        Some(value) => Ok(Some(value)),
-        None => Ok(None),
+    for flag in cli.flags.iter().filter(|flag| flag.required) {
+        let key = flag.name.trim_start_matches("--");
+        if !params.contains_key(key) {
+            return Err(anyhow!("missing required flag {}", flag.name));
+        }
     }
+    let params = Value::Object(params);
+    rtemplate_service::validate_params(spec, &params)?;
+    Ok(Some(Command::Action {
+        name: spec.name.to_owned(),
+        params,
+        yes,
+    }))
 }
 
 fn parse_watch_flags(args: &[String]) -> Result<(Option<String>, Option<String>)> {

@@ -6,7 +6,6 @@ export const WEB_APP_CONFIG = {
   dashboardTitle: "Operator Dashboard",
   description: "MCP server operator dashboard",
   apiBaseUrl: process.env.NEXT_PUBLIC_RTEMPLATE_API_BASE_URL ?? "",
-  legacyRestEndpoint: "/v1/example",
   capabilitiesEndpoint: "/v1/capabilities",
   healthEndpoint: "/health",
   statusEndpoint: "/status",

@@ -91,15 +91,9 @@ Direct REST body shapes are action-specific:
 }
 ```
 
-`POST {RTEMPLATE_API_URL}/v1/example` remains a deprecated compatibility
-envelope for older adapters:
-
-```json
-{
-  "action": "status",
-  "params": {}
-}
-```
+REST is direct-route-only. Adapters call routes such as
+`POST {RTEMPLATE_API_URL}/v1/echo` or `GET {RTEMPLATE_API_URL}/v1/status`;
+there is no `/v1/example` action envelope.
 
 The MCP tool argument shape remains:
 

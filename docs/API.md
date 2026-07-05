@@ -32,7 +32,6 @@ Upstream-client MCP servers do not need a local REST mirror by default. They sho
 | `/v1/echo` | POST | Auth policy | Direct `echo` action route. |
 | `/v1/status` | GET | Auth policy | Authenticated service-status action route. |
 | `/v1/help` | GET | Auth policy | Action catalog and route help. |
-| `/v1/example` | POST | Auth policy | Deprecated compatibility action envelope. |
 
 ## Direct REST requests
 
@@ -44,21 +43,19 @@ Preferred REST routes use ordinary product-shaped request bodies:
 }
 ```
 
-`GET` routes such as `/v1/status` and `/v1/help` do not require a body. The deprecated `/v1/example` route still accepts the legacy `{ "action": "...", "params": { ... } }` envelope for compatibility.
+`GET` routes such as `/v1/status` and `/v1/help` do not require a body. REST does not expose an action envelope; `/v1/example` is intentionally absent.
 
 ## REST handler
 
 ```rust
 // src/api.rs
-async fn v1_echo(
+async fn v1_action_post(
     State(state): State<AppState>,
     auth: Option<Extension<AuthContext>>,
-    Json(body): Json<Value>,
+    Path(action): Path<String>,
+    Json(params): Json<Value>,
 ) -> axum::response::Response {
-    match ExampleAction::from_rest("echo", &body) {
-        Ok(action) => run_rest_action(state, auth.as_ref().map(|Extension(auth)| auth), action).await,
-        Err(error) => rest_error_response(error, "echo"),
-    }
+    run_rest_action_request(state, auth.as_ref().map(|Extension(auth)| auth), &action, params).await
 }
 ```
 
@@ -82,7 +79,7 @@ All three call `state.service.greet(Some("Alice"))`.
 {"echo":"hello"}
 ```
 
-Responses are JSON values produced by `ExampleService` via `crates/rtemplate-contracts/src/actions.rs`.
+Responses are JSON values produced by `ExampleService` via `crates/rtemplate-service/src/actions.rs`.
 If a REST result exceeds the response cap, the route returns a valid JSON
 truncation envelope instead of raw truncated JSON.
 

@@ -1,5 +1,3 @@
-use rtemplate_contracts::actions::{action_names, action_spec};
-
 use super::tool_definitions;
 
 #[test]
@@ -12,7 +10,13 @@ fn schema_action_enum_comes_from_action_metadata() {
         .map(|value| value.as_str().expect("action enum values are strings"))
         .collect::<Vec<_>>();
 
-    assert_eq!(enum_values, action_names());
+    assert_eq!(
+        enum_values,
+        rtemplate_service::action_specs()
+            .iter()
+            .map(|spec| spec.name)
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -46,7 +50,11 @@ fn echo_message_schema_requires_non_empty_string() {
     );
     assert_eq!(
         tools[0]["inputSchema"]["properties"]["message"]["description"],
-        action_spec("echo").unwrap().params[0].description
+        rtemplate_service::action_registry()
+            .action("echo")
+            .unwrap()
+            .params[0]
+            .description
     );
 }
 

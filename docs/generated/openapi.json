@@ -44,7 +44,7 @@
     },
     "schemas": {
       "ActionName": {
-        "description": "REST-capable action names from crates/rtemplate-contracts/src/actions.rs.",
+        "description": "REST-capable action names from crates/rtemplate-service/src/actions.rs.",
         "enum": [
           "greet",
           "echo",
@@ -52,24 +52,6 @@
           "help"
         ],
         "type": "string"
-      },
-      "ActionRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "$ref": "#/components/schemas/ActionName"
-          },
-          "params": {
-            "additionalProperties": true,
-            "default": {},
-            "description": "Action-specific parameters. greet.name is optional; echo.message is required.",
-            "type": "object"
-          }
-        },
-        "required": [
-          "action"
-        ],
-        "type": "object"
       },
       "ActionResponse": {
         "oneOf": [
@@ -130,6 +112,7 @@
         "properties": {
           "message": {
             "description": "Message to echo back. Must not be empty.",
+            "maxLength": 4096,
             "minLength": 1,
             "type": "string"
           }
@@ -168,6 +151,7 @@
         "properties": {
           "name": {
             "description": "Name to greet. Omit to greet the world.",
+            "maxLength": 4096,
             "type": "string"
           }
         },
@@ -330,7 +314,7 @@
   "info": {
     "description": "Generated OpenAPI schema for rmcp-template's direct REST surface. TEMPLATE: rename Example identifiers and action schemas when adapting. Auth modes: loopback/trusted-gateway deployments may have no local auth; mounted bearer mode uses RTEMPLATE_MCP_TOKEN; OAuth mode uses bearer JWTs. REST actions require their action-specific scopes when auth is mounted.",
     "title": "Example MCP REST API",
-    "version": "0.4.2"
+    "version": "0.4.3"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -498,87 +482,6 @@
         ]
       }
     },
-    "/v1/example": {
-      "post": {
-        "deprecated": true,
-        "description": "Compatibility shim for older clients. New application/platform servers should expose direct product REST routes and reserve action dispatch for MCP.",
-        "operationId": "dispatchExampleActionDeprecated",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "examples": {
-                "echo": {
-                  "value": {
-                    "action": "echo",
-                    "params": {
-                      "message": "Hello!"
-                    }
-                  }
-                },
-                "greet": {
-                  "value": {
-                    "action": "greet",
-                    "params": {
-                      "name": "Alice"
-                    }
-                  }
-                },
-                "help": {
-                  "value": {
-                    "action": "help",
-                    "params": {}
-                  }
-                },
-                "status": {
-                  "value": {
-                    "action": "status",
-                    "params": {}
-                  }
-                }
-              },
-              "schema": {
-                "$ref": "#/components/schemas/ActionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActionResponse"
-                }
-              }
-            },
-            "description": "Action result. Shape depends on the requested action."
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {}
-        ],
-        "summary": "Deprecated action-envelope dispatch",
-        "tags": [
-          "legacy-actions"
-        ]
-      }
-    },
     "/v1/greet": {
       "post": {
         "description": "Direct REST route over the shared service layer.",
@@ -735,10 +638,6 @@
     {
       "description": "Preferred typed REST routes",
       "name": "direct-rest"
-    },
-    {
-      "description": "Deprecated action-envelope compatibility",
-      "name": "legacy-actions"
     }
   ],
   "x-template": {
@@ -750,7 +649,7 @@
       "scaffold_intent": "moderate",
       "status": "cheap"
     },
-    "action_metadata": "crates/rtemplate-contracts/src/actions.rs",
+    "action_metadata": "crates/rtemplate-service/src/actions.rs",
     "direct_rest_routes": {
       "echo": {
         "method": "POST",
@@ -780,6 +679,6 @@
       "status",
       "help"
     ],
-    "source": "scripts/check-openapi.py"
+    "source": "cargo xtask check-openapi"
   }
 }

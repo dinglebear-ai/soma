@@ -52,7 +52,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 |---|---|---|---|
 | `check-schema-docs.py` | Python wrapper | `cargo xtask check-schema-docs`, `just schema-docs`, `just schema-docs-check`, CI | Delegates to xtask to generate/check `docs/MCP_SCHEMA.md` and related action references from the canonical action specs. |
 | `check-openapi.py` | Python wrapper | `cargo xtask check-openapi`, `just openapi`, `just openapi-check`, CI | Delegates to xtask to generate/check `docs/generated/openapi.json` for the REST API surface. |
-| `generate-docs.py` | Python | `cargo xtask generate-docs`, `cargo xtask check-docs`, CI | Generates/checks volatile docs and metadata from `ACTION_SPECS`, `ENV_KEY_SPECS`, and typed config defaults. |
+| `generate-docs.py` | Python | `cargo xtask generate-docs`, `cargo xtask check-docs`, CI | Generates/checks volatile docs and metadata from the service-owned `ACTION_SPECS`, `ENV_KEY_SPECS`, and typed config defaults. |
 | `check-stale-claims.py` | Python | `cargo xtask check-stale-claims`, CI | Fails when known stale hardcoded template claims reappear. |
 | `check-scaffold-intent-contract.py` | Python wrapper | `cargo xtask check-scaffold-intent-contract`, `just scaffold-contract-check`, CI | Delegates to xtask to validate the scaffold intent JSON schema and checked-in examples without third-party packages. |
 | `check-coupled-files.sh` | Bash wrapper | `cargo xtask check-coupled-files`, `just coupled-files-check`, CI | Delegates to xtask to warn when files that usually change together drift, such as script edits without `scripts/README.md` updates. |

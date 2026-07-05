@@ -4,7 +4,7 @@
 # Invoked via: cargo xtask <command>
 #
 # This crate is intentionally kept dependency-light so it compiles fast even
-# on a cold cache. Do NOT add heavy crates (serde, tokio, reqwest, etc.) here.
+# on a cold cache. Do NOT add heavy runtime crates (tokio, reqwest, etc.) here.
 # If you need async, use std::process::Command + shell scripts instead.
 #
 # TEMPLATE: Keep "xtask" as the crate name — cargo's xtask convention relies on it.
@@ -30,6 +30,7 @@ serde_json = "1"
 sha2 = "0.10"
 toml = "1.1"
 walkdir = "2"
+rtemplate-contracts = { path = "../crates/rtemplate-contracts" }
 
 [dev-dependencies]
 tempfile = "3"

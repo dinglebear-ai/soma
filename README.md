@@ -175,6 +175,10 @@ Transport shims
   crates/rtemplate-mcp/src/tools.rs      MCP JSON args to service calls.
   crates/rtemplate-api/src/api.rs        REST extractors to service calls.
   crates/rmcp-template/src/routes.rs     Axum router, auth, MCP, API, web fallback.
+
+Action registry
+  crates/rtemplate-service/src/actions.rs
+  Service-owned action metadata, validation, cached catalog/help, and native dispatch.
 ```
 
 The thin-shim rule is strict:
@@ -217,9 +221,10 @@ HTTP routes in the server profile:
 | `/metrics` | Prometheus metrics when built with `observability`. |
 | `/v1/capabilities` | REST route inventory. |
 | `/v1/greet`, `/v1/echo`, `/v1/status`, `/v1/help` | Direct REST business routes. |
-| `/v1/example` | Deprecated compatibility action envelope. |
 | `/mcp/.well-known/*` | OAuth metadata when OAuth is enabled. |
 | `/*` | Embedded web UI fallback when built with `web`. |
+
+REST is direct-route-only: there is no `/v1/example` action envelope. MCP remains one `example` tool with an `action` argument.
 
 ## MCP Tool Actions
 
@@ -233,9 +238,9 @@ projects replace the example actions with their real service actions.
 | `greet` | `example:read` | `cheap` | MCP + CLI + REST | `POST /v1/greet` | `rtemplate greet [--name N]` | `name` (optional string) | Return a greeting. |
 | `echo` | `example:read` | `cheap` | MCP + CLI + REST | `POST /v1/echo` | `rtemplate echo --message <msg>` | `message` (required string) | Echo a message back unchanged. |
 | `status` | `example:read` | `cheap` | MCP + CLI + REST | `GET /v1/status` | `rtemplate status` | none | Return server status and configuration info. |
+| `help` | public | `cheap` | MCP + CLI + REST | `GET /v1/help` | `rtemplate --help` | none | Show the action reference. |
 | `elicit_name` | `example:read` | `cheap` | MCP-only | - | `_MCP-only_` | none | Ask the MCP client to collect a name, then return a personalised greeting. |
 | `scaffold_intent` | `example:read` | `moderate` | MCP-only | - | `_MCP-only_` | none | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
-| `help` | public | `cheap` | MCP + CLI + REST | `GET /v1/help` | `rtemplate --help` | none | Show the action reference. |
 <!-- END GENERATED README_ACTION_TABLE -->
 
 Business actions must keep MCP + CLI parity unless there is a protocol reason
@@ -430,11 +435,9 @@ action metadata, MCP dispatch, CLI variants, service stubs, and test coverage.
 
 1. Replace the stub client in `crates/rtemplate-service/src/example.rs`.
 2. Put domain logic in `crates/rtemplate-service/src/app.rs` or focused service modules.
-3. Add action metadata in `crates/rtemplate-contracts/src/actions.rs`.
-4. Add MCP schema parameters in `crates/rtemplate-mcp/src/schemas.rs`.
-5. Add MCP dispatch arms in `crates/rtemplate-mcp/src/tools.rs`.
-6. Add CLI command variants in `crates/rtemplate-cli/src/lib.rs`.
-7. Add REST handlers only when the selected profile includes API.
+3. Add native action metadata and dispatch in `crates/rtemplate-service/src/actions.rs`.
+4. Regenerate MCP schema docs and OpenAPI so generated surfaces reflect the service registry.
+5. Add REST handlers only for infrastructure routes; business actions are routed through the service registry.
 8. Update config fields and env prefixes in `crates/rtemplate-contracts/src/config.rs`.
 9. Update `.env.example`, `config.example.toml`, plugin options, and setup mappings.
 10. Update `server.json`, plugin metadata, repository URLs, Docker labels, and release metadata.

@@ -149,6 +149,11 @@ The generated plugin option/env mapping table lives at
 rendered from `ENV_KEY_SPECS`; update the registry first when adding plugin
 settings or runtime env vars.
 
+Shared skill action references are generated from the service-owned
+`ACTION_SPECS` registry by `cargo xtask generate-docs`. When action metadata,
+REST routes, or CLI/MCP visibility changes, regenerate docs and confirm the
+shared skill text still matches the service registry.
+
 ## Plugin Validation
 
 Run the plugin layout validator after changing manifests, MCP config, hooks, or

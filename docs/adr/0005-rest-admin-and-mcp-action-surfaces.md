@@ -40,12 +40,12 @@ product runtime/domain logic
 
 REST/admin HTTP is the primary surface for web apps and generated TypeScript
 clients. It should use direct resource- or action-specific routes, typed request
-and response DTOs, and product OpenAPI documents. The template keeps
-`POST /v1/example` only as a deprecated compatibility envelope.
+and response DTOs, and product OpenAPI documents. The template does not expose
+a REST action envelope.
 
 MCP action dispatch remains the primary compact agent/tool surface.
-`ActionSpec` remains the source of truth for MCP discovery, action help, action
-schemas, and destructive-action metadata.
+`crates/rtemplate-service/src/actions.rs` remains the source of truth for MCP
+discovery, action help, action schemas, and destructive-action metadata.
 
 CLI remains an operator adapter over the same runtime/domain logic or shared
 dispatch layer. Destructive CLI operations must respect the same destructive

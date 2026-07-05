@@ -254,7 +254,7 @@ function requestPreview(
   paramValues: Record<string, string>,
 ): string {
   const method = action.method ?? "POST";
-  const path = action.path ?? "/v1/example";
+  const path = action.path ?? `/v1/${action.id}`;
   if (method === "GET") {
     return `GET ${path}`;
   }

@@ -7,7 +7,6 @@
 //!   `GET  /openapi.json` — Generated REST OpenAPI schema (unauthenticated)
 //!   `GET  /v1/capabilities` — Direct REST route inventory
 //!   `/v1/*`            — Direct REST API routes (see `crate::api`)
-//!   `POST /v1/example` — Deprecated REST action-dispatch compatibility route
 //!   `/*`                — SPA fallback for embedded web UI (when web feature enabled)
 
 use std::sync::Arc;
@@ -22,8 +21,8 @@ use serde_json::json;
 use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer};
 
 use crate::api::{
-    api_dispatch, health, openapi_json, readyz, status, v1_capabilities, v1_echo, v1_greet,
-    v1_help, v1_service_status,
+    health, openapi_json, readyz, status, v1_action_post, v1_capabilities, v1_help,
+    v1_service_status,
 };
 use rtemplate_mcp::{allowed_origins, streamable_http_config, streamable_http_service};
 use rtemplate_runtime::server::{build_auth_layer, AppState, AuthPolicy};
@@ -53,11 +52,9 @@ pub fn router(state: AppState) -> Router {
     let api_and_mcp: Router<AppState> = Router::new()
         .nest_service("/mcp", streamable_http_service(state.clone(), rmcp_config))
         .route("/v1/capabilities", get(v1_capabilities))
-        .route("/v1/greet", post(v1_greet))
-        .route("/v1/echo", post(v1_echo))
         .route("/v1/status", get(v1_service_status))
         .route("/v1/help", get(v1_help))
-        .route("/v1/example", post(api_dispatch));
+        .route("/v1/{action}", post(v1_action_post));
 
     let api_and_mcp_resolved: Router<()> = api_and_mcp.with_state(state.clone());
 

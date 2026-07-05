@@ -37,7 +37,7 @@ Set `RTEMPLATE_MCP_TOKEN` in your environment or `.env` file. Clients authentica
 Authorization: Bearer <token>
 ```
 
-That's all. The server validates the header on every mounted MCP and REST route, including `/mcp`, direct `/v1/*` business routes, and the deprecated `/v1/example` compatibility route.
+That's all. The server validates the header on every mounted MCP and REST route, including `/mcp` and direct `/v1/*` business routes.
 
 ---
 

@@ -336,7 +336,7 @@ impl ActionManifest {
 
     pub(crate) fn render_snippets(&self, service_type: &str) -> String {
         let mut output = String::new();
-        output.push_str("### crates/rtemplate-contracts/src/actions.rs\n\n```rust\n");
+        output.push_str("### crates/rtemplate-service/src/actions.rs\n\n```rust\n");
         output.push_str(&self.render_action_specs_snippet());
         output.push_str("```\n\n### crates/rtemplate-mcp/src/tools.rs\n\n```rust\n");
         output.push_str(&self.render_tools_snippet());
@@ -371,9 +371,8 @@ impl ActionManifest {
             output.push_str("    params: &[\n");
             for param in &action.params {
                 output.push_str(&format!(
-                    "        ParamSpec {{ name: \"{}\", ty: \"{}\", required: {}, description: \"{}\" }},\n",
+                    "        ParamSpec {{ name: \"{}\", ty: ParamType::String, required: {}, description: \"{}\", max_len: Some(4096), enum_values: &[] }},\n",
                     param.name,
-                    param.ty,
                     param.required,
                     escape_rust_string(description_or_default(&param.description, &param.name))
                 ));
@@ -1157,11 +1156,11 @@ fn render_adapt_plan(root: &Path) -> Result<String> {
     output.push_str("- Update `.env.example` and `config.example.toml` with real required credentials and non-secret defaults.\n");
 
     output.push_str("\n## 2. Business actions\n\n");
-    output.push_str("- Add action metadata in `crates/rtemplate-contracts/src/actions.rs`.\n");
-    output.push_str("- Add MCP schema parameters in `crates/rtemplate-mcp/src/schemas.rs`.\n");
-    output.push_str("- Add MCP dispatch arms in `crates/rtemplate-mcp/src/tools.rs`.\n");
-    output
-        .push_str("- Add CLI command variants and parsing in `crates/rtemplate-cli/src/lib.rs`.\n");
+    output.push_str(
+        "- Add action metadata and dispatch in `crates/rtemplate-service/src/actions.rs`.\n",
+    );
+    output.push_str("- Regenerate MCP schema docs and OpenAPI after changing action metadata.\n");
+    output.push_str("- Keep MCP, CLI, and REST shims registry-driven.\n");
     if has_api {
         output.push_str("- Add REST handlers/routes in `crates/rtemplate-api/src/api.rs` and `crates/rmcp-template/src/routes.rs`.\n");
     } else {

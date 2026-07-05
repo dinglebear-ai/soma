@@ -42,9 +42,9 @@ A single MCP tool, `mcp__example__example`, dispatches on a required `action` ar
 | `greet` | Return a greeting. | `name` (optional string) |
 | `echo` | Echo a message back unchanged. | `message` (required string) |
 | `status` | Return server status and configuration info. | none |
+| `help` | Show the action reference. | none |
 | `elicit_name` | Ask the MCP client to collect a name, then return a personalised greeting. | none |
 | `scaffold_intent` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. | none |
-| `help` | Show the action reference. | none |
 <!-- END GENERATED SKILL_ACTION_TABLE -->
 **Always prefer the MCP tool**. The default plugin path is stdio. Fall back to HTTP curl only when MCP is unavailable or when explicitly debugging a remote HTTP deployment.
 

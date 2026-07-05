@@ -27,10 +27,10 @@ A reusable Rust template for building MCP servers with the rmcp crate. The binar
 | `crates/rtemplate-service/src/app.rs` | `ExampleService` — business layer; all logic lives here, never in shims |
 | `crates/rtemplate-runtime/src/server.rs` | `AppState`, `AuthPolicy`, `build_auth_layer` — HTTP server state and auth policy |
 | `crates/rmcp-template/src/routes.rs` | Axum router: `/mcp`, `/health`, `/status`, OAuth discovery routes |
-| `crates/rtemplate-api/src/api.rs` | REST API handlers: `POST /v1/example`, `GET /health`, `GET /status` |
+| `crates/rtemplate-api/src/api.rs` | REST API handlers: direct `/v1/{action}` routes, `GET /health`, `GET /status` |
 | `crates/rtemplate-mcp/src/lib.rs` | MCP protocol layer — re-exports from `mcp/` submodules |
 | `crates/rtemplate-mcp/src/tools.rs` | MCP shim: parse JSON args → call service → return `Value` |
-| `crates/rtemplate-mcp/src/schemas.rs` | Tool JSON schema derived from `ACTION_SPECS` |
+| `crates/rtemplate-mcp/src/schemas.rs` | Tool JSON schema derived from the service action registry |
 | `crates/rtemplate-mcp/src/rmcp_server.rs` | `ServerHandler` impl: tools, resources, prompts, scope checks |
 | `crates/rtemplate-mcp/src/prompts.rs` | MCP prompts (`quick_start`) |
 | `crates/rtemplate-contracts/src/config.rs` | `Config`, `ExampleConfig`, `McpConfig`, `AuthConfig`, env loading |
@@ -61,17 +61,15 @@ If you find yourself computing, filtering, transforming, or validating data in `
 
 2. **`crates/rtemplate-service/src/app.rs`** — add a delegating method: `pub async fn your_action(&self, ...) -> Result<Value> { self.client.your_action(...).await }`.
 
-3. **`crates/rtemplate-contracts/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope and transport.
+3. **`crates/rtemplate-service/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope, transport, CLI flags, REST path, validation metadata, and the dispatch arm in `execute_native_action()`.
 
-4. **`crates/rtemplate-mcp/src/schemas.rs`** — add any new parameters to `tool_definitions()`; the action enum comes from `ACTION_SPECS`.
+4. **Generated surfaces** — run the schema/OpenAPI generation checks so `crates/rtemplate-mcp/src/schemas.rs`, generated docs, and OpenAPI reflect the service registry.
 
-5. **`crates/rtemplate-mcp/src/tools.rs`** — add a match arm in `dispatch_example()`: `"your_action" => { ... state.service.your_action(...).await }`. Also add to `HELP_TEXT`.
+5. **Shim checks** — do not add MCP/CLI/REST business logic. The existing shims should discover the action through `rtemplate_service::action_registry()`.
 
-6. **`crates/rtemplate-cli/src/lib.rs`** — add a `Command` variant, a parse arm in `parse_args()`, and a dispatch arm in `run()`.
+6. **`crates/rmcp-template/tests/tool_dispatch.rs` and REST/CLI tests** — add tests for dispatch, validation, and generated surface parity.
 
-7. **`crates/rmcp-template/tests/tool_dispatch.rs`** — add a test.
-
-8. **`CHANGELOG.md`** — add an entry under `[Unreleased]` describing the new action.
+7. **`CHANGELOG.md`** — add an entry under `[Unreleased]` describing the new action.
 
 For actions with parameters, extract them with `string_arg(&args, "param_name")` in `tools.rs`.
 
@@ -164,9 +162,9 @@ with no CLI analogue.
 | `service.greet(name)` | `example(action="greet")` | `rtemplate greet [--name N]` | `POST /v1/greet` |  |
 | `service.echo(message)` | `example(action="echo")` | `rtemplate echo --message <msg>` | `POST /v1/echo` |  |
 | `service.status()` | `example(action="status")` | `rtemplate status` | `GET /v1/status` |  |
+| `built-in help` | `example(action="help")` | `rtemplate --help` | `GET /v1/help` |  |
 | `MCP client interaction` | `example(action="elicit_name")` | `_MCP-only_` | _MCP-only_ | MCP-only; requires elicitation-capable client |
 | `MCP elicitation wizard` | `example(action="scaffold_intent")` | `_MCP-only_` | _MCP-only_ | MCP-only; requires elicitation-capable client |
-| `built-in help` | `example(action="help")` | `rtemplate --help` | `GET /v1/help` |  |
 <!-- END GENERATED CLAUDE_PARITY_TABLE -->
 **TEMPLATE:** Replace this table with your service's actual actions when you adapt
 the template. The rule is: one row per service method, with both the MCP action name

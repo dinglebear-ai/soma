@@ -3,12 +3,17 @@
 //! **Template**: extend these tests when you add new CLI subcommands.
 
 use rmcp_template::cli::{parse_args_from, Command, SetupCommand};
+use serde_json::json;
 
 #[test]
 fn test_greet_no_name_parsed() {
     assert_eq!(
         parse_args_from(["greet"]).unwrap(),
-        Some(Command::Greet { name: None })
+        Some(Command::Action {
+            name: "greet".to_owned(),
+            params: json!({}),
+            yes: false,
+        })
     );
 }
 
@@ -16,8 +21,10 @@ fn test_greet_no_name_parsed() {
 fn test_greet_with_name_parsed() {
     assert_eq!(
         parse_args_from(["greet", "--name", "Alice"]).unwrap(),
-        Some(Command::Greet {
-            name: Some("Alice".into())
+        Some(Command::Action {
+            name: "greet".to_owned(),
+            params: json!({"name": "Alice"}),
+            yes: false,
         })
     );
 }
@@ -25,15 +32,17 @@ fn test_greet_with_name_parsed() {
 #[test]
 fn test_greet_rejects_flag_like_name_value() {
     let error = parse_args_from(["greet", "--name", "--bogus"]).unwrap_err();
-    assert!(error.to_string().contains("requires a value after --name"));
+    assert!(error.to_string().contains("looks like a flag"));
 }
 
 #[test]
 fn test_echo_message_parsed() {
     assert_eq!(
         parse_args_from(["echo", "--message", "Hello, World!"]).unwrap(),
-        Some(Command::Echo {
-            message: "Hello, World!".into()
+        Some(Command::Action {
+            name: "echo".to_owned(),
+            params: json!({"message": "Hello, World!"}),
+            yes: false,
         })
     );
 }
@@ -41,12 +50,21 @@ fn test_echo_message_parsed() {
 #[test]
 fn test_echo_no_message_is_rejected() {
     let error = parse_args_from(["echo"]).unwrap_err();
-    assert!(error.to_string().contains("requires non-empty --message"));
+    assert!(error
+        .to_string()
+        .contains("missing required flag --message"));
 }
 
 #[test]
 fn test_help_parsed() {
-    assert_eq!(parse_args_from(["help"]).unwrap(), Some(Command::Help));
+    assert_eq!(
+        parse_args_from(["help"]).unwrap(),
+        Some(Command::Action {
+            name: "help".to_owned(),
+            params: json!({}),
+            yes: false,
+        })
+    );
 }
 
 #[test]

@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3]
+
+
 ### Added
 
 - GitHub workflow docs now cover the full workflow inventory, TOOTIE Docker
@@ -63,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   build-fast` and `just sync-container` recipes for fast local container iteration.
 - `serial_test` dev-dependency; the env-mutating `config_tests` are now `#[serial]` so
   they cannot race under `cargo test` (nextest already isolates them per process).
+- Added a native Rust service action registry so MCP, REST, and CLI surfaces derive
+  business actions from one service-owned registry.
 
 ### Changed
 

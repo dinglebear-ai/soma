@@ -2,7 +2,7 @@
  * Typed client for the rmcp-template REST API.
  *
  * Business actions use direct REST routes such as POST /v1/echo and
- * GET /v1/status. POST /v1/example remains a deprecated compatibility envelope.
+ * GET /v1/status. REST does not expose an action envelope.
  *
  * The base URL is relative (empty string) so the same binary serves
  * both the API and the web UI — no CORS or cross-origin config needed.
