@@ -10,6 +10,7 @@ publish = false
 [features]
 default = ["observability"]
 observability = ["dep:rtemplate-observability", "dep:metrics"]
+test-support = []
 
 [dependencies]
 anyhow = "1"
