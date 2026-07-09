@@ -29,7 +29,7 @@ async fn stdio_client_in(
             .env_remove("RTEMPLATE_MCP_TOKEN")
             .env_remove("RTEMPLATE_PROVIDER_DIR");
     }))
-    .stderr(Stdio::piped())
+    .stderr(Stdio::null())
     .spawn()?;
     Ok(().serve(transport).await?)
 }
