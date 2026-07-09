@@ -214,7 +214,7 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
     .await?;
     assert_eq!(rest_json["action"], "live_ts_probe");
 
-    service.cancel().await?;
+    tokio::time::timeout(Duration::from_secs(5), service.cancel()).await??;
     Ok(())
 }
 
