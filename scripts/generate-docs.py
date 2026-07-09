@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ACTION_RS = ROOT / "crates/rtemplate-service/src/actions.rs"
+ACTION_RS = ROOT / "crates/rtemplate-contracts/src/actions.rs"
 CONFIG_RS = ROOT / "crates/rtemplate-contracts/src/config.rs"
 ENV_REGISTRY_RS = ROOT / "crates/rtemplate-contracts/src/env_registry.rs"
 ENV_DOC = ROOT / "docs/ENV.md"

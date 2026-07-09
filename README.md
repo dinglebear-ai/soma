@@ -258,9 +258,9 @@ projects replace the example actions with their real service actions.
 | `greet` | `example:read` | `cheap` | MCP + CLI + REST | `POST /v1/greet` | `rtemplate greet [--name N]` | `name` (optional string) | Return a greeting. |
 | `echo` | `example:read` | `cheap` | MCP + CLI + REST | `POST /v1/echo` | `rtemplate echo --message <msg>` | `message` (required string) | Echo a message back unchanged. |
 | `status` | `example:read` | `cheap` | MCP + CLI + REST | `GET /v1/status` | `rtemplate status` | none | Return server status and configuration info. |
-| `help` | public | `cheap` | MCP + CLI + REST | `GET /v1/help` | `rtemplate --help` | none | Show the action reference. |
 | `elicit_name` | `example:read` | `cheap` | MCP-only | - | `_MCP-only_` | none | Ask the MCP client to collect a name, then return a personalised greeting. |
 | `scaffold_intent` | `example:read` | `moderate` | MCP-only | - | `_MCP-only_` | none | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
+| `help` | public | `cheap` | MCP + CLI + REST | `GET /v1/help` | `rtemplate --help` | none | Show the action reference. |
 <!-- END GENERATED README_ACTION_TABLE -->
 
 Business actions must keep MCP + CLI parity unless there is a protocol reason
