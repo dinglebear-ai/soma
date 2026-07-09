@@ -17,6 +17,6 @@
     "max_examples_per_command": 3,
     "max_inline_schema_bytes": 16384
   },
-  "provider_fingerprint": "sha256:232076215b6dc2512e1f908a5ad4b723eaeb7e7b343cdff1c49dcd283142fd38",
+  "provider_fingerprint": "sha256:c0c63fc4531f0e7610bcdb717e75ad3bf7b2c6da6deaddedd809759cdeeed08d",
   "schema_version": 1
 }
