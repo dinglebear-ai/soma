@@ -8,7 +8,7 @@
 # Key substitutions:
 #   "rtemplate-server"     → your server binary name (e.g. "myservice-server")
 #   "example-cargo-*"      → your cache mount IDs (e.g. "myservice-cargo-*")
-#   "rtemplate-mcp"          → your systemd/Docker service name
+#   "template-rmcp"          → your systemd/Docker service name
 #   EXPOSE 40060            → your port (must match config.toml [mcp] port)
 #   HEALTHCHECK port 40060  → same as EXPOSE
 #   CMD ["serve", "mcp"]   → default args passed to the server binary
@@ -124,7 +124,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 # MCP registry label — used by Claude Code plugin discovery.
 # TEMPLATE: Replace with your registry path: "tv.tootie/yourservice-mcp"
-LABEL io.modelcontextprotocol.server.name="tv.tootie/rtemplate-mcp"
+LABEL io.modelcontextprotocol.server.name="tv.tootie/template-rmcp"
 
 # Entrypoint handles permission setup and privilege drop.
 # CMD is the default argument passed to entrypoint.sh.

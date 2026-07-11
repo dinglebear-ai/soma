@@ -34,7 +34,7 @@
 [mcp]
 host = "0.0.0.0"            # bind to all interfaces; use 127.0.0.1 for local-only
 port = 40060                # EXAMPLE_MCP_PORT; also update Dockerfile EXPOSE and docker-compose.yml
-server_name = "example-mcp" # advertised to MCP clients in tools/list response
+server_name = "template-rmcp" # advertised to MCP clients in tools/list response
 
 # Static bearer token — ALWAYS set via EXAMPLE_MCP_TOKEN env var, not here.
 # api_token = ""

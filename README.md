@@ -278,7 +278,7 @@ credentials as required.
 | `RTEMPLATE_API_KEY` | no | empty | Bearer token or upstream service API key. |
 | `RTEMPLATE_MCP_HOST` | no | `127.0.0.1` | HTTP server bind host. |
 | `RTEMPLATE_MCP_PORT` | no | `40060` | HTTP server bind port. |
-| `RTEMPLATE_MCP_SERVER_NAME` | no | `rtemplate-mcp` | MCP server name advertised to clients. |
+| `RTEMPLATE_MCP_SERVER_NAME` | no | `template-rmcp` | MCP server name advertised to clients. |
 | `RTEMPLATE_MCP_NO_AUTH` | no | `false` | Disable auth for loopback development. |
 | `RTEMPLATE_NOAUTH` | no | `false` | Trusted-gateway non-loopback no-auth mode. |
 | `RTEMPLATE_MCP_TOKEN` | bearer | empty | Static bearer token. |

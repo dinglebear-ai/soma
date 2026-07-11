@@ -14,7 +14,7 @@
 [mcp]
 host = "127.0.0.1"
 port = 40060
-server_name = "rtemplate-mcp"
+server_name = "template-rmcp"
 no_auth = false
 trusted_gateway = false
 allowed_hosts = []

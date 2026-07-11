@@ -133,7 +133,7 @@ fn default_mcp_port() -> u16 {
     40060
 }
 fn default_server_name() -> String {
-    "rtemplate-mcp".into()
+    "template-rmcp".into()
 }
 fn default_auth_sqlite_path() -> String {
     "/data/auth.db".into()
