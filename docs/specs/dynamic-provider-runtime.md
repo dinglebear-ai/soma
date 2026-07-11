@@ -123,6 +123,46 @@ export default defineTool({
 The provider infers the action name from `weather.tool.ts`, converts Zod schemas
 to JSON Schema, and exposes the action everywhere.
 
+### Python LangChain and LlamaIndex Providers
+
+Loads `.py` files through a Python sidecar. These providers are for reusing
+existing Python tool ecosystems rather than inventing a template-specific Python
+tool API.
+
+Minimal LangChain authoring should look like:
+
+```python
+from langchain_core.tools import tool
+
+PROVIDER = {"name": "weather-tools", "kind": "langchain"}
+
+@tool
+def get_weather(city: str) -> dict:
+    """Get weather for a city."""
+    return {"city": city, "celsius": 20}
+
+TOOLS = [get_weather]
+```
+
+Minimal LlamaIndex authoring should look like:
+
+```python
+from llama_index.core.tools import FunctionTool
+
+PROVIDER = {"name": "math-tools", "kind": "llamaindex"}
+
+def add(a: int, b: int) -> int:
+    """Add two integers."""
+    return a + b
+
+TOOLS = [FunctionTool.from_defaults(add, name="add")]
+```
+
+The provider imports the module, reads `PROVIDER` and `TOOLS`, converts
+LangChain/LlamaIndex tool metadata into provider tool schemas, and executes tool
+calls in a Python sidecar. `RTEMPLATE_PYTHON_COMMAND` may point at a virtualenv
+or `uv`/Python wrapper when the default `python3` is not the right interpreter.
+
 ### WASM Provider
 
 Loads sandboxed `.wasm` modules. This is the provider for portable runtime
@@ -389,7 +429,8 @@ OpenAPI providers are generally safer than code providers because they can only
 call declared HTTP operations, but they still need auth, filtering, rate limits,
 and route curation.
 
-WASM and TypeScript providers must run under explicit capability policy.
+WASM, TypeScript, and Python providers must run under explicit capability
+policy.
 
 ## Reload and Staleness
 
@@ -423,17 +464,19 @@ Provider reload should report:
 4. Add unified OpenAPI generation and fingerprint checks.
 5. Add OpenAPI provider as the recommended default dynamic provider.
 6. Add TypeScript AI SDK sidecar provider.
-7. Add WASM provider.
-8. Add provider-driven Palette manifest and generic Palette shell.
-9. Add Aurora/shadcn UI generation.
-10. Add provider-driven `SKILL.md`, plugin, marketplace, and Gemini generation.
+7. Add Python LangChain and LlamaIndex sidecar providers.
+8. Add WASM provider.
+9. Add provider-driven Palette manifest and generic Palette shell.
+10. Add Aurora/shadcn UI generation.
+11. Add provider-driven `SKILL.md`, plugin, marketplace, and Gemini generation.
 
 ## Acceptance Principles
 
 - Adding a Rust-native action should not require edits to MCP, REST, CLI, Palette,
   OpenAPI, docs, or plugin surface files.
 - Adding an OpenAPI provider should not require a Rust rebuild.
-- Dropping in valid `.tool.ts` or `.wasm` providers should not require a Rust rebuild.
+- Dropping in valid `.tool.ts`, `.py`, or `.wasm` providers should not require a
+  Rust rebuild.
 - The happy path should infer names, routes, commands, schemas, docs, and UI from
   convention.
 - Advanced configuration should be additive and optional.

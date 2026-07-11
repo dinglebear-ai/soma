@@ -11,7 +11,11 @@ use crate::{
     provider_errors::ProviderError,
     provider_registry::{Provider, ProviderCall, ProviderOutput},
     providers::{
-        ai_sdk::AiSdkProvider, mcp::McpProvider, openapi::OpenApiProvider, wasm::WasmProvider,
+        ai_sdk::AiSdkProvider,
+        mcp::McpProvider,
+        openapi::OpenApiProvider,
+        python::{load_python_catalog, PythonProvider},
+        wasm::WasmProvider,
     },
 };
 
@@ -84,6 +88,7 @@ fn provider_for_catalog(path: PathBuf, catalog: ProviderCatalog) -> std::sync::A
         ProviderKind::Mcp => McpProvider::arc(catalog),
         ProviderKind::AiSdk => AiSdkProvider::arc(path, catalog),
         ProviderKind::Wasm => WasmProvider::arc(path, catalog),
+        ProviderKind::Langchain | ProviderKind::Llamaindex => PythonProvider::arc(path, catalog),
         ProviderKind::StaticRust => std::sync::Arc::new(FileProvider { path, catalog }),
     }
 }
@@ -131,7 +136,7 @@ impl Provider for FileProvider {
 fn is_provider_file(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|extension| extension.to_str()),
-        Some("json" | "ts" | "wasm")
+        Some("json" | "ts" | "wasm" | "py")
     )
 }
 
@@ -150,6 +155,10 @@ fn load_catalog(path: &Path) -> Result<ProviderCatalog, FileProviderLoadError> {
         }
         Some("ts") => load_ts_catalog(path)?,
         Some("wasm") => load_wasm_catalog(path)?,
+        Some("py") => load_python_catalog(path).map_err(|source| FileProviderLoadError {
+            path: path.to_path_buf(),
+            message: format!("invalid Python provider: {source}"),
+        })?,
         _ => {
             return Err(FileProviderLoadError {
                 path: path.to_path_buf(),
@@ -278,6 +287,20 @@ fn ensure_kind_matches(
     let expected = match path.extension().and_then(|extension| extension.to_str()) {
         Some("ts") => Some(ProviderKind::AiSdk),
         Some("wasm") => Some(ProviderKind::Wasm),
+        Some("py")
+            if !matches!(
+                catalog.provider.kind,
+                ProviderKind::Langchain | ProviderKind::Llamaindex
+            ) =>
+        {
+            return Err(FileProviderLoadError {
+                path: path.to_path_buf(),
+                message: format!(
+                    "provider kind `{}` does not match Python provider extension",
+                    catalog.provider.kind.as_str()
+                ),
+            });
+        }
         _ => None,
     };
     if expected.is_some_and(|expected| catalog.provider.kind != expected) {

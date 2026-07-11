@@ -32,8 +32,8 @@ distributable repo with the same locked-in runtime.
   lists stay small even as provider catalogs grow.
 - Two binaries: `rtemplate` for local CLI + stdio MCP, and `rtemplate-server`
   for REST API + Streamable HTTP MCP + stdio MCP + optional web UI.
-- Dynamic provider loading from `.json`, `.ts`, and `.wasm` files, plus native
-  Rust providers and upstream MCP/OpenAPI provider kinds.
+- Dynamic provider loading from `.json`, `.ts`, `.py`, and `.wasm` files, plus
+  native Rust providers and upstream MCP/OpenAPI provider kinds.
 - Provider manifest contracts for tools, prompts, resources, tasks,
   elicitation forms, env requirements, capability grants, and surface overlays.
 - Shared validation, destructive-action confirmation, auth/scope enforcement,
@@ -184,8 +184,9 @@ Provider manifests can declare:
 - limits, destructive-action metadata, examples, generated docs, plugin, and UI
   metadata
 
-Supported provider kinds are `static-rust`, `openapi`, `ai-sdk`, `wasm`, and
-`mcp`. See [docs/specs/dynamic-provider-runtime.md](docs/specs/dynamic-provider-runtime.md),
+Supported provider kinds are `static-rust`, `openapi`, `ai-sdk`, `wasm`, `mcp`,
+`langchain`, and `llamaindex`. See
+[docs/specs/dynamic-provider-runtime.md](docs/specs/dynamic-provider-runtime.md),
 [docs/contracts/provider-manifest.schema.json](docs/contracts/provider-manifest.schema.json),
 and [docs/generated/provider-surfaces.md](docs/generated/provider-surfaces.md).
 
@@ -286,8 +287,9 @@ ProviderRegistry
 
 Provider sources
   crates/rtemplate-service/src/providers/
-  Static Rust, file-backed JSON manifests, TypeScript AI SDK sidecars, WASM,
-  OpenAPI-backed providers, and upstream MCP providers.
+  Static Rust, file-backed JSON manifests, TypeScript AI SDK sidecars, Python
+  LangChain/LlamaIndex sidecars, WASM, OpenAPI-backed providers, and upstream
+  MCP providers.
 
 ExampleService
   crates/rtemplate-service/src/app.rs
