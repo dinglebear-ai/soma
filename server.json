@@ -58,10 +58,8 @@
     },
     "io.modelcontextprotocol.registry/publisher-provided": {
       "distribution": {
-        "binary": "soma",
-        "nodePackage": "soma-rmcp",
-        "ociImage": "ghcr.io/jmagar/soma:0.4.7",
-        "serverBinary": "soma-server"
+        "npm": "soma-rmcp@0.4.7",
+        "nodePackage": "soma-rmcp"
       },
       "documentation": {
         "configuration": "docs/CONFIG.md",
@@ -96,173 +94,8 @@
       "theme": "dark"
     }
   ],
-  "name": "dinglebear.ai/soma",
+  "name": "ai.dinglebear/soma-rmcp",
   "packages": [
-    {
-      "environmentVariables": [
-        {
-          "description": "Optional deployed platform API or upstream API base URL used by the SomaClient compatibility layer. Leave unset for local provider/runtime mode.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_API_URL",
-          "placeholder": "https://api.example.com/v1"
-        },
-        {
-          "description": "Optional bearer token or upstream API key for provider-backed calls that use SomaClient. Keep secret.",
-          "isRequired": false,
-          "isSecret": true,
-          "name": "SOMA_API_KEY"
-        },
-        {
-          "description": "Static bearer token for HTTP MCP bearer-auth mode. Required unless OAuth, loopback-only no-auth, or trusted-gateway auth is configured.",
-          "isRequired": false,
-          "isSecret": true,
-          "name": "SOMA_MCP_TOKEN"
-        },
-        {
-          "default": "/data",
-          "description": "Container runtime data directory. The image stores config, .env, auth state, logs, and generated files here.",
-          "format": "filepath",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_HOME",
-          "value": "/data"
-        },
-        {
-          "default": "/data",
-          "description": "Entrypoint data directory before privilege drop. Keep this aligned with SOMA_HOME inside containers.",
-          "format": "filepath",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "DATA_DIR",
-          "value": "/data"
-        },
-        {
-          "default": "providers",
-          "description": "Directory scanned for drop-in provider manifests and modules.",
-          "format": "filepath",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_PROVIDER_DIR",
-          "placeholder": "/data/providers"
-        },
-        {
-          "choices": [
-            "bearer",
-            "oauth"
-          ],
-          "default": "bearer",
-          "description": "HTTP MCP auth mode. Use bearer for static tokens or oauth for Google OAuth/JWT flows.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_AUTH_MODE"
-        },
-        {
-          "default": "false",
-          "description": "Disable local auth for loopback development only. Do not use for public/non-loopback deployments.",
-          "format": "boolean",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_NO_AUTH"
-        },
-        {
-          "default": "false",
-          "description": "Trusted-gateway mode for non-loopback deployments where an upstream proxy enforces auth.",
-          "format": "boolean",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_NOAUTH"
-        },
-        {
-          "description": "Public URL used for OAuth issuer metadata and callbacks, for example https://soma.dinglebear.ai.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_PUBLIC_URL",
-          "placeholder": "https://soma.dinglebear.ai"
-        },
-        {
-          "description": "Google OAuth client ID used when SOMA_MCP_AUTH_MODE=oauth.",
-          "isRequired": false,
-          "isSecret": true,
-          "name": "SOMA_MCP_GOOGLE_CLIENT_ID"
-        },
-        {
-          "description": "Google OAuth client secret used when SOMA_MCP_AUTH_MODE=oauth.",
-          "isRequired": false,
-          "isSecret": true,
-          "name": "SOMA_MCP_GOOGLE_CLIENT_SECRET"
-        },
-        {
-          "description": "Initial/admin Google account allowed by the OAuth flow.",
-          "format": "string",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_AUTH_ADMIN_EMAIL",
-          "placeholder": "admin@example.com"
-        },
-        {
-          "default": "0.0.0.0",
-          "description": "HTTP bind host for containerized Streamable HTTP MCP. Use 127.0.0.1 for loopback-only host installs.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_HOST",
-          "value": "0.0.0.0"
-        },
-        {
-          "default": "40060",
-          "description": "HTTP bind port for Streamable HTTP MCP, REST, health, status, and web fallback.",
-          "format": "number",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_PORT",
-          "value": "40060"
-        },
-        {
-          "default": "soma",
-          "description": "MCP server name advertised to clients through ServerInfo.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_SERVER_NAME"
-        },
-        {
-          "description": "Additional accepted Host header values, comma-separated.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_ALLOWED_HOSTS",
-          "placeholder": "soma.dinglebear.ai"
-        },
-        {
-          "description": "Additional CORS origins, comma-separated.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_MCP_ALLOWED_ORIGINS",
-          "placeholder": "https://claude.ai,https://chatgpt.com"
-        },
-        {
-          "default": "info",
-          "description": "Rust tracing filter for logs.",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "RUST_LOG"
-        }
-      ],
-      "identifier": "ghcr.io/jmagar/soma:0.4.7",
-      "registryBaseUrl": "https://ghcr.io",
-      "registryType": "oci",
-      "runtimeHint": "docker",
-      "transport": {
-        "headers": [
-          {
-            "description": "Bearer token header for HTTP MCP bearer-auth mode.",
-            "name": "Authorization",
-            "value": "Bearer {SOMA_MCP_TOKEN}"
-          }
-        ],
-        "type": "streamable-http",
-        "url": "http://127.0.0.1:40060/mcp"
-      },
-      "version": "0.4.7"
-    },
     {
       "environmentVariables": [
         {
@@ -332,34 +165,6 @@
         "type": "stdio"
       },
       "version": "0.4.7"
-    }
-  ],
-  "remotes": [
-    {
-      "headers": [
-        {
-          "description": "Optional bearer token for remote Soma HTTP MCP endpoints that use bearer auth.",
-          "isSecret": true,
-          "name": "Authorization",
-          "value": "Bearer {api_token}",
-          "variables": {
-            "api_token": {
-              "description": "Bearer token for the remote Soma HTTP MCP endpoint.",
-              "isRequired": false,
-              "isSecret": true
-            }
-          }
-        }
-      ],
-      "type": "streamable-http",
-      "url": "https://{server_host}/mcp",
-      "variables": {
-        "server_host": {
-          "description": "Hostname of a deployed Soma HTTP MCP endpoint.",
-          "isRequired": true,
-          "placeholder": "soma.dinglebear.ai"
-        }
-      }
     }
   ],
   "repository": {
