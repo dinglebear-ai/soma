@@ -19,7 +19,7 @@ test-support = []
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-jsonschema = "0.17"
+jsonschema = "0.47"
 metrics = { version = "0.24", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rmcp = { version = "2.1.0", default-features = false, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }

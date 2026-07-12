@@ -27,7 +27,7 @@ publish = false
 #           These are the only deps needed for the four required commands.
 #           Add more only if a new command truly requires it.
 anyhow = "1"
-jsonschema = "0.17"
+jsonschema = "0.47"
 soma-contracts = { path = "../crates/soma-contracts" }
 soma-service = { path = "../crates/soma-service", default-features = false }
 semver = "1"
