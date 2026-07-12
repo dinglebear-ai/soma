@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/jmagar/soma/issues"
   },
-  "description": "Node launcher package for the Soma RMCP runtime.",
+  "description": "Node launcher for Soma, a batteries-included RMCP runtime and scaffold for provider-backed Rust MCP servers.",
   "engines": {
     "node": ">=18"
   },
@@ -36,6 +36,11 @@
     "rmcp",
     "rust",
     "server-runtime",
+    "scaffold",
+    "plugin-development",
+    "oauth",
+    "stdio",
+    "http-server",
     "soma"
   ],
   "license": "MIT",

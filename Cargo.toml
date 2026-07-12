@@ -25,8 +25,10 @@ resolver = "2"
 
 [workspace.package]
 authors = ["dinglebear.ai <hello@dinglebear.ai>"]
+description = "Batteries-included RMCP runtime and scaffold for provider-backed Rust MCP servers with CLI, REST, HTTP MCP, and plugins."
 homepage = "https://soma.dinglebear.ai"
 repository = "https://github.com/jmagar/soma"
+keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 
 # ── profiles ─────────────────────────────────────────────────────────────────
 # release-fast: release-grade binary (optimized, stripped) but with cheap LTO and
