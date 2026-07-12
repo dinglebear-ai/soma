@@ -405,3 +405,7 @@ async def main():
 
 asyncio.run(main())
 "#;
+
+#[cfg(test)]
+#[path = "python_bridge_tests.rs"]
+mod tests;
