@@ -553,8 +553,14 @@ def annotation_schema(annotation):
         }.get(annotation)
         return {"type": simple} if simple else {}
 
-    origin = typing.get_origin(annotation)
-    args = typing.get_args(annotation)
+    try:
+        origin = typing.get_origin(annotation)
+        args = typing.get_args(annotation)
+    except AttributeError as error:
+        if "UnionType" not in str(error) or hasattr(types, "UnionType"):
+            raise
+        origin = getattr(annotation, "__origin__", None)
+        args = getattr(annotation, "__args__", ())
     union_origins = [typing.Union]
     union_type = getattr(types, "UnionType", None)
     if union_type is not None:

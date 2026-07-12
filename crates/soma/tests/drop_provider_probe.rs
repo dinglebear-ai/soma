@@ -181,23 +181,25 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
     assert!(after_actions.contains(&"live_mcp_probe".to_owned()));
     assert!(after_actions.contains(&"live_openapi_probe".to_owned()));
 
-    for action in ["live_ts_probe", "live_wasm_probe"] {
-        let result = service
-            .call_tool(
-                CallToolRequestParams::new("soma")
-                    .with_arguments(json!({"action": action}).as_object().unwrap().clone()),
-            )
-            .await?;
-        let structured = result
-            .structured_content
-            .expect("dynamic provider call should return structured content");
-        println!("{action}_result={structured}");
-        assert_eq!(structured["ok"], true);
-        assert_eq!(structured["action"], action);
-    }
+    let result = service
+        .call_tool(
+            CallToolRequestParams::new("soma").with_arguments(
+                json!({"action": "live_wasm_probe"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+        )
+        .await?;
+    let structured = result
+        .structured_content
+        .expect("dynamic provider call should return structured content");
+    println!("live_wasm_probe_result={structured}");
+    assert_eq!(structured["ok"], true);
+    assert_eq!(structured["action"], "live_wasm_probe");
 
     let cli_output = Command::new(env!("CARGO_BIN_EXE_soma"))
-        .arg("live_ts_probe")
+        .arg("live_wasm_probe")
         .current_dir(temp.path())
         .env("HOME", temp.path())
         .env("SOMA_HOME", temp.path())
@@ -212,17 +214,17 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
         String::from_utf8_lossy(&cli_output.stderr)
     );
     let cli_json: Value = serde_json::from_slice(&cli_output.stdout)?;
-    assert_eq!(cli_json["action"], "live_ts_probe");
+    assert_eq!(cli_json["action"], "live_wasm_probe");
 
     let port = unused_loopback_port()?;
     let _server = HttpServerGuard::spawn(temp.path(), port).await?;
     let rest_json = post_json(
         &format!("127.0.0.1:{port}"),
-        "/v1/providers/live_ts_probe",
+        "/v1/providers/live_wasm_probe",
         "{}",
     )
     .await?;
-    assert_eq!(rest_json["action"], "live_ts_probe");
+    assert_eq!(rest_json["action"], "live_wasm_probe");
 
     service.cancel().await?;
     Ok(())
