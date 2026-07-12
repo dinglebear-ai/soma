@@ -284,6 +284,44 @@ def _private() -> str:
 }
 
 #[tokio::test]
+async fn plain_python_provider_cli_dispatches_generated_tool() -> anyhow::Result<()> {
+    let temp = test_dir("plain-cli")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("plain_cli.py"),
+        r#"
+PROVIDER = {"name": "plain-cli-python", "kind": "python"}
+
+def shout(message: str) -> dict:
+    """Uppercase a message."""
+    return {"message": message.upper()}
+"#,
+    )?;
+
+    let output = Command::new(env!("CARGO_BIN_EXE_soma"))
+        .arg("shout")
+        .arg("--json")
+        .arg(r#"{"message":"hello"}"#)
+        .current_dir(&temp)
+        .env("SOMA_HOME", &temp)
+        .env("SOMA_API_URL", "")
+        .env("SOMA_API_KEY", "")
+        .env_remove("SOMA_MCP_TOKEN")
+        .env_remove("SOMA_PROVIDER_DIR")
+        .output()?;
+
+    assert!(
+        output.status.success(),
+        "CLI failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(value, json!({"message": "HELLO"}));
+    Ok(())
+}
+
+#[tokio::test]
 async fn python_provider_ignores_provider_stdout_noise() -> anyhow::Result<()> {
     let temp = test_dir("stdout-noise")?;
     let providers = temp.join("providers");
@@ -306,6 +344,163 @@ def noisy(value: str) -> dict:
     let output = dispatch(&registry, "noisy", json!({"value": "kept"})).await?;
 
     assert_eq!(output, json!({"value": "kept"}));
+    Ok(())
+}
+
+#[tokio::test]
+async fn python_provider_respects_explicit_empty_tools_list() -> anyhow::Result<()> {
+    let temp = test_dir("empty-tools")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("empty_tools.py"),
+        r#"
+PROVIDER = {"name": "empty-tools-python", "kind": "python"}
+TOOLS = []
+
+def accidental() -> str:
+    """This function should not be exposed when TOOLS is explicitly empty."""
+    return "leaked"
+"#,
+    )?;
+
+    let registry = dynamic_provider_registry_from_dir(service()?, &providers)?;
+    let snapshot = registry.snapshot();
+    let catalog = snapshot
+        .catalogs
+        .iter()
+        .find(|catalog| catalog.provider.name == "empty-tools-python")
+        .expect("empty tools provider catalog");
+    assert!(
+        catalog.tools.is_empty(),
+        "explicit TOOLS = [] should expose no tools"
+    );
+
+    let result = dispatch(&registry, "accidental", json!({})).await;
+    assert!(
+        result.is_err(),
+        "empty-tools provider must not dispatch accidental public functions"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn python_provider_rejects_positional_only_plain_functions() -> anyhow::Result<()> {
+    let temp = test_dir("positional-only")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("positional_only.py"),
+        r#"
+PROVIDER = {"name": "positional-only-python", "kind": "python"}
+
+def positional_only(value, /) -> str:
+    """Cannot be called from named JSON params."""
+    return value
+"#,
+    )?;
+
+    let error = match dynamic_provider_registry_from_dir(service()?, &providers) {
+        Ok(_) => anyhow::bail!("positional-only Python tool should not be cataloged"),
+        Err(error) => error,
+    };
+
+    assert!(
+        error.to_string().contains("positional-only"),
+        "error should explain the unsupported positional-only parameter: {error}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn python_provider_rejects_oversized_stderr_output() -> anyhow::Result<()> {
+    let temp = test_dir("stderr-cap")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("stderr_cap.py"),
+        r#"
+PROVIDER = {"name": "stderr-cap-python", "kind": "python"}
+
+def noisy_failure() -> None:
+    """Write too much stderr before failing."""
+    import sys
+
+    sys.stderr.write("x" * (300 * 1024))
+    raise RuntimeError("boom")
+"#,
+    )?;
+
+    let registry = dynamic_provider_registry_from_dir(service()?, &providers)?;
+    let result = dispatch(&registry, "noisy_failure", json!({})).await;
+    let error = result.expect_err("oversized stderr should fail");
+
+    assert!(
+        error.to_string().contains("python_output_too_large"),
+        "stderr larger than the response cap should fail with output-too-large: {error}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn python_provider_rejects_unresolved_annotations() -> anyhow::Result<()> {
+    let temp = test_dir("annotation-error")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("annotation_error.py"),
+        r#"
+from __future__ import annotations
+
+PROVIDER = {"name": "annotation-error-python", "kind": "python"}
+
+def lookup(client: MissingClient) -> dict:
+    """Use an annotation that cannot be resolved."""
+    return {"client": str(client)}
+"#,
+    )?;
+
+    let error = match dynamic_provider_registry_from_dir(service()?, &providers) {
+        Ok(_) => anyhow::bail!("unresolved Python annotations should fail catalog loading"),
+        Err(error) => error,
+    };
+
+    assert!(
+        error.to_string().contains("lookup") && error.to_string().contains("MissingClient"),
+        "error should name the tool and unresolved annotation: {error}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn python_provider_rejects_unserializable_outputs() -> anyhow::Result<()> {
+    let temp = test_dir("unserializable-output")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("unserializable.py"),
+        r#"
+PROVIDER = {"name": "unserializable-python", "kind": "python"}
+
+class Custom:
+    pass
+
+def make_custom() -> object:
+    """Return a custom object that is not JSON-compatible."""
+    return Custom()
+"#,
+    )?;
+
+    let registry = dynamic_provider_registry_from_dir(service()?, &providers)?;
+    let result = dispatch(&registry, "make_custom", json!({})).await;
+    let error = result.expect_err("custom object output should fail");
+
+    assert!(
+        error
+            .to_string()
+            .contains("python_provider_unserializable_output"),
+        "unsupported output types should be surfaced as serialization errors: {error}"
+    );
     Ok(())
 }
 
@@ -428,6 +623,83 @@ async fn json_manifest_cannot_claim_python_provider_kind() -> anyhow::Result<()>
 }
 
 #[tokio::test]
+async fn json_manifests_cannot_claim_executable_provider_kinds() -> anyhow::Result<()> {
+    for (kind, filename, expected) in [
+        ("ai-sdk", "bad-ai-sdk.json", ".ts"),
+        ("wasm", "bad-wasm.json", ".wasm"),
+    ] {
+        let temp = test_dir(kind)?;
+        let providers = temp.join("providers");
+        fs::create_dir(&providers)?;
+        fs::write(
+            providers.join(filename),
+            serde_json::to_vec_pretty(&json!({
+                "schema_version": 1,
+                "provider": {
+                    "name": format!("bad-{kind}"),
+                    "kind": kind
+                },
+                "tools": [{
+                    "name": format!("bad_{}", kind.replace('-', "_")),
+                    "description": "Executable provider kind declared from JSON.",
+                    "input_schema": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {}
+                    }
+                }]
+            }))?,
+        )?;
+
+        let error = match dynamic_provider_registry_from_dir(service()?, &providers) {
+            Ok(_) => anyhow::bail!("JSON manifests must not claim {kind} provider kind"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.to_string().contains(expected),
+            "{kind} JSON manifest should require {expected}: {error}"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn python_provider_rejects_framework_tool_names_outside_manifest_contract(
+) -> anyhow::Result<()> {
+    let temp = test_dir("invalid-tool-name")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("bad_name.py"),
+        r#"
+PROVIDER = {"name": "bad-name-python", "kind": "langchain"}
+
+class BadNameTool:
+    name = "Bad Tool"
+    description = "Invalid public tool name."
+    args = {}
+
+    def invoke(self, params):
+        return {"ok": True}
+
+TOOLS = [BadNameTool()]
+"#,
+    )?;
+
+    let error = match dynamic_provider_registry_from_dir(service()?, &providers) {
+        Ok(_) => anyhow::bail!("invalid generated Python tool names should fail validation"),
+        Err(error) => error,
+    };
+
+    assert!(
+        error.to_string().contains("json_schema_failed"),
+        "generated catalog should be checked against the manifest schema: {error}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn python_provider_registers_module_during_import() -> anyhow::Result<()> {
     let temp = test_dir("sys-modules")?;
     let providers = temp.join("providers");
@@ -486,10 +758,13 @@ def maybe(value: str | None = None) -> dict:
         .expect("maybe tool");
 
     assert_eq!(
-        maybe.input_schema["properties"]["value"]["type"],
-        json!("string")
+        maybe.input_schema["properties"]["value"]["anyOf"],
+        json!([{"type": "string"}, {"type": "null"}])
     );
     assert!(maybe.input_schema.get("required").is_none());
+
+    let output = dispatch(&registry, "maybe", json!({"value": null})).await?;
+    assert_eq!(output, json!({"value": null}));
     Ok(())
 }
 
@@ -529,9 +804,11 @@ def maybe(value: typing.Optional[str] = None) -> dict:
         .expect("maybe tool");
 
     assert_eq!(
-        maybe.input_schema["properties"]["value"]["type"],
-        json!("string")
+        maybe.input_schema["properties"]["value"]["anyOf"],
+        json!([{"type": "string"}, {"type": "null"}])
     );
+    let output = dispatch(&registry, "maybe", json!({"value": null})).await?;
+    assert_eq!(output, json!({"value": null}));
     Ok(())
 }
 

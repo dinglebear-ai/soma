@@ -6,7 +6,7 @@
 #           service's actual binary name, URL, and version.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/your-org/your-repo/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/jmagar/soma/main/install.sh | bash
 #   # or locally:
 #   bash install.sh
 #
@@ -24,13 +24,13 @@ set -euo pipefail
 # ── CONFIGURATION — edit these values for your service ───────────────────────
 
 # CUSTOMIZE: Replace with your GitHub org/repo (e.g. "jmagar/myservice-mcp")
-REPO="your-org/soma-mcp"
+REPO="jmagar/soma"
 
-# CUSTOMIZE: Replace with your binary name (matches Cargo.toml [[bin]] name)
-BINARY_NAME="soma"
+# CUSTOMIZE: Replace with your server binary name (matches Cargo.toml [[bin]] name)
+BINARY_NAME="soma-server"
 
 # CUSTOMIZE: Replace with your service display name (shown in messages)
-SERVICE_NAME="soma-mcp"
+SERVICE_NAME="Soma"
 
 # CUSTOMIZE: Set a pinned version, or leave as "latest" to always install the
 #           most recent release. Pinned is safer for production automation.
@@ -185,8 +185,8 @@ post_install_message() {
   printf '  1. Copy the example config:   cp .env.example .env\n'
   printf '  2. Edit .env and set:         SOMA_API_URL, SOMA_API_KEY\n'
   printf '  3. Generate an auth token:    openssl rand -hex 32\n'
-  printf '  4. Start the server:          %s serve\n' "${BINARY_NAME}"
-  printf '  5. Check health:              curl http://localhost:3000/health\n'
+  printf '  4. Start the server:          soma-server serve\n'
+  printf '  5. Check health:              curl http://localhost:40060/health\n'
   printf '\n'
   printf '  Or deploy with Docker:        docker compose up -d\n'
   printf '\n'

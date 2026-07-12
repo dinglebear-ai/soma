@@ -51,6 +51,48 @@ fn generated_marketplaces_point_at_soma_plugin() {
 }
 
 #[test]
+fn public_docs_and_smokes_do_not_reference_removed_example_binary() {
+    let root = workspace_root();
+    let checked_files = [
+        "docs/QUICKSTART.md",
+        "docs/PATTERNS.md",
+        "docs/PLUGINS.md",
+        "docs/adr/0001-stdio-first-plugin-adapter.md",
+        "crates/soma/tests/mcporter/test-mcp.sh",
+    ];
+
+    for relative in checked_files {
+        let text = fs::read_to_string(root.join(relative)).expect("checked file should read");
+        assert!(
+            !text.contains("target/debug/example"),
+            "{relative} still references the removed example binary"
+        );
+        assert!(
+            !text.contains("expected \\\"example\\\""),
+            "{relative} still expects the removed example MCP tool"
+        );
+        assert!(
+            !text.contains("\"command\": \"example\""),
+            "{relative} still configures the removed example command"
+        );
+    }
+}
+
+#[test]
+fn installer_targets_real_soma_server_release() {
+    let root = workspace_root();
+    let text = fs::read_to_string(root.join("install.sh")).expect("installer should read");
+
+    assert!(!text.contains("your-org/soma-mcp"));
+    assert!(text.contains("REPO=\"jmagar/soma\""));
+    assert!(text.contains("BINARY_NAME=\"soma-server\""));
+    assert!(text.contains("soma-server serve"));
+    assert!(text.contains("localhost:40060/health"));
+    assert!(!text.contains("soma serve"));
+    assert!(!text.contains("localhost:3000/health"));
+}
+
+#[test]
 fn generated_distribution_plugin_points_at_all_artifacts() {
     let root = workspace_root();
     let plugin: serde_json::Value =
@@ -83,7 +125,7 @@ fn node_package_exposes_npx_launcher() {
         &fs::read(root.join("packages/soma-rmcp/package.json")).expect("package json"),
     )
     .expect("package JSON");
-    assert_eq!(package["bin"]["soma"], "./bin/soma-rmcp.js");
+    assert_eq!(package["bin"]["soma"], "bin/soma-rmcp.js");
 
     let launcher = root.join("packages/soma-rmcp/bin/soma-rmcp.js");
     let mode = fs::metadata(&launcher)

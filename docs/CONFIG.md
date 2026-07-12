@@ -104,8 +104,8 @@ Current env overrides include:
 | `mcp.auth.google_client_id` | `SOMA_MCP_GOOGLE_CLIENT_ID` |
 | `mcp.auth.google_client_secret` | `SOMA_MCP_GOOGLE_CLIENT_SECRET` |
 | `mcp.auth.admin_email` | `SOMA_MCP_AUTH_ADMIN_EMAIL` |
-| `example.api_url` | `SOMA_API_URL` |
-| `example.api_key` | `SOMA_API_KEY` |
+| `soma.api_url` | `SOMA_API_URL` |
+| `soma.api_key` | `SOMA_API_KEY` |
 
 ## Auth policy summary
 

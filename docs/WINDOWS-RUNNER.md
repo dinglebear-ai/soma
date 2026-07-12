@@ -20,8 +20,8 @@ setup used by repos derived from `soma`.
 Soma can run on GitHub-hosted runners, but this repo's Windows job is
 currently wired to the steamy self-hosted runner:
 
-- `build-linux`: `[self-hosted, tootie, soma]`, builds `target/release/soma` and `target/release/soma-server`
-- `build-windows`: `[self-hosted, Windows, soma, steamy]`, builds
+- `build-linux`: `[self-hosted, tootie, rmcp-template]`, builds `target/release/soma` and `target/release/soma-server`
+- `build-windows`: `[self-hosted, Windows, rmcp-template, steamy]`, builds
   `target/release/soma.exe` and `target/release/soma-server.exe`
 
 Both jobs are wired through `.github/workflows/ci.yml` and run when the
@@ -151,13 +151,13 @@ access, specialized desktop testing, or a known Windows host.
 Then change the Windows job:
 
 ```yaml
-runs-on: [self-hosted, Windows, soma]
+runs-on: [self-hosted, Windows, rmcp-template]
 ```
 
 If Linux should also use a self-hosted runner, change the Linux job similarly:
 
 ```yaml
-runs-on: [self-hosted, tootie, soma]
+runs-on: [self-hosted, tootie, rmcp-template]
 ```
 
 Keep labels repo-family-specific. Avoid labels tied to one machine name unless

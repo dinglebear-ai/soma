@@ -41,7 +41,7 @@ env:
 jobs:
   frontend-assets:
     name: Frontend Assets
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     defaults:
       run:
@@ -73,7 +73,7 @@ jobs:
   # ── Build release binaries ────────────────────────────────────────────────────
   build:
     name: Build ${{ matrix.target }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     needs: frontend-assets
     timeout-minutes: 60
     strategy:
@@ -139,16 +139,16 @@ jobs:
         run: |
           mkdir -p package artifacts
           # CUSTOMIZE: Replace the binary name if you fork Soma.
-          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}${{ matrix.ext }} \
-             package/${{ env.BINARY_NAME }}${{ matrix.ext }}
-          chmod +x package/${{ env.BINARY_NAME }}${{ matrix.ext }}
-          tar -C package -czf artifacts/${{ env.BINARY_NAME }}-${{ matrix.arch }}.tar.gz \
-            ${{ env.BINARY_NAME }}${{ matrix.ext }}
+          cp target/${{ matrix.target }}/release/${{ env.SERVER_BINARY_NAME }}${{ matrix.ext }} \
+             package/${{ env.SERVER_BINARY_NAME }}${{ matrix.ext }}
+          chmod +x package/${{ env.SERVER_BINARY_NAME }}${{ matrix.ext }}
+          tar -C package -czf artifacts/${{ env.SERVER_BINARY_NAME }}-${{ matrix.arch }}.tar.gz \
+            ${{ env.SERVER_BINARY_NAME }}${{ matrix.ext }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.BINARY_NAME }}-${{ matrix.arch }}
+          name: ${{ env.SERVER_BINARY_NAME }}-${{ matrix.arch }}
           path: artifacts/
 
   # ── Commit binaries to bin/ via Git LFS ──────────────────────────────────────
@@ -164,7 +164,7 @@ jobs:
   lfs-commit:
     name: Commit binaries to bin/ (Git LFS)
     needs: build
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     permissions:
       contents: write
@@ -214,7 +214,7 @@ jobs:
   release:
     name: Create GitHub Release
     needs: [build, lfs-commit]
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     permissions:
       contents: write

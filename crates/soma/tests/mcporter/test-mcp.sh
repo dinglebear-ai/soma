@@ -636,7 +636,7 @@ try:
     # CUSTOMIZE: Replace 'soma' with your tool name in these checks.
     name = schema.get('name', '')
     if name != 'soma':
-        print('name mismatch: expected \"example\", got \"' + name + '\"')
+        print('name mismatch: expected \"soma\", got \"' + name + '\"')
         sys.exit(0)
 
     if 'inputSchema' not in schema:

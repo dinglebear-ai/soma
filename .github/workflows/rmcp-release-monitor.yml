@@ -17,7 +17,7 @@ concurrency:
 jobs:
   monitor:
     name: Watch rmcp crate releases
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 15
     env:
       CARGO_INCREMENTAL: "0"

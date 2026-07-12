@@ -209,12 +209,12 @@ Gemini carries equivalent MCP config directly in `gemini-extension.json` because
 `plugins/soma/skills/soma/SKILL.md` is shared across Claude, Codex, and Gemini. Every skill follows the three-tier fallback pattern — agents try each tier in order and stop when one works:
 
 ```markdown
-# example — Claude Code Skill
+# soma — Claude Code Skill
 
 Use this skill whenever you need to query or manage the Soma runtime.
 
 ## Tier 1: MCP tool (preferred)
-Use when the example MCP server is configured in your agent.
+Use when the Soma MCP server is configured in your agent.
 
 soma(action="things")
 soma(action="thing", id="abc123")

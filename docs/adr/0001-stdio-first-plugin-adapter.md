@@ -41,10 +41,10 @@ server.
 - Plugin installs default to stdio MCP through the installed local binary.
 - Claude Code and Codex use `plugins/soma/.mcp.json` with:
   - `"type": "stdio"`
-  - `"command": "example"`
+  - `"command": "soma"`
   - `"args": ["mcp"]`
 - Gemini uses the equivalent extension-local command:
-  - `"command": "example"`
+  - `"command": "soma"`
   - `"args": ["mcp"]`
 - Plugin settings inject `SOMA_API_URL` and `SOMA_API_KEY` into the
   stdio child process.

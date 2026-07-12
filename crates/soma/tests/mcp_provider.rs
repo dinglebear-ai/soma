@@ -64,7 +64,13 @@ async fn hot_dropped_mcp_provider_proxies_upstream_tool_call() -> anyhow::Result
                     "stdio": {
                         "command": env!("CARGO_BIN_EXE_soma"),
                         "args": ["mcp"],
-                        "cwd": upstream.display().to_string()
+                        "cwd": upstream.display().to_string(),
+                        "env": {
+                            "SOMA_HOME": upstream.display().to_string(),
+                            "SOMA_API_URL": "",
+                            "SOMA_API_KEY": "",
+                            "RUST_LOG": "warn"
+                        }
                     },
                     "timeout_ms": 10000
                 }
@@ -156,9 +162,10 @@ async fn stdio_client_in(
         cmd.arg("mcp")
             .current_dir(cwd)
             .env("HOME", cwd)
-            .env("RUST_LOG", "warn")
+            .env("SOMA_HOME", cwd)
             .env("SOMA_API_URL", "")
             .env("SOMA_API_KEY", "")
+            .env("RUST_LOG", "warn")
             .env("SOMA_MCP_TOKEN", "")
             .env_remove("SOMA_PROVIDER_DIR");
     }))
@@ -183,12 +190,16 @@ fn unused_loopback_port() -> anyhow::Result<u16> {
 
 struct HttpServerGuard {
     child: Child,
+    _home: tempfile::TempDir,
 }
 
 impl HttpServerGuard {
     async fn spawn(port: u16) -> anyhow::Result<Self> {
+        let home = tempfile::tempdir()?;
         let mut child = Command::new(env!("CARGO_BIN_EXE_soma-server"))
             .arg("serve")
+            .env("HOME", home.path())
+            .env("SOMA_HOME", home.path())
             .env("RUST_LOG", "warn")
             .env("SOMA_MCP_HOST", "127.0.0.1")
             .env("SOMA_MCP_PORT", port.to_string())
@@ -204,7 +215,7 @@ impl HttpServerGuard {
             let _ = child.start_kill();
             return Err(error);
         }
-        Ok(Self { child })
+        Ok(Self { child, _home: home })
     }
 }
 

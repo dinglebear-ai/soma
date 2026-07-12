@@ -1,17 +1,16 @@
-use std::{path::PathBuf, process::Stdio, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use soma_contracts::providers::{EnvRequirement, ProviderCatalog, ProviderTool};
-use tokio::{
-    io::AsyncWriteExt,
-    process::Command,
-    time::{timeout, Instant},
-};
+use soma_contracts::providers::{ProviderCatalog, ProviderTool};
+use tokio::time::Instant;
 
 use crate::{
     provider_errors::{redact_public, ProviderError},
     provider_registry::{Provider, ProviderCall, ProviderOutput},
+    providers::sidecar::{
+        collect_provider_env, output_exceeded_message, run_bounded_sidecar, SidecarError,
+    },
 };
 
 #[derive(Clone)]
@@ -38,7 +37,7 @@ impl Provider for AiSdkProvider {
 
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
         let tool = self.tool(&call)?;
-        let runtime = SidecarRuntime::from_tool(tool, &call)?;
+        let runtime = SidecarRuntime::from_tool(&self.catalog, tool, &call)?;
         let input = serde_json::to_vec(&json!({
             "action": call.action,
             "params": call.params,
@@ -59,41 +58,35 @@ impl Provider for AiSdkProvider {
             ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
         })?;
         let started = Instant::now();
-        let mut child = Command::new(&runtime.command)
-            .args(["--input-type=module", "--eval", wrapper.source()])
-            .env_clear()
-            .envs(runtime.env)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?;
-
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(&input).await.map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?;
-        }
-
-        let output = timeout(
-            Duration::from_millis(runtime.timeout_ms),
-            child.wait_with_output(),
+        let sidecar = match run_bounded_sidecar(
+            &runtime.command,
+            &["--input-type=module", "--eval", wrapper.source()],
+            runtime.env,
+            &input,
+            runtime.timeout_ms,
+            runtime.max_output_bytes,
         )
         .await
-        .map_err(|_| {
-            ProviderError::new(
-                "ai_sdk_provider_timeout",
-                &self.catalog.provider.name,
-                Some(call.action.clone()),
-                format!("AI SDK provider exceeded {}ms timeout", runtime.timeout_ms),
-                "Increase tool.limits.timeout_ms or fix the provider handler.",
-            )
-        })?
-        .map_err(|error| {
-            ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-        })?;
+        {
+            Ok(sidecar) => sidecar,
+            Err(SidecarError::Timeout) => {
+                return Err(ProviderError::new(
+                    "ai_sdk_provider_timeout",
+                    &self.catalog.provider.name,
+                    Some(call.action.clone()),
+                    format!("AI SDK provider exceeded {}ms timeout", runtime.timeout_ms),
+                    "Increase tool.limits.timeout_ms or fix the provider handler.",
+                ));
+            }
+            Err(error) => {
+                return Err(ProviderError::execution(
+                    &self.catalog.provider.name,
+                    call.action.clone(),
+                    error,
+                ));
+            }
+        };
+        let output = sidecar.output;
 
         tracing::debug!(
             provider = %self.catalog.provider.name,
@@ -102,12 +95,17 @@ impl Provider for AiSdkProvider {
             "AI SDK provider sidecar completed"
         );
 
-        if output.stdout.len() > runtime.max_output_bytes {
+        if sidecar.stdout_exceeded || sidecar.stderr_exceeded {
+            let stream = if sidecar.stdout_exceeded {
+                "stdout"
+            } else {
+                "stderr"
+            };
             return Err(ProviderError::validation(
                 &self.catalog.provider.name,
                 &call.action,
                 "ai_sdk_output_too_large",
-                format!("AI SDK output exceeds {} bytes", runtime.max_output_bytes),
+                output_exceeded_message(stream, runtime.max_output_bytes),
             ));
         }
         if !output.status.success() {
@@ -159,7 +157,11 @@ struct SidecarRuntime {
 }
 
 impl SidecarRuntime {
-    fn from_tool(tool: &ProviderTool, call: &ProviderCall) -> Result<Self, ProviderError> {
+    fn from_tool(
+        catalog: &ProviderCatalog,
+        tool: &ProviderTool,
+        call: &ProviderCall,
+    ) -> Result<Self, ProviderError> {
         let meta = tool.meta.get("ai_sdk").or_else(|| tool.meta.get("sidecar"));
         let command = meta
             .and_then(|value| value.get("command"))
@@ -187,50 +189,12 @@ impl SidecarRuntime {
             .unwrap_or(256 * 1024);
         Ok(Self {
             command,
-            env: collect_env(&tool.env, call)?,
+            env: collect_provider_env(&catalog.env, &tool.env, call)?,
             timeout_ms,
             max_input_bytes,
             max_output_bytes,
         })
     }
-}
-
-fn collect_env(
-    requirements: &[EnvRequirement],
-    call: &ProviderCall,
-) -> Result<Vec<(String, String)>, ProviderError> {
-    let mut env = Vec::new();
-    for requirement in requirements {
-        let name = requirement.runtime_name("SOMA");
-        let value = std::env::var(&name)
-            .ok()
-            .or_else(|| {
-                requirement
-                    .allow_unprefixed
-                    .then(|| std::env::var(&requirement.name).ok())
-                    .flatten()
-            })
-            .or_else(|| {
-                requirement
-                    .default
-                    .as_ref()
-                    .and_then(Value::as_str)
-                    .map(ToOwned::to_owned)
-            });
-        match value {
-            Some(value) => env.push((name, value)),
-            None if requirement.required => {
-                return Err(ProviderError::validation(
-                    &call.provider,
-                    &call.action,
-                    "missing_provider_env",
-                    format!("missing required provider env `{name}`"),
-                ));
-            }
-            None => {}
-        }
-    }
-    Ok(env)
 }
 
 struct SidecarWrapper {

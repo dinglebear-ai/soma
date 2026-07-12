@@ -984,7 +984,7 @@ MCP resources are public contract, not implementation detail. Test every stable 
 
 - the resource URI resolves
 - the returned content parses as JSON
-- the tool name is `example`
+- the tool name is `soma`
 - `inputSchema.type` is `object`
 - `inputSchema.properties.action` exists
 
@@ -1011,12 +1011,12 @@ test tag/app (`APPRISE_TEST_TAG`, `GOTIFY_TEST_APP_ID`) gated by an env var.
 Every server has a skill covering three fallback tiers:
 
 ```markdown
-# example — Claude Code Skill
+# soma — Claude Code Skill
 
 Use this skill whenever... [trigger phrases]
 
 ## Tier 1: MCP tool (preferred)
-Use when the example MCP server is configured.
+Use when the Soma MCP server is configured.
 
 soma(action="things")
 soma(action="thing", id="abc123")

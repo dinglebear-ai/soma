@@ -22,6 +22,18 @@ fn secret_keys_are_marked_secret() {
 }
 
 #[test]
+fn api_env_destinations_match_soma_config_section() {
+    assert_eq!(
+        spec_for("SOMA_API_URL").unwrap().toml_destination,
+        Some("soma.api_url")
+    );
+    assert_eq!(
+        spec_for("SOMA_API_KEY").unwrap().toml_destination,
+        Some("soma.api_key")
+    );
+}
+
+#[test]
 fn plugin_option_mapping_is_derived_from_specs() {
     let mappings: Vec<_> = plugin_option_mappings().collect();
     assert!(mappings.contains(&("CLAUDE_PLUGIN_OPTION_SOMA_API_URL", "SOMA_API_URL")));

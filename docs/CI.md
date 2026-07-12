@@ -67,8 +67,8 @@ focused on the required check names.
 
 The jobs run on self-hosted runners: path classifiers, aggregate gates, and
 Linux jobs use the TOOTIE Docker runner
-(`runs-on: [self-hosted, tootie, soma]`, see `docs/LINUX-RUNNER.md`),
-and Windows jobs use steamy (`runs-on: [self-hosted, Windows, soma, steamy]`,
+(`runs-on: [self-hosted, tootie, rmcp-template]`, see `docs/LINUX-RUNNER.md`),
+and Windows jobs use steamy (`runs-on: [self-hosted, Windows, rmcp-template, steamy]`,
 see `docs/WINDOWS-RUNNER.md`). The Rust jobs force `RUSTC_WRAPPER=sccache`,
 `CARGO_BUILD_RUSTC_WRAPPER=sccache`, and `CARGO_INCREMENTAL=0`; the local
 `.github/actions/setup-rust-sccache` action installs Rust plus sccache and prints

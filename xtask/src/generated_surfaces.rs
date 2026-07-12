@@ -797,7 +797,7 @@ fn provider_files(provider_dir: &Path) -> Result<Vec<String>> {
         .filter(|path| {
             matches!(
                 path.extension().and_then(|extension| extension.to_str()),
-                Some("json" | "ts" | "wasm")
+                Some("json" | "ts" | "wasm" | "py")
             )
         })
         .filter_map(|path| {
@@ -872,6 +872,17 @@ mod tests {
         )
         .expect("wasm provider");
         fs::write(
+            providers.join("python_math.py"),
+            r#"
+PROVIDER = {"name": "python-math", "kind": "python"}
+
+def python_add(a: int, b: int) -> int:
+    """Add two integers."""
+    return a + b
+"#,
+        )
+        .expect("python provider");
+        fs::write(
             providers.join("notes.mcp.json"),
             provider_manifest("notes-mcp", "mcp", "notes_search"),
         )
@@ -887,7 +898,13 @@ mod tests {
         std::env::remove_var("SOMA_PROVIDER_DIR");
         let plugin = render_distribution_plugin(&snapshot);
 
-        for action in ["weather_ts", "image_wasm", "notes_search", "github_issue"] {
+        for action in [
+            "weather_ts",
+            "image_wasm",
+            "python_add",
+            "notes_search",
+            "github_issue",
+        ] {
             assert!(
                 contains_string(&snapshot["surfaces"]["mcp_actions"], action),
                 "MCP actions should include {action}"
@@ -912,6 +929,10 @@ mod tests {
         assert!(contains_string(
             &plugin["provider_files"],
             "providers/weather.tool.ts"
+        ));
+        assert!(contains_string(
+            &plugin["provider_files"],
+            "providers/python_math.py"
         ));
         assert!(contains_string(
             &plugin["provider_files"],

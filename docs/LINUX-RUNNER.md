@@ -17,7 +17,7 @@ last_reviewed: "2026-06-27"
 Linux GitHub Actions jobs run on a Dockerized self-hosted runner on TOOTIE:
 
 ```yaml
-runs-on: [self-hosted, tootie, soma]
+runs-on: [self-hosted, tootie, rmcp-template]
 ```
 
 The runner is repo-scoped to `jmagar/soma` and mirrors the proven lab

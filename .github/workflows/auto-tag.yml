@@ -21,7 +21,7 @@ concurrency:
 jobs:
   plan:
     name: Plan release tags
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 10
     permissions:
       contents: read
@@ -51,7 +51,7 @@ jobs:
     name: Create release tag
     needs: plan
     if: needs.plan.outputs.matrix != '{"include":[]}'
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     permissions:
       contents: write

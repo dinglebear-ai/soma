@@ -95,7 +95,7 @@ Add to your Claude Desktop MCP config (`~/Library/Application Support/Claude/cla
 {
   "mcpServers": {
     "soma": {
-      "command": "/path/to/soma/target/debug/example",
+      "command": "/path/to/soma/target/debug/soma",
       "args": ["mcp"],
       "env": { "RUST_LOG": "warn" }
     }

@@ -24,9 +24,10 @@ async fn stdio_client_in(
         cmd.arg("mcp")
             .current_dir(cwd)
             .env("HOME", cwd)
-            .env("RUST_LOG", "warn")
+            .env("SOMA_HOME", cwd)
             .env("SOMA_API_URL", "")
             .env("SOMA_API_KEY", "")
+            .env("RUST_LOG", "warn")
             .env("SOMA_MCP_TOKEN", "")
             .env_remove("SOMA_PROVIDER_DIR");
     }))
@@ -105,7 +106,13 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
                     "stdio": {
                         "command": env!("CARGO_BIN_EXE_soma"),
                         "args": ["mcp"],
-                        "cwd": temp.path().display().to_string()
+                        "cwd": temp.path().display().to_string(),
+                        "env": {
+                            "SOMA_HOME": temp.path().display().to_string(),
+                            "SOMA_API_URL": "",
+                            "SOMA_API_KEY": "",
+                            "RUST_LOG": "warn"
+                        }
                     },
                     "timeout_ms": 10000
                 }
@@ -193,6 +200,7 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
         .arg("live_ts_probe")
         .current_dir(temp.path())
         .env("HOME", temp.path())
+        .env("SOMA_HOME", temp.path())
         .env("SOMA_API_URL", "")
         .env("SOMA_API_KEY", "")
         .env("SOMA_MCP_TOKEN", "")
@@ -264,6 +272,8 @@ impl HttpServerGuard {
         let mut child = Command::new(env!("CARGO_BIN_EXE_soma-server"))
             .arg("serve")
             .current_dir(cwd)
+            .env("HOME", cwd)
+            .env("SOMA_HOME", cwd)
             .env("RUST_LOG", "warn")
             .env("SOMA_MCP_HOST", "127.0.0.1")
             .env("SOMA_MCP_PORT", port.to_string())

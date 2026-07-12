@@ -1,6 +1,6 @@
 self-hosted-runner:
   labels:
-    - soma
+    - rmcp-template
     - steamy
     - tootie
 

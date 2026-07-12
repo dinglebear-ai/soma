@@ -19,9 +19,10 @@ async fn stdio_client() -> anyhow::Result<(
         cmd.arg("mcp")
             .current_dir(temp.path())
             .env("HOME", temp.path())
-            .env("RUST_LOG", "warn")
+            .env("SOMA_HOME", temp.path())
             .env("SOMA_API_URL", "")
             .env("SOMA_API_KEY", "")
+            .env("RUST_LOG", "warn")
             .env("SOMA_MCP_TOKEN", "");
     }))
     .stderr(Stdio::piped())

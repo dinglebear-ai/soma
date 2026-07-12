@@ -287,23 +287,37 @@ fn ensure_kind_matches(
     catalog: &ProviderCatalog,
 ) -> Result<(), FileProviderLoadError> {
     let extension = path.extension().and_then(|extension| extension.to_str());
-    if matches!(
-        catalog.provider.kind,
-        ProviderKind::Python | ProviderKind::Langchain | ProviderKind::Llamaindex
-    ) && extension != Some("py")
-    {
+    let required_extension = required_extension_for_kind(catalog.provider.kind);
+    if required_extension.is_some_and(|expected| extension != Some(expected)) {
         return Err(FileProviderLoadError {
             path: path.to_path_buf(),
             message: format!(
-                "provider kind `{}` requires a .py file",
-                catalog.provider.kind.as_str()
+                "provider kind `{}` requires a .{} file",
+                catalog.provider.kind.as_str(),
+                required_extension_for_kind(catalog.provider.kind).unwrap()
             ),
         });
     }
 
-    let expected = match extension {
-        Some("ts") => Some(ProviderKind::AiSdk),
-        Some("wasm") => Some(ProviderKind::Wasm),
+    match extension {
+        Some("ts") if catalog.provider.kind != ProviderKind::AiSdk => {
+            return Err(FileProviderLoadError {
+                path: path.to_path_buf(),
+                message: format!(
+                    "provider kind `{}` does not match TypeScript provider extension",
+                    catalog.provider.kind.as_str()
+                ),
+            });
+        }
+        Some("wasm") if catalog.provider.kind != ProviderKind::Wasm => {
+            return Err(FileProviderLoadError {
+                path: path.to_path_buf(),
+                message: format!(
+                    "provider kind `{}` does not match WASM provider extension",
+                    catalog.provider.kind.as_str()
+                ),
+            });
+        }
         Some("py")
             if !matches!(
                 catalog.provider.kind,
@@ -318,16 +332,16 @@ fn ensure_kind_matches(
                 ),
             });
         }
-        _ => None,
-    };
-    if expected.is_some_and(|expected| catalog.provider.kind != expected) {
-        return Err(FileProviderLoadError {
-            path: path.to_path_buf(),
-            message: format!(
-                "provider kind `{}` does not match file extension",
-                catalog.provider.kind.as_str()
-            ),
-        });
+        _ => {}
     }
     Ok(())
+}
+
+fn required_extension_for_kind(kind: ProviderKind) -> Option<&'static str> {
+    match kind {
+        ProviderKind::AiSdk => Some("ts"),
+        ProviderKind::Wasm => Some("wasm"),
+        ProviderKind::Python | ProviderKind::Langchain | ProviderKind::Llamaindex => Some("py"),
+        ProviderKind::StaticRust | ProviderKind::Openapi | ProviderKind::Mcp => None,
+    }
 }

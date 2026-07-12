@@ -3,21 +3,24 @@ use std::{
     path::{Path, PathBuf},
     process::{Command as StdCommand, Stdio as StdStdio},
     sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use soma_contracts::providers::{EnvRequirement, ProviderCatalog, ProviderTool};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    process::Command,
-    time::{timeout, Instant as TokioInstant},
+use soma_contracts::{
+    provider_validation::validate_provider_manifest_value,
+    providers::{ProviderCatalog, ProviderTool},
 };
+use tokio::time::Instant as TokioInstant;
 
 use crate::{
     provider_errors::{redact_public, ProviderError},
     provider_registry::{Provider, ProviderCall, ProviderOutput},
+    providers::sidecar::{
+        collect_provider_env, output_exceeded_message, run_bounded_sidecar, SidecarError,
+    },
 };
 
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
@@ -70,57 +73,18 @@ impl Provider for PythonProvider {
         }
 
         let started = TokioInstant::now();
-        let mut child = Command::new(&runtime.command)
-            .args(["-c", PYTHON_BRIDGE])
-            .kill_on_drop(true)
-            .env_clear()
-            .envs(runtime.env)
-            .stdin(StdStdio::piped())
-            .stdout(StdStdio::piped())
-            .stderr(StdStdio::piped())
-            .spawn()
-            .map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            ProviderError::execution(
-                &self.catalog.provider.name,
-                call.action.clone(),
-                "Python provider stdout pipe was not captured",
-            )
-        })?;
-        let stderr = child.stderr.take().ok_or_else(|| {
-            ProviderError::execution(
-                &self.catalog.provider.name,
-                call.action.clone(),
-                "Python provider stderr pipe was not captured",
-            )
-        })?;
-        let stdout_task = tokio::spawn(async move {
-            let mut stdout = stdout;
-            let mut bytes = Vec::new();
-            stdout.read_to_end(&mut bytes).await.map(|_| bytes)
-        });
-        let stderr_task = tokio::spawn(async move {
-            let mut stderr = stderr;
-            let mut bytes = Vec::new();
-            stderr.read_to_end(&mut bytes).await.map(|_| bytes)
-        });
-
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(&input).await.map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?;
-        }
-
-        let status = match timeout(Duration::from_millis(runtime.timeout_ms), child.wait()).await {
-            Ok(status) => status.map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?,
-            Err(_) => {
-                let _ = child.kill().await;
-                stdout_task.abort();
-                stderr_task.abort();
+        let sidecar = match run_bounded_sidecar(
+            &runtime.command,
+            &["-c", PYTHON_BRIDGE],
+            runtime.env,
+            &input,
+            runtime.timeout_ms,
+            runtime.max_output_bytes,
+        )
+        .await
+        {
+            Ok(sidecar) => sidecar,
+            Err(SidecarError::Timeout) => {
                 return Err(ProviderError::new(
                     "python_provider_timeout",
                     &self.catalog.provider.name,
@@ -129,28 +93,15 @@ impl Provider for PythonProvider {
                     "Increase tool.limits.timeout_ms or fix the Python provider handler.",
                 ));
             }
+            Err(error) => {
+                return Err(ProviderError::execution(
+                    &self.catalog.provider.name,
+                    call.action.clone(),
+                    error,
+                ));
+            }
         };
-        let stdout = stdout_task
-            .await
-            .map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?
-            .map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?;
-        let stderr = stderr_task
-            .await
-            .map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?
-            .map_err(|error| {
-                ProviderError::execution(&self.catalog.provider.name, call.action.clone(), error)
-            })?;
-        let output = std::process::Output {
-            status,
-            stdout,
-            stderr,
-        };
+        let output = sidecar.output;
 
         tracing::debug!(
             provider = %self.catalog.provider.name,
@@ -159,21 +110,28 @@ impl Provider for PythonProvider {
             "Python provider sidecar completed"
         );
 
-        if output.stdout.len() > runtime.max_output_bytes {
+        if sidecar.stdout_exceeded || sidecar.stderr_exceeded {
+            let stream = if sidecar.stdout_exceeded {
+                "stdout"
+            } else {
+                "stderr"
+            };
             return Err(ProviderError::validation(
                 &self.catalog.provider.name,
                 &call.action,
                 "python_output_too_large",
-                format!(
-                    "Python provider output exceeds {} bytes",
-                    runtime.max_output_bytes
-                ),
+                output_exceeded_message(stream, runtime.max_output_bytes),
             ));
         }
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
+            let code = if stderr.contains("python_provider_unserializable_output") {
+                "python_provider_unserializable_output"
+            } else {
+                "python_provider_failed"
+            };
             return Err(ProviderError::new(
-                "python_provider_failed",
+                code,
                 &self.catalog.provider.name,
                 Some(call.action),
                 format!("Python provider failed: {}", redact_public(&stderr)),
@@ -218,7 +176,8 @@ pub fn load_python_catalog(path: &Path) -> Result<ProviderCatalog, String> {
     }))
     .map_err(|error| error.to_string())?;
     let output = run_catalog_sidecar(&runtime, &input)?;
-    serde_json::from_slice(&output).map_err(|error| error.to_string())
+    let value: Value = serde_json::from_slice(&output).map_err(|error| error.to_string())?;
+    validate_provider_manifest_value(&value).map_err(|error| error.to_string())
 }
 
 struct PythonRuntime {
@@ -278,51 +237,12 @@ impl PythonRuntime {
             .unwrap_or(DEFAULT_MAX_OUTPUT_BYTES);
         Ok(Self {
             command,
-            env: collect_env(&catalog.env, &tool.env, call)?,
+            env: collect_provider_env(&catalog.env, &tool.env, call)?,
             timeout_ms,
             max_input_bytes,
             max_output_bytes,
         })
     }
-}
-
-fn collect_env(
-    provider_requirements: &[EnvRequirement],
-    tool_requirements: &[EnvRequirement],
-    call: &ProviderCall,
-) -> Result<Vec<(String, String)>, ProviderError> {
-    let mut env = Vec::new();
-    for requirement in provider_requirements.iter().chain(tool_requirements) {
-        let name = requirement.runtime_name("SOMA");
-        let value = std::env::var(&name)
-            .ok()
-            .or_else(|| {
-                requirement
-                    .allow_unprefixed
-                    .then(|| std::env::var(&requirement.name).ok())
-                    .flatten()
-            })
-            .or_else(|| {
-                requirement
-                    .default
-                    .as_ref()
-                    .and_then(Value::as_str)
-                    .map(ToOwned::to_owned)
-            });
-        match value {
-            Some(value) => env.push((name, value)),
-            None if requirement.required => {
-                return Err(ProviderError::validation(
-                    &call.provider,
-                    &call.action,
-                    "missing_provider_env",
-                    format!("missing required provider env `{name}`"),
-                ));
-            }
-            None => {}
-        }
-    }
-    Ok(env)
 }
 
 fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>, String> {
@@ -334,32 +254,43 @@ fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>,
         .stderr(StdStdio::piped())
         .spawn()
         .map_err(|error| error.to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Python provider catalog stdout pipe was not captured".to_owned())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Python provider catalog stderr pipe was not captured".to_owned())?;
+    let max_output_bytes = runtime.max_output_bytes;
+    let stdout_task = thread::spawn(move || read_bounded_sync(stdout, max_output_bytes));
+    let stderr_task = thread::spawn(move || read_bounded_sync(stderr, max_output_bytes));
+
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(input).map_err(|error| error.to_string())?;
     }
     let deadline = Instant::now() + Duration::from_millis(runtime.timeout_ms);
     loop {
         if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
-            let mut stdout = Vec::new();
-            if let Some(mut pipe) = child.stdout.take() {
-                pipe.read_to_end(&mut stdout)
-                    .map_err(|error| error.to_string())?;
-            }
-            let mut stderr = String::new();
-            if let Some(mut pipe) = child.stderr.take() {
-                pipe.read_to_string(&mut stderr)
-                    .map_err(|error| error.to_string())?;
-            }
-            if stdout.len() > runtime.max_output_bytes {
+            let (stdout, stdout_exceeded) = stdout_task
+                .join()
+                .map_err(|_| "Python provider catalog stdout reader panicked".to_owned())?
+                .map_err(|error| error.to_string())?;
+            let (stderr, stderr_exceeded) = stderr_task
+                .join()
+                .map_err(|_| "Python provider catalog stderr reader panicked".to_owned())?
+                .map_err(|error| error.to_string())?;
+            if stdout_exceeded || stderr_exceeded {
+                let stream = if stdout_exceeded { "stdout" } else { "stderr" };
                 return Err(format!(
-                    "Python provider catalog exceeds {} bytes",
-                    runtime.max_output_bytes
+                    "Python provider catalog {}",
+                    output_exceeded_message(stream, runtime.max_output_bytes)
                 ));
             }
             if !status.success() {
                 return Err(format!(
                     "Python provider catalog failed: {}",
-                    redact_public(&stderr)
+                    redact_public(&String::from_utf8_lossy(&stderr))
                 ));
             }
             return Ok(stdout);
@@ -376,6 +307,30 @@ fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>,
     }
 }
 
+fn read_bounded_sync<R: Read>(
+    mut reader: R,
+    max_output_bytes: usize,
+) -> std::io::Result<(Vec<u8>, bool)> {
+    let mut bytes = Vec::new();
+    let mut exceeded = false;
+    let mut chunk = [0u8; 8192];
+    loop {
+        let read = reader.read(&mut chunk)?;
+        if read == 0 {
+            return Ok((bytes, exceeded));
+        }
+        let remaining = max_output_bytes.saturating_sub(bytes.len());
+        if remaining >= read && !exceeded {
+            bytes.extend_from_slice(&chunk[..read]);
+        } else {
+            exceeded = true;
+            if remaining > 0 {
+                bytes.extend_from_slice(&chunk[..remaining]);
+            }
+        }
+    }
+}
+
 const PYTHON_BRIDGE: &str = r#"
 import asyncio
 import contextlib
@@ -388,6 +343,8 @@ import sys
 import types
 import typing
 from pathlib import Path
+
+MISSING = object()
 
 
 def load_module(path):
@@ -415,11 +372,11 @@ def slug(value):
 
 
 def expand_tools(module):
-    raw = getattr(module, "TOOLS", None)
-    if raw is None:
-        raw = getattr(module, "tools", None)
-    if raw is None:
-        raw = []
+    raw = getattr(module, "TOOLS", MISSING)
+    if raw is MISSING:
+        raw = getattr(module, "tools", MISSING)
+    if raw is MISSING:
+        return None
     expanded = []
     for item in raw:
         to_tool_list = getattr(item, "to_tool_list", None)
@@ -440,6 +397,13 @@ def public_functions(module):
     return functions
 
 
+def provider_tools(module):
+    tools = expand_tools(module)
+    if tools is None:
+        return public_functions(module)
+    return tools
+
+
 def detect_kind(module, tools, config):
     kind = config.get("kind") or getattr(module, "PROVIDER_KIND", None)
     if kind:
@@ -457,26 +421,31 @@ def detect_kind(module, tools, config):
     raise RuntimeError("Python provider must expose PROVIDER['kind'] or detectable tools")
 
 
-def jsonable(value):
+def jsonable(value, strict=False):
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, list) or isinstance(value, tuple):
-        return [jsonable(item) for item in value]
+        return [jsonable(item, strict=strict) for item in value]
     if isinstance(value, dict):
-        return {str(key): jsonable(item) for key, item in value.items()}
+        return {str(key): jsonable(item, strict=strict) for key, item in value.items()}
     if dataclasses.is_dataclass(value):
-        return jsonable(dataclasses.asdict(value))
+        return jsonable(dataclasses.asdict(value), strict=strict)
     model_dump = getattr(value, "model_dump", None)
     if callable(model_dump):
-        return jsonable(model_dump())
+        return jsonable(model_dump(), strict=strict)
     dict_method = getattr(value, "dict", None)
     if callable(dict_method):
         try:
-            return jsonable(dict_method())
+            return jsonable(dict_method(), strict=strict)
         except TypeError:
             pass
     if hasattr(value, "content"):
-        return {"content": jsonable(getattr(value, "content"))}
+        return {"content": jsonable(getattr(value, "content"), strict=strict)}
+    if strict:
+        type_name = f"{type(value).__module__}.{type(value).__qualname__}"
+        raise TypeError(
+            f"python_provider_unserializable_output: {type_name} is not JSON-compatible"
+        )
     return str(value)
 
 
@@ -546,11 +515,17 @@ def annotation_schema(annotation):
     if union_type is not None:
         union_origins.append(union_type)
     if origin in union_origins:
+        includes_none = any(item is type(None) for item in args)
         non_none = [item for item in args if item is not type(None)]
         if len(non_none) == 1:
-            return annotation_schema(non_none[0])
+            schema = annotation_schema(non_none[0])
+            if includes_none:
+                return {"anyOf": [schema, {"type": "null"}]}
+            return schema
         variants = [annotation_schema(item) for item in non_none]
         variants = [variant for variant in variants if variant]
+        if includes_none:
+            variants.append({"type": "null"})
         return {"anyOf": variants} if variants else {}
     if origin in (list, tuple, set, frozenset):
         item_schema = annotation_schema(args[0]) if args else {}
@@ -574,14 +549,23 @@ def function_schema(tool):
     hints = {}
     try:
         hints = typing.get_type_hints(tool)
-    except Exception:
-        pass
+    except Exception as error:
+        name = getattr(tool, "__name__", "<unknown>")
+        raise RuntimeError(
+            f"Python tool {name!r} annotation resolution failed: {error}"
+        ) from error
     properties = {}
     required = []
     signature = inspect.signature(tool)
     for name, parameter in signature.parameters.items():
         if name in ("self", "cls"):
             continue
+        if parameter.kind is inspect.Parameter.POSITIONAL_ONLY:
+            tool_label = getattr(tool, "__name__", "<unknown>")
+            raise RuntimeError(
+                f"Python tool {tool_label!r} parameter {name!r} is positional-only; "
+                "plain Python provider parameters must be callable by JSON object key"
+            )
         if parameter.kind in (
             inspect.Parameter.VAR_POSITIONAL,
             inspect.Parameter.VAR_KEYWORD,
@@ -630,9 +614,7 @@ def tool_schema(tool, kind):
 def catalog(path):
     module = load_module(path)
     config = provider_config(module)
-    tools = expand_tools(module)
-    if not tools:
-        tools = public_functions(module)
+    tools = provider_tools(module)
     kind = detect_kind(module, tools, config)
     if kind not in ("python", "langchain", "llamaindex"):
         raise RuntimeError(f"unsupported Python provider kind {kind!r}")
@@ -660,6 +642,7 @@ def catalog(path):
             "name": name,
             "description": tool_description(tool, kind),
             "input_schema": tool_schema(tool, kind),
+            "cli": {"enabled": True, "command": name},
             "meta": {"python": {"adapter": kind}},
         })
     return output
@@ -667,9 +650,7 @@ def catalog(path):
 
 def resolve_tool(module, action):
     config = provider_config(module)
-    tools = expand_tools(module)
-    if not tools:
-        tools = public_functions(module)
+    tools = provider_tools(module)
     kind = detect_kind(module, tools, config)
     for tool in tools:
         if tool_name(tool, kind) == action:
@@ -733,7 +714,7 @@ async def main():
             result = await execute(payload["path"], payload["action"], payload.get("params") or {})
         else:
             raise RuntimeError(f"unknown Python bridge mode {mode!r}")
-    sys.stdout.write(json.dumps(jsonable(result), separators=(",", ":")))
+    sys.stdout.write(json.dumps(jsonable(result, strict=mode == "call"), separators=(",", ":")))
 
 
 asyncio.run(main())

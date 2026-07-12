@@ -22,8 +22,8 @@ This file is generated from `ENV_KEY_SPECS` and typed config defaults. Run `carg
 
 | Variable | Default | Secret | TOML destination | Plugin option | Purpose |
 |---|---:|---:|---|---|---|
-| `SOMA_API_URL` | unset | no | `example.api_url` | `CLAUDE_PLUGIN_OPTION_SOMA_API_URL` | Deployed platform API or upstream API base URL used by `SomaClient`. Empty selects offline stub mode. |
-| `SOMA_API_KEY` | unset | yes | `example.api_key` | `CLAUDE_PLUGIN_OPTION_SOMA_API_KEY` | Bearer token or upstream API key. Keep secret. Required when the deployed API requires auth. |
+| `SOMA_API_URL` | unset | no | `soma.api_url` | `CLAUDE_PLUGIN_OPTION_SOMA_API_URL` | Deployed platform API or upstream API base URL used by `SomaClient`. Empty selects offline stub mode. |
+| `SOMA_API_KEY` | unset | yes | `soma.api_key` | `CLAUDE_PLUGIN_OPTION_SOMA_API_KEY` | Bearer token or upstream API key. Keep secret. Required when the deployed API requires auth. |
 | `SOMA_MCP_TOKEN` | unset | yes | `mcp.api_token` | `CLAUDE_PLUGIN_OPTION_API_TOKEN` | Static bearer token. Required for bearer-only mounted HTTP. |
 | `SOMA_SERVER_URL` | unset | no | - | `CLAUDE_PLUGIN_OPTION_SERVER_URL` | Optional remote/platform HTTP server URL used by plugin setup and health checks. |
 | `SOMA_MCP_AUTH_MODE` | `bearer` | no | `mcp.auth.mode` | `CLAUDE_PLUGIN_OPTION_AUTH_MODE` | `bearer` or `oauth`. |

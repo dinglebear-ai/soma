@@ -49,7 +49,7 @@ jobs:
   changes:
     name: Changes
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     outputs:
       all: ${{ steps.classify.outputs.all }}
       docs: ${{ steps.classify.outputs.docs }}
@@ -94,7 +94,7 @@ jobs:
     name: Actionlint
     needs: [changes]
     if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -112,7 +112,7 @@ jobs:
     name: Format
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -130,7 +130,7 @@ jobs:
     name: Clippy
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -158,7 +158,7 @@ jobs:
     name: Test
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -198,7 +198,7 @@ jobs:
     name: Frontend Assets
     needs: [changes]
     if: ${{ (needs.changes.outputs.web == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.mcp == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     defaults:
       run:
@@ -245,7 +245,7 @@ jobs:
   # packaging and GitHub Release publication.
   build-linux:
     name: Build Linux
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     needs: [changes, frontend-assets]
     if: ${{ always() && needs.changes.outputs.native == 'true' && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 45
@@ -284,7 +284,7 @@ jobs:
 
   build-windows:
     name: Build Windows
-    runs-on: [self-hosted, Windows, soma, steamy]
+    runs-on: [self-hosted, Windows, rmcp-template, steamy]
     needs: [changes, frontend-assets]
     if: ${{ always() && needs.changes.outputs.native == 'true' && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 60
@@ -392,7 +392,7 @@ jobs:
   # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
   mcp-smoke:
     name: MCP Smoke
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     needs: [changes, frontend-assets]
     if: ${{ always() && (needs.changes.outputs.mcp == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true') && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 35
@@ -476,7 +476,7 @@ jobs:
     name: Container Smoke
     needs: [changes]
     if: ${{ needs.changes.outputs.docker == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -522,7 +522,7 @@ jobs:
     name: TOML Format
     needs: [changes]
     if: ${{ needs.changes.outputs.toml == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -546,7 +546,7 @@ jobs:
     name: Lefthook Speed
     needs: [changes]
     if: ${{ (needs.changes.outputs.workflow == 'true' || needs.changes.outputs.soma == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -559,7 +559,7 @@ jobs:
     name: Soma Contracts
     needs: [changes]
     if: ${{ needs.changes.outputs.soma == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -619,7 +619,7 @@ jobs:
     name: Cargo Deny
     needs: [changes]
     if: ${{ needs.changes.outputs.security == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -640,7 +640,7 @@ jobs:
     name: Secret Scan
     needs: [changes]
     if: ${{ needs.changes.outputs.secrets == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     permissions:
       contents: read
@@ -678,7 +678,7 @@ jobs:
       - soma
       - audit
       - gitleaks
-    runs-on: [self-hosted, tootie, soma]
+    runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 5
     steps:
       - name: Verify all required jobs passed

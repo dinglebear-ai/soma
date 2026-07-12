@@ -4,8 +4,8 @@ Generated from `crates/soma-contracts/src/env_registry.rs`.
 
 | Plugin option env | Runtime env | Secret | TOML destination |
 |---|---|---:|---|
-| `CLAUDE_PLUGIN_OPTION_SOMA_API_URL` | `SOMA_API_URL` | no | `example.api_url` |
-| `CLAUDE_PLUGIN_OPTION_SOMA_API_KEY` | `SOMA_API_KEY` | yes | `example.api_key` |
+| `CLAUDE_PLUGIN_OPTION_SOMA_API_URL` | `SOMA_API_URL` | no | `soma.api_url` |
+| `CLAUDE_PLUGIN_OPTION_SOMA_API_KEY` | `SOMA_API_KEY` | yes | `soma.api_key` |
 | `CLAUDE_PLUGIN_OPTION_API_TOKEN` | `SOMA_MCP_TOKEN` | yes | `mcp.api_token` |
 | `CLAUDE_PLUGIN_OPTION_SERVER_URL` | `SOMA_SERVER_URL` | no | - |
 | `CLAUDE_PLUGIN_OPTION_AUTH_MODE` | `SOMA_MCP_AUTH_MODE` | no | `mcp.auth.mode` |
