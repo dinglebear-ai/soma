@@ -35,63 +35,63 @@ fn ci_runs_release_version_gate_before_merge() {
     let workflow = include_str!("../../../.github/workflows/ci.yml");
     let soma = workflow_job_block(workflow, "soma");
     assert!(
-        soma.contains(
-            "cargo xtask check-release-versions --base origin/main --head HEAD --mode pr"
-        ),
-        "CI must run the manifest-backed release version gate on pull requests"
+        soma.contains("cargo xtask check-version-sync"),
+        "CI must ensure version-bearing files stay internally synchronized"
     );
     assert!(
         soma.contains("fetch-depth: 0"),
-        "release version gate needs tags and history"
+        "version sync gate needs enough history for adjacent Soma checks"
     );
 }
 
 #[test]
-fn auto_tag_uses_xtask_release_plan() {
-    let workflow = include_str!("../../../.github/workflows/auto-tag.yml");
-    let plan = workflow_job_block(workflow, "plan");
-    let release = workflow_job_block(workflow, "release");
+fn release_please_uses_ci_gated_release_pr_flow() {
+    let workflow = include_str!("../../../.github/workflows/release-please.yml");
+    let release_please = workflow_job_block(workflow, "release-please");
+    let fixups = workflow_job_block(workflow, "release-pr-fixups");
     assert!(
-        plan.contains("cargo xtask release-plan --head HEAD --mode main --json"),
-        "auto-tag must use the shared xtask release-version detector"
+        workflow.contains(r#"workflows: ["CI"]"#),
+        "release-please must run only after CI succeeds on main"
     );
     assert!(
-        plan.contains("fetch-depth: 0"),
-        "auto-tag release planning needs tag history"
+        release_please.contains("RELEASE_PLEASE_TOKEN"),
+        "release-please must use a PAT/App token so downstream workflows fire"
     );
     assert!(
-        plan.contains("persist-credentials: false"),
-        "read-only plan checkout should not persist write credentials"
+        release_please
+            .contains("googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5"),
+        "release-please action should be pinned to the documented SHA"
     );
     assert!(
-        plan.contains(
-            "matrix=$(jq -c '{include: [.[] | select(.changed == true)]}' release-plan.json)"
-        ),
-        "auto-tag matrix must include only changed components"
+        fixups.contains("cargo xtask sync-release-please-version"),
+        "release PRs must sync derived version files after release-please updates the manifest"
     );
     assert!(
-        release.contains(r#"needs.plan.outputs.matrix != '{"include":[]}'"#),
-        "auto-tag must skip release job for an empty matrix"
+        fixups.contains("cargo xtask check-version-sync"),
+        "release PR fixups must verify all version-bearing files agree"
     );
-    assert!(
-        release.contains("fromJson(needs.plan.outputs.matrix)"),
-        "auto-tag must expand the xtask plan as a matrix"
-    );
-    assert!(
-        release.contains("matrix.candidate_tag") && release.contains("matrix.version"),
-        "auto-tag must consume tags and versions from the xtask release plan"
-    );
-    assert!(
-        release
-            .find("Wait for CI to pass on this commit")
-            .expect("CI wait step")
-            < release.find("Create and push tag").expect("tag step"),
-        "auto-tag must wait for CI before creating release tags"
-    );
-    for required in ["branch=main", "event=push", "head_sha=${SHA}"] {
+}
+
+#[test]
+fn artifact_workflows_run_from_published_releases() {
+    let release = include_str!("../../../.github/workflows/release.yml");
+    let docker = include_str!("../../../.github/workflows/docker-publish.yml");
+    for workflow in [release, docker] {
         assert!(
-            release.contains(required),
-            "auto-tag CI polling must constrain {required}"
+            workflow.contains("release:\n    types: [published]"),
+            "artifact workflow must trigger from release-please published releases"
+        );
+        assert!(
+            workflow.contains("workflow_dispatch:"),
+            "artifact workflow must support manual reruns for existing tags"
         );
     }
+    assert!(
+        release.contains("tag_name: ${{ env.RELEASE_TAG }}"),
+        "release artifact workflow must attach files to the existing release tag"
+    );
+    assert!(
+        docker.contains("distribution[\"ociImage\"] = image"),
+        "Docker/MCP registry workflow must rewrite the nested publisher OCI image"
+    );
 }

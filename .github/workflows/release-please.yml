@@ -1,0 +1,93 @@
+name: release-please
+
+# Drives versioning + changelog from Conventional Commits.
+#
+# This repo intentionally uses release-type "simple": the root Cargo.toml is a
+# virtual workspace manifest and the shipped binary crate version lives in
+# crates/soma/Cargo.toml. release-please owns the release PR, changelog,
+# manifest, tag, and GitHub Release; the fixup job below syncs derived version
+# files such as Cargo.lock and OCI image references.
+#
+# IMPORTANT: RELEASE_PLEASE_TOKEN must be a PAT or GitHub App token with
+# contents:write, pull-requests:write, and issues:write. GITHUB_TOKEN-created
+# releases do not trigger downstream release:published workflows.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      pr: ${{ steps.release.outputs.pr }}
+      prs_created: ${{ steps.release.outputs.prs_created }}
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Require release-please token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: test -n "$RELEASE_PLEASE_TOKEN"
+
+      - uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  release-pr-fixups:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          ref: ${{ fromJson(needs.release-please.outputs.pr).headBranchName }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - name: Install Rust and sccache
+        uses: ./.github/actions/setup-rust-sccache
+
+      - name: Sync version-bearing files
+        env:
+          CARGO_BUILD_RUSTC_WRAPPER: ""
+          RUSTC_WRAPPER: ""
+        run: |
+          set -euo pipefail
+          cargo xtask sync-release-please-version
+          cargo xtask generate-provider-surfaces --write
+          cargo xtask check-version-sync
+          cargo xtask generate-provider-surfaces --check
+
+      - name: Commit and push fixups
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Release PR version files are already in sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock CHANGELOG.md crates/soma/Cargo.toml docs/generated/openapi.json docs/generated/provider-surfaces.json docs/generated/provider-surfaces.md packages/soma-rmcp/package.json server.json
+          git diff --staged --quiet || git commit -m "chore: apply release-please fixups"
+          git push origin HEAD:"${{ fromJson(needs.release-please.outputs.pr).headBranchName }}"

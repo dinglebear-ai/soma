@@ -17,7 +17,7 @@ pub fn bump_version(root: &Path, args: &[String]) -> Result<()> {
     let arg = args.first().map(String::as_str).unwrap_or("");
     let level = parse_bump_wrapper_level(arg)?;
     release_versions::bump(root, "soma", level)?;
-    println!("Done. Review CHANGELOG.md before tagging.");
+    println!("Done. This is an emergency/local helper; normal releases go through release-please.");
     Ok(())
 }
 
@@ -64,18 +64,9 @@ pub fn pre_release_check(args: &[String]) -> Result<()> {
         &["xtask", "test-soma-features"],
     );
     runner.run(
-        "release version gate",
+        "release version sync",
         "cargo",
-        &[
-            "xtask",
-            "check-release-versions",
-            "--base",
-            "origin/main",
-            "--head",
-            "HEAD",
-            "--mode",
-            "pr",
-        ],
+        &["xtask", "check-version-sync"],
     );
     runner.run("blob size", "cargo", &["xtask", "check-blob-size"]);
     runner.run("ascii hygiene", "just", &["ascii-check"]);

@@ -11,8 +11,8 @@
 # in this file with your actual values.
 #
 # Triggers:
-#   - push of v* tag → builds and pushes :<version>, :<major>.<minor>, and :latest
-#     (no longer builds on every push to main — release tags only)
+#   - release-please publishes a GitHub Release
+#   - manual workflow_dispatch for rerunning an existing tag
 #
 # Registry: ghcr.io/jmagar/<IMAGE_NAME>
 # CUSTOMIZE: Replace "jmagar" with your GitHub org/username.
@@ -21,12 +21,18 @@
 name: Docker Publish
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish Docker/MCP artifacts for
+        required: true
 
 env:
   # CUSTOMIZE: Replace "jmagar/soma" with "your-org/your-image-name"
   IMAGE_NAME: ghcr.io/jmagar/soma
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
   # Set this as a GitHub Actions repository variable instead of committing the
   # domain into Soma: gh variable set MCP_REGISTRY_DOMAIN --body <domain>
   MCP_REGISTRY_DOMAIN: ${{ vars.MCP_REGISTRY_DOMAIN }}
@@ -42,6 +48,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.1.0
@@ -63,8 +71,8 @@ jobs:
           # CUSTOMIZE: Replace "soma" with your image name.
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }}
             type=raw,value=latest
 
       # Multi-platform build and push.
@@ -93,6 +101,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Run Trivy
         uses: aquasecurity/trivy-action@76071ef0d7ec797419534a0b350d16c55eb73629 # 0.31.0
@@ -113,7 +123,7 @@ jobs:
   registry:
     name: Publish MCP Registry Manifest
     needs: docker
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ startsWith(github.event.release.tag_name || inputs.tag || github.ref_name, 'v') }}
     runs-on: [self-hosted, tootie, rmcp-template]
     timeout-minutes: 20
     permissions:
@@ -121,6 +131,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Install mcp-publisher
         run: |
@@ -138,7 +150,7 @@ jobs:
           raw = path.read_text()
           data = json.loads(raw[raw.index("{"):])
 
-          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          version = os.environ["RELEASE_TAG"].removeprefix("v")
           image = f"{os.environ['IMAGE_NAME']}:{version}"
           data["version"] = version
           for package in data.get("packages", []):

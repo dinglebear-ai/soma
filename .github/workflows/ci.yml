@@ -602,8 +602,8 @@ jobs:
       - name: Check scaffold intent contract
         run: cargo xtask check-scaffold-intent-contract
 
-      - name: Check release versions
-        run: cargo xtask check-release-versions --base origin/main --head HEAD --mode pr
+      - name: Check version-bearing files are in sync
+        run: cargo xtask check-version-sync
 
       - name: Run Soma feature smoke tests
         run: cargo xtask test-soma-features

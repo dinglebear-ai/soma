@@ -45,18 +45,16 @@ explicitly.
 REST APIs stay under explicit versions such as `/v1`. OpenAPI documents and MCP
 action-contract manifests carry versions because they are separate surfaces.
 
-`release/components.toml` is the versioning source of truth for this repository.
-It declares the single shipped `soma` component, the `v` tag prefix, the
-release workflow, shipping paths that require a version bump, and every
-version-bearing file. The manifest also records files that must stay
-versionless, such as Claude/Codex/Gemini plugin manifests whose marketplace
-version is derived from the git commit SHA.
+Release-please owns release PRs, changelog entries, version bumps, `v*` tags,
+and GitHub Releases. `release/components.toml` remains the local inventory for
+the single shipped `soma` component and every version-bearing file that must be
+kept in sync after release-please updates the canonical release manifest.
 
-Use `cargo xtask check-release-versions --base origin/main --head HEAD --mode pr`
-in PR CI. The PR mode compares from merge-base to avoid false failures from
-changes that exist only on the base branch. Use `cargo xtask release-plan --head
-HEAD --mode main --json` on `main` to plan auto-tags from the latest matching
-semver tag.
+Use `cargo xtask check-version-sync` in PR CI to verify version-bearing files
+agree. On release-please PR branches, run
+`cargo xtask sync-release-please-version` to copy the version from
+`.release-please-manifest.json` into the derived files declared by
+`release/components.toml`.
 
 ## Consequences
 
@@ -64,8 +62,9 @@ semver tag.
 - Breaking changes to REST routes, response shapes, auth requirements, MCP
   action params, package exports, or dependency direction require a major
   version bump or compatibility alias.
-- Runtime shipping-path changes require the `soma` component version to be
-  greater than the latest `v*` semver tag before merge.
+- Runtime shipping-path changes should use Conventional Commits so
+  release-please can choose the next `soma` version and release notes before
+  merge.
 - The externalization decision is deferred until in-repo boundaries pass tests
   and have consumer fixtures.
 

@@ -18,6 +18,10 @@ shipping_paths = [
   "packages/soma-rmcp",
   ".github/workflows/release.yml",
   "scripts/repair.sh",
+  "release-please-config.json",
+  ".release-please-manifest.json",
+  ".github/workflows/release-please.yml",
+  ".github/workflows/docker-publish.yml",
 ]
 version_source = { kind = "cargo_package", path = "crates/soma/Cargo.toml", package = "soma" }
 version_files = [

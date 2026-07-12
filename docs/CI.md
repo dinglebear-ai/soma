@@ -120,29 +120,37 @@ path-aware: `MSRV Changes` skips the self-hosted MSRV build unless Rust, native,
 TOML, or workflow files changed. Require `MSRV Gate` if this workflow is part of
 branch protection.
 
-### `.github/workflows/auto-tag.yml`
+### `.github/workflows/release-please.yml`
 
-Use for: automatic component tag creation after a successful push to `main`.
+Use for: automatic release PRs, changelog updates, version bumps, release tags,
+and GitHub Releases after CI succeeds on `main`.
 
-Do not use for: manually forcing a release. If the release manifest says no
-component changed, this workflow intentionally does nothing.
+Do not use for: binary packaging, npm publishing, Docker publishing, or registry
+manifest publishing. Those are downstream artifact workflows triggered by the
+release/tag that release-please creates.
 
-It runs `cargo xtask release-plan --head HEAD --mode main --json`, waits for CI
-on the exact push SHA, and creates the candidate tag for each changed component.
+It runs after a successful `CI` workflow on `main`, uses
+`RELEASE_PLEASE_TOKEN`, and opens or updates the release PR from conventional
+commits. When a release PR is created, a fixup job runs
+`cargo xtask sync-release-please-version`, regenerates provider surfaces, and
+commits derived version files back to the release PR branch.
 
 ### `.github/workflows/release.yml`
 
-Use for: tag-time binary packaging and GitHub Release creation.
+Use for: release-time binary packaging, npm package publishing, and attaching
+artifacts to the GitHub Release.
 
-Do not use for: PR validation. PRs should use `ci.yml`; release only runs on
-`v*` tags.
+Do not use for: PR validation or release version decisions. PRs should use
+`ci.yml`; release versioning is owned by release-please.
 
-It builds Linux and Windows release artifacts, writes SHA256 sums, publishes the
-`soma-rmcp` npm launcher package with provenance/trusted publishing support, and
-creates the GitHub Release. Release Cargo builds use sccache through the same
+It runs when release-please publishes a GitHub Release, or by manual dispatch
+with an existing tag. It checks out the release tag, builds Linux and Windows
+release artifacts, writes SHA256 sums, publishes the `soma-rmcp` npm launcher
+package with provenance/trusted publishing support, and uploads artifacts to the
+existing GitHub Release. Release Cargo builds use sccache through the same
 wrapper environment as CI. Linux release jobs cross-compile the Windows GNU
 target from the TOOTIE runner; the native Windows build is a PR-time `ci.yml`
-check, not the tag packaging path. The LFS write-back job is intentionally
+check, not the release packaging path. The LFS write-back job is intentionally
 isolated here because it can push to `main`; audit that behavior before reusing
 it in a derived repo.
 
@@ -155,7 +163,7 @@ for that.
 
 Runs only on `v*` tags. Do not path-gate this workflow: a release tag is already
 an explicit publish action, and the image plus MCP registry manifest should stay
-coupled to the tag.
+coupled to the tag. Release-please creates the tag after the release PR merges.
 
 Tag jobs:
 - Docker build and push
@@ -266,10 +274,16 @@ Large artifacts are blocked unless allowlisted in `scripts/blob-size-allowlist.t
 
 ## Release artifact distribution
 
-`release/components.toml` is the source of truth for release components, version-bearing files, tag prefixes, release workflows, and shipping paths. PR CI runs `cargo xtask check-release-versions --base origin/main --head HEAD --mode pr`, using the merge-base of the PR branch so base-only changes do not force a false bump. Pushes to `main` run `.github/workflows/auto-tag.yml`, which consumes `cargo xtask release-plan --head HEAD --mode main --json`, waits for CI on the exact push SHA, and creates the candidate tag for changed components.
+Release-please is the source of truth for release PRs, changelog updates,
+version bumps, `v*` tags, and GitHub Releases. `release/components.toml` remains
+the local inventory of version-bearing files and distribution metadata that
+must stay synchronized. PR CI runs `cargo xtask check-version-sync`; release PR
+fixups run `cargo xtask sync-release-please-version` and regenerated metadata
+checks so derived files follow `.release-please-manifest.json`.
 
-Version tags (`v*`) trigger the release workflow, which builds release binaries
-and attaches them to the GitHub Release. Soma still includes an
+Release-please-created version tags (`v*`) trigger the artifact workflows. The
+release workflow builds release binaries and attaches them to the GitHub
+Release. Soma still includes an
 explicit Git LFS write-back job that commits binary pointers to `bin/` on
 `main` for plugin install compatibility. Treat that as an auditable release-only
 exception: disable it in derived repos that distribute solely through GitHub

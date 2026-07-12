@@ -30,6 +30,7 @@
 //!   sync-cargo   Copy Cargo.lock into plugin data directories
 //!   check-release-versions Validate release component version policy
 //!   release-plan Print changed release components and candidate tags
+//!   sync-release-please-version Sync release files to .release-please-manifest.json
 //!   bump-version Bump a release component version
 //!   changed-paths Classify changed files into CI routing categories
 //!
@@ -134,6 +135,9 @@ fn main() -> Result<()> {
         }
         Some("check-release-versions") => check_release_versions_cmd(workspace_root, &args[1..]),
         Some("release-plan") => release_plan_cmd(workspace_root, &args[1..]),
+        Some("sync-release-please-version") => {
+            release_versions::sync_release_please_version(workspace_root, "soma")
+        }
         Some("rmcp-release-monitor") => rmcp_release_monitor::run(&args[1..]),
         Some("bump-version") => bump_version_cmd(workspace_root, &args[1..]),
         Some("bump-soma-version") => scripts_lane_b::bump_version(workspace_root, &args[1..]),
@@ -837,6 +841,8 @@ COMMANDS:
   check-release-versions [--base REF] [--head REF] [--mode pr|main] [--json]
                         Validate changed release components have fresh versions/tags
   release-plan          Print changed release components and candidate tags
+  sync-release-please-version
+                        Sync version files to .release-please-manifest.json
   bump-version          Bump a component: cargo xtask bump-version soma patch
   bump-soma-version Bump Soma component: cargo xtask bump-soma-version patch
   changed-paths         Classify changed files into CI routing categories

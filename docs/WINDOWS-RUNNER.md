@@ -41,7 +41,7 @@ problems in:
 - `windows-rs` or MSVC-specific dependency behavior
 - runner-level Cargo configuration that changes generated CPU instructions
 
-`release.yml` is the tag-time packaging flow. The CI build jobs are earlier
+`release.yml` is the release-published packaging flow. The CI build jobs are earlier
 feedback: they run on native-relevant PRs and pushes and produce artifacts for
 smoke testing.
 

@@ -31,6 +31,10 @@ updates:
     labels:
       - "dependencies"
       - "rust"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps"
+      include: "scope"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -58,6 +62,10 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps"
+      include: "scope"
 
   - package-ecosystem: "docker"
     directory: "/config"
@@ -69,6 +77,10 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps"
+      include: "scope"
 
   - package-ecosystem: "npm"
     directory: "/apps/web"
@@ -94,3 +106,7 @@ updates:
     labels:
       - "dependencies"
       - "web"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps"
+      include: "scope"

@@ -295,9 +295,9 @@ Keep version and metadata synchronized across:
 | `plugins/soma/gemini-extension.json` | identity, repository, settings |
 | `server.json` | package version and registry metadata, when present |
 
-`Cargo.toml` is the canonical version source for Soma. Use
-`cargo xtask bump-version soma patch|minor|major` or
-`scripts/bump-version.sh patch|minor|major` to update every file declared in
+Release-please owns Soma version bumps in normal development. On release PR
+branches, use `cargo xtask sync-release-please-version` to copy
+`.release-please-manifest.json` into every derived file declared in
 `release/components.toml`, then use `cargo xtask check-version-sync` or
 `just pre-release` to verify that version-bearing files still agree. Plugin
 manifests should remain versionless.

@@ -497,29 +497,17 @@ generate-cli:
 
 # ── Publishing ────────────────────────────────────────────────────────────────
 
-# Bump the Soma release component and all manifest-declared version files.
+# Local emergency helper only. Normal releases are managed by release-please.
 bump-version bump="patch":
     cargo xtask bump-version soma {{bump}}
 
-# Bump version, tag, and push (triggers CI publish workflow)
-# Updates the release/components.toml-declared version files only.
-# (GitHub SHA is the version for plugins; every push is a new release automatically)
-# CUSTOMIZE: Requires main branch + clean working tree
-publish bump="patch":
+# Releases are created by release-please after a Conventional Commit lands on main.
+publish:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ "$(git branch --show-current)" = "main" ] || { echo "Switch to main first"; exit 1; }
-    [ -z "$(git status --porcelain)" ] || { echo "Commit or stash changes first"; exit 1; }
-    git pull origin main
-    case "{{bump}}" in
-      major|minor|patch) ;;
-      *) echo "Usage: just publish [major|minor|patch]"; exit 1 ;;
-    esac
-    just bump-version "{{bump}}"
-    NEW=$(grep -m1 "^version" crates/soma/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
     cargo xtask check-version-sync
-    git add -A && git commit -m "release: v${NEW}" && git tag "v${NEW}" && git push origin main --tags
-    echo "Tagged v${NEW} — publish workflow will run automatically"
+    cargo xtask generate-provider-surfaces --check
+    echo "Release flow: merge a feat:/fix:/deps: commit, then merge the release-please PR."
 
 # ── Reference docs ────────────────────────────────────────────────────────────
 

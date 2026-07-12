@@ -7,7 +7,7 @@
 #
 # Customize binary-name references in this file if you fork Soma.
 #
-# Triggers: push of v* tags (e.g. v1.2.3)
+# Triggers: release-please publishes a GitHub Release, or manual rerun for a tag.
 #
 # What this does:
 #   1. Builds release binaries for linux/amd64 and windows/amd64
@@ -24,8 +24,13 @@
 name: Release
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to attach artifacts to
+        required: true
 
 env:
   # CUSTOMIZE: Replace "soma" with your binary name.
@@ -38,6 +43,7 @@ env:
   RUSTC_WRAPPER: sccache
   CARGO_BUILD_RUSTC_WRAPPER: sccache
   SCCACHE_DIR: ${{ github.workspace }}/../.sccache
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
 
 jobs:
   frontend-assets:
@@ -49,6 +55,8 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -92,6 +100,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download web export
         uses: actions/download-artifact@v8
@@ -173,6 +183,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ env.RELEASE_TAG }}
           lfs: true
           # Use a deploy key or token with write access to push the commit.
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -187,7 +198,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p bin
-          BIN=${{ env.BINARY_NAME }}
+          BIN=${{ env.SERVER_BINARY_NAME }}
 
           # Each artifact dir is named <binary>-<arch> and contains one tarball.
           # merge-multiple flattens all artifact contents into artifacts/ directly.
@@ -226,6 +237,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
 
       - name: Set up Node
@@ -239,9 +251,9 @@ jobs:
         run: |
           set -euo pipefail
           package_version="$(node -p "require('./package.json').version")"
-          tag_version="${GITHUB_REF_NAME#v}"
+          tag_version="${RELEASE_TAG#v}"
           if [[ "${package_version}" != "${tag_version}" ]]; then
-            echo "package.json version ${package_version} does not match tag ${GITHUB_REF_NAME}" >&2
+            echo "package.json version ${package_version} does not match tag ${RELEASE_TAG}" >&2
             exit 1
           fi
 
@@ -277,6 +289,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -293,6 +307,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          # CUSTOMIZE: Update release notes format if you have a CHANGELOG.
-          generate_release_notes: true
+          tag_name: ${{ env.RELEASE_TAG }}
+          fail_on_unmatched_files: true
           files: artifacts/*
