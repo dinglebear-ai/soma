@@ -304,11 +304,10 @@ jobs:
           "RUSTC_WRAPPER=" >> $env:GITHUB_ENV
           "CARGO_BUILD_RUSTC_WRAPPER=" >> $env:GITHUB_ENV
 
-      - name: Set up mise tools
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+      - name: Set up Python
+        uses: actions/setup-python@c0e4017e60f3d4c8d42e9a48d25734d0d0f59f64 # v6
         with:
-          install_args: python
-          cache: true
+          python-version: "3.14"
 
       - name: Show Windows Rust CPU flags
         shell: pwsh
