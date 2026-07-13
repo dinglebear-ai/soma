@@ -4,3 +4,5 @@
 # together when deliberately moving Soma to a newer pnpm release.
 pnpm = "10.33.2"
 node = "lts"
+python = "3.14.5"
+"npm:mcporter" = "0.12.3"

@@ -304,6 +304,12 @@ jobs:
           "RUSTC_WRAPPER=" >> $env:GITHUB_ENV
           "CARGO_BUILD_RUSTC_WRAPPER=" >> $env:GITHUB_ENV
 
+      - name: Set up mise tools
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+        with:
+          install_args: python
+          cache: true
+
       - name: Show Windows Rust CPU flags
         shell: pwsh
         env:
@@ -429,7 +435,7 @@ jobs:
       - name: Set up mise tools
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
         with:
-          install_args: node npm:mcporter@0.7.3
+          install_args: node npm:mcporter
           cache: true
 
       - name: Cache Cargo
