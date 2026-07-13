@@ -8,14 +8,14 @@ audience:
   - "agents"
 scope: "family"
 source_of_truth: true
-last_reviewed: "2026-05-22"
+last_reviewed: "2026-07-13"
 ---
 
 # Rust Build Setup
 
 This is the canonical build-setup reference for the rmcp server family:
-`soma`, `lab`, `axon_rust`, `syslog-mcp`, `rustifi`, `rustify`,
-`apprise-mcp`, `rustscale`, and `unrust`.
+`soma`, `labby`, `axon`, `cortex`, `unifi-rmcp`, `gotify-rmcp`,
+`apprise-rmcp`, `tailscale-rmcp`, and `unraid-rmcp`.
 
 All family repos share a common Cargo configuration model: heavy lifting lives
 in `~/.cargo/config.toml` on the developer's machine; per-repo
@@ -50,20 +50,21 @@ machine. **This file is not committed to any repo** — it lives only in
 `~/.cargo/config.toml`.
 
 ```toml
-# Keep sccache opt-in. Setting build.rustc-wrapper globally made every Cargo
-# command depend on the wrapper and hid compiler output when it stalled.
+# sccache is enabled globally. The user service owns the long-lived server; keep
+# dev incremental disabled so Rust artifacts are cacheable across worktrees.
 
 [build]
-# Leave a few cores for the desktop and background services while still keeping
-# large Rust builds well-parallelized on this host.
-jobs = 20
+# Fallback for callers that bypass ~/.local/bin/cargo. The cargo wrapper computes
+# CARGO_BUILD_JOBS dynamically from the active build count, so a solo wrapper-run
+# build gets more parallelism while concurrent builds divide the CPU budget.
+jobs = 8
+# Wrapper, not sccache directly: resolves per-project rustup toolchains and
+# passes -vV/--print probes straight to rustc.
+rustc-wrapper = "/home/jmagar/.local/bin/sccache-wrapper"
 
 [env]
-# Stable Cargo ignores this unless `-Z codegen-backend` is enabled under nightly.
-CARGO_PROFILE_DEV_CODEGEN_BACKEND = "cranelift"
-
-[unstable]
-codegen-backend = true
+SCCACHE_SERVER_UDS = "/home/jmagar/.local/state/sccache/sccache.sock"
+SCCACHE_BASEDIRS = "/home/jmagar/workspace:/home/jmagar/.codex/worktrees"
 
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
@@ -76,7 +77,7 @@ linker = "x86_64-w64-mingw32-gcc"
 debug = 1
 codegen-units = 8
 split-debuginfo = "unpacked"
-incremental = true
+incremental = false
 opt-level = 0
 
 [profile.test]
@@ -100,16 +101,14 @@ config is needed. **Do not add `rustflags` to `[target.x86_64-unknown-linux-gnu]
 in a per-repo config** — that would replace, not extend, the global rustflags
 and silently drop the mold flag.
 
-### Why Cranelift?
+### Why sccache globally?
 
-`CARGO_PROFILE_DEV_CODEGEN_BACKEND = "cranelift"` tells the Rust compiler
-(when running nightly) to use Cranelift instead of LLVM for dev builds.
-Cranelift produces slower binaries but compiles 20–40% faster.
-
-**This only takes effect on nightly Rust.** Stable Rust silently ignores the
-`[unstable]` block entirely. No repo needs to configure anything for this —
-stable builds are unaffected, and Cranelift is transparent to CI which uses
-release profiles.
+The host-level Cargo config enables `sccache-wrapper` once, and the user systemd
+service owns the long-lived cache daemon. That keeps dependency compilation
+cacheable across all worktrees without asking each repo to carry its own wrapper
+hook. The local `/home/jmagar/.local/bin/cargo` shim computes
+`CARGO_BUILD_JOBS` dynamically: a single build gets most cores, while concurrent
+builds divide the CPU budget so the host stays usable.
 
 ### Profile settings rationale
 
@@ -118,7 +117,7 @@ release profiles.
 | `profile.dev.debug` | `1` | Line tables only — enough for backtraces, without the 3× binary-size penalty of full DWARF |
 | `profile.dev.codegen-units` | `8` | Parallelises compilation within a crate; 8 balances parallelism and optimisation quality |
 | `profile.dev.split-debuginfo` | `"unpacked"` | Keeps debug info in separate `.dwo` files, reducing link-step memory pressure |
-| `profile.dev.incremental` | `true` | Re-uses compiled fragments across builds (incompatible with sccache — see lab override) |
+| `profile.dev.incremental` | `false` | Keeps dev artifacts cacheable by sccache across repos and worktrees |
 | `profile.dev.opt-level` | `0` | No optimisation for the crate under active development |
 | `profile.dev.package."*".opt-level` | `1` | Light optimisation for dependencies — prevents debug-only slowness in heavy crates like `serde` and `tokio` |
 | `profile.test.debug` | `1` | Same as dev — enough for test failure backtraces |
@@ -151,12 +150,12 @@ linker = "x86_64-w64-mingw32-gcc"
 | Profile settings (`debug`, `codegen-units`, etc.) | Already set globally; duplicating causes confusion when the global changes |
 | `build.jobs` | Machine-specific; the global config tunes it per host |
 | `[target.x86_64-unknown-linux-gnu].rustflags` | Overriding this drops the mold flag from the global config |
-| `build.rustc-wrapper` for sccache | sccache should be opt-in per developer, not forced by the repo |
+| `build.rustc-wrapper` for generic artifact sync | Generic repos must use explicit sync commands; hidden post-compile copies do not belong in Cargo config |
 
 ### Repos without an xtask crate
 
-`syslog-mcp`, `rustify`, and `lab` do not have an `xtask/` crate. Their
-`.cargo/config.toml` omits the `[alias]` section.
+Repos without an `xtask/` crate either omit `.cargo/config.toml` entirely or
+keep only documented repo-specific overrides.
 
 ---
 
@@ -166,11 +165,37 @@ Some repos intentionally diverge from the global config for documented reasons:
 
 | Repo | Override | Reason |
 |------|----------|--------|
-| `syslog-mcp` | `build.target-dir = ".cache/cargo"` | Keeps Cargo artifacts out of the repo root so Docker `COPY` layers and bind mounts don't need to exclude `./target` |
-| `lab` | `build.incremental = false` | `lab` supports sccache; sccache and incremental compilation are mutually exclusive because incremental produces non-deterministic intermediate files |
+| `axon` | `build.rustc-wrapper = "scripts/cargo-rustc-wrapper"` | Automatically refreshes the actively used local `axon` binary and named repo artifacts after successful bin builds |
+| `cortex` | `build.rustc-wrapper = "scripts/cargo-rustc-wrapper"` and `build.target-dir = ".cache/cargo"` | Release-only local `~/.local/bin/cortex` refresh plus a non-root target directory for Docker bind mounts |
+| `lab` | `build.rustc-wrapper = "scripts/cargo-rustc-wrapper"` | Keeps the active `labby` binary fresh for the local gateway/operator workflow |
 
 If you add a new legitimate per-repo override, document it in the repo's
 `docs/RUST.md` and add a row to this table in soma's `docs/RUST.md`.
+
+---
+
+## Explicit artifact sync
+
+Generic rmcp repos do not use repo-local `rustc-wrapper` hooks for artifact
+sync. Build normally with Cargo, then run an explicit recipe when you want to
+refresh checked-in or plugin-local binaries:
+
+```bash
+just sync-bin
+```
+
+For repos with bundled plugin binaries, `sync-bin` delegates to
+`just build-plugin`. In Soma itself, plugins launch the installed PATH binary,
+so `sync-bin` delegates to `just install-local`.
+
+The global mise config also exposes a cross-repo dispatcher:
+
+```bash
+mise run cargo:sync-bin
+```
+
+That task calls `just sync-bin` when present, falls back to `just build-plugin`,
+and fails loudly in repos with no explicit artifact-sync recipe.
 
 ---
 

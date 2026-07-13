@@ -147,9 +147,9 @@ SCCACHE_DIR: ${{ github.workspace }}/../.sccache
 ```
 
 `CARGO_INCREMENTAL=0` is required because incremental compilation and sccache do
-not compose cleanly. `CARGO_BUILD_RUSTC_WRAPPER=sccache` intentionally overrides
-the repo's local `scripts/cargo-rustc-wrapper`; CI should cache compilation, not
-sync freshly built binaries into `./bin`.
+not compose cleanly. `CARGO_BUILD_RUSTC_WRAPPER=sccache` keeps CI focused on
+cacheable compilation; artifact sync is explicit through recipes such as
+`just sync-bin` or `just build-plugin`.
 
 The persistent mounts are bounded by two guardrails:
 

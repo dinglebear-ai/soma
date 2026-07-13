@@ -72,8 +72,8 @@ and Windows jobs use steamy (`runs-on: [self-hosted, Windows, rmcp-template, ste
 see `docs/WINDOWS-RUNNER.md`). The Rust jobs force `RUSTC_WRAPPER=sccache`,
 `CARGO_BUILD_RUSTC_WRAPPER=sccache`, and `CARGO_INCREMENTAL=0`; the local
 `.github/actions/setup-rust-sccache` action installs Rust plus sccache and prints
-the effective cache configuration. This keeps CI on sccache while bypassing the
-repo's developer-only `scripts/cargo-rustc-wrapper`.
+the effective cache configuration. CI caches compilation only; binary artifact
+sync is an explicit recipe such as `just sync-bin` or `just build-plugin`.
 
 Self-hosted jobs, including `changes`, `ci-gate`, `MSRV Changes`, and
 `MSRV Gate`, use a same-repository job guard. Pushes, schedules, manual runs,

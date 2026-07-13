@@ -64,6 +64,7 @@ last_reviewed: "2026-06-18"
 | Recipe | Purpose |
 |---|---|
 | `just build-plugin` | Validate plugin manifests, hooks, MCP config, and skills. |
+| `just sync-bin` | Explicitly build and install the local Soma binary used by plugin launches. |
 | `just validate-plugin` | Validate Claude/Codex/Gemini plugin manifests and skills. |
 | `just fleet-alignment-check` | Check fleet plugin hooks, manifests, and required operator recipes. |
 | `just dist` | `cargo xtask dist` — build and copy release artifacts. |

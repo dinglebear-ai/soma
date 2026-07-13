@@ -406,6 +406,9 @@ repair:
 # bundle a release artifact.
 build-plugin: validate-plugin
 
+# Explicit local binary sync. Soma plugins launch the installed PATH binary instead of bundling bin/.
+sync-bin: install-local
+
 # Install the release binary on the local PATH.
 install: install-local
 
