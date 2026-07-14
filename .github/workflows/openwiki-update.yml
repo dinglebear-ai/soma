@@ -29,21 +29,26 @@ jobs:
           cache: false
 
       - name: Build openwiki native bindings
-        # npm 11's allowScripts policy blocks better-sqlite3's install script
-        # during the fresh install, so run it explicitly and prove the binding
-        # loads before openwiki does.
+        # Two traps here, both verified the hard way:
+        # 1. npm 11's allowScripts policy blocks better-sqlite3's install
+        #    script during the fresh install, so run it explicitly.
+        # 2. The mise node/npm shims resolve per-cwd: inside the package dir
+        #    (outside this repo, no .mise.toml) they fall back to the runner's
+        #    system node 22, so prebuild-install fetched an ABI-127 binding.
+        #    Pin node and npm by absolute path resolved at repo cwd.
+        # The check constructs a Database — a bare require() never dlopens the
+        # native module, which made earlier require-based checks vacuous.
         run: |
+          node_abs="$(node -e 'console.log(process.execPath)')"
+          npm_cli="$(mise where node)/lib/node_modules/npm/bin/npm-cli.js"
           sqlite_pkg="$(mise where npm:openwiki)/lib/node_modules/openwiki/node_modules/better-sqlite3"
-          (cd "$sqlite_pkg" && rm -rf build prebuilds && npm run install --foreground-scripts)
-          node -e "require('$sqlite_pkg')" \
-            && echo "better-sqlite3 binding loads under $(node --version)"
+          (cd "$sqlite_pkg" && rm -rf build prebuilds \
+            && "$node_abs" "$npm_cli" run install --foreground-scripts)
+          "$node_abs" -e "const D = require('$sqlite_pkg'); new D(':memory:').close(); console.log('sqlite native binding OK under ' + process.version)"
 
       - name: Run OpenWiki
-        # Invoke the bin script under the explicit `node` from this shell —
-        # the same interpreter the load check above passes with. Going through
-        # the mise shim resolves node differently on the runner and rejects
-        # the just-verified binding with an ABI mismatch (run 29356180220:
-        # identical file checksum, loads via `node`, fails via the shim).
+        # Same interpreter the dlopen check above passes with — shim
+        # resolution must stay out of the equation.
         run: node "$(mise where npm:openwiki)/bin/openwiki" --update --print
         env:
           OPENWIKI_PROVIDER: anthropic
