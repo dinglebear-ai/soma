@@ -32,9 +32,14 @@ jobs:
         run: |
           openwiki_pkg="$(mise where npm:openwiki)/lib/node_modules/openwiki"
           # npm rebuild silently skips install scripts not covered by npm's
-          # allowScripts policy, so run the package's install script directly
-          # (prebuild-install fetches the binding for the current Node ABI).
-          (cd "$openwiki_pkg/node_modules/better-sqlite3" && npm run install --foreground-scripts)
+          # allowScripts policy, and prebuild-install exits 0 without touching
+          # an already-present binary — so drop the stale build output and run
+          # the install script directly, forcing a fetch for the current ABI.
+          cd "$openwiki_pkg/node_modules/better-sqlite3"
+          rm -rf build prebuilds
+          npm run install --foreground-scripts
+          node -e "require('$openwiki_pkg/node_modules/better-sqlite3')" \
+            && echo "better-sqlite3 binding loads under $(node --version)"
 
       - name: Run OpenWiki
         run: openwiki --update --print
