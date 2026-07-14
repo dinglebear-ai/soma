@@ -25,6 +25,14 @@ jobs:
           install_args: node npm:openwiki
           cache: true
 
+      - name: Rebuild openwiki native bindings
+        # The mise cache can restore an openwiki install whose better-sqlite3
+        # binding was compiled against an older Node ABI; rebuild it against
+        # the Node this run actually uses.
+        run: |
+          openwiki_pkg="$(mise where npm:openwiki)/lib/node_modules/openwiki"
+          (cd "$openwiki_pkg" && npm rebuild better-sqlite3)
+
       - name: Run OpenWiki
         run: openwiki --update --print
         env:

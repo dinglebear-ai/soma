@@ -11,7 +11,9 @@ permissions:
 jobs:
   auto-merge:
     name: Auto-merge patch/minor updates
-    runs-on: [self-hosted, tootie, rmcp-template]
+    # GitHub-hosted: this job only calls the GitHub API and needs `gh`,
+    # which the self-hosted runners do not provide.
+    runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Fetch Dependabot metadata
