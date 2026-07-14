@@ -39,7 +39,12 @@ jobs:
             && echo "better-sqlite3 binding loads under $(node --version)"
 
       - name: Run OpenWiki
-        run: openwiki --update --print
+        # Invoke the bin script under the explicit `node` from this shell —
+        # the same interpreter the load check above passes with. Going through
+        # the mise shim resolves node differently on the runner and rejects
+        # the just-verified binding with an ABI mismatch (run 29356180220:
+        # identical file checksum, loads via `node`, fails via the shim).
+        run: node "$(mise where npm:openwiki)/bin/openwiki" --update --print
         env:
           OPENWIKI_PROVIDER: anthropic
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
