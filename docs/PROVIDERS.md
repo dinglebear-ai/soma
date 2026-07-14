@@ -45,10 +45,23 @@ soma providers lint                       # like status, but exits non-zero on a
 soma providers lint --dir ./examples/providers --json
 ```
 
-These parse manifests (JSON/TS/WASM sidecar/Python) but never execute handler
-code, call MCP, or fetch OpenAPI. Safe to run before the runtime touches any
+These parse manifests (JSON/TS/WASM sidecar) but never execute handler code,
+call MCP, or fetch OpenAPI. Safe to run before the runtime touches any
 provider — e.g. in CI, before committing a new provider example, or to sanity
 check a directory you're about to point `SOMA_PROVIDER_DIR` at.
+
+Each file is also checked against the same semantic manifest validation the
+live registry runs (duplicate tool names, reserved CLI commands, schema
+shape, capability declarations, ...) — not just "does it deserialize." A file
+that parses but would be rejected at load time is reported `invalid`, and
+`lint` fails on it.
+
+**Python providers are never inspected this way.** Extracting a `.py`
+provider's catalog requires importing (and thus executing) the module — there
+is no metadata-only path for Python. Non-executing inspection reports `.py`
+files as `skipped` rather than importing them. Use `soma providers validate`
+or `soma providers inspect` (below) to check a Python provider; those load
+the real registry and accept that the module runs.
 
 ### Executing: inspect the live, loaded registry
 

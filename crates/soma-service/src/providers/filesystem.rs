@@ -7,7 +7,10 @@ use std::{
 use async_trait::async_trait;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use soma_contracts::providers::{ProviderCatalog, ProviderKind};
+use soma_contracts::{
+    provider_validation::validate_provider_manifest,
+    providers::{ProviderCatalog, ProviderKind},
+};
 
 use crate::{
     provider_errors::ProviderError,
@@ -34,6 +37,7 @@ pub struct ProviderDirectoryInspection {
     pub providers_loaded: usize,
     pub providers_disabled: usize,
     pub providers_invalid: usize,
+    pub providers_skipped: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +56,9 @@ pub enum ProviderFileInspectionStatus {
     Loaded,
     Disabled,
     Invalid,
+    /// File extension requires executing code to introspect (currently just
+    /// `.py`) — non-executing inspection deliberately does not load it.
+    Skipped,
 }
 
 impl FileProviderSource {
@@ -75,6 +82,7 @@ impl FileProviderSource {
                 providers_loaded: 0,
                 providers_disabled: 0,
                 providers_invalid: 0,
+                providers_skipped: 0,
             });
         }
 
@@ -100,28 +108,61 @@ impl FileProviderSource {
                 .unwrap_or("<unknown>")
                 .to_owned();
 
+            // Python catalogs are extracted by importing (and thus executing) the
+            // module in a sidecar process — there is no metadata-only path. Never
+            // run that from a non-executing inspection; report it as skipped
+            // instead of silently exec'ing arbitrary import-time code.
+            if is_python_provider_source(&path) {
+                files.push(ProviderFileInspection {
+                    path,
+                    file_name,
+                    status: ProviderFileInspectionStatus::Skipped,
+                    provider_id: None,
+                    provider_kind: Some(ProviderKind::Python.as_str().to_owned()),
+                    actions: Vec::new(),
+                    error: Some(
+                        "Python providers can only be introspected by executing the module; \
+                         non-executing inspection does not run them. Use `soma providers \
+                         validate` or `soma providers inspect` to check this file."
+                            .to_owned(),
+                    ),
+                });
+                continue;
+            }
+
             match load_catalog(&path) {
-                Ok(catalog) => {
-                    let status = if catalog.provider.enabled == Some(false) {
-                        ProviderFileInspectionStatus::Disabled
-                    } else {
-                        ProviderFileInspectionStatus::Loaded
-                    };
-                    let actions = catalog
-                        .tools
-                        .iter()
-                        .map(|tool| tool.name.clone())
-                        .collect::<Vec<_>>();
-                    files.push(ProviderFileInspection {
+                Ok(catalog) => match validate_provider_manifest(&catalog) {
+                    Ok(()) => {
+                        let status = if catalog.provider.enabled == Some(false) {
+                            ProviderFileInspectionStatus::Disabled
+                        } else {
+                            ProviderFileInspectionStatus::Loaded
+                        };
+                        let actions = catalog
+                            .tools
+                            .iter()
+                            .map(|tool| tool.name.clone())
+                            .collect::<Vec<_>>();
+                        files.push(ProviderFileInspection {
+                            path,
+                            file_name,
+                            status,
+                            provider_id: Some(catalog.provider.name),
+                            provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
+                            actions,
+                            error: None,
+                        });
+                    }
+                    Err(validation_error) => files.push(ProviderFileInspection {
                         path,
                         file_name,
-                        status,
+                        status: ProviderFileInspectionStatus::Invalid,
                         provider_id: Some(catalog.provider.name),
                         provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
-                        actions,
-                        error: None,
-                    });
-                }
+                        actions: Vec::new(),
+                        error: Some(validation_error.to_string()),
+                    }),
+                },
                 Err(error) => files.push(ProviderFileInspection {
                     path,
                     file_name,
@@ -147,6 +188,10 @@ impl FileProviderSource {
             .iter()
             .filter(|file| file.status == ProviderFileInspectionStatus::Invalid)
             .count();
+        let providers_skipped = files
+            .iter()
+            .filter(|file| file.status == ProviderFileInspectionStatus::Skipped)
+            .count();
 
         Ok(ProviderDirectoryInspection {
             root: self.root.clone(),
@@ -155,6 +200,7 @@ impl FileProviderSource {
             providers_loaded,
             providers_disabled,
             providers_invalid,
+            providers_skipped,
         })
     }
 
@@ -386,6 +432,10 @@ fn is_wasm_sidecar_manifest(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.ends_with(".wasm.json"))
+}
+
+fn is_python_provider_source(path: &Path) -> bool {
+    path.extension().and_then(|extension| extension.to_str()) == Some("py")
 }
 
 fn fingerprint_file(

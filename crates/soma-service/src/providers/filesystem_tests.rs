@@ -116,6 +116,88 @@ fn inspect_skips_wasm_sidecar_manifest_as_its_own_entry() {
 }
 
 #[test]
+fn inspect_skips_python_providers_without_executing_them() {
+    let temp = tempdir().expect("tempdir");
+    let providers = temp.path();
+    let side_effect_marker = providers.join("side_effect_ran.txt");
+
+    // Module-level code runs on import, so if `inspect()` ever imports this
+    // file to introspect it, the marker file below will exist afterward.
+    fs::write(
+        providers.join("evil.py"),
+        format!(
+            "with open({:?}, 'w') as f:\n    f.write('executed')\n\nPROVIDER = {{'name': 'evil', 'kind': 'python'}}\n",
+            side_effect_marker.to_str().unwrap()
+        ),
+    )
+    .expect("write python provider");
+
+    let report = FileProviderSource::new(providers)
+        .inspect()
+        .expect("inspect providers");
+
+    assert!(
+        !side_effect_marker.exists(),
+        "non-executing inspect() must never import/execute a .py provider"
+    );
+    assert_eq!(report.providers_skipped, 1);
+    assert_eq!(report.providers_loaded, 0);
+    assert_eq!(report.providers_invalid, 0);
+    assert_eq!(
+        report.files[0].status,
+        ProviderFileInspectionStatus::Skipped
+    );
+    assert!(report.files[0].error.is_some());
+}
+
+#[test]
+fn inspect_marks_manifest_validation_failures_as_invalid() {
+    let temp = tempdir().expect("tempdir");
+    let providers = temp.path();
+
+    // Deserializes fine, but validate_provider_manifest rejects duplicate
+    // tool names — the same check the live registry runs in build_snapshot.
+    fs::write(
+        providers.join("duplicate-tools.json"),
+        r#"{
+          "schema_version": 1,
+          "provider": { "name": "dup", "kind": "static-rust", "version": "0.1.0" },
+          "tools": [
+            {
+              "name": "same_name",
+              "description": "first",
+              "input_schema": { "type": "object", "properties": {}, "additionalProperties": false },
+              "output_schema": { "type": "object", "properties": {}, "additionalProperties": true }
+            },
+            {
+              "name": "same_name",
+              "description": "second",
+              "input_schema": { "type": "object", "properties": {}, "additionalProperties": false },
+              "output_schema": { "type": "object", "properties": {}, "additionalProperties": true }
+            }
+          ]
+        }"#,
+    )
+    .expect("write provider with duplicate tool names");
+
+    let report = FileProviderSource::new(providers)
+        .inspect()
+        .expect("inspect providers");
+
+    assert_eq!(report.providers_invalid, 1);
+    assert_eq!(report.providers_loaded, 0);
+    assert_eq!(
+        report.files[0].status,
+        ProviderFileInspectionStatus::Invalid
+    );
+    assert!(report.files[0]
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("duplicate"));
+}
+
+#[test]
 fn wasm_sidecar_manifest_is_loaded_as_the_wasm_provider_manifest() {
     let temp = tempdir().expect("tempdir");
     let wasm_path = temp.path().join("edge.wasm");

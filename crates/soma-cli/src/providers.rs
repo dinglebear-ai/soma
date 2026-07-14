@@ -75,6 +75,7 @@ fn provider_report_json(report: &ProviderDirectoryInspection) -> Value {
             "loaded": report.providers_loaded,
             "disabled": report.providers_disabled,
             "invalid": report.providers_invalid,
+            "skipped": report.providers_skipped,
             "files": report.files.len(),
         },
         "files": report.files.iter().map(|file| {
@@ -97,8 +98,11 @@ fn provider_report_text(report: ProviderDirectoryInspection) -> String {
     output.push_str(&format!("Provider directory: {}\n", report.root.display()));
     output.push_str(&format!("Exists: {}\n", report.exists));
     output.push_str(&format!(
-        "Summary: {} loaded, {} disabled, {} invalid\n",
-        report.providers_loaded, report.providers_disabled, report.providers_invalid
+        "Summary: {} loaded, {} disabled, {} invalid, {} skipped\n",
+        report.providers_loaded,
+        report.providers_disabled,
+        report.providers_invalid,
+        report.providers_skipped
     ));
 
     if report.files.is_empty() {
@@ -138,6 +142,7 @@ fn status_label(status: ProviderFileInspectionStatus) -> &'static str {
         ProviderFileInspectionStatus::Loaded => "loaded",
         ProviderFileInspectionStatus::Disabled => "disabled",
         ProviderFileInspectionStatus::Invalid => "invalid",
+        ProviderFileInspectionStatus::Skipped => "skipped",
     }
 }
 
