@@ -198,6 +198,49 @@ fn inspect_marks_manifest_validation_failures_as_invalid() {
 }
 
 #[test]
+fn inspect_marks_uncompilable_input_schema_as_invalid() {
+    let temp = tempdir().expect("tempdir");
+    let providers = temp.path();
+
+    // Deserializes fine and passes validate_provider_manifest (which doesn't
+    // check schema keyword validity), but `properties` must be an object per
+    // JSON Schema — jsonschema::validator_for rejects this the same way
+    // provider_registry::build_snapshot() does at real load time.
+    fs::write(
+        providers.join("bad-schema.json"),
+        r#"{
+          "schema_version": 1,
+          "provider": { "name": "bad-schema", "kind": "static-rust", "version": "0.1.0" },
+          "tools": [
+            {
+              "name": "broken_tool",
+              "description": "has an invalid input_schema",
+              "input_schema": { "type": "object", "properties": [], "additionalProperties": false },
+              "output_schema": { "type": "object", "properties": {}, "additionalProperties": true }
+            }
+          ]
+        }"#,
+    )
+    .expect("write provider with invalid input_schema");
+
+    let report = FileProviderSource::new(providers)
+        .inspect()
+        .expect("inspect providers");
+
+    assert_eq!(report.providers_invalid, 1);
+    assert_eq!(report.providers_loaded, 0);
+    assert_eq!(
+        report.files[0].status,
+        ProviderFileInspectionStatus::Invalid
+    );
+    assert!(report.files[0]
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("input_schema"));
+}
+
+#[test]
 fn wasm_sidecar_manifest_is_loaded_as_the_wasm_provider_manifest() {
     let temp = tempdir().expect("tempdir");
     let wasm_path = temp.path().join("edge.wasm");

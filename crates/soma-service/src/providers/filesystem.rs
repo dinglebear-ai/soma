@@ -131,38 +131,43 @@ impl FileProviderSource {
             }
 
             match load_catalog(&path) {
-                Ok(catalog) => match validate_provider_manifest(&catalog) {
-                    Ok(()) => {
-                        let status = if catalog.provider.enabled == Some(false) {
-                            ProviderFileInspectionStatus::Disabled
-                        } else {
-                            ProviderFileInspectionStatus::Loaded
-                        };
-                        let actions = catalog
-                            .tools
-                            .iter()
-                            .map(|tool| tool.name.clone())
-                            .collect::<Vec<_>>();
-                        files.push(ProviderFileInspection {
+                Ok(catalog) => {
+                    let semantic_check = validate_provider_manifest(&catalog)
+                        .map_err(|error| error.to_string())
+                        .and_then(|()| compile_tool_schemas(&catalog));
+                    match semantic_check {
+                        Ok(()) => {
+                            let status = if catalog.provider.enabled == Some(false) {
+                                ProviderFileInspectionStatus::Disabled
+                            } else {
+                                ProviderFileInspectionStatus::Loaded
+                            };
+                            let actions = catalog
+                                .tools
+                                .iter()
+                                .map(|tool| tool.name.clone())
+                                .collect::<Vec<_>>();
+                            files.push(ProviderFileInspection {
+                                path,
+                                file_name,
+                                status,
+                                provider_id: Some(catalog.provider.name),
+                                provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
+                                actions,
+                                error: None,
+                            });
+                        }
+                        Err(message) => files.push(ProviderFileInspection {
                             path,
                             file_name,
-                            status,
+                            status: ProviderFileInspectionStatus::Invalid,
                             provider_id: Some(catalog.provider.name),
                             provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
-                            actions,
-                            error: None,
-                        });
+                            actions: Vec::new(),
+                            error: Some(message),
+                        }),
                     }
-                    Err(validation_error) => files.push(ProviderFileInspection {
-                        path,
-                        file_name,
-                        status: ProviderFileInspectionStatus::Invalid,
-                        provider_id: Some(catalog.provider.name),
-                        provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
-                        actions: Vec::new(),
-                        error: Some(validation_error.to_string()),
-                    }),
-                },
+                }
                 Err(error) => files.push(ProviderFileInspection {
                     path,
                     file_name,
@@ -436,6 +441,25 @@ fn is_wasm_sidecar_manifest(path: &Path) -> bool {
 
 fn is_python_provider_source(path: &Path) -> bool {
     path.extension().and_then(|extension| extension.to_str()) == Some("py")
+}
+
+/// Mirrors the schema-compilation pass `provider_registry::build_snapshot()`
+/// runs for every tool — a manifest can deserialize and pass
+/// `validate_provider_manifest()` while still carrying an `input_schema` or
+/// `output_schema` that fails to compile as JSON Schema (e.g. `properties`
+/// given as an array instead of an object). Non-executing inspection must
+/// catch that too, or `lint` can bless a provider the live registry rejects.
+fn compile_tool_schemas(catalog: &ProviderCatalog) -> Result<(), String> {
+    for tool in &catalog.tools {
+        jsonschema::validator_for(&tool.input_schema)
+            .map_err(|error| format!("tool `{}` has invalid input_schema: {error}", tool.name))?;
+        if let Some(output_schema) = &tool.output_schema {
+            jsonschema::validator_for(output_schema).map_err(|error| {
+                format!("tool `{}` has invalid output_schema: {error}", tool.name)
+            })?;
+        }
+    }
+    Ok(())
 }
 
 fn fingerprint_file(
