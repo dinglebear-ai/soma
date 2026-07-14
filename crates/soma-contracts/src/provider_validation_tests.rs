@@ -93,6 +93,18 @@ fn rejects_reserved_cli_names_empty_capabilities_and_prefixed_env() {
 }
 
 #[test]
+fn rejects_package_as_a_reserved_cli_command() {
+    // Regression: crates/soma-cli/src/lib.rs's reserved_cli_command() gates
+    // "package" for the infrastructure `package generate` branch, but this
+    // list omitted it — a provider declaring cli.command = "package" passed
+    // manifest validation while being unreachable at the CLI parser.
+    let mut value = valid_manifest();
+    value["tools"][0]["cli"] = json!({"enabled":true,"command":"package"});
+    let error = validate_provider_manifest_value(&value).expect_err("reserved name fails");
+    assert_eq!(error.code(), "reserved_cli_command");
+}
+
+#[test]
 fn contracts_do_not_expose_execution_types() {
     let _manifest: Option<ProviderManifest> = None;
     let _env: Option<EnvRequirement> = None;

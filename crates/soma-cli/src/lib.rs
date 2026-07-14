@@ -489,6 +489,10 @@ fn scalar_json(value: &str) -> serde_json::Value {
     }
 }
 
+// Must match soma_contracts::provider_validation's RESERVED_CLI_COMMANDS
+// exactly — that list is what soma providers validate/lint checks against,
+// so a name reserved only here passes manifest validation but is
+// unreachable once it hits this parser.
 fn reserved_cli_command(command: &str) -> bool {
     matches!(
         command,

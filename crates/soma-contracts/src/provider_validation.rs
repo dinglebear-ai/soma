@@ -6,12 +6,17 @@ use serde_json::Value;
 use crate::providers::{HostCapabilities, ProviderKind, ProviderManifest};
 
 const SCHEMA: &str = include_str!("../../../docs/contracts/provider-manifest.schema.json");
+// Must match crates/soma-cli/src/lib.rs's `reserved_cli_command()` exactly —
+// that's the actual gate a provider's `tools[].cli.command` has to clear to
+// be dispatchable at all. A name missing here passes manifest/lint
+// validation but is unreachable through the CLI once it hits that parser.
 const RESERVED_CLI_COMMANDS: &[&str] = &[
     "serve",
     "mcp",
     "doctor",
     "watch",
     "setup",
+    "package",
     "tools",
     "providers",
     "openapi",
