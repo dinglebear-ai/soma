@@ -240,6 +240,154 @@ fn inspect_marks_uncompilable_input_schema_as_invalid() {
         .contains("input_schema"));
 }
 
+fn tool_manifest(provider_name: &str, tool_name: &str, cli_command: Option<&str>) -> String {
+    let cli = match cli_command {
+        Some(command) => format!(r#", "cli": {{ "enabled": true, "command": "{command}" }}"#),
+        None => String::new(),
+    };
+    format!(
+        r#"{{
+          "schema_version": 1,
+          "provider": {{ "name": "{provider_name}", "kind": "static-rust", "version": "0.1.0" }},
+          "tools": [
+            {{
+              "name": "{tool_name}",
+              "description": "probe",
+              "input_schema": {{ "type": "object", "properties": {{}}, "additionalProperties": false }},
+              "output_schema": {{ "type": "object", "properties": {{}}, "additionalProperties": true }}{cli}
+            }}
+          ]
+        }}"#
+    )
+}
+
+#[test]
+fn inspect_marks_second_file_invalid_on_duplicate_provider_name_across_files() {
+    let temp = tempdir().expect("tempdir");
+    let providers = temp.path();
+
+    // Two different files, each individually valid, but declaring the same
+    // provider name — the live registry's provider_map() rejects this once
+    // both are loaded together, even though neither file is wrong in isolation.
+    fs::write(
+        providers.join("a-first.json"),
+        tool_manifest("shared", "action_one", None),
+    )
+    .expect("write first provider");
+    fs::write(
+        providers.join("b-second.json"),
+        tool_manifest("shared", "action_two", None),
+    )
+    .expect("write second provider");
+
+    let report = FileProviderSource::new(providers)
+        .inspect()
+        .expect("inspect providers");
+
+    assert_eq!(report.providers_loaded, 1);
+    assert_eq!(report.providers_invalid, 1);
+
+    let first = report
+        .files
+        .iter()
+        .find(|file| file.file_name == "a-first.json")
+        .unwrap();
+    assert_eq!(first.status, ProviderFileInspectionStatus::Loaded);
+
+    let second = report
+        .files
+        .iter()
+        .find(|file| file.file_name == "b-second.json")
+        .unwrap();
+    assert_eq!(second.status, ProviderFileInspectionStatus::Invalid);
+    assert!(second
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("duplicate provider"));
+    assert!(second
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("a-first.json"));
+}
+
+#[test]
+fn inspect_marks_second_file_invalid_on_duplicate_action_across_files() {
+    let temp = tempdir().expect("tempdir");
+    let providers = temp.path();
+
+    // Same tool/action name declared by two different providers — build_snapshot()
+    // rejects this via its directory-wide action_index, not per-file validation.
+    fs::write(
+        providers.join("a-first.json"),
+        tool_manifest("provider-a", "shared_action", None),
+    )
+    .expect("write first provider");
+    fs::write(
+        providers.join("b-second.json"),
+        tool_manifest("provider-b", "shared_action", None),
+    )
+    .expect("write second provider");
+
+    let report = FileProviderSource::new(providers)
+        .inspect()
+        .expect("inspect providers");
+
+    assert_eq!(report.providers_loaded, 1);
+    assert_eq!(report.providers_invalid, 1);
+
+    let second = report
+        .files
+        .iter()
+        .find(|file| file.file_name == "b-second.json")
+        .unwrap();
+    assert_eq!(second.status, ProviderFileInspectionStatus::Invalid);
+    assert!(second
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("duplicate action"));
+}
+
+#[test]
+fn inspect_marks_second_file_invalid_on_duplicate_cli_command_across_files() {
+    let temp = tempdir().expect("tempdir");
+    let providers = temp.path();
+
+    // Different provider names and action names, but the same CLI overlay
+    // command — build_snapshot()'s cli_index rejects this too.
+    fs::write(
+        providers.join("a-first.json"),
+        tool_manifest("provider-a", "action_one", Some("shared-cmd")),
+    )
+    .expect("write first provider");
+    fs::write(
+        providers.join("b-second.json"),
+        tool_manifest("provider-b", "action_two", Some("shared-cmd")),
+    )
+    .expect("write second provider");
+
+    let report = FileProviderSource::new(providers)
+        .inspect()
+        .expect("inspect providers");
+
+    assert_eq!(report.providers_loaded, 1);
+    assert_eq!(report.providers_invalid, 1);
+
+    let second = report
+        .files
+        .iter()
+        .find(|file| file.file_name == "b-second.json")
+        .unwrap();
+    assert_eq!(second.status, ProviderFileInspectionStatus::Invalid);
+    assert!(second
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("duplicate CLI command"));
+}
+
 #[test]
 fn wasm_sidecar_manifest_is_loaded_as_the_wasm_provider_manifest() {
     let temp = tempdir().expect("tempdir");

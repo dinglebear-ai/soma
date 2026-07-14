@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
 };
@@ -87,6 +87,12 @@ impl FileProviderSource {
         }
 
         let mut files = Vec::new();
+        // Parallel to `files`, index-aligned: the parsed catalog for any file
+        // that is (so far) `Loaded`, used by the directory-wide uniqueness
+        // pass below. `Disabled` catalogs are intentionally excluded here —
+        // `load()` never registers disabled providers either, so they can't
+        // collide with anything at runtime.
+        let mut loaded_catalogs: Vec<Option<ProviderCatalog>> = Vec::new();
 
         for path in self.provider_paths()? {
             let file_name = path
@@ -114,6 +120,7 @@ impl FileProviderSource {
                             .to_owned(),
                     ),
                 });
+                loaded_catalogs.push(None);
                 continue;
             }
 
@@ -138,35 +145,45 @@ impl FileProviderSource {
                                 path,
                                 file_name,
                                 status,
-                                provider_id: Some(catalog.provider.name),
+                                provider_id: Some(catalog.provider.name.clone()),
                                 provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
                                 actions,
                                 error: None,
                             });
+                            loaded_catalogs.push(
+                                (status == ProviderFileInspectionStatus::Loaded).then_some(catalog),
+                            );
                         }
-                        Err(message) => files.push(ProviderFileInspection {
-                            path,
-                            file_name,
-                            status: ProviderFileInspectionStatus::Invalid,
-                            provider_id: Some(catalog.provider.name),
-                            provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
-                            actions: Vec::new(),
-                            error: Some(message),
-                        }),
+                        Err(message) => {
+                            files.push(ProviderFileInspection {
+                                path,
+                                file_name,
+                                status: ProviderFileInspectionStatus::Invalid,
+                                provider_id: Some(catalog.provider.name),
+                                provider_kind: Some(catalog.provider.kind.as_str().to_owned()),
+                                actions: Vec::new(),
+                                error: Some(message),
+                            });
+                            loaded_catalogs.push(None);
+                        }
                     }
                 }
-                Err(error) => files.push(ProviderFileInspection {
-                    path,
-                    file_name,
-                    status: ProviderFileInspectionStatus::Invalid,
-                    provider_id: None,
-                    provider_kind: None,
-                    actions: Vec::new(),
-                    error: Some(error.to_string()),
-                }),
+                Err(error) => {
+                    files.push(ProviderFileInspection {
+                        path,
+                        file_name,
+                        status: ProviderFileInspectionStatus::Invalid,
+                        provider_id: None,
+                        provider_kind: None,
+                        actions: Vec::new(),
+                        error: Some(error.to_string()),
+                    });
+                    loaded_catalogs.push(None);
+                }
             }
         }
 
+        apply_directory_wide_checks(&mut files, &loaded_catalogs);
         files.sort_by(|left, right| left.file_name.cmp(&right.file_name));
         let providers_loaded = files
             .iter()
@@ -447,6 +464,164 @@ fn compile_tool_schemas(catalog: &ProviderCatalog) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Mirrors the cross-provider uniqueness checks
+/// `provider_registry::{provider_map, build_snapshot}` run over the whole
+/// *loaded* provider set: duplicate provider name, action/tool name, REST
+/// route, CLI command/alias, and MCP primitive name. Two files can each pass
+/// per-file validation individually and still collide once loaded together,
+/// which the live registry (and `soma providers validate`) rejects — a
+/// non-executing `lint` has to catch the same thing or it gives false
+/// confidence. Only files still `Loaded` after the per-file pass participate;
+/// `Disabled`/`Invalid`/`Skipped` files are excluded, matching `load()`,
+/// which never registers a disabled provider in the first place.
+///
+/// On the first file to reuse an already-claimed name, that file (not the
+/// original) is marked `Invalid`, mirroring the live registry's
+/// insert-into-a-map-fails-on-second-entry semantics.
+fn apply_directory_wide_checks(
+    files: &mut [ProviderFileInspection],
+    loaded_catalogs: &[Option<ProviderCatalog>],
+) {
+    let mut provider_names: HashMap<String, usize> = HashMap::new();
+    let mut action_names: HashMap<String, usize> = HashMap::new();
+    let mut rest_routes: HashMap<(String, String), usize> = HashMap::new();
+    let mut cli_commands: HashMap<String, usize> = HashMap::new();
+    let mut primitives: HashMap<String, usize> = HashMap::new();
+
+    for index in 0..files.len() {
+        let Some(catalog) = &loaded_catalogs[index] else {
+            continue;
+        };
+
+        let conflict = find_directory_wide_conflict(
+            catalog,
+            &provider_names,
+            &action_names,
+            &rest_routes,
+            &cli_commands,
+            &primitives,
+        )
+        .map(|(kind, name, other)| conflict_message(kind, &name, &files[other].file_name));
+
+        if let Some(message) = conflict {
+            files[index].status = ProviderFileInspectionStatus::Invalid;
+            files[index].actions = Vec::new();
+            files[index].error = Some(message);
+            continue;
+        }
+
+        provider_names.insert(catalog.provider.name.clone(), index);
+        for tool in &catalog.tools {
+            action_names.insert(tool.name.clone(), index);
+            if let Some(rest) = &tool.rest {
+                if rest.enabled {
+                    rest_routes.insert(rest_route_key(tool.name.as_str(), rest), index);
+                }
+            }
+            if let Some(cli) = &tool.cli {
+                if cli.enabled {
+                    cli_commands.insert(cli_command(tool.name.as_str(), cli), index);
+                    for alias in &cli.aliases {
+                        cli_commands.insert(alias.clone(), index);
+                    }
+                }
+            }
+        }
+        for name in primitive_names(catalog) {
+            primitives.insert(name, index);
+        }
+    }
+}
+
+/// Returns `(kind, name, index-of-the-file-that-already-claimed-it)` for the
+/// first collision found, checking in the same order
+/// `provider_registry::{provider_map, build_snapshot}` does.
+fn find_directory_wide_conflict(
+    catalog: &ProviderCatalog,
+    provider_names: &HashMap<String, usize>,
+    action_names: &HashMap<String, usize>,
+    rest_routes: &HashMap<(String, String), usize>,
+    cli_commands: &HashMap<String, usize>,
+    primitives: &HashMap<String, usize>,
+) -> Option<(&'static str, String, usize)> {
+    if let Some(&other) = provider_names.get(&catalog.provider.name) {
+        return Some(("provider", catalog.provider.name.clone(), other));
+    }
+    for tool in &catalog.tools {
+        if let Some(&other) = action_names.get(&tool.name) {
+            return Some(("action", tool.name.clone(), other));
+        }
+        if let Some(rest) = &tool.rest {
+            if rest.enabled {
+                let key = rest_route_key(tool.name.as_str(), rest);
+                if let Some(&other) = rest_routes.get(&key) {
+                    return Some(("REST route", format!("{} {}", key.0, key.1), other));
+                }
+            }
+        }
+        if let Some(cli) = &tool.cli {
+            if cli.enabled {
+                let command = cli_command(tool.name.as_str(), cli);
+                if let Some(&other) = cli_commands.get(&command) {
+                    return Some(("CLI command", command, other));
+                }
+                for alias in &cli.aliases {
+                    if let Some(&other) = cli_commands.get(alias) {
+                        return Some(("CLI alias", alias.clone(), other));
+                    }
+                }
+            }
+        }
+    }
+    for name in primitive_names(catalog) {
+        if let Some(&other) = primitives.get(&name) {
+            return Some(("MCP primitive", name, other));
+        }
+    }
+    None
+}
+
+fn conflict_message(kind: &str, name: &str, other_file_name: &str) -> String {
+    format!("duplicate {kind} `{name}` (already defined in {other_file_name})")
+}
+
+fn rest_route_key(
+    tool_name: &str,
+    rest: &soma_contracts::providers::RestOverlay,
+) -> (String, String) {
+    let method = rest.method.clone().unwrap_or_else(|| "POST".to_owned());
+    let path = rest
+        .path
+        .clone()
+        .unwrap_or_else(|| format!("/v1/{tool_name}"));
+    (method, path)
+}
+
+fn cli_command(tool_name: &str, cli: &soma_contracts::providers::CliOverlay) -> String {
+    cli.command.clone().unwrap_or_else(|| tool_name.to_owned())
+}
+
+fn primitive_names(catalog: &ProviderCatalog) -> Vec<String> {
+    catalog
+        .prompts
+        .iter()
+        .map(|prompt| prompt.name.clone())
+        .chain(
+            catalog
+                .resources
+                .iter()
+                .map(|resource| resource.name.clone()),
+        )
+        .chain(catalog.tasks.iter().map(|task| task.name.clone()))
+        .chain(
+            catalog
+                .elicitation
+                .iter()
+                .map(|elicitation| elicitation.name.clone()),
+        )
+        .collect()
 }
 
 fn fingerprint_file(
