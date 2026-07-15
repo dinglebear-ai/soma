@@ -6,11 +6,10 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use std::time::Instant;
 
-use crate::authorize::{
-    authorize, browser_login, callback, native_callback, native_poll, register_client,
-};
+use crate::authorize::{authorize, browser_login, callback, native_callback, native_poll};
 use crate::error::AuthErrorKind;
 use crate::metadata::{authorization_server_metadata, jwks, protected_resource_metadata};
+use crate::registration::register_client;
 use crate::state::AuthState;
 use crate::token::token;
 

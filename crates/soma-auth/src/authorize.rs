@@ -1,4 +1,4 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
@@ -9,33 +9,21 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 use tracing::{debug, info, warn};
 
-use crate::error::{AuthError, AuthErrorKind};
+use crate::error::AuthError;
 use crate::google::AuthorizeUrlRequest;
+use crate::registration::resolve_client_redirect_uris;
 use crate::session::{append_set_cookie, build_browser_session_cookie, create_browser_session};
 use crate::state::AuthState;
 use crate::types::{
     AuthorizationCodeRow, AuthorizationRequestRow, AuthorizeQuery, BrowserLoginQuery,
-    BrowserLoginStateRow, CallbackQuery, ClientRegistrationRequest, ClientRegistrationResponse,
-    NativeAuthorizationResultRow, NativePollQuery, NativePollResponse, RegisteredClient,
+    BrowserLoginStateRow, CallbackQuery, NativeAuthorizationResultRow, NativePollQuery,
+    NativePollResponse,
 };
-use crate::util::{expires_at, fingerprint, now_unix, random_token};
+use crate::util::{expires_at, fingerprint, now_unix, random_token, remote_ip};
 
 const AUTH_REQUEST_TTL_SECS: i64 = 300;
 const NATIVE_SUCCESS_PAGE: &str = r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Signed in</h2><p>You can close this tab and return to the app.</p></body></html>"#;
 const NATIVE_CALLBACK_EXPIRED_PAGE: &str = r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Sign-in link expired</h2><p>Return to the app and start sign-in again.</p></body></html>"#;
-
-/// Extract the `IpAddr` from a `SocketAddr`, normalizing IPv4-mapped IPv6
-/// addresses (`::ffff:a.b.c.d`) back to plain IPv4 so per-IP rate-limiting
-/// keys are consistent regardless of listener address family.
-fn remote_ip(addr: SocketAddr) -> IpAddr {
-    match addr.ip() {
-        IpAddr::V6(v6) => v6
-            .to_ipv4_mapped()
-            .map(IpAddr::V4)
-            .unwrap_or(IpAddr::V6(v6)),
-        v4 => v4,
-    }
-}
 
 /// Enforces the configured email allowlist.
 ///
@@ -121,290 +109,6 @@ pub async fn browser_login(
         [(header::LOCATION, location.to_string())],
     )
         .into_response())
-}
-
-pub async fn register_client(
-    State(state): State<AuthState>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Json(request): Json<ClientRegistrationRequest>,
-) -> Result<Json<ClientRegistrationResponse>, RegistrationError> {
-    state.check_register_rate_limit(remote_ip(addr)).await?;
-    if request.redirect_uris.is_empty() {
-        warn!("oauth register rejected: no redirect URIs provided");
-        return Err(
-            AuthError::Validation("at least one redirect URI is required".to_string()).into(),
-        );
-    }
-    let native_callback_endpoint = crate::metadata::native_callback_endpoint(&state);
-    for redirect_uri in &request.redirect_uris {
-        if redirect_uri != &native_callback_endpoint
-            && !is_allowed_redirect_uri(redirect_uri, &state.config.allowed_client_redirect_uris)
-        {
-            warn!(
-                redirect_uri = %redirect_uri,
-                native_callback_endpoint = %native_callback_endpoint,
-                allowed_patterns = ?state.config.allowed_client_redirect_uris,
-                "oauth register rejected: redirect URI is not in the allowlist, native callback, or loopback set"
-            );
-            return Err(RegistrationError::InvalidRedirectUri(format!(
-                "redirect URI `{redirect_uri}` must target a loopback host, match the native callback endpoint, or match an allowed redirect pattern"
-            )));
-        }
-    }
-
-    // RFC 7591 / OIDC application_type. Accept the two registered values and
-    // default to "web" when omitted; reject anything else so misconfigured
-    // clients fail loudly rather than silently registering an unknown type.
-    let application_type = match request.application_type.as_deref() {
-        None | Some("web") => "web".to_string(),
-        Some("native") => "native".to_string(),
-        Some(other) => {
-            warn!(
-                application_type = %other,
-                "oauth register rejected: unsupported application_type"
-            );
-            return Err(RegistrationError::InvalidClientMetadata(format!(
-                "application_type `{other}` is not supported; use `web` or `native`"
-            )));
-        }
-    };
-
-    let client = RegisteredClient {
-        client_id: random_token(18)?,
-        redirect_uris: request.redirect_uris,
-        created_at: now_unix(),
-    };
-    state.store.register_client(client.clone()).await?;
-    info!(
-        client_id = %client.client_id,
-        redirect_uri_count = client.redirect_uris.len(),
-        redirect_uris = ?client.redirect_uris,
-        "oauth client registration accepted"
-    );
-    Ok(Json(ClientRegistrationResponse {
-        client_id: client.client_id,
-        redirect_uris: client.redirect_uris,
-        token_endpoint_auth_method: "none".to_string(),
-        application_type,
-    }))
-}
-
-/// RFC 7591 §3.2.2 requires `/register` errors to be reported as HTTP 400
-/// with a `{"error": ..., "error_description": ...}` body using one of the
-/// RFC's defined error codes — unlike the generic `AuthError` ->
-/// `IntoResponse` impl in `error.rs`, which returns 422 with a
-/// `{"kind", "message"}` body. This is `register_client`'s dedicated error
-/// type, mirroring `TokenEndpointError` in `token.rs` for the `/token`
-/// endpoint (RFC 6749 §5.2).
-pub enum RegistrationError {
-    /// A `redirect_uris` entry failed validation (RFC 7591 §3.2.2).
-    InvalidRedirectUri(String),
-    /// `application_type` (or another client-metadata field) failed
-    /// validation.
-    InvalidClientMetadata(String),
-    /// Any other failure surfaced from shared auth infrastructure (rate
-    /// limiting, storage). Status codes are preserved from `AuthError`'s own
-    /// semantics, but the response body still uses the RFC 7591
-    /// `error`/`error_description` shape for consistency within this
-    /// endpoint's responses.
-    Auth(AuthError),
-}
-
-impl From<AuthError> for RegistrationError {
-    fn from(error: AuthError) -> Self {
-        Self::Auth(error)
-    }
-}
-
-impl RegistrationError {
-    fn oauth_error(&self) -> &'static str {
-        match self {
-            Self::InvalidRedirectUri(_) => "invalid_redirect_uri",
-            Self::InvalidClientMetadata(_) => "invalid_client_metadata",
-            Self::Auth(AuthError::RateLimited { .. }) => "temporarily_unavailable",
-            // No RFC 7591 error code maps cleanly onto the remaining
-            // AuthError variants (rate limiting aside); `invalid_client_metadata`
-            // is the closest registration-scoped fallback so every `/register`
-            // response still carries an RFC-defined code.
-            Self::Auth(_) => "invalid_client_metadata",
-        }
-    }
-
-    fn log_kind(&self) -> &'static str {
-        match self {
-            Self::InvalidRedirectUri(_) => "invalid_redirect_uri",
-            Self::InvalidClientMetadata(_) => "invalid_client_metadata",
-            Self::Auth(error) => error.kind(),
-        }
-    }
-
-    /// The two RFC 7591-specific variants always answer 400 per §3.2.2. The
-    /// `Auth(_)` passthrough intentionally mirrors `AuthError`'s own private
-    /// `status()` mapping in `error.rs` verbatim rather than introducing a
-    /// registration-specific remap — the task for this endpoint is only to
-    /// change the *body shape* for those errors (`error`/`error_description`
-    /// instead of `kind`/`message`), not their existing status codes.
-    fn status(&self) -> StatusCode {
-        match self {
-            Self::InvalidRedirectUri(_) | Self::InvalidClientMetadata(_) => StatusCode::BAD_REQUEST,
-            Self::Auth(AuthError::InvalidGrant(_)) => StatusCode::BAD_REQUEST,
-            Self::Auth(AuthError::AuthFailed(_) | AuthError::InvalidAccessToken) => {
-                StatusCode::UNAUTHORIZED
-            }
-            Self::Auth(AuthError::Validation(_)) => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::Auth(AuthError::Network(_) | AuthError::Server(_)) => StatusCode::BAD_GATEWAY,
-            Self::Auth(AuthError::RateLimited { .. }) => StatusCode::TOO_MANY_REQUESTS,
-            Self::Auth(
-                AuthError::Config(_)
-                | AuthError::Storage(_)
-                | AuthError::Decode(_)
-                | AuthError::InsecurePermissions { .. },
-            ) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-
-    fn description(&self) -> String {
-        match self {
-            Self::InvalidRedirectUri(message) | Self::InvalidClientMetadata(message) => {
-                message.clone()
-            }
-            Self::Auth(error) => error.to_string(),
-        }
-    }
-
-    fn retry_after_ms(&self) -> Option<u64> {
-        match self {
-            Self::Auth(AuthError::RateLimited { retry_after_ms, .. }) => Some(*retry_after_ms),
-            _ => None,
-        }
-    }
-}
-
-impl IntoResponse for RegistrationError {
-    fn into_response(self) -> Response {
-        let status = self.status();
-        let log_kind = self.log_kind();
-        let retry_after_ms = self.retry_after_ms();
-        let body = Json(serde_json::json!({
-            "error": self.oauth_error(),
-            "error_description": self.description(),
-        }));
-        let mut response = (status, body).into_response();
-        response.extensions_mut().insert(AuthErrorKind(log_kind));
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-        response
-            .headers_mut()
-            .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-        if let Some(retry_after_ms) = retry_after_ms
-            && let Ok(value) = HeaderValue::from_str(&(retry_after_ms / 1_000).max(1).to_string())
-        {
-            response.headers_mut().insert(header::RETRY_AFTER, value);
-        }
-        response
-    }
-}
-
-/// Filter `candidate_redirect_uris` down to those that pass the same
-/// loopback/native-app-scheme/operator-allowlist check DCR-registered
-/// clients are held to via [`is_allowed_redirect_uri`].
-///
-/// CIMD lets a client skip the DCR round-trip, not the redirect-URI trust
-/// boundary. `client_id` is an arbitrary attacker-hosted URL, which means
-/// the attacker also controls the JSON body served there — including
-/// `redirect_uris`. Trusting a CIMD document's `redirect_uris` outright
-/// would let any public HTTPS server declare
-/// `redirect_uris: ["https://attacker.evil/steal-code"]` and have it
-/// honored, making CIMD strictly weaker than DCR at exactly the point DCR
-/// exists to protect. This function is a pure, dependency-free filter so
-/// it's testable without any network/fetch involved.
-fn allowlist_redirect_uris(
-    candidate_redirect_uris: &[String],
-    allowed_patterns: &[String],
-) -> Vec<String> {
-    candidate_redirect_uris
-        .iter()
-        .filter(|uri| is_allowed_redirect_uri(uri, allowed_patterns))
-        .cloned()
-        .collect()
-}
-
-/// Filter a fetched CIMD document's `redirect_uris` through
-/// [`allowlist_redirect_uris`] and turn an empty result into the
-/// appropriate rejection. Split out from [`resolve_client_redirect_uris`]
-/// as a pure function (no fetch, no I/O) so this decision is unit-testable
-/// directly: `resolve_client_redirect_uris` itself can only be exercised
-/// end-to-end through a real CIMD fetch, which requires a public https host
-/// this crate's test suite has no way to provide.
-fn allowed_uris_from_cimd_document(
-    document: &crate::cimd::document::ClientMetadataDocument,
-    client_id: &str,
-    client_state_id: &str,
-    allowed_patterns: &[String],
-) -> Result<Vec<String>, AuthError> {
-    let allowed = allowlist_redirect_uris(&document.redirect_uris, allowed_patterns);
-    if allowed.is_empty() {
-        warn!(
-            client_id = %client_id,
-            client_state_id = %client_state_id,
-            "oauth authorize rejected: CIMD document declares no allowlisted redirect_uris"
-        );
-        return Err(AuthError::Validation(
-            "client_id metadata document declares no allowed redirect_uris".to_string(),
-        ));
-    }
-    Ok(allowed)
-}
-
-/// Resolve the set of trusted `redirect_uris` for `client_id`, either via
-/// the DCR-registered-clients table or, for an `https://`-shaped
-/// `client_id`, by fetching and validating its CIMD document (see
-/// [`crate::cimd`]) and filtering its declared `redirect_uris` through
-/// [`allowed_uris_from_cimd_document`].
-async fn resolve_client_redirect_uris(
-    state: &AuthState,
-    client_id: &str,
-    client_state_id: &str,
-) -> Result<Vec<String>, AuthError> {
-    if crate::cimd::document::is_cimd_client_id(client_id) {
-        let document =
-            crate::cimd::document::fetch_and_validate_client_metadata(&state.cimd_cache, client_id)
-                .await
-                .map_err(|error| {
-                    warn!(
-                        client_id = %client_id,
-                        client_state_id = %client_state_id,
-                        kind = error.kind(),
-                        error = %error,
-                        "oauth authorize rejected: CIMD document fetch/validation failed"
-                    );
-                    // Deliberately generic: the detailed CimdError string (which can
-                    // reveal e.g. "resolved only to private addresses" vs "does not
-                    // exist") is logged above but NOT returned to the anonymous
-                    // /authorize caller, to avoid an internal-network-topology
-                    // mapping oracle.
-                    AuthError::Validation(
-                        "client_id metadata document is invalid or unreachable".to_string(),
-                    )
-                })?;
-        return allowed_uris_from_cimd_document(
-            &document,
-            client_id,
-            client_state_id,
-            &state.config.allowed_client_redirect_uris,
-        );
-    }
-
-    let client = state.store.find_client(client_id).await?.ok_or_else(|| {
-        warn!(
-            client_id = %client_id,
-            client_state_id = %client_state_id,
-            "oauth authorize rejected: unknown client_id"
-        );
-        AuthError::InvalidGrant("unknown client_id".to_string())
-    })?;
-    Ok(client.redirect_uris)
 }
 
 pub async fn authorize(
@@ -920,143 +624,6 @@ pub(crate) fn validate_resource(
     )))
 }
 
-fn is_loopback_redirect(value: &str) -> bool {
-    let Ok(url) = reqwest::Url::parse(value) else {
-        return false;
-    };
-    if url.scheme() != "http" {
-        return false;
-    }
-    matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1"))
-}
-
-/// Native-app private-use URI scheme redirects (RFC 8252 §7.1), e.g.
-/// `com.raycast:/oauth`. Only an app registered for that scheme with the
-/// OS can receive the redirect, so — like loopback — these don't need an
-/// explicit allowlist entry per client. Deliberately excludes `http(s)`
-/// (network-reachable, needs the allowlist) and script-executing pseudo
-/// schemes a browser might act on directly instead of merely redirecting.
-fn is_native_app_scheme_redirect(value: &str) -> bool {
-    let Ok(url) = reqwest::Url::parse(value) else {
-        return false;
-    };
-    !matches!(
-        url.scheme(),
-        "http" | "https" | "javascript" | "data" | "vbscript" | "file"
-    )
-}
-
-fn is_allowed_redirect_uri(value: &str, patterns: &[String]) -> bool {
-    if is_loopback_redirect(value) || is_native_app_scheme_redirect(value) {
-        return true;
-    }
-
-    let Ok(candidate) = reqwest::Url::parse(value) else {
-        return false;
-    };
-    patterns
-        .iter()
-        .any(|pattern| redirect_pattern_matches(pattern, &candidate))
-}
-
-fn wildcard_matches(pattern: &str, value: &str) -> bool {
-    if pattern == "*" {
-        return true;
-    }
-    let parts: Vec<&str> = pattern.split('*').collect();
-    if parts.len() == 1 {
-        return pattern == value;
-    }
-
-    let anchored_start = !pattern.starts_with('*');
-    let anchored_end = !pattern.ends_with('*');
-    let non_empty_parts: Vec<&str> = parts.into_iter().filter(|part| !part.is_empty()).collect();
-    if non_empty_parts.is_empty() {
-        return true;
-    }
-
-    let mut cursor = 0usize;
-    for (index, part) in non_empty_parts.iter().enumerate() {
-        if index == 0 && anchored_start {
-            if !value[cursor..].starts_with(part) {
-                return false;
-            }
-            cursor += part.len();
-            continue;
-        }
-
-        match value[cursor..].find(part) {
-            Some(found) => cursor += found + part.len(),
-            None => return false,
-        }
-    }
-
-    if anchored_end && let Some(last) = non_empty_parts.last() {
-        return value.ends_with(last);
-    }
-
-    true
-}
-
-fn redirect_pattern_matches(pattern: &str, candidate: &reqwest::Url) -> bool {
-    if pattern == "https://*" {
-        return candidate.scheme() == "https" && candidate.host_str().is_some();
-    }
-
-    let Ok(pattern_url) = reqwest::Url::parse(pattern) else {
-        return false;
-    };
-    if pattern_url.scheme() != candidate.scheme() {
-        return false;
-    }
-
-    // Native-app custom URI schemes (e.g. `com.raycast:/oauth`) have no
-    // authority component, so `host_str()` is None and can never satisfy the
-    // host/port comparison below. Compare the whole URI instead.
-    if pattern_url.host_str().is_none() || candidate.host_str().is_none() {
-        return wildcard_matches(pattern, candidate.as_str());
-    }
-
-    if pattern_url.port_or_known_default() != candidate.port_or_known_default() {
-        return false;
-    }
-    let Some(pattern_host) = pattern_url.host_str() else {
-        return false;
-    };
-    let Some(candidate_host) = candidate.host_str() else {
-        return false;
-    };
-    if !host_pattern_matches(pattern_host, candidate_host) {
-        return false;
-    }
-    if !wildcard_matches(pattern_url.path(), candidate.path()) {
-        return false;
-    }
-
-    match (pattern_url.query(), candidate.query()) {
-        (Some(pattern_query), Some(candidate_query)) => {
-            wildcard_matches(pattern_query, candidate_query)
-        }
-        (None, None) => true,
-        _ => false,
-    }
-}
-
-fn host_pattern_matches(pattern_host: &str, candidate_host: &str) -> bool {
-    let pattern_labels = pattern_host.split('.').collect::<Vec<_>>();
-    let candidate_labels = candidate_host.split('.').collect::<Vec<_>>();
-    if pattern_labels.len() != candidate_labels.len() {
-        return false;
-    }
-
-    pattern_labels
-        .iter()
-        .zip(candidate_labels.iter())
-        .all(|(pattern, candidate)| {
-            *pattern == "*" || (!pattern.contains('*') && pattern.eq_ignore_ascii_case(candidate))
-        })
-}
-
 #[cfg(test)]
 pub mod tests {
     use axum::body::Body;
@@ -1072,13 +639,11 @@ pub mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    use super::{
-        allowed_uris_from_cimd_document, allowlist_redirect_uris, host_pattern_matches,
-        is_allowed_redirect_uri, wildcard_matches,
-    };
     use crate::config::{AuthConfig, AuthMode, GoogleConfig};
     use crate::error::AuthError;
     use crate::google::GoogleProvider;
+    use crate::redirect_uri::{host_pattern_matches, is_allowed_redirect_uri, wildcard_matches};
+    use crate::registration::{allowed_uris_from_cimd_document, allowlist_redirect_uris};
     use crate::state::AuthState;
     use crate::types::{AuthorizationRequestRow, NativeAuthorizationResultRow, RegisteredClient};
 

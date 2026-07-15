@@ -74,6 +74,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `soma-auth` module size: `authorize.rs` (869 effective lines) and
+  `upstream/manager.rs` (1080 effective lines) exceeded the repo's
+  `xtask patterns` file-size hard limit (700). Split DCR client
+  registration and redirect_uri resolution out of `authorize.rs` into new
+  `registration.rs` and `redirect_uri.rs` modules, and split
+  `AuthClient`/OAuth-client-config construction out of
+  `upstream/manager.rs` into a new `upstream/manager/client.rs` child
+  module (a second `impl` block for the same type, not a new
+  abstraction). No behavior change; `authorize.rs` is now 539 effective
+  lines and `upstream/manager.rs` is 664.
+
 - `soma-auth` CIMD (Client ID Metadata Document) hardening found by
   independent multi-agent code review: `DocumentCache`'s per-URL
   single-flight lock map (`build_locks`) is now bounded and swept of idle

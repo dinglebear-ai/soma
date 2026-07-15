@@ -16,6 +16,10 @@ pub mod metadata;
 #[cfg(feature = "http-axum")]
 pub mod middleware;
 #[cfg(feature = "http-axum")]
+pub mod redirect_uri;
+#[cfg(feature = "http-axum")]
+pub mod registration;
+#[cfg(feature = "http-axum")]
 pub mod routes;
 #[cfg(feature = "http-axum")]
 pub mod session;

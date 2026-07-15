@@ -1,6 +1,8 @@
 #![allow(clippy::redundant_pub_crate)]
 
 use std::fmt::Write as _;
+#[cfg(feature = "http-axum")]
+use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 #[cfg(feature = "http-axum")]
 use std::time::Duration;
@@ -12,6 +14,20 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 
 use crate::error::AuthError;
+
+/// Extract the `IpAddr` from a `SocketAddr`, normalizing IPv4-mapped IPv6
+/// addresses (`::ffff:a.b.c.d`) back to plain IPv4 so per-IP rate-limiting
+/// keys are consistent regardless of listener address family.
+#[cfg(feature = "http-axum")]
+pub(crate) fn remote_ip(addr: SocketAddr) -> IpAddr {
+    match addr.ip() {
+        IpAddr::V6(v6) => v6
+            .to_ipv4_mapped()
+            .map(IpAddr::V4)
+            .unwrap_or(IpAddr::V6(v6)),
+        v4 => v4,
+    }
+}
 
 pub fn now_unix() -> i64 {
     let secs = std::time::SystemTime::now()
