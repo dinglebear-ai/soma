@@ -14,8 +14,14 @@ title = "soma gitleaks config"
 [extend]
 useDefault = true
 
-[allowlist]
+[[allowlists]]
 description = "Placeholder and test-fixture credentials that are not real secrets"
+condition = "OR"
+
+# Historical generated auth template commit containing a static RSA test fixture.
+commits = [
+  "03ec0523ed3aa7d428e73bac3afff14034de0b5a",
+]
 
 # Fixture tokens that appear in tests/docs by design.
 regexes = [
