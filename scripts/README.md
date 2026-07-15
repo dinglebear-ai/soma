@@ -121,6 +121,10 @@ Each non-comment line is a glob pattern for an intentional large artifact. The
 checker strips comments and blank lines, then treats matching paths as
 allowlisted instead of failing the size budget.
 
+Currently allowlists `crates/codex-app-server-client/schema/protocol.schema.json`
+(a vendored JSON Schema `build.rs` reads directly to generate protocol types -
+see that crate's README).
+
 ### `block-env-commits.sh`
 
 ```bash

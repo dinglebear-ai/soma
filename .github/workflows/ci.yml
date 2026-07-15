@@ -215,8 +215,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # npm retired the audit endpoint(s) pnpm 10.x calls
+      # (https://api-docs.npmjs.com/#tag/Audit - "quick" and its own fallback
+      # both now return 410), so pnpm@10.33.2 (our pinned version) fails this
+      # step with ERR_PNPM_AUDIT_BAD_RESPONSE regardless of the actual
+      # dependency tree - confirmed reproducible locally, unrelated to any
+      # PR's changes. pnpm@11+ is expected to pick up the new bulk endpoint;
+      # revisit once we deliberately upgrade pnpm and verify `pnpm audit`
+      # works again. Only THIS specific known failure signature is treated
+      # as non-blocking below - a genuine high/critical advisory (or any
+      # other unexpected failure) still fails the step, since a blanket
+      # continue-on-error would silently swallow real findings too.
       - name: pnpm audit
-        run: pnpm audit --prod --audit-level high
+        run: |
+          set +e
+          output=$(pnpm audit --prod --audit-level high 2>&1)
+          status=$?
+          echo "$output"
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -q "ERR_PNPM_AUDIT_BAD_RESPONSE"; then
+            echo "::warning::pnpm audit endpoint is currently retired upstream (see comment above) - treating as non-blocking, not a real vulnerability finding."
+            exit 0
+          fi
+          echo "::error::pnpm audit failed - either a genuine vulnerability finding or an unexpected error. Failing CI."
+          exit "$status"
 
       - name: pnpm lint
         run: pnpm lint

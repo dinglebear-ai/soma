@@ -10,6 +10,7 @@
 //!   patterns     Check static contracts from docs/PATTERNS.md
 //!   contract-audit Run local static/spec checks for REST-client MCP servers
 //!   scaffold     Plan, generate, or verify a new project from Soma
+//!   codex-schema Rebuild/bisect the vendored codex-app-server-client schema
 //!   cargo-generate Smoke-test cargo-generate output
 //!   cargo-generate-post Apply cargo-generate post-processing rewrites
 //!   generate-docs Generate volatile docs and metadata from canonical specs
@@ -49,6 +50,7 @@ use walkdir::WalkDir;
 mod cargo_generate;
 mod cargo_generate_post;
 mod ci_paths;
+mod codex_schema;
 mod generated_surfaces;
 mod mcp_registry;
 mod no_mcp;
@@ -85,6 +87,7 @@ fn main() -> Result<()> {
         Some("patterns") => patterns_cmd(&args[1..]),
         Some("contract-audit") => contract_audit(),
         Some("scaffold") => scaffold::run(&args[1..]),
+        Some("codex-schema") => codex_schema::run(&args[1..]),
         Some("cargo-generate") => cargo_generate(&args[1..]),
         Some("cargo-generate-post") => cargo_generate_post::run(&args[1..]),
         Some("generate-docs") => generate_docs(),
@@ -795,6 +798,8 @@ COMMANDS:
   patterns              Check static contracts from docs/PATTERNS.md (--strict, --json)
   contract-audit        Run local static/spec checks without live upstream calls
   scaffold             Plan/apply/verify a generated project from Soma
+  codex-schema         Rebuild/bisect the vendored codex-app-server-client schema
+                        (see `cargo xtask codex-schema --help`)
   cargo-generate        Smoke-test real cargo-generate output (--no-cargo-check)
   cargo-generate-post   Internal generated-project rewrite command
   generate-docs         Generate volatile docs and metadata from canonical specs
