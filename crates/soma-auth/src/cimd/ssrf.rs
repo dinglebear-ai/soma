@@ -62,11 +62,13 @@ pub fn is_cgnat(ip: Ipv4Addr) -> bool {
 }
 
 /// Returns `true` for `0.0.0.0/8` ("this network", broader than the single
-/// unspecified address), IPv4 multicast (`224.0.0.0/4`), and the limited
+/// unspecified address), IPv4 multicast (`224.0.0.0/4`), Class E reserved
+/// space (`240.0.0.0/4`, RFC 1112 §4 — `Ipv4Addr::is_reserved` covers this
+/// but is unstable, so the range check is inlined here), and the limited
 /// broadcast address `255.255.255.255`.
 #[must_use]
 pub fn is_ipv4_reserved_broadcast_or_multicast(ip: Ipv4Addr) -> bool {
-    ip.octets()[0] == 0 || ip.is_multicast() || ip.is_broadcast()
+    ip.octets()[0] == 0 || ip.is_multicast() || ip.is_broadcast() || (ip.octets()[0] & 0xf0) == 0xf0
 }
 
 fn is_ipv6_link_local(ip: Ipv6Addr) -> bool {
@@ -138,6 +140,7 @@ pub fn check_ip_not_private(ip: IpAddr, context: &str) -> Result<(), SsrfError> 
         IpAddr::V6(v6) => {
             v6.is_loopback()
                 || v6.is_unspecified()
+                || v6.is_multicast()
                 || is_ipv6_link_local(v6)
                 || is_ipv6_ula(v6)
                 || is_ipv6_ipv4_compatible(v6)
@@ -174,8 +177,14 @@ fn check_host_not_private(host: &str) -> Result<(), SsrfError> {
 fn redact_url(raw: &str) -> String {
     match url::Url::parse(raw) {
         Ok(mut url) => {
-            let _ = url.set_username("");
-            let _ = url.set_password(None);
+            // `set_username`/`set_password` return `Err(())` for URLs that
+            // "cannot be a base" (e.g. non-hierarchical schemes). This
+            // function exists solely to produce a safe-to-log string, so a
+            // redaction step that can't be confirmed to have removed
+            // userinfo must not silently emit the original unredacted URL.
+            if url.set_username("").is_err() || url.set_password(None).is_err() {
+                return "<url-with-unredactable-userinfo>".to_string();
+            }
             url.set_query(None);
             url.set_fragment(None);
             url.to_string()
@@ -252,11 +261,14 @@ mod tests {
             "100.127.255.255",
             "0.5.5.5",         // 0.0.0.0/8 "this network"
             "224.0.0.1",       // multicast
+            "240.0.0.1",       // Class E reserved
+            "255.255.255.254", // Class E reserved (top of range, below broadcast)
             "255.255.255.255", // limited broadcast
             "::1",
             "fe80::1",
             "fc00::1",
             "fd00::1",
+            "ff02::1", // IPv6 multicast
             "::ffff:127.0.0.1",
             "::ffff:10.1.2.3",
             "::ffff:100.64.0.1",

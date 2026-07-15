@@ -33,6 +33,7 @@ use std::time::{Duration, Instant};
 use dashmap::DashMap;
 use serde::Deserialize;
 use tokio::sync::Mutex;
+use tracing::warn;
 
 use crate::cimd::ssrf;
 
@@ -202,13 +203,23 @@ pub async fn resolve_and_validate_address(host: &str, port: u16) -> Result<Socke
 /// IP-literal branch in [`fetch_and_validate_client_metadata`]) has already
 /// produced a validated `addr`.
 ///
+/// The pin host is derived from `url` itself (not taken as a separate
+/// parameter) so it can never diverge from the host `.resolve()` needs to
+/// intercept — a caller-supplied `host` that didn't match `url`'s real host
+/// would silently defeat the pin with no compiler or runtime signal.
+///
 /// # Errors
-/// Propagates [`CimdError`] from client construction or [`fetch_document_at`].
+/// Propagates [`CimdError`] from URL parsing, client construction, or
+/// [`fetch_document_at`].
 pub(crate) async fn fetch_via_pinned_address(
     url: &str,
-    host: &str,
     addr: SocketAddr,
 ) -> Result<ClientMetadataDocument, CimdError> {
+    let parsed =
+        url::Url::parse(url).map_err(|e| CimdError::Fetch(format!("parse `{url}`: {e}")))?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| CimdError::Fetch(format!("no host in `{url}`")))?;
     let client = reqwest::Client::builder()
         .resolve(host, addr)
         // Without this, an ambient HTTPS_PROXY/ALL_PROXY env var makes
@@ -263,13 +274,23 @@ pub(crate) async fn fetch_document_at(
     // `peer` would be redundant by construction — and would incorrectly
     // reject every test that pins directly at a local `wiremock` server,
     // which is the deliberate test seam this function's callers rely on.
-    if let Some(peer) = response.remote_addr()
-        && peer != pinned_addr
-    {
-        return Err(CimdError::PeerMismatch {
-            expected: pinned_addr,
-            actual: peer,
-        });
+    //
+    // A missing `remote_addr()` fails CLOSED, not open: this peer-recheck is
+    // the load-bearing TOCTOU/DNS-rebinding backstop, so "peer unknowable"
+    // must never be treated as "peer trusted."
+    match response.remote_addr() {
+        Some(peer) if peer == pinned_addr => {}
+        Some(peer) => {
+            return Err(CimdError::PeerMismatch {
+                expected: pinned_addr,
+                actual: peer,
+            });
+        }
+        None => {
+            return Err(CimdError::Fetch(format!(
+                "no remote peer address available for `{url}`; refusing to trust an unverified connection"
+            )));
+        }
     }
 
     if !response.status().is_success() {
@@ -316,11 +337,12 @@ pub(crate) async fn fetch_document_at(
 }
 
 struct CacheEntry {
-    /// `Err` holds a short, cacheable failure summary (`CimdError`'s
-    /// `Display` output) rather than the error type itself, so a cached
-    /// failure doesn't need `CimdError` to round-trip through the cache
-    /// bit-for-bit — only its message needs to survive.
-    result: Result<ClientMetadataDocument, String>,
+    /// The original `CimdError` is cached directly (it's already `Clone`) so
+    /// a cache hit reports the same `kind()` a cache miss would have — e.g. a
+    /// negatively-cached SSRF block must keep logging `kind="ssrf_blocked"`,
+    /// not a generic fetch-failure tag, for the entire `NEGATIVE_CACHE_TTL`
+    /// window an attacker's repeat requests spend being served from here.
+    result: Result<ClientMetadataDocument, CimdError>,
     fetched_at: Instant,
     ttl: Duration,
 }
@@ -331,6 +353,13 @@ struct CacheEntry {
 /// concurrent callers for the same never-cached (or just-expired) URL
 /// serialize on a per-key lock so only one of them actually performs the
 /// DNS resolution + fetch; the rest wait for and reuse that result.
+///
+/// Unlike `OauthClientCache` (keyed by `(upstream_name, subject)`, a
+/// cardinality bounded by operator config and authenticated sessions),
+/// `build_locks` here is keyed by an anonymous, attacker-controlled `url`
+/// string — so it needs the same `MAX_CACHE_ENTRIES` bound `entries` has,
+/// enforced by sweeping out locks nobody currently holds
+/// (`Arc::strong_count(lock) == 1` means only this map references it).
 pub struct DocumentCache {
     entries: DashMap<String, CacheEntry>,
     build_locks: DashMap<String, Arc<Mutex<()>>>,
@@ -350,10 +379,23 @@ impl DocumentCache {
         if entry.fetched_at.elapsed() >= entry.ttl {
             return None;
         }
-        Some(match &entry.result {
-            Ok(document) => Ok(document.clone()),
-            Err(summary) => Err(CimdError::Fetch(summary.clone())),
-        })
+        Some(entry.result.clone())
+    }
+
+    /// Acquire (creating if absent) the per-URL single-flight lock, sweeping
+    /// out idle locks first if the map is at capacity. A lock is idle iff
+    /// this map is the only owner (`strong_count == 1`) — an in-flight
+    /// fetch holds a second clone for the duration of its lookup, so a swept
+    /// lock can never be one another task is actively waiting on.
+    fn lock_for(&self, url: String) -> Arc<Mutex<()>> {
+        if self.build_locks.len() >= MAX_CACHE_ENTRIES {
+            self.build_locks
+                .retain(|_, lock| Arc::strong_count(lock) > 1);
+        }
+        self.build_locks
+            .entry(url)
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
     }
 
     fn insert(
@@ -364,12 +406,22 @@ impl DocumentCache {
     ) {
         if self.entries.len() >= MAX_CACHE_ENTRIES {
             self.entries.retain(|_, e| e.fetched_at.elapsed() < e.ttl);
+            if self.entries.len() >= MAX_CACHE_ENTRIES {
+                // Every entry is still fresh — there's nothing expired to
+                // evict. Skip caching this result rather than growing past
+                // the cap: the fetch itself already succeeded/failed
+                // correctly, this only forgoes memoizing it.
+                warn!(
+                    cache_size = self.entries.len(),
+                    "CIMD document cache at capacity with no expired entries to evict; not caching this result"
+                );
+                return;
+            }
         }
-        let result = result.clone().map_err(|e| e.to_string());
         self.entries.insert(
             url,
             CacheEntry {
-                result,
+                result: result.clone(),
                 fetched_at: Instant::now(),
                 ttl,
             },
@@ -400,11 +452,14 @@ pub async fn fetch_and_validate_client_metadata(
         return cached;
     }
 
-    let lock = cache
-        .build_locks
-        .entry(url.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone();
+    // Validate shape BEFORE creating a build_locks entry: a malformed or
+    // non-https client_id is rejected for free, without ever occupying a
+    // permanent slot in the lock map — closing off the cheapest version of
+    // the unbounded-growth attack (garbage URLs that never even reach the
+    // network layer).
+    let parsed = ssrf::validate_url_shape(url)?;
+
+    let lock = cache.lock_for(url.to_string());
     let _guard = lock.lock().await;
 
     // Re-check after acquiring the lock: another caller may have finished
@@ -414,7 +469,6 @@ pub async fn fetch_and_validate_client_metadata(
     }
 
     let result: Result<ClientMetadataDocument, CimdError> = async {
-        let parsed = ssrf::validate_url_shape(url)?;
         let host = parsed
             .host_str()
             .ok_or_else(|| CimdError::DnsResolutionFailed(url.to_string(), "no host".to_string()))?
@@ -430,7 +484,7 @@ pub async fn fetch_and_validate_client_metadata(
             None => unreachable!("validate_url_shape guarantees a host"),
         };
 
-        fetch_via_pinned_address(url, &host, addr).await
+        fetch_via_pinned_address(url, addr).await
     }
     .await;
 
@@ -493,7 +547,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let document = fetch_via_pinned_address(&url, "app.example.com", *addr)
+        let document = fetch_via_pinned_address(&url, *addr)
             .await
             .expect("fetch ok");
         assert_eq!(document.client_id, url);
@@ -551,9 +605,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = fetch_via_pinned_address(&url, "app.example.com", addr)
-            .await
-            .unwrap_err();
+        let err = fetch_via_pinned_address(&url, addr).await.unwrap_err();
         assert!(matches!(err, CimdError::ClientIdMismatch { .. }));
     }
 
@@ -571,9 +623,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = fetch_via_pinned_address(&url, "app.example.com", addr)
-            .await
-            .unwrap_err();
+        let err = fetch_via_pinned_address(&url, addr).await.unwrap_err();
         assert!(matches!(err, CimdError::InvalidDocument(_)));
     }
 
@@ -592,9 +642,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = fetch_via_pinned_address(&url, "app.example.com", addr)
-            .await
-            .unwrap_err();
+        let err = fetch_via_pinned_address(&url, addr).await.unwrap_err();
         assert!(matches!(err, CimdError::InvalidDocument(_)));
     }
 
@@ -609,9 +657,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = fetch_via_pinned_address(&url, "app.example.com", addr)
-            .await
-            .unwrap_err();
+        let err = fetch_via_pinned_address(&url, addr).await.unwrap_err();
         assert!(matches!(err, CimdError::Fetch(_)));
     }
 
@@ -629,9 +675,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = fetch_via_pinned_address(&url, "app.example.com", addr)
-            .await
-            .unwrap_err();
+        let err = fetch_via_pinned_address(&url, addr).await.unwrap_err();
         assert!(matches!(err, CimdError::Fetch(_)));
     }
 
@@ -647,9 +691,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = fetch_via_pinned_address(&url, "app.example.com", addr)
-            .await
-            .unwrap_err();
+        let err = fetch_via_pinned_address(&url, addr).await.unwrap_err();
         assert!(matches!(err, CimdError::InvalidDocument(_)));
     }
 
@@ -710,49 +752,76 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn concurrent_fetches_for_the_same_url_single_flight_to_one_actual_request() {
-        use std::sync::atomic::AtomicUsize;
+    async fn build_locks_coalesces_two_concurrent_misses_for_the_same_url_to_one_fetch() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
-        let server = MockServer::start().await;
-        let addr = *server.address();
-        let url = format!("{}/client.json", server.uri());
-        let hits = Arc::new(AtomicUsize::new(0));
-        Mock::given(method("GET"))
-            .and(path("/client.json"))
-            .respond_with(move |_: &wiremock::Request| {
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "client_id": "",
-                    "client_name": "Example",
-                    "redirect_uris": ["http://127.0.0.1:3000/callback"],
-                }))
-            })
-            .mount(&server)
-            .await;
+        // Exercises the exact single-flight primitives production code uses
+        // (`lock_for`, `get_fresh`, `insert`), with a fake "fetch" in place
+        // of the real network call -- proving two genuinely-concurrent
+        // cache MISSES for the same URL collapse to one fetch, which the
+        // deleted network-level test never actually demonstrated (it
+        // pre-seeded the cache, so both racers took the cache-hit path and
+        // the lock was never contended). A real network-level version of
+        // this test would need a public DNS-resolvable host, which CI does
+        // not have (see the module's Global Constraints).
+        async fn simulate_fetch(
+            cache: &DocumentCache,
+            url: &str,
+            fetch_count: &AtomicUsize,
+        ) -> ClientMetadataDocument {
+            if let Some(Ok(doc)) = cache.get_fresh(url) {
+                return doc;
+            }
+            let lock = cache.lock_for(url.to_string());
+            let _guard = lock.lock().await;
+            if let Some(Ok(doc)) = cache.get_fresh(url) {
+                return doc;
+            }
+            fetch_count.fetch_add(1, Ordering::SeqCst);
+            // Simulate fetch latency so both callers are genuinely
+            // in-flight together rather than serializing by accident.
+            tokio::time::sleep(Duration::from_millis(30)).await;
+            let doc = ClientMetadataDocument {
+                client_id: url.to_string(),
+                client_name: "Example".to_string(),
+                redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
+            };
+            cache.insert(url.to_string(), &Ok(doc.clone()), CACHE_TTL);
+            doc
+        }
 
         let cache = DocumentCache::new();
-        // Directly exercise the lock/cache-fresh machinery around a fixed
-        // known address (bypassing DNS, same rationale as the other
-        // fetch_via_pinned_address tests) by racing two callers through
-        // fetch_and_validate_client_metadata's cache path with a
-        // pre-seeded successful entry -- proves get_fresh is consulted
-        // under the lock on the second racer rather than both racing to
-        // fetch. (A full concurrent-miss race against a real un-cached URL
-        // would additionally need to go through real DNS for a domain
-        // host, which this test avoids by using the cache's public API
-        // directly instead of fetch_and_validate_client_metadata's DNS
-        // branch.)
-        let doc = ClientMetadataDocument {
-            client_id: url.clone(),
-            client_name: "Example".to_string(),
-            redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
-        };
-        cache.insert(url.clone(), &Ok(doc), CACHE_TTL);
+        let url = "https://app.example.com/client.json";
+        let fetch_count = AtomicUsize::new(0);
         let (a, b) = tokio::join!(
-            fetch_and_validate_client_metadata(&cache, &url),
-            fetch_and_validate_client_metadata(&cache, &url),
+            simulate_fetch(&cache, url, &fetch_count),
+            simulate_fetch(&cache, url, &fetch_count),
         );
-        assert!(a.is_ok());
-        assert!(b.is_ok());
-        let _ = (hits, addr); // server/hits unused once served from cache; kept for clarity of intent
+        assert_eq!(a.client_id, url);
+        assert_eq!(b.client_id, url);
+        assert_eq!(
+            fetch_count.load(Ordering::SeqCst),
+            1,
+            "two concurrent misses for the same URL must coalesce to exactly one fetch"
+        );
+    }
+
+    #[test]
+    fn build_locks_retain_keeps_only_locks_with_an_active_holder() {
+        // `lock_for`'s capacity sweep relies on this exact predicate: a
+        // lock still referenced by an in-flight fetch (an extra Arc clone
+        // beyond the map's own) must survive eviction, while one nobody is
+        // using (strong_count == 1, held only by the map) must not.
+        let cache = DocumentCache::new();
+        let idle = Arc::new(Mutex::new(()));
+        let busy = Arc::new(Mutex::new(()));
+        let _busy_holder = busy.clone(); // simulates an in-flight fetch's lock clone
+        cache.build_locks.insert("idle.example".to_string(), idle);
+        cache.build_locks.insert("busy.example".to_string(), busy);
+        cache
+            .build_locks
+            .retain(|_, lock| Arc::strong_count(lock) > 1);
+        assert!(cache.build_locks.get("idle.example").is_none());
+        assert!(cache.build_locks.get("busy.example").is_some());
     }
 }

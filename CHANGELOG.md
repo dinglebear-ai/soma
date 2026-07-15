@@ -74,6 +74,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `soma-auth` CIMD (Client ID Metadata Document) hardening found by
+  independent multi-agent code review: `DocumentCache`'s per-URL
+  single-flight lock map (`build_locks`) is now bounded and swept of idle
+  locks, closing an unauthenticated memory-exhaustion vector on
+  `/authorize`; cached fetch failures now preserve their original
+  `CimdError` variant instead of being downgraded to a generic
+  `cimd_fetch_failed`, so security-relevant `kind()` classification (e.g.
+  `ssrf_blocked`) survives cache hits; the document cache's own capacity
+  cap is now actually enforced under sustained fresh-entry load instead of
+  only pruning already-expired entries; the post-connect peer
+  re-validation now fails closed (rejects the fetch) rather than silently
+  skipping verification when the underlying HTTP client can't report a
+  peer address; and the SSRF IP denylist now also blocks IPv4 Class E
+  (`240.0.0.0/4`) and IPv6 multicast (`ff00::/8`), matching what it already
+  claimed to block.
+
 - `soma-auth` error/log messages that referenced token TTL environment
   variables no longer hardcode the `LAB_` prefix; they now interpolate the
   configured `env_prefix` so the message matches the variable an operator

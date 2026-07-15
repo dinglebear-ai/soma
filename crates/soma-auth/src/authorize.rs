@@ -338,6 +338,7 @@ fn allowlist_redirect_uris(
 async fn resolve_client_redirect_uris(
     state: &AuthState,
     client_id: &str,
+    client_state_id: &str,
 ) -> Result<Vec<String>, AuthError> {
     if crate::cimd::document::is_cimd_client_id(client_id) {
         let document =
@@ -346,6 +347,7 @@ async fn resolve_client_redirect_uris(
                 .map_err(|error| {
                     warn!(
                         client_id = %client_id,
+                        client_state_id = %client_state_id,
                         kind = error.kind(),
                         error = %error,
                         "oauth authorize rejected: CIMD document fetch/validation failed"
@@ -366,6 +368,7 @@ async fn resolve_client_redirect_uris(
         if allowed.is_empty() {
             warn!(
                 client_id = %client_id,
+                client_state_id = %client_state_id,
                 "oauth authorize rejected: CIMD document declares no allowlisted redirect_uris"
             );
             return Err(AuthError::Validation(
@@ -378,6 +381,7 @@ async fn resolve_client_redirect_uris(
     let client = state.store.find_client(client_id).await?.ok_or_else(|| {
         warn!(
             client_id = %client_id,
+            client_state_id = %client_state_id,
             "oauth authorize rejected: unknown client_id"
         );
         AuthError::InvalidGrant("unknown client_id".to_string())
@@ -405,7 +409,8 @@ pub async fn authorize(
         normalized_scope = %scope,
         "oauth authorize request received"
     );
-    let redirect_uris = resolve_client_redirect_uris(&state, &query.client_id).await?;
+    let redirect_uris =
+        resolve_client_redirect_uris(&state, &query.client_id, &client_state_id).await?;
     if !redirect_uris.iter().any(|uri| uri == &query.redirect_uri) {
         warn!(
             client_id = %query.client_id,
