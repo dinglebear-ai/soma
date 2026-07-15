@@ -40,6 +40,8 @@ xtask/
 | `cargo xtask check-web-source-sync` | Fail if the bundled web source has drifted from `apps/web`. |
 | `cargo xtask update-aurora-web` | Refresh the known Aurora registry components, validate `apps/web`, then sync the bundle. |
 | `cargo xtask changed-paths` | Classify changed files into CI routing categories consumed by path-aware GitHub workflow gates. |
+| `cargo xtask codex-schema regen <dir>` | Regenerate `crates/codex-app-server-client/schema/{protocol.schema.json,methods.json,CODEX_VERSION.txt}` from a `codex app-server generate-json-schema` output directory. |
+| `cargo xtask codex-schema bisect <dir>` | Binary-search a fresh schema dump for the minimal definition(s) that panic typify's schema-merge logic, when `codex-app-server-client` fails to build after a `codex` CLI upgrade. |
 
 ## Justfile delegates to xtask
 
@@ -160,3 +162,21 @@ cargo xtask changed-paths \
 Outputs: `all`, `docs`, `workflow`, `rust`, `web`, `native`, `mcp`, `docker`,
 `toml`, `soma`, `security`, `secrets`, and `release`. Workflow changes,
 manual dispatch, and empty changed-file sets fail safe to full CI.
+
+## codex-schema
+
+`cargo xtask codex-schema` regenerates and troubleshoots the vendored JSON
+Schema `codex-app-server-client` generates its protocol types from. See
+`crates/codex-app-server-client/README.md`'s "Regenerating the schema"
+section for the full workflow:
+
+```bash
+codex app-server generate-json-schema --out /tmp/codex-schema --experimental
+cargo xtask codex-schema regen /tmp/codex-schema
+cargo xtask codex-schema bisect /tmp/codex-schema   # only if regen breaks the build
+```
+
+`build.rs` also does a best-effort, non-fatal staleness check on every build:
+if a `codex` binary is on `PATH` and its version doesn't match
+`schema/CODEX_VERSION.txt` (stamped by the last `regen` run), it emits a
+`cargo:warning` pointing back at the regen workflow.

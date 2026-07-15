@@ -40,14 +40,33 @@ crates/
     src/routes.rs       ← axum router: wires mcp + api + auth + SPA fallback
     src/lib.rs          ← public facade + test helpers (testing::*)
     tests/              ← integration tests and mcporter harness
-  soma-service/    ← SomaClient + SomaService business layer
-  soma-contracts/  ← action metadata, config, DTOs, token limits
-  soma-api/        ← REST API handlers
-  soma-mcp/        ← MCP schemas, tools, prompts, transport
-  soma-cli/        ← CLI parser, doctor/setup/watch commands
-  soma-runtime/    ← AppState, auth policy, shared runtime wiring
-  soma-web/        ← static web asset serving and source bundle helpers
+  soma-service/          ← SomaClient + SomaService business layer
+  soma-contracts/        ← action metadata, config, DTOs, token limits
+  soma-api/              ← REST API handlers
+  soma-auth/             ← bearer/OAuth auth policy and token handling
+  soma-mcp/              ← MCP schemas, tools, prompts, transport
+  soma-cli/              ← CLI parser, doctor/setup/watch commands
+  soma-runtime/          ← AppState, auth policy, shared runtime wiring
+  soma-web/              ← static web asset serving and source bundle helpers
+  soma-observability/    ← tracing/metrics wiring
+  soma-plugin-support/   ← plugin manifest discovery and packaging helpers
+  soma-test-support/     ← shared test fixtures and harness helpers
 ```
+
+Two crates in this workspace sit outside the layered architecture above by
+design - each contains a standalone, self-contained tool that doesn't follow
+(or need to follow) the client → service → shim pattern:
+
+- `crates/codex-app-server-client/` - a fully-typed async Rust client for the
+  Codex CLI's `app-server` v2 JSON-RPC protocol, with zero path-dependencies
+  on any other crate in this workspace. See its own README for architecture
+  and usage.
+- `xtask/` - repo-local build/release tooling (version-sync checks, release
+  planning, schema codegen for `codex-app-server-client`). Its
+  `codex-schema` subcommand has no dependency on `soma-*` crates, but `xtask`
+  itself depends on `soma-contracts` and `soma-service` (path deps) for its
+  other duties, such as version-sync and release-plan checks. See
+  `docs/XTASKS.md`.
 
 ## Core files
 

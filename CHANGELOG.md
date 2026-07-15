@@ -18,6 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   build or dispatch through the live `ProviderRegistry` — they only parse manifests
   on disk via `FileProviderSource::inspect()`, so they're safe to run before the
   runtime touches TS/WASM/MCP/OpenAPI handlers. See `docs/PROVIDERS.md`.
+- Added `codex-app-server-client`, a standalone, fully-typed async Rust
+  client for the Codex CLI's `app-server` v2 JSON-RPC protocol. Zero
+  path-dependencies on any other crate in this workspace, so it can be lifted
+  into another project wholesale. Protocol types are generated at build time
+  from a vendored JSON Schema; regenerate after upgrading `codex` via
+  `cargo xtask codex-schema regen` (staleness is detected and warned about
+  automatically). Includes a bounded `EventStream` channel (notifications are
+  dropped and logged on overflow, but server requests always get a fallback
+  JSON-RPC error reply rather than being silently dropped), a bounded
+  outbound write queue with the same no-silent-drop treatment, a line-cap
+  fix so `MAX_LINE_BYTES` is enforced on both the newline-found and
+  no-newline read paths, build-time schema validation that fails loudly on
+  a malformed `response_type` instead of misreading it, and
+  `ServerNotification::method_name()` for logging a notification's kind
+  without its full (potentially sensitive) payload. See
+  `crates/codex-app-server-client/README.md`.
 
 ### Fixed
 

@@ -1,0 +1,1557 @@
+{
+  "client_requests": [
+    {
+      "method": "initialize",
+      "variant_name": "Initialize",
+      "fn_name": "initialize",
+      "params_type": "InitializeParams",
+      "params_optional": false,
+      "response_type": "InitializeResponse"
+    },
+    {
+      "method": "thread/start",
+      "variant_name": "ThreadStart",
+      "fn_name": "thread_start",
+      "params_type": "ThreadStartParams",
+      "params_optional": false,
+      "response_type": "ThreadStartResponse"
+    },
+    {
+      "method": "thread/resume",
+      "variant_name": "ThreadResume",
+      "fn_name": "thread_resume",
+      "params_type": "ThreadResumeParams",
+      "params_optional": false,
+      "response_type": "ThreadResumeResponse"
+    },
+    {
+      "method": "thread/fork",
+      "variant_name": "ThreadFork",
+      "fn_name": "thread_fork",
+      "params_type": "ThreadForkParams",
+      "params_optional": false,
+      "response_type": "ThreadForkResponse"
+    },
+    {
+      "method": "thread/archive",
+      "variant_name": "ThreadArchive",
+      "fn_name": "thread_archive",
+      "params_type": "ThreadArchiveParams",
+      "params_optional": false,
+      "response_type": "ThreadArchiveResponse"
+    },
+    {
+      "method": "thread/delete",
+      "variant_name": "ThreadDelete",
+      "fn_name": "thread_delete",
+      "params_type": "ThreadDeleteParams",
+      "params_optional": false,
+      "response_type": "ThreadDeleteResponse"
+    },
+    {
+      "method": "thread/unsubscribe",
+      "variant_name": "ThreadUnsubscribe",
+      "fn_name": "thread_unsubscribe",
+      "params_type": "ThreadUnsubscribeParams",
+      "params_optional": false,
+      "response_type": "ThreadUnsubscribeResponse"
+    },
+    {
+      "method": "thread/increment_elicitation",
+      "variant_name": "ThreadIncrementElicitation",
+      "fn_name": "thread_increment_elicitation",
+      "params_type": "ThreadIncrementElicitationParams",
+      "params_optional": false,
+      "response_type": "ThreadIncrementElicitationResponse"
+    },
+    {
+      "method": "thread/decrement_elicitation",
+      "variant_name": "ThreadDecrementElicitation",
+      "fn_name": "thread_decrement_elicitation",
+      "params_type": "ThreadDecrementElicitationParams",
+      "params_optional": false,
+      "response_type": "ThreadDecrementElicitationResponse"
+    },
+    {
+      "method": "thread/name/set",
+      "variant_name": "ThreadNameSet",
+      "fn_name": "thread_name_set",
+      "params_type": "ThreadSetNameParams",
+      "params_optional": false,
+      "response_type": "ThreadSetNameResponse"
+    },
+    {
+      "method": "thread/goal/set",
+      "variant_name": "ThreadGoalSet",
+      "fn_name": "thread_goal_set",
+      "params_type": "ThreadGoalSetParams",
+      "params_optional": false,
+      "response_type": "ThreadGoalSetResponse"
+    },
+    {
+      "method": "thread/goal/get",
+      "variant_name": "ThreadGoalGet",
+      "fn_name": "thread_goal_get",
+      "params_type": "ThreadGoalGetParams",
+      "params_optional": false,
+      "response_type": "ThreadGoalGetResponse"
+    },
+    {
+      "method": "thread/goal/clear",
+      "variant_name": "ThreadGoalClear",
+      "fn_name": "thread_goal_clear",
+      "params_type": "ThreadGoalClearParams",
+      "params_optional": false,
+      "response_type": "ThreadGoalClearResponse"
+    },
+    {
+      "method": "thread/metadata/update",
+      "variant_name": "ThreadMetadataUpdate",
+      "fn_name": "thread_metadata_update",
+      "params_type": "ThreadMetadataUpdateParams",
+      "params_optional": false,
+      "response_type": "ThreadMetadataUpdateResponse"
+    },
+    {
+      "method": "thread/settings/update",
+      "variant_name": "ThreadSettingsUpdate",
+      "fn_name": "thread_settings_update",
+      "params_type": "ThreadSettingsUpdateParams",
+      "params_optional": false,
+      "response_type": "ThreadSettingsUpdateResponse"
+    },
+    {
+      "method": "thread/memoryMode/set",
+      "variant_name": "ThreadMemoryModeSet",
+      "fn_name": "thread_memory_mode_set",
+      "params_type": "ThreadMemoryModeSetParams",
+      "params_optional": false,
+      "response_type": "ThreadMemoryModeSetResponse"
+    },
+    {
+      "method": "memory/reset",
+      "variant_name": "MemoryReset",
+      "fn_name": "memory_reset",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "MemoryResetResponse"
+    },
+    {
+      "method": "thread/unarchive",
+      "variant_name": "ThreadUnarchive",
+      "fn_name": "thread_unarchive",
+      "params_type": "ThreadUnarchiveParams",
+      "params_optional": false,
+      "response_type": "ThreadUnarchiveResponse"
+    },
+    {
+      "method": "thread/compact/start",
+      "variant_name": "ThreadCompactStart",
+      "fn_name": "thread_compact_start",
+      "params_type": "ThreadCompactStartParams",
+      "params_optional": false,
+      "response_type": "ThreadCompactStartResponse"
+    },
+    {
+      "method": "thread/shellCommand",
+      "variant_name": "ThreadShellCommand",
+      "fn_name": "thread_shell_command",
+      "params_type": "ThreadShellCommandParams",
+      "params_optional": false,
+      "response_type": "ThreadShellCommandResponse"
+    },
+    {
+      "method": "thread/approveGuardianDeniedAction",
+      "variant_name": "ThreadApproveGuardianDeniedAction",
+      "fn_name": "thread_approve_guardian_denied_action",
+      "params_type": "ThreadApproveGuardianDeniedActionParams",
+      "params_optional": false,
+      "response_type": "ThreadApproveGuardianDeniedActionResponse"
+    },
+    {
+      "method": "thread/backgroundTerminals/clean",
+      "variant_name": "ThreadBackgroundTerminalsClean",
+      "fn_name": "thread_background_terminals_clean",
+      "params_type": "ThreadBackgroundTerminalsCleanParams",
+      "params_optional": false,
+      "response_type": "ThreadBackgroundTerminalsCleanResponse"
+    },
+    {
+      "method": "thread/backgroundTerminals/list",
+      "variant_name": "ThreadBackgroundTerminalsList",
+      "fn_name": "thread_background_terminals_list",
+      "params_type": "ThreadBackgroundTerminalsListParams",
+      "params_optional": false,
+      "response_type": "ThreadBackgroundTerminalsListResponse"
+    },
+    {
+      "method": "thread/backgroundTerminals/terminate",
+      "variant_name": "ThreadBackgroundTerminalsTerminate",
+      "fn_name": "thread_background_terminals_terminate",
+      "params_type": "ThreadBackgroundTerminalsTerminateParams",
+      "params_optional": false,
+      "response_type": "ThreadBackgroundTerminalsTerminateResponse"
+    },
+    {
+      "method": "thread/rollback",
+      "variant_name": "ThreadRollback",
+      "fn_name": "thread_rollback",
+      "params_type": "ThreadRollbackParams",
+      "params_optional": false,
+      "response_type": "ThreadRollbackResponse"
+    },
+    {
+      "method": "thread/list",
+      "variant_name": "ThreadList",
+      "fn_name": "thread_list",
+      "params_type": "ThreadListParams",
+      "params_optional": false,
+      "response_type": "ThreadListResponse"
+    },
+    {
+      "method": "thread/search",
+      "variant_name": "ThreadSearch",
+      "fn_name": "thread_search",
+      "params_type": "ThreadSearchParams",
+      "params_optional": false,
+      "response_type": "ThreadSearchResponse"
+    },
+    {
+      "method": "thread/loaded/list",
+      "variant_name": "ThreadLoadedList",
+      "fn_name": "thread_loaded_list",
+      "params_type": "ThreadLoadedListParams",
+      "params_optional": false,
+      "response_type": "ThreadLoadedListResponse"
+    },
+    {
+      "method": "thread/read",
+      "variant_name": "ThreadRead",
+      "fn_name": "thread_read",
+      "params_type": "ThreadReadParams",
+      "params_optional": false,
+      "response_type": "ThreadReadResponse"
+    },
+    {
+      "method": "thread/turns/list",
+      "variant_name": "ThreadTurnsList",
+      "fn_name": "thread_turns_list",
+      "params_type": "ThreadTurnsListParams",
+      "params_optional": false,
+      "response_type": "ThreadTurnsListResponse"
+    },
+    {
+      "method": "thread/items/list",
+      "variant_name": "ThreadItemsList",
+      "fn_name": "thread_items_list",
+      "params_type": "ThreadItemsListParams",
+      "params_optional": false,
+      "response_type": "ThreadItemsListResponse"
+    },
+    {
+      "method": "thread/inject_items",
+      "variant_name": "ThreadInjectItems",
+      "fn_name": "thread_inject_items",
+      "params_type": "ThreadInjectItemsParams",
+      "params_optional": false,
+      "response_type": "ThreadInjectItemsResponse"
+    },
+    {
+      "method": "skills/list",
+      "variant_name": "SkillsList",
+      "fn_name": "skills_list",
+      "params_type": "SkillsListParams",
+      "params_optional": false,
+      "response_type": "SkillsListResponse"
+    },
+    {
+      "method": "skills/extraRoots/set",
+      "variant_name": "SkillsExtraRootsSet",
+      "fn_name": "skills_extra_roots_set",
+      "params_type": "SkillsExtraRootsSetParams",
+      "params_optional": false,
+      "response_type": "SkillsExtraRootsSetResponse"
+    },
+    {
+      "method": "hooks/list",
+      "variant_name": "HooksList",
+      "fn_name": "hooks_list",
+      "params_type": "HooksListParams",
+      "params_optional": false,
+      "response_type": "HooksListResponse"
+    },
+    {
+      "method": "marketplace/add",
+      "variant_name": "MarketplaceAdd",
+      "fn_name": "marketplace_add",
+      "params_type": "MarketplaceAddParams",
+      "params_optional": false,
+      "response_type": "MarketplaceAddResponse"
+    },
+    {
+      "method": "marketplace/remove",
+      "variant_name": "MarketplaceRemove",
+      "fn_name": "marketplace_remove",
+      "params_type": "MarketplaceRemoveParams",
+      "params_optional": false,
+      "response_type": "MarketplaceRemoveResponse"
+    },
+    {
+      "method": "marketplace/upgrade",
+      "variant_name": "MarketplaceUpgrade",
+      "fn_name": "marketplace_upgrade",
+      "params_type": "MarketplaceUpgradeParams",
+      "params_optional": false,
+      "response_type": "MarketplaceUpgradeResponse"
+    },
+    {
+      "method": "plugin/list",
+      "variant_name": "PluginList",
+      "fn_name": "plugin_list",
+      "params_type": "PluginListParams",
+      "params_optional": false,
+      "response_type": "PluginListResponse"
+    },
+    {
+      "method": "plugin/installed",
+      "variant_name": "PluginInstalled",
+      "fn_name": "plugin_installed",
+      "params_type": "PluginInstalledParams",
+      "params_optional": false,
+      "response_type": "PluginInstalledResponse"
+    },
+    {
+      "method": "plugin/read",
+      "variant_name": "PluginRead",
+      "fn_name": "plugin_read",
+      "params_type": "PluginReadParams",
+      "params_optional": false,
+      "response_type": "PluginReadResponse"
+    },
+    {
+      "method": "plugin/skill/read",
+      "variant_name": "PluginSkillRead",
+      "fn_name": "plugin_skill_read",
+      "params_type": "PluginSkillReadParams",
+      "params_optional": false,
+      "response_type": "PluginSkillReadResponse"
+    },
+    {
+      "method": "plugin/share/save",
+      "variant_name": "PluginShareSave",
+      "fn_name": "plugin_share_save",
+      "params_type": "PluginShareSaveParams",
+      "params_optional": false,
+      "response_type": "PluginShareSaveResponse"
+    },
+    {
+      "method": "plugin/share/updateTargets",
+      "variant_name": "PluginShareUpdateTargets",
+      "fn_name": "plugin_share_update_targets",
+      "params_type": "PluginShareUpdateTargetsParams",
+      "params_optional": false,
+      "response_type": "PluginShareUpdateTargetsResponse"
+    },
+    {
+      "method": "plugin/share/list",
+      "variant_name": "PluginShareList",
+      "fn_name": "plugin_share_list",
+      "params_type": "PluginShareListParams",
+      "params_optional": false,
+      "response_type": "PluginShareListResponse"
+    },
+    {
+      "method": "plugin/share/checkout",
+      "variant_name": "PluginShareCheckout",
+      "fn_name": "plugin_share_checkout",
+      "params_type": "PluginShareCheckoutParams",
+      "params_optional": false,
+      "response_type": "PluginShareCheckoutResponse"
+    },
+    {
+      "method": "plugin/share/delete",
+      "variant_name": "PluginShareDelete",
+      "fn_name": "plugin_share_delete",
+      "params_type": "PluginShareDeleteParams",
+      "params_optional": false,
+      "response_type": "PluginShareDeleteResponse"
+    },
+    {
+      "method": "app/list",
+      "variant_name": "AppList",
+      "fn_name": "app_list",
+      "params_type": "AppsListParams",
+      "params_optional": false,
+      "response_type": "AppsListResponse"
+    },
+    {
+      "method": "fs/readFile",
+      "variant_name": "FsReadFile",
+      "fn_name": "fs_read_file",
+      "params_type": "FsReadFileParams",
+      "params_optional": false,
+      "response_type": "FsReadFileResponse"
+    },
+    {
+      "method": "fs/writeFile",
+      "variant_name": "FsWriteFile",
+      "fn_name": "fs_write_file",
+      "params_type": "FsWriteFileParams",
+      "params_optional": false,
+      "response_type": "FsWriteFileResponse"
+    },
+    {
+      "method": "fs/createDirectory",
+      "variant_name": "FsCreateDirectory",
+      "fn_name": "fs_create_directory",
+      "params_type": "FsCreateDirectoryParams",
+      "params_optional": false,
+      "response_type": "FsCreateDirectoryResponse"
+    },
+    {
+      "method": "fs/getMetadata",
+      "variant_name": "FsGetMetadata",
+      "fn_name": "fs_get_metadata",
+      "params_type": "FsGetMetadataParams",
+      "params_optional": false,
+      "response_type": "FsGetMetadataResponse"
+    },
+    {
+      "method": "fs/readDirectory",
+      "variant_name": "FsReadDirectory",
+      "fn_name": "fs_read_directory",
+      "params_type": "FsReadDirectoryParams",
+      "params_optional": false,
+      "response_type": "FsReadDirectoryResponse"
+    },
+    {
+      "method": "fs/remove",
+      "variant_name": "FsRemove",
+      "fn_name": "fs_remove",
+      "params_type": "FsRemoveParams",
+      "params_optional": false,
+      "response_type": "FsRemoveResponse"
+    },
+    {
+      "method": "fs/copy",
+      "variant_name": "FsCopy",
+      "fn_name": "fs_copy",
+      "params_type": "FsCopyParams",
+      "params_optional": false,
+      "response_type": "FsCopyResponse"
+    },
+    {
+      "method": "fs/watch",
+      "variant_name": "FsWatch",
+      "fn_name": "fs_watch",
+      "params_type": "FsWatchParams",
+      "params_optional": false,
+      "response_type": "FsWatchResponse"
+    },
+    {
+      "method": "fs/unwatch",
+      "variant_name": "FsUnwatch",
+      "fn_name": "fs_unwatch",
+      "params_type": "FsUnwatchParams",
+      "params_optional": false,
+      "response_type": "FsUnwatchResponse"
+    },
+    {
+      "method": "skills/config/write",
+      "variant_name": "SkillsConfigWrite",
+      "fn_name": "skills_config_write",
+      "params_type": "SkillsConfigWriteParams",
+      "params_optional": false,
+      "response_type": "SkillsConfigWriteResponse"
+    },
+    {
+      "method": "plugin/install",
+      "variant_name": "PluginInstall",
+      "fn_name": "plugin_install",
+      "params_type": "PluginInstallParams",
+      "params_optional": false,
+      "response_type": "PluginInstallResponse"
+    },
+    {
+      "method": "plugin/uninstall",
+      "variant_name": "PluginUninstall",
+      "fn_name": "plugin_uninstall",
+      "params_type": "PluginUninstallParams",
+      "params_optional": false,
+      "response_type": "PluginUninstallResponse"
+    },
+    {
+      "method": "turn/start",
+      "variant_name": "TurnStart",
+      "fn_name": "turn_start",
+      "params_type": "TurnStartParams",
+      "params_optional": false,
+      "response_type": "TurnStartResponse"
+    },
+    {
+      "method": "turn/steer",
+      "variant_name": "TurnSteer",
+      "fn_name": "turn_steer",
+      "params_type": "TurnSteerParams",
+      "params_optional": false,
+      "response_type": "TurnSteerResponse"
+    },
+    {
+      "method": "turn/interrupt",
+      "variant_name": "TurnInterrupt",
+      "fn_name": "turn_interrupt",
+      "params_type": "TurnInterruptParams",
+      "params_optional": false,
+      "response_type": "TurnInterruptResponse"
+    },
+    {
+      "method": "thread/realtime/start",
+      "variant_name": "ThreadRealtimeStart",
+      "fn_name": "thread_realtime_start",
+      "params_type": "ThreadRealtimeStartParams",
+      "params_optional": false,
+      "response_type": "ThreadRealtimeStartResponse"
+    },
+    {
+      "method": "thread/realtime/appendAudio",
+      "variant_name": "ThreadRealtimeAppendAudio",
+      "fn_name": "thread_realtime_append_audio",
+      "params_type": "ThreadRealtimeAppendAudioParams",
+      "params_optional": false,
+      "response_type": "ThreadRealtimeAppendAudioResponse"
+    },
+    {
+      "method": "thread/realtime/appendText",
+      "variant_name": "ThreadRealtimeAppendText",
+      "fn_name": "thread_realtime_append_text",
+      "params_type": "ThreadRealtimeAppendTextParams",
+      "params_optional": false,
+      "response_type": "ThreadRealtimeAppendTextResponse"
+    },
+    {
+      "method": "thread/realtime/appendSpeech",
+      "variant_name": "ThreadRealtimeAppendSpeech",
+      "fn_name": "thread_realtime_append_speech",
+      "params_type": "ThreadRealtimeAppendSpeechParams",
+      "params_optional": false,
+      "response_type": "ThreadRealtimeAppendSpeechResponse"
+    },
+    {
+      "method": "thread/realtime/stop",
+      "variant_name": "ThreadRealtimeStop",
+      "fn_name": "thread_realtime_stop",
+      "params_type": "ThreadRealtimeStopParams",
+      "params_optional": false,
+      "response_type": "ThreadRealtimeStopResponse"
+    },
+    {
+      "method": "thread/realtime/listVoices",
+      "variant_name": "ThreadRealtimeListVoices",
+      "fn_name": "thread_realtime_list_voices",
+      "params_type": "ThreadRealtimeListVoicesParams",
+      "params_optional": false,
+      "response_type": "ThreadRealtimeListVoicesResponse"
+    },
+    {
+      "method": "review/start",
+      "variant_name": "ReviewStart",
+      "fn_name": "review_start",
+      "params_type": "ReviewStartParams",
+      "params_optional": false,
+      "response_type": "ReviewStartResponse"
+    },
+    {
+      "method": "model/list",
+      "variant_name": "ModelList",
+      "fn_name": "model_list",
+      "params_type": "ModelListParams",
+      "params_optional": false,
+      "response_type": "ModelListResponse"
+    },
+    {
+      "method": "modelProvider/capabilities/read",
+      "variant_name": "ModelProviderCapabilitiesRead",
+      "fn_name": "model_provider_capabilities_read",
+      "params_type": "ModelProviderCapabilitiesReadParams",
+      "params_optional": false,
+      "response_type": "ModelProviderCapabilitiesReadResponse"
+    },
+    {
+      "method": "experimentalFeature/list",
+      "variant_name": "ExperimentalFeatureList",
+      "fn_name": "experimental_feature_list",
+      "params_type": "ExperimentalFeatureListParams",
+      "params_optional": false,
+      "response_type": "ExperimentalFeatureListResponse"
+    },
+    {
+      "method": "permissionProfile/list",
+      "variant_name": "PermissionProfileList",
+      "fn_name": "permission_profile_list",
+      "params_type": "PermissionProfileListParams",
+      "params_optional": false,
+      "response_type": "PermissionProfileListResponse"
+    },
+    {
+      "method": "experimentalFeature/enablement/set",
+      "variant_name": "ExperimentalFeatureEnablementSet",
+      "fn_name": "experimental_feature_enablement_set",
+      "params_type": "ExperimentalFeatureEnablementSetParams",
+      "params_optional": false,
+      "response_type": "ExperimentalFeatureEnablementSetResponse"
+    },
+    {
+      "method": "remoteControl/enable",
+      "variant_name": "RemoteControlEnable",
+      "fn_name": "remote_control_enable",
+      "params_type": "RemoteControlEnableParams",
+      "params_optional": true,
+      "response_type": "RemoteControlEnableResponse"
+    },
+    {
+      "method": "remoteControl/disable",
+      "variant_name": "RemoteControlDisable",
+      "fn_name": "remote_control_disable",
+      "params_type": "RemoteControlDisableParams",
+      "params_optional": true,
+      "response_type": "RemoteControlDisableResponse"
+    },
+    {
+      "method": "remoteControl/status/read",
+      "variant_name": "RemoteControlStatusRead",
+      "fn_name": "remote_control_status_read",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "RemoteControlStatusReadResponse"
+    },
+    {
+      "method": "remoteControl/pairing/start",
+      "variant_name": "RemoteControlPairingStart",
+      "fn_name": "remote_control_pairing_start",
+      "params_type": "RemoteControlPairingStartParams",
+      "params_optional": false,
+      "response_type": "RemoteControlPairingStartResponse"
+    },
+    {
+      "method": "remoteControl/pairing/status",
+      "variant_name": "RemoteControlPairingStatus",
+      "fn_name": "remote_control_pairing_status",
+      "params_type": "RemoteControlPairingStatusParams",
+      "params_optional": false,
+      "response_type": "RemoteControlPairingStatusResponse"
+    },
+    {
+      "method": "remoteControl/client/list",
+      "variant_name": "RemoteControlClientList",
+      "fn_name": "remote_control_client_list",
+      "params_type": "RemoteControlClientsListParams",
+      "params_optional": false,
+      "response_type": "RemoteControlClientsListResponse"
+    },
+    {
+      "method": "remoteControl/client/revoke",
+      "variant_name": "RemoteControlClientRevoke",
+      "fn_name": "remote_control_client_revoke",
+      "params_type": "RemoteControlClientsRevokeParams",
+      "params_optional": false,
+      "response_type": "RemoteControlClientsRevokeResponse"
+    },
+    {
+      "method": "collaborationMode/list",
+      "variant_name": "CollaborationModeList",
+      "fn_name": "collaboration_mode_list",
+      "params_type": "CollaborationModeListParams",
+      "params_optional": false,
+      "response_type": "CollaborationModeListResponse"
+    },
+    {
+      "method": "mock/experimentalMethod",
+      "variant_name": "MockExperimentalMethod",
+      "fn_name": "mock_experimental_method",
+      "params_type": "MockExperimentalMethodParams",
+      "params_optional": false,
+      "response_type": "MockExperimentalMethodResponse"
+    },
+    {
+      "method": "environment/add",
+      "variant_name": "EnvironmentAdd",
+      "fn_name": "environment_add",
+      "params_type": "EnvironmentAddParams",
+      "params_optional": false,
+      "response_type": "EnvironmentAddResponse"
+    },
+    {
+      "method": "environment/info",
+      "variant_name": "EnvironmentInfo",
+      "fn_name": "environment_info",
+      "params_type": "EnvironmentInfoParams",
+      "params_optional": false,
+      "response_type": "EnvironmentInfoResponse"
+    },
+    {
+      "method": "mcpServer/oauth/login",
+      "variant_name": "McpServerOauthLogin",
+      "fn_name": "mcp_server_oauth_login",
+      "params_type": "McpServerOauthLoginParams",
+      "params_optional": false,
+      "response_type": "McpServerOauthLoginResponse"
+    },
+    {
+      "method": "config/mcpServer/reload",
+      "variant_name": "ConfigMcpServerReload",
+      "fn_name": "config_mcp_server_reload",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": null
+    },
+    {
+      "method": "mcpServerStatus/list",
+      "variant_name": "McpServerStatusList",
+      "fn_name": "mcp_server_status_list",
+      "params_type": "ListMcpServerStatusParams",
+      "params_optional": false,
+      "response_type": "ListMcpServerStatusResponse"
+    },
+    {
+      "method": "mcpServer/resource/read",
+      "variant_name": "McpServerResourceRead",
+      "fn_name": "mcp_server_resource_read",
+      "params_type": "McpResourceReadParams",
+      "params_optional": false,
+      "response_type": "McpResourceReadResponse"
+    },
+    {
+      "method": "mcpServer/tool/call",
+      "variant_name": "McpServerToolCall",
+      "fn_name": "mcp_server_tool_call",
+      "params_type": "McpServerToolCallParams",
+      "params_optional": false,
+      "response_type": "McpServerToolCallResponse"
+    },
+    {
+      "method": "windowsSandbox/setupStart",
+      "variant_name": "WindowsSandboxSetupStart",
+      "fn_name": "windows_sandbox_setup_start",
+      "params_type": "WindowsSandboxSetupStartParams",
+      "params_optional": false,
+      "response_type": "WindowsSandboxSetupStartResponse"
+    },
+    {
+      "method": "windowsSandbox/readiness",
+      "variant_name": "WindowsSandboxReadiness",
+      "fn_name": "windows_sandbox_readiness",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "WindowsSandboxReadinessResponse"
+    },
+    {
+      "method": "account/login/start",
+      "variant_name": "AccountLoginStart",
+      "fn_name": "account_login_start",
+      "params_type": "LoginAccountParams",
+      "params_optional": false,
+      "response_type": "LoginAccountResponse"
+    },
+    {
+      "method": "account/login/cancel",
+      "variant_name": "AccountLoginCancel",
+      "fn_name": "account_login_cancel",
+      "params_type": "CancelLoginAccountParams",
+      "params_optional": false,
+      "response_type": "CancelLoginAccountResponse"
+    },
+    {
+      "method": "account/logout",
+      "variant_name": "AccountLogout",
+      "fn_name": "account_logout",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "LogoutAccountResponse"
+    },
+    {
+      "method": "account/rateLimits/read",
+      "variant_name": "AccountRateLimitsRead",
+      "fn_name": "account_rate_limits_read",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "GetAccountRateLimitsResponse"
+    },
+    {
+      "method": "account/rateLimitResetCredit/consume",
+      "variant_name": "AccountRateLimitResetCreditConsume",
+      "fn_name": "account_rate_limit_reset_credit_consume",
+      "params_type": "ConsumeAccountRateLimitResetCreditParams",
+      "params_optional": false,
+      "response_type": "ConsumeAccountRateLimitResetCreditResponse"
+    },
+    {
+      "method": "account/usage/read",
+      "variant_name": "AccountUsageRead",
+      "fn_name": "account_usage_read",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "GetAccountTokenUsageResponse"
+    },
+    {
+      "method": "account/workspaceMessages/read",
+      "variant_name": "AccountWorkspaceMessagesRead",
+      "fn_name": "account_workspace_messages_read",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "GetWorkspaceMessagesResponse"
+    },
+    {
+      "method": "account/sendAddCreditsNudgeEmail",
+      "variant_name": "AccountSendAddCreditsNudgeEmail",
+      "fn_name": "account_send_add_credits_nudge_email",
+      "params_type": "SendAddCreditsNudgeEmailParams",
+      "params_optional": false,
+      "response_type": "SendAddCreditsNudgeEmailResponse"
+    },
+    {
+      "method": "feedback/upload",
+      "variant_name": "FeedbackUpload",
+      "fn_name": "feedback_upload",
+      "params_type": "FeedbackUploadParams",
+      "params_optional": false,
+      "response_type": "FeedbackUploadResponse"
+    },
+    {
+      "method": "command/exec",
+      "variant_name": "CommandExec",
+      "fn_name": "command_exec",
+      "params_type": "CommandExecParams",
+      "params_optional": false,
+      "response_type": "CommandExecResponse"
+    },
+    {
+      "method": "command/exec/write",
+      "variant_name": "CommandExecWrite",
+      "fn_name": "command_exec_write",
+      "params_type": "CommandExecWriteParams",
+      "params_optional": false,
+      "response_type": "CommandExecWriteResponse"
+    },
+    {
+      "method": "command/exec/terminate",
+      "variant_name": "CommandExecTerminate",
+      "fn_name": "command_exec_terminate",
+      "params_type": "CommandExecTerminateParams",
+      "params_optional": false,
+      "response_type": "CommandExecTerminateResponse"
+    },
+    {
+      "method": "command/exec/resize",
+      "variant_name": "CommandExecResize",
+      "fn_name": "command_exec_resize",
+      "params_type": "CommandExecResizeParams",
+      "params_optional": false,
+      "response_type": "CommandExecResizeResponse"
+    },
+    {
+      "method": "process/spawn",
+      "variant_name": "ProcessSpawn",
+      "fn_name": "process_spawn",
+      "params_type": "ProcessSpawnParams",
+      "params_optional": false,
+      "response_type": "ProcessSpawnResponse"
+    },
+    {
+      "method": "process/writeStdin",
+      "variant_name": "ProcessWriteStdin",
+      "fn_name": "process_write_stdin",
+      "params_type": "ProcessWriteStdinParams",
+      "params_optional": false,
+      "response_type": "ProcessWriteStdinResponse"
+    },
+    {
+      "method": "process/kill",
+      "variant_name": "ProcessKill",
+      "fn_name": "process_kill",
+      "params_type": "ProcessKillParams",
+      "params_optional": false,
+      "response_type": "ProcessKillResponse"
+    },
+    {
+      "method": "process/resizePty",
+      "variant_name": "ProcessResizePty",
+      "fn_name": "process_resize_pty",
+      "params_type": "ProcessResizePtyParams",
+      "params_optional": false,
+      "response_type": "ProcessResizePtyResponse"
+    },
+    {
+      "method": "config/read",
+      "variant_name": "ConfigRead",
+      "fn_name": "config_read",
+      "params_type": "ConfigReadParams",
+      "params_optional": false,
+      "response_type": "ConfigReadResponse"
+    },
+    {
+      "method": "externalAgentConfig/detect",
+      "variant_name": "ExternalAgentConfigDetect",
+      "fn_name": "external_agent_config_detect",
+      "params_type": "ExternalAgentConfigDetectParams",
+      "params_optional": false,
+      "response_type": "ExternalAgentConfigDetectResponse"
+    },
+    {
+      "method": "externalAgentConfig/import",
+      "variant_name": "ExternalAgentConfigImport",
+      "fn_name": "external_agent_config_import",
+      "params_type": "ExternalAgentConfigImportParams",
+      "params_optional": false,
+      "response_type": "ExternalAgentConfigImportResponse"
+    },
+    {
+      "method": "externalAgentConfig/import/readHistories",
+      "variant_name": "ExternalAgentConfigImportReadHistories",
+      "fn_name": "external_agent_config_import_read_histories",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "ExternalAgentConfigImportHistoriesReadResponse"
+    },
+    {
+      "method": "config/value/write",
+      "variant_name": "ConfigValueWrite",
+      "fn_name": "config_value_write",
+      "params_type": "ConfigValueWriteParams",
+      "params_optional": false,
+      "response_type": "ConfigWriteResponse"
+    },
+    {
+      "method": "config/batchWrite",
+      "variant_name": "ConfigBatchWrite",
+      "fn_name": "config_batch_write",
+      "params_type": "ConfigBatchWriteParams",
+      "params_optional": false,
+      "response_type": "ConfigWriteResponse"
+    },
+    {
+      "method": "configRequirements/read",
+      "variant_name": "ConfigRequirementsRead",
+      "fn_name": "config_requirements_read",
+      "params_type": null,
+      "params_optional": false,
+      "response_type": "ConfigRequirementsReadResponse"
+    },
+    {
+      "method": "account/read",
+      "variant_name": "AccountRead",
+      "fn_name": "account_read",
+      "params_type": "GetAccountParams",
+      "params_optional": false,
+      "response_type": "GetAccountResponse"
+    },
+    {
+      "method": "fuzzyFileSearch",
+      "variant_name": "FuzzyFileSearch",
+      "fn_name": "fuzzy_file_search",
+      "params_type": "FuzzyFileSearchParams",
+      "params_optional": false,
+      "response_type": "FuzzyFileSearchResponse"
+    },
+    {
+      "method": "fuzzyFileSearch/sessionStart",
+      "variant_name": "FuzzyFileSearchSessionStart",
+      "fn_name": "fuzzy_file_search_session_start",
+      "params_type": "FuzzyFileSearchSessionStartParams",
+      "params_optional": false,
+      "response_type": "FuzzyFileSearchSessionStartResponse"
+    },
+    {
+      "method": "fuzzyFileSearch/sessionUpdate",
+      "variant_name": "FuzzyFileSearchSessionUpdate",
+      "fn_name": "fuzzy_file_search_session_update",
+      "params_type": "FuzzyFileSearchSessionUpdateParams",
+      "params_optional": false,
+      "response_type": "FuzzyFileSearchSessionUpdateResponse"
+    },
+    {
+      "method": "fuzzyFileSearch/sessionStop",
+      "variant_name": "FuzzyFileSearchSessionStop",
+      "fn_name": "fuzzy_file_search_session_stop",
+      "params_type": "FuzzyFileSearchSessionStopParams",
+      "params_optional": false,
+      "response_type": "FuzzyFileSearchSessionStopResponse"
+    }
+  ],
+  "server_requests": [
+    {
+      "method": "item/commandExecution/requestApproval",
+      "variant_name": "ItemCommandExecutionRequestApproval",
+      "fn_name": "item_command_execution_request_approval",
+      "params_type": "CommandExecutionRequestApprovalParams",
+      "params_optional": false,
+      "response_type": "CommandExecutionRequestApprovalResponse"
+    },
+    {
+      "method": "item/fileChange/requestApproval",
+      "variant_name": "ItemFileChangeRequestApproval",
+      "fn_name": "item_file_change_request_approval",
+      "params_type": "FileChangeRequestApprovalParams",
+      "params_optional": false,
+      "response_type": "FileChangeRequestApprovalResponse"
+    },
+    {
+      "method": "item/tool/requestUserInput",
+      "variant_name": "ItemToolRequestUserInput",
+      "fn_name": "item_tool_request_user_input",
+      "params_type": "ToolRequestUserInputParams",
+      "params_optional": false,
+      "response_type": "ToolRequestUserInputResponse"
+    },
+    {
+      "method": "mcpServer/elicitation/request",
+      "variant_name": "McpServerElicitationRequest",
+      "fn_name": "mcp_server_elicitation_request",
+      "params_type": "McpServerElicitationRequestParams",
+      "params_optional": false,
+      "response_type": "McpServerElicitationRequestResponse"
+    },
+    {
+      "method": "item/permissions/requestApproval",
+      "variant_name": "ItemPermissionsRequestApproval",
+      "fn_name": "item_permissions_request_approval",
+      "params_type": "PermissionsRequestApprovalParams",
+      "params_optional": false,
+      "response_type": "PermissionsRequestApprovalResponse"
+    },
+    {
+      "method": "item/tool/call",
+      "variant_name": "ItemToolCall",
+      "fn_name": "item_tool_call",
+      "params_type": "DynamicToolCallParams",
+      "params_optional": false,
+      "response_type": "DynamicToolCallResponse"
+    },
+    {
+      "method": "account/chatgptAuthTokens/refresh",
+      "variant_name": "AccountChatgptAuthTokensRefresh",
+      "fn_name": "account_chatgpt_auth_tokens_refresh",
+      "params_type": "ChatgptAuthTokensRefreshParams",
+      "params_optional": false,
+      "response_type": "ChatgptAuthTokensRefreshResponse"
+    },
+    {
+      "method": "attestation/generate",
+      "variant_name": "AttestationGenerate",
+      "fn_name": "attestation_generate",
+      "params_type": "AttestationGenerateParams",
+      "params_optional": false,
+      "response_type": "AttestationGenerateResponse"
+    },
+    {
+      "method": "currentTime/read",
+      "variant_name": "CurrentTimeRead",
+      "fn_name": "current_time_read",
+      "params_type": "CurrentTimeReadParams",
+      "params_optional": false,
+      "response_type": "CurrentTimeReadResponse"
+    },
+    {
+      "method": "applyPatchApproval",
+      "variant_name": "ApplyPatchApproval",
+      "fn_name": "apply_patch_approval",
+      "params_type": "ApplyPatchApprovalParams",
+      "params_optional": false,
+      "response_type": "ApplyPatchApprovalResponse"
+    },
+    {
+      "method": "execCommandApproval",
+      "variant_name": "ExecCommandApproval",
+      "fn_name": "exec_command_approval",
+      "params_type": "ExecCommandApprovalParams",
+      "params_optional": false,
+      "response_type": "ExecCommandApprovalResponse"
+    }
+  ],
+  "server_notifications": [
+    {
+      "method": "error",
+      "variant_name": "Error",
+      "fn_name": "error",
+      "params_type": "ErrorNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/started",
+      "variant_name": "ThreadStarted",
+      "fn_name": "thread_started",
+      "params_type": "ThreadStartedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/status/changed",
+      "variant_name": "ThreadStatusChanged",
+      "fn_name": "thread_status_changed",
+      "params_type": "ThreadStatusChangedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/archived",
+      "variant_name": "ThreadArchived",
+      "fn_name": "thread_archived",
+      "params_type": "ThreadArchivedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/deleted",
+      "variant_name": "ThreadDeleted",
+      "fn_name": "thread_deleted",
+      "params_type": "ThreadDeletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/unarchived",
+      "variant_name": "ThreadUnarchived",
+      "fn_name": "thread_unarchived",
+      "params_type": "ThreadUnarchivedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/closed",
+      "variant_name": "ThreadClosed",
+      "fn_name": "thread_closed",
+      "params_type": "ThreadClosedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "skills/changed",
+      "variant_name": "SkillsChanged",
+      "fn_name": "skills_changed",
+      "params_type": "SkillsChangedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/name/updated",
+      "variant_name": "ThreadNameUpdated",
+      "fn_name": "thread_name_updated",
+      "params_type": "ThreadNameUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/goal/updated",
+      "variant_name": "ThreadGoalUpdated",
+      "fn_name": "thread_goal_updated",
+      "params_type": "ThreadGoalUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/goal/cleared",
+      "variant_name": "ThreadGoalCleared",
+      "fn_name": "thread_goal_cleared",
+      "params_type": "ThreadGoalClearedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/settings/updated",
+      "variant_name": "ThreadSettingsUpdated",
+      "fn_name": "thread_settings_updated",
+      "params_type": "ThreadSettingsUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "variant_name": "ThreadTokenUsageUpdated",
+      "fn_name": "thread_token_usage_updated",
+      "params_type": "ThreadTokenUsageUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "turn/started",
+      "variant_name": "TurnStarted",
+      "fn_name": "turn_started",
+      "params_type": "TurnStartedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "hook/started",
+      "variant_name": "HookStarted",
+      "fn_name": "hook_started",
+      "params_type": "HookStartedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "turn/completed",
+      "variant_name": "TurnCompleted",
+      "fn_name": "turn_completed",
+      "params_type": "TurnCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "hook/completed",
+      "variant_name": "HookCompleted",
+      "fn_name": "hook_completed",
+      "params_type": "HookCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "turn/diff/updated",
+      "variant_name": "TurnDiffUpdated",
+      "fn_name": "turn_diff_updated",
+      "params_type": "TurnDiffUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "turn/plan/updated",
+      "variant_name": "TurnPlanUpdated",
+      "fn_name": "turn_plan_updated",
+      "params_type": "TurnPlanUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/started",
+      "variant_name": "ItemStarted",
+      "fn_name": "item_started",
+      "params_type": "ItemStartedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/autoApprovalReview/started",
+      "variant_name": "ItemAutoApprovalReviewStarted",
+      "fn_name": "item_auto_approval_review_started",
+      "params_type": "ItemGuardianApprovalReviewStartedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/autoApprovalReview/completed",
+      "variant_name": "ItemAutoApprovalReviewCompleted",
+      "fn_name": "item_auto_approval_review_completed",
+      "params_type": "ItemGuardianApprovalReviewCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/completed",
+      "variant_name": "ItemCompleted",
+      "fn_name": "item_completed",
+      "params_type": "ItemCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "variant_name": "ItemAgentMessageDelta",
+      "fn_name": "item_agent_message_delta",
+      "params_type": "AgentMessageDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/plan/delta",
+      "variant_name": "ItemPlanDelta",
+      "fn_name": "item_plan_delta",
+      "params_type": "PlanDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "command/exec/outputDelta",
+      "variant_name": "CommandExecOutputDelta",
+      "fn_name": "command_exec_output_delta",
+      "params_type": "CommandExecOutputDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "process/outputDelta",
+      "variant_name": "ProcessOutputDelta",
+      "fn_name": "process_output_delta",
+      "params_type": "ProcessOutputDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "process/exited",
+      "variant_name": "ProcessExited",
+      "fn_name": "process_exited",
+      "params_type": "ProcessExitedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/commandExecution/outputDelta",
+      "variant_name": "ItemCommandExecutionOutputDelta",
+      "fn_name": "item_command_execution_output_delta",
+      "params_type": "CommandExecutionOutputDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/commandExecution/terminalInteraction",
+      "variant_name": "ItemCommandExecutionTerminalInteraction",
+      "fn_name": "item_command_execution_terminal_interaction",
+      "params_type": "TerminalInteractionNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/fileChange/outputDelta",
+      "variant_name": "ItemFileChangeOutputDelta",
+      "fn_name": "item_file_change_output_delta",
+      "params_type": "FileChangeOutputDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/fileChange/patchUpdated",
+      "variant_name": "ItemFileChangePatchUpdated",
+      "fn_name": "item_file_change_patch_updated",
+      "params_type": "FileChangePatchUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "serverRequest/resolved",
+      "variant_name": "ServerRequestResolved",
+      "fn_name": "server_request_resolved",
+      "params_type": "ServerRequestResolvedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/mcpToolCall/progress",
+      "variant_name": "ItemMcpToolCallProgress",
+      "fn_name": "item_mcp_tool_call_progress",
+      "params_type": "McpToolCallProgressNotification",
+      "params_optional": false
+    },
+    {
+      "method": "mcpServer/oauthLogin/completed",
+      "variant_name": "McpServerOauthLoginCompleted",
+      "fn_name": "mcp_server_oauth_login_completed",
+      "params_type": "McpServerOauthLoginCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "mcpServer/startupStatus/updated",
+      "variant_name": "McpServerStartupStatusUpdated",
+      "fn_name": "mcp_server_startup_status_updated",
+      "params_type": "McpServerStatusUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "account/updated",
+      "variant_name": "AccountUpdated",
+      "fn_name": "account_updated",
+      "params_type": "AccountUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "variant_name": "AccountRateLimitsUpdated",
+      "fn_name": "account_rate_limits_updated",
+      "params_type": "AccountRateLimitsUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "app/list/updated",
+      "variant_name": "AppListUpdated",
+      "fn_name": "app_list_updated",
+      "params_type": "AppListUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "remoteControl/status/changed",
+      "variant_name": "RemoteControlStatusChanged",
+      "fn_name": "remote_control_status_changed",
+      "params_type": "RemoteControlStatusChangedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "externalAgentConfig/import/progress",
+      "variant_name": "ExternalAgentConfigImportProgress",
+      "fn_name": "external_agent_config_import_progress",
+      "params_type": "ExternalAgentConfigImportProgressNotification",
+      "params_optional": false
+    },
+    {
+      "method": "externalAgentConfig/import/completed",
+      "variant_name": "ExternalAgentConfigImportCompleted",
+      "fn_name": "external_agent_config_import_completed",
+      "params_type": "ExternalAgentConfigImportCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "fs/changed",
+      "variant_name": "FsChanged",
+      "fn_name": "fs_changed",
+      "params_type": "FsChangedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/reasoning/summaryTextDelta",
+      "variant_name": "ItemReasoningSummaryTextDelta",
+      "fn_name": "item_reasoning_summary_text_delta",
+      "params_type": "ReasoningSummaryTextDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/reasoning/summaryPartAdded",
+      "variant_name": "ItemReasoningSummaryPartAdded",
+      "fn_name": "item_reasoning_summary_part_added",
+      "params_type": "ReasoningSummaryPartAddedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "item/reasoning/textDelta",
+      "variant_name": "ItemReasoningTextDelta",
+      "fn_name": "item_reasoning_text_delta",
+      "params_type": "ReasoningTextDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/compacted",
+      "variant_name": "ThreadCompacted",
+      "fn_name": "thread_compacted",
+      "params_type": "ContextCompactedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "model/rerouted",
+      "variant_name": "ModelRerouted",
+      "fn_name": "model_rerouted",
+      "params_type": "ModelReroutedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "model/verification",
+      "variant_name": "ModelVerification",
+      "fn_name": "model_verification",
+      "params_type": "ModelVerificationNotification",
+      "params_optional": false
+    },
+    {
+      "method": "turn/moderationMetadata",
+      "variant_name": "TurnModerationMetadata",
+      "fn_name": "turn_moderation_metadata",
+      "params_type": "TurnModerationMetadataNotification",
+      "params_optional": false
+    },
+    {
+      "method": "model/safetyBuffering/updated",
+      "variant_name": "ModelSafetyBufferingUpdated",
+      "fn_name": "model_safety_buffering_updated",
+      "params_type": "ModelSafetyBufferingUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "warning",
+      "variant_name": "Warning",
+      "fn_name": "warning",
+      "params_type": "WarningNotification",
+      "params_optional": false
+    },
+    {
+      "method": "guardianWarning",
+      "variant_name": "GuardianWarning",
+      "fn_name": "guardian_warning",
+      "params_type": "GuardianWarningNotification",
+      "params_optional": false
+    },
+    {
+      "method": "deprecationNotice",
+      "variant_name": "DeprecationNotice",
+      "fn_name": "deprecation_notice",
+      "params_type": "DeprecationNoticeNotification",
+      "params_optional": false
+    },
+    {
+      "method": "configWarning",
+      "variant_name": "ConfigWarning",
+      "fn_name": "config_warning",
+      "params_type": "ConfigWarningNotification",
+      "params_optional": false
+    },
+    {
+      "method": "fuzzyFileSearch/sessionUpdated",
+      "variant_name": "FuzzyFileSearchSessionUpdated",
+      "fn_name": "fuzzy_file_search_session_updated",
+      "params_type": "FuzzyFileSearchSessionUpdatedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "fuzzyFileSearch/sessionCompleted",
+      "variant_name": "FuzzyFileSearchSessionCompleted",
+      "fn_name": "fuzzy_file_search_session_completed",
+      "params_type": "FuzzyFileSearchSessionCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/started",
+      "variant_name": "ThreadRealtimeStarted",
+      "fn_name": "thread_realtime_started",
+      "params_type": "ThreadRealtimeStartedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/itemAdded",
+      "variant_name": "ThreadRealtimeItemAdded",
+      "fn_name": "thread_realtime_item_added",
+      "params_type": "ThreadRealtimeItemAddedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/transcript/delta",
+      "variant_name": "ThreadRealtimeTranscriptDelta",
+      "fn_name": "thread_realtime_transcript_delta",
+      "params_type": "ThreadRealtimeTranscriptDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/transcript/done",
+      "variant_name": "ThreadRealtimeTranscriptDone",
+      "fn_name": "thread_realtime_transcript_done",
+      "params_type": "ThreadRealtimeTranscriptDoneNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/outputAudio/delta",
+      "variant_name": "ThreadRealtimeOutputAudioDelta",
+      "fn_name": "thread_realtime_output_audio_delta",
+      "params_type": "ThreadRealtimeOutputAudioDeltaNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/sdp",
+      "variant_name": "ThreadRealtimeSdp",
+      "fn_name": "thread_realtime_sdp",
+      "params_type": "ThreadRealtimeSdpNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/error",
+      "variant_name": "ThreadRealtimeError",
+      "fn_name": "thread_realtime_error",
+      "params_type": "ThreadRealtimeErrorNotification",
+      "params_optional": false
+    },
+    {
+      "method": "thread/realtime/closed",
+      "variant_name": "ThreadRealtimeClosed",
+      "fn_name": "thread_realtime_closed",
+      "params_type": "ThreadRealtimeClosedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "windows/worldWritableWarning",
+      "variant_name": "WindowsWorldWritableWarning",
+      "fn_name": "windows_world_writable_warning",
+      "params_type": "WindowsWorldWritableWarningNotification",
+      "params_optional": false
+    },
+    {
+      "method": "windowsSandbox/setupCompleted",
+      "variant_name": "WindowsSandboxSetupCompleted",
+      "fn_name": "windows_sandbox_setup_completed",
+      "params_type": "WindowsSandboxSetupCompletedNotification",
+      "params_optional": false
+    },
+    {
+      "method": "account/login/completed",
+      "variant_name": "AccountLoginCompleted",
+      "fn_name": "account_login_completed",
+      "params_type": "AccountLoginCompletedNotification",
+      "params_optional": false
+    }
+  ],
+  "client_notifications": [
+    {
+      "method": "initialized",
+      "variant_name": "Initialized",
+      "fn_name": "initialized",
+      "params_type": null,
+      "params_optional": false
+    }
+  ]
+}

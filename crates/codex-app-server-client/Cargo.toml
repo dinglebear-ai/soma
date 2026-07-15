@@ -1,0 +1,51 @@
+[package]
+name = "codex-app-server-client"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Standalone, fully-typed async Rust client for the Codex CLI's app-server v2 JSON-RPC protocol."
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+# Deliberately has zero path-dependencies on other crates in this workspace -
+# see README.md. Only external, published dependencies below.
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = [
+  "process",
+  "io-util",
+  "io-std",
+  "sync",
+  "rt",
+  "macros",
+  "time",
+] }
+# Only `tokio_util::sync::CancellationToken` is used (for coordinated
+# connection shutdown); that module has no feature gate, so no features are
+# needed here.
+tokio-util = { version = "0.7", default-features = false }
+tracing = "0.1"
+
+[target.'cfg(unix)'.dependencies]
+tokio = { version = "1", features = ["net"] }
+
+[build-dependencies]
+typify = { version = "0.7", default-features = false }
+schemars = "0.8"
+serde_json = "1"
+prettyplease = "0.2"
+syn = { version = "2", features = ["full"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tempfile = "3"
+
+[[example]]
+name = "basic"

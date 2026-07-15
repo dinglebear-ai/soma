@@ -32,10 +32,28 @@ soma-contracts = { path = "../crates/soma-contracts" }
 soma-service = { path = "../crates/soma-service", default-features = false }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
+# NOT "preserve_order": that feature is unified across the whole workspace's
+# serde_json (Cargo's feature unification applies to every crate xtask links
+# against, including soma-contracts/soma-service), so it silently changed the
+# key ordering of *unrelated* generated docs (docs/generated/openapi.json,
+# palette-manifest.json, ...) the first time it was added here - discovered
+# via CI staleness failures on files codex-schema never touches. The
+# insertion-order need it was added for (byte-matching the deleted Python
+# generator's dict order) was only ever cosmetic for typify/JSON-Schema
+# consumers, which are order-independent - see git history for the incident.
 serde_json = "1"
 sha2 = "0.11"
 toml = "1.1"
 walkdir = "2"
+# codex-schema: exact port of build_combined_schema.py's tokenization regex
+# `[A-Z]?[a-z0-9]+|[A-Z]+(?=[A-Z]|$)`, which needs lookahead the `regex`
+# crate doesn't support.
+fancy-regex = "0.18"
+# codex-schema bisect: programmatically drives typify (same version/feature
+# flags as crates/codex-app-server-client/build.rs) to detect the specific
+# typify-0.7.0 merge.rs panic while binary-searching for the culprit schema.
+typify = { version = "0.7", default-features = false }
+schemars = "0.8"
 
 [dev-dependencies]
 tempfile = "3"
