@@ -6,7 +6,11 @@
 //! **Customize**: mirror this file for your service. Add one test per action.
 
 use async_trait::async_trait;
-use rmcp::{model::CallToolRequestParams, service::ServiceError, ServiceExt};
+use rmcp::{
+    model::{CallToolRequestParams, ClientRequest, Meta, Request, ServerResult},
+    service::{PeerRequestOptions, ServiceError},
+    ServiceExt,
+};
 use serde_json::json;
 use soma::{
     actions::SomaAction,
@@ -18,6 +22,7 @@ use soma_contracts::providers::{
 };
 use soma_service::provider_registry::{Provider, ProviderOutput, ProviderRegistry};
 use soma_service::ProviderError;
+use soma_test_support::{tracing_test_lock, SharedBuf};
 use std::sync::Arc;
 
 async fn call_mcp_action(args: serde_json::Value) -> serde_json::Value {
@@ -193,6 +198,79 @@ async fn test_real_call_tool_path_returns_status_json() -> anyhow::Result<()> {
 
     client.cancel().await?;
     server_handle.await??;
+    Ok(())
+}
+
+#[allow(clippy::await_holding_lock)]
+#[tokio::test(flavor = "current_thread")]
+async fn test_real_call_tool_path_logs_safe_trace_summary() -> anyhow::Result<()> {
+    let _lock = tracing_test_lock();
+    let buf = SharedBuf::new();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(buf.writer())
+        .with_ansi(false)
+        .without_time()
+        .with_max_level(tracing::Level::DEBUG)
+        .finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+
+    let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
+    let server_handle = tokio::spawn(async move {
+        rmcp_server(loopback_state())
+            .serve(server_transport)
+            .await?
+            .waiting()
+            .await?;
+        anyhow::Ok(())
+    });
+
+    let mut args = serde_json::Map::new();
+    args.insert("action".to_owned(), json!("status"));
+
+    let mut meta = Meta::new();
+    meta.set_traceparent("00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01");
+    meta.set_tracestate("vendor=value");
+    meta.set_baggage(
+        "email=alice@example.com,accessToken=super-secret-token,x-api-key=abc123,sessionId=s123",
+    );
+    let mut options = PeerRequestOptions::no_options();
+    options.meta = Some(meta);
+
+    let client = ().serve(client_transport).await?;
+    let response = client
+        .send_cancellable_request(
+            ClientRequest::CallToolRequest(Request::new(
+                CallToolRequestParams::new("soma").with_arguments(args),
+            )),
+            options,
+        )
+        .await?
+        .await_response()
+        .await?;
+    let ServerResult::CallToolResult(result) = response else {
+        panic!("expected call_tool result, got: {response:?}");
+    };
+
+    assert!(result.structured_content.is_some());
+
+    client.cancel().await?;
+    server_handle.await??;
+    drop(guard);
+
+    let logs = buf.contents();
+    assert!(logs.contains("trace_id"), "missing trace id summary: {logs}");
+    assert!(logs.contains("0af76519"), "missing short trace id: {logs}");
+    assert!(
+        logs.contains("baggage_member_count"),
+        "missing baggage count: {logs}"
+    );
+    assert!(!logs.contains("alice@example.com"), "raw email leaked: {logs}");
+    assert!(
+        !logs.contains("super-secret-token"),
+        "raw token leaked: {logs}"
+    );
+    assert!(!logs.contains("abc123"), "raw api key leaked: {logs}");
+    assert!(!logs.contains("s123"), "raw session leaked: {logs}");
     Ok(())
 }
 

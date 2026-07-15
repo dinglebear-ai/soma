@@ -21,6 +21,7 @@ use rmcp::{
     service::{Peer, RequestContext},
     ErrorData, RoleServer, ServerHandler,
 };
+use rmcp_traces::{TraceContext, TraceSummary, TraceTrust};
 #[cfg(feature = "auth")]
 use soma_auth::AuthContext;
 #[cfg(not(feature = "auth"))]
@@ -97,6 +98,7 @@ impl ServerHandler for SomaRmcpServer {
 
         let response_page = response_page_request(request.arguments.as_ref())?;
         let auth = require_auth_context(&self.state, &context)?;
+        let trace_summary = trace_summary_from_context(&context);
         if self.state.config.conformance_fixtures {
             if let Some(result) = conformance::call_tool(&tool_name) {
                 return Ok(result);
@@ -130,7 +132,19 @@ impl ServerHandler for SomaRmcpServer {
         let auth_mode = provider_auth_mode(&self.state.auth_policy);
 
         let started = Instant::now();
-        tracing::info!(tool = %tool_name, action = %action, "MCP tool execution started");
+        tracing::info!(
+            tool = %tool_name,
+            action = %action,
+            trace_id = ?trace_summary.trace_id,
+            span_id = ?trace_summary.span_id,
+            trace_sampled = ?trace_summary.sampled,
+            trace_trust = ?trace_summary.trust,
+            has_tracestate = trace_summary.has_tracestate,
+            baggage_member_count = trace_summary.baggage_member_count,
+            sensitive_baggage_member_count = trace_summary.sensitive_baggage_member_count,
+            trace_invalid = ?trace_summary.invalid,
+            "MCP tool execution started"
+        );
 
         match execute_tool(
             &self.state,
@@ -524,6 +538,14 @@ fn empty_action_as_none(action: &str) -> Option<&str> {
         None
     } else {
         Some(action)
+    }
+}
+
+fn trace_summary_from_context(context: &RequestContext<RoleServer>) -> TraceSummary {
+    match TraceContext::from_meta(&context.meta, TraceTrust::Untrusted) {
+        Ok(Some(trace_context)) => trace_context.summary(),
+        Ok(None) => TraceSummary::absent(),
+        Err(error) => TraceSummary::invalid(&error),
     }
 }
 
