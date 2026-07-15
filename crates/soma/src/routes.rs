@@ -24,6 +24,7 @@ use crate::api::{
     health, openapi_json, readyz, status, v1_capabilities, v1_dynamic_provider_route, v1_echo,
     v1_greet, v1_help, v1_provider_tool_action, v1_providers, v1_service_status,
 };
+use crate::gateway_api::v1_gateway_action;
 use soma_mcp::{allowed_origins, streamable_http_config, streamable_http_service};
 use soma_runtime::server::{build_auth_layer, AppState, AuthPolicy};
 
@@ -57,6 +58,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/echo", post(v1_echo))
         .route("/v1/status", get(v1_service_status))
         .route("/v1/help", get(v1_help))
+        .route("/v1/gateway/{action}", post(v1_gateway_action))
         .route("/v1/tools/{action}", post(v1_provider_tool_action))
         .route(
             "/v1/{*path}",

@@ -30,7 +30,7 @@ dashmap = "6"
 getrandom = "0.4"
 httpdate = "1"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["form", "json", "rustls"] }
 rsa = "0.10.0-rc.16"
 rusqlite = { version = "0.40", features = ["bundled"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

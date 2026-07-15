@@ -13,6 +13,7 @@ members = [
   "crates/soma-auth",
   "crates/soma-cli",
   "crates/soma-contracts",
+  "crates/soma-gateway",
   "crates/soma-mcp",
   "crates/soma-observability",
   "crates/soma-plugin-support",

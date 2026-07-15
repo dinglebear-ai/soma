@@ -19,6 +19,7 @@ oauth = ["auth"]
 anyhow = "1"
 soma-auth = { path = "../soma-auth", optional = true, features = ["http-axum"] }
 soma-contracts = { path = "../soma-contracts" }
+soma-gateway = { path = "../soma-gateway" }
 soma-service = { path = "../soma-service", default-features = false }
 tracing = "0.1"
 url = "2"

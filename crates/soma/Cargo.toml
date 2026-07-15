@@ -39,6 +39,7 @@ soma-api = { path = "../soma-api", optional = true }
 soma-auth = { path = "../soma-auth", optional = true, features = ["http-axum"] }
 soma-cli = { path = "../soma-cli", optional = true }
 soma-contracts = { path = "../soma-contracts" }
+soma-gateway = { path = "../soma-gateway" }
 soma-mcp = { path = "../soma-mcp", optional = true }
 soma-observability = { path = "../soma-observability", optional = true }
 soma-plugin-support = { path = "../soma-plugin-support", optional = true }

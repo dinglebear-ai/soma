@@ -13,6 +13,8 @@
 
 #[cfg(feature = "api")]
 pub use soma_api::api;
+#[cfg(feature = "api")]
+pub use soma_api::gateway as gateway_api;
 #[cfg(feature = "cli")]
 pub use soma_cli as cli;
 pub use soma_contracts::actions;
@@ -59,6 +61,7 @@ pub mod testing {
         server::{AppState, AuthPolicy},
         soma::SomaClient,
     };
+    use soma_runtime::server::empty_gateway_product_state;
 
     fn stub_service() -> SomaService {
         let client = SomaClient::new(&SomaConfig {
@@ -81,6 +84,7 @@ pub mod testing {
             auth_policy: AuthPolicy::LoopbackDev,
             service,
             provider_registry,
+            gateway: empty_gateway_product_state(),
             remote_adapter: false,
             response_pages: Default::default(),
         }
@@ -99,6 +103,7 @@ pub mod testing {
             auth_policy: mounted_test_policy(),
             service,
             provider_registry,
+            gateway: empty_gateway_product_state(),
             remote_adapter: false,
             response_pages: Default::default(),
         }
@@ -124,6 +129,7 @@ pub mod testing {
             },
             service,
             provider_registry,
+            gateway: empty_gateway_product_state(),
             remote_adapter: false,
             response_pages: Default::default(),
         }
@@ -162,6 +168,7 @@ pub mod testing {
             .scopes_supported(vec![
                 soma_contracts::actions::READ_SCOPE.into(),
                 soma_contracts::actions::WRITE_SCOPE.into(),
+                soma_contracts::scopes::ADMIN_SCOPE.into(),
             ])
             .default_scope("soma:read")
             .resource_path("/mcp")

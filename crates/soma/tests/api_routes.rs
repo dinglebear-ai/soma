@@ -16,6 +16,7 @@ use soma_contracts::actions::ACTION_SPECS;
 use soma_contracts::providers::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool, RestOverlay,
 };
+use soma_contracts::scopes::ADMIN_SCOPE;
 use soma_service::provider_registry::{Provider, ProviderOutput, ProviderRegistry};
 use soma_service::ProviderError;
 use std::sync::Arc;
@@ -398,11 +399,73 @@ async fn mounted_bearer_auth_protects_rest_endpoint() {
 }
 
 #[tokio::test]
+async fn mounted_bearer_token_can_read_gateway_discovery() {
+    let app = server::router(bearer_state("secret"));
+    let (status, body) = request_json(
+        app,
+        Method::POST,
+        "/v1/gateway/gateway.list",
+        Some("secret"),
+        None,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["upstream_count"], 0);
+}
+
+#[tokio::test]
+async fn mounted_bearer_token_cannot_call_gateway_admin_actions() {
+    let app = server::router(bearer_state("secret"));
+    let (status, body) = request_json(
+        app,
+        Method::POST,
+        "/v1/gateway/gateway.test",
+        Some("secret"),
+        Some(json!({"command": "echo"})),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(body["code"], "admin_required");
+}
+
+#[tokio::test]
+async fn loopback_can_call_gateway_admin_actions_without_mounted_auth() {
+    let app = server::router(loopback_state());
+    let (status, body) = request_json(
+        app,
+        Method::POST,
+        "/v1/gateway/gateway.remove",
+        None,
+        Some(json!({})),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["accepted"], "gateway.remove");
+}
+
+#[test]
+fn oauth_admin_scope_is_available_to_gateway_policy() {
+    assert_eq!(ADMIN_SCOPE, "soma:admin");
+}
+
+#[tokio::test]
 async fn trusted_gateway_unscoped_bypasses_local_auth() {
     let mut state = loopback_state();
     state.auth_policy = AuthPolicy::TrustedGatewayUnscoped;
     let app = server::router(state);
     let (status, body) = request_json(app, Method::GET, "/v1/status", None, None).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "ok");
+}
+
+#[tokio::test]
+async fn public_health_is_unaffected_by_gateway_auth() {
+    let app = server::router(bearer_state("secret"));
+    let (status, body) = request_json(app, Method::GET, "/health", None, None).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "ok");

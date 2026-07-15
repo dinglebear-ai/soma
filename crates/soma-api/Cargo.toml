@@ -12,14 +12,15 @@ publish = false
 
 [features]
 default = []
-auth = ["dep:soma-auth"]
-oauth = ["auth"]
+auth = ["dep:soma-auth", "soma-runtime/auth"]
+oauth = ["auth", "soma-runtime/oauth"]
 
 [dependencies]
 anyhow = "1"
 axum = "0.8"
 soma-auth = { path = "../soma-auth", optional = true, features = ["http-axum"] }
 soma-contracts = { path = "../soma-contracts" }
+soma-gateway = { path = "../soma-gateway" }
 soma-runtime = { path = "../soma-runtime", default-features = false }
 soma-service = { path = "../soma-service", default-features = false }
 serde = { version = "1", features = ["derive"] }

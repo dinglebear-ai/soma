@@ -57,6 +57,7 @@ fn non_loopback_bearer_token_mounts_bearer_policy() {
     );
 }
 
+#[cfg(feature = "auth")]
 #[test]
 fn non_loopback_oauth_mounts_oauth_policy() {
     let mut config = config("0.0.0.0");
@@ -68,6 +69,18 @@ fn non_loopback_oauth_mounts_oauth_policy() {
         resolve_auth_policy_kind(&config, false).unwrap(),
         AuthPolicyKind::MountedOAuth
     );
+}
+
+#[cfg(not(feature = "auth"))]
+#[test]
+fn non_loopback_oauth_requires_auth_feature() {
+    let mut config = config("0.0.0.0");
+    config.mcp.auth = AuthConfig {
+        mode: AuthMode::OAuth,
+        ..AuthConfig::default()
+    };
+    let error = resolve_auth_policy_kind(&config, false).unwrap_err();
+    assert!(error.to_string().contains("requires compiling"));
 }
 
 #[test]
