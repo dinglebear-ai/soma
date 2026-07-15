@@ -10,7 +10,6 @@ use walkdir::WalkDir;
 
 const MARKER: &str = "<!-- rmcp-release-monitor -->";
 const DEFAULT_MAX_BODY_BYTES: usize = 60_000;
-const RMCP_MANIFESTS: [&str; 2] = ["crates/soma/Cargo.toml", "crates/soma-mcp/Cargo.toml"];
 
 #[derive(Debug)]
 struct MonitorReport {
@@ -315,20 +314,51 @@ fn build_monitor_report(
 }
 
 fn detect_current_rmcp_version(root: &Path) -> Result<String> {
-    let mut versions = BTreeSet::new();
-    for manifest in RMCP_MANIFESTS {
-        let path = root.join(manifest);
-        let text = fs::read_to_string(&path)
+    let manifest_versions = discover_rmcp_manifest_versions(root)?;
+    let versions: BTreeSet<_> = manifest_versions
+        .iter()
+        .map(|(_, version)| version.clone())
+        .collect();
+    match versions.len() {
+        0 => bail!("no rmcp dependency version found in workspace manifests"),
+        1 => Ok(versions.into_iter().next().expect("one version")),
+        _ => bail!(
+            "conflicting rmcp versions across workspace manifests: {}",
+            manifest_versions
+                .iter()
+                .map(|(path, version)| format!("{}={version}", path.display()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+fn discover_rmcp_manifest_versions(root: &Path) -> Result<Vec<(PathBuf, String)>> {
+    let mut manifest_versions = Vec::new();
+    for entry in WalkDir::new(root)
+        .into_iter()
+        .filter_entry(|entry| !is_ignored_manifest_dir(entry.path()))
+    {
+        let entry = entry.with_context(|| format!("failed to walk {}", root.display()))?;
+        if !entry.file_type().is_file() || entry.file_name() != "Cargo.toml" {
+            continue;
+        }
+        let path = entry.path();
+        let text = fs::read_to_string(path)
             .with_context(|| format!("failed to read {}", path.display()))?;
         if let Some(version) = rmcp_version_from_manifest(&text) {
-            versions.insert(version);
+            let relative = path.strip_prefix(root).unwrap_or(path).to_path_buf();
+            manifest_versions.push((relative, version));
         }
     }
-    match versions.len() {
-        0 => bail!("no rmcp dependency version found in tracked manifests"),
-        1 => Ok(versions.into_iter().next().expect("one version")),
-        _ => bail!("conflicting rmcp versions across manifests: {versions:?}"),
-    }
+    manifest_versions.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(manifest_versions)
+}
+
+fn is_ignored_manifest_dir(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| matches!(name, ".git" | ".worktrees" | "target" | "node_modules"))
 }
 
 fn rmcp_version_from_manifest(text: &str) -> Option<String> {
@@ -1419,28 +1449,39 @@ mod tests {
     fn current_version_discovery_requires_consistent_rmcp_pins() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        fs::create_dir_all(root.join("crates/soma")).unwrap();
-        fs::create_dir_all(root.join("crates/soma-mcp")).unwrap();
+        for crate_name in ["soma", "soma-auth", "soma-mcp", "rmcp-traces"] {
+            fs::create_dir_all(root.join(format!("crates/{crate_name}"))).unwrap();
+            fs::write(
+                root.join(format!("crates/{crate_name}/Cargo.toml")),
+                "rmcp = { version = \"1.7.0\", default-features = false }\n",
+            )
+            .unwrap();
+        }
+        fs::create_dir_all(root.join("crates/no-rmcp")).unwrap();
         fs::write(
-            root.join("crates/soma/Cargo.toml"),
-            "rmcp = { version = \"1.7.0\", default-features = false }\n",
+            root.join("crates/no-rmcp/Cargo.toml"),
+            "[package]\nname = \"no-rmcp\"\n",
         )
         .unwrap();
+        fs::create_dir_all(root.join(".worktrees/stale/crates/stale")).unwrap();
         fs::write(
-            root.join("crates/soma-mcp/Cargo.toml"),
-            "rmcp = { version = \"1.7.0\", default-features = false }\n",
+            root.join(".worktrees/stale/crates/stale/Cargo.toml"),
+            "rmcp = { version = \"9.9.9\", default-features = false }\n",
         )
         .unwrap();
 
         assert_eq!(detect_current_rmcp_version(root).unwrap(), "1.7.0");
 
         fs::write(
-            root.join("crates/soma-mcp/Cargo.toml"),
+            root.join("crates/rmcp-traces/Cargo.toml"),
             "rmcp = { version = \"1.8.0\", default-features = false }\n",
         )
         .unwrap();
         let error = detect_current_rmcp_version(root).expect_err("mixed pins should fail");
-        assert!(error.to_string().contains("conflicting rmcp versions"));
+        let message = error.to_string();
+        assert!(message.contains("conflicting rmcp versions"));
+        assert!(message.contains("crates/rmcp-traces/Cargo.toml=1.8.0"));
+        assert!(!message.contains("9.9.9"));
     }
 
     #[test]

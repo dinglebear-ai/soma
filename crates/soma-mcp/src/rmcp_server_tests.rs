@@ -1,5 +1,5 @@
 use rmcp::{
-    model::{CallToolRequestParams, CallToolResult, ErrorCode, Meta, ResourceContents},
+    model::{CallToolRequestParams, ErrorCode, Meta, ResourceContents},
     service::ServiceError,
     ServiceExt,
 };
@@ -14,21 +14,14 @@ use soma_contracts::{
 };
 use soma_service::{classify_service_error, ProviderError, ResourceReadOutput};
 
+use crate::assert_result_has_no_meta;
+
 use super::{
     resource_contents_from_output, resource_read_error, rmcp_resource_from_catalog_resource,
     rmcp_tool_from_json, tool_error_result, trace_summary_from_meta, unknown_tool_error,
 };
 
 const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01";
-
-fn assert_result_has_no_meta(result: &CallToolResult) {
-    assert!(result.meta.is_none(), "result meta should stay empty");
-    let serialized = serde_json::to_value(result).expect("result should serialize");
-    assert!(
-        serialized.get("_meta").is_none(),
-        "serialized result included _meta: {serialized}"
-    );
-}
 
 #[test]
 fn validation_errors_become_structured_tool_errors() {
@@ -286,6 +279,74 @@ async fn call_tool_auth_failure_logs_without_trace_fields() {
         logs.contains("MCP tool rejected auth context"),
         "logs were: {logs}"
     );
+    assert!(!logs.contains("trace_id_prefix"), "logs were: {logs}");
+    assert!(!logs.contains("span_id_prefix"), "logs were: {logs}");
+    assert!(!logs.contains("trace_invalid"), "logs were: {logs}");
+    assert!(!logs.contains(VALID_TRACEPARENT), "logs were: {logs}");
+    assert!(!logs.contains("vendor=value"), "logs were: {logs}");
+    assert!(!logs.contains("alice@example.com"), "logs were: {logs}");
+    assert!(!logs.contains("s123"), "logs were: {logs}");
+}
+
+#[allow(clippy::await_holding_lock)]
+#[tokio::test(flavor = "current_thread")]
+async fn call_tool_response_page_rejection_logs_without_trace_or_request_fields() {
+    let _lock = tracing_test_lock();
+    let buf = SharedBuf::new();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(buf.writer())
+        .with_ansi(false)
+        .without_time()
+        .with_max_level(tracing::Level::INFO)
+        .finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+
+    let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
+    let server = super::rmcp_server(crate::testing::loopback_state());
+    let server_handle = tokio::spawn(async move {
+        let running = server
+            .serve(server_transport)
+            .await
+            .expect("server should handshake");
+        running.waiting().await.expect("server should stop cleanly");
+    });
+    let mut client = ().serve(client_transport).await.expect("client should handshake");
+
+    let mut meta = Meta::new();
+    meta.set_traceparent(VALID_TRACEPARENT);
+    meta.set_tracestate("vendor=value");
+    meta.set_baggage("email=alice@example.com,sessionId=s123");
+    let mut request = CallToolRequestParams::new("attacker_tool_name").with_arguments(
+        serde_json::Map::from_iter([
+            ("action".to_owned(), json!("attacker-action")),
+            ("_response_cursor".to_owned(), json!("x".repeat(257))),
+            ("_response_offset".to_owned(), json!(1)),
+        ]),
+    );
+    request.meta = Some(meta);
+
+    let error = client
+        .call_tool(request)
+        .await
+        .expect_err("bad paging args should reject before auth");
+    let ServiceError::McpError(error) = error else {
+        panic!("expected MCP protocol error, got: {error}");
+    };
+    assert!(error
+        .message
+        .contains("_response_cursor exceeded 256 bytes"));
+
+    client.close().await.expect("client should close");
+    server_handle.await.expect("server task should join");
+    drop(guard);
+
+    let logs = buf.contents();
+    assert!(
+        logs.contains("MCP tool rejected response paging params"),
+        "logs were: {logs}"
+    );
+    assert!(!logs.contains("attacker_tool_name"), "logs were: {logs}");
+    assert!(!logs.contains("attacker-action"), "logs were: {logs}");
     assert!(!logs.contains("trace_id_prefix"), "logs were: {logs}");
     assert!(!logs.contains("span_id_prefix"), "logs were: {logs}");
     assert!(!logs.contains("trace_invalid"), "logs were: {logs}");

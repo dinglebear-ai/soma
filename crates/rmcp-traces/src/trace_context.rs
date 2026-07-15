@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{collections::BTreeSet, error::Error, fmt};
 
 use rmcp::model::Meta;
 use serde_json::Value;
@@ -16,6 +16,7 @@ const TRACEPARENT_SPAN_ID_END: usize = 52;
 const TRACEPARENT_FLAGS_START: usize = 53;
 const TRACEPARENT_FLAGS_END: usize = 55;
 const TRACEPARENT_NEXT_SEPARATOR: usize = 55;
+const MAX_TRACESTATE_MEMBERS: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TraceTrust {
@@ -43,15 +44,15 @@ impl Default for TraceLimits {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TraceParent {
-    raw: String,
+struct TraceParent {
     trace_id: String,
     span_id: String,
     sampled: bool,
 }
 
 impl TraceParent {
-    pub fn parse(value: &str) -> Result<Self, TraceParseError> {
+    #[cfg(test)]
+    fn parse(value: &str) -> Result<Self, TraceParseError> {
         let limits = TraceLimits::default();
         if value.len() > limits.max_traceparent_len {
             return Err(TraceParseError::ValueTooLong {
@@ -63,19 +64,17 @@ impl TraceParent {
         parse_traceparent(value)
     }
 
-    pub fn as_str(&self) -> &str {
-        &self.raw
-    }
-
-    pub fn trace_id(&self) -> &str {
+    #[cfg(test)]
+    fn trace_id(&self) -> &str {
         &self.trace_id
     }
 
-    pub fn span_id(&self) -> &str {
+    #[cfg(test)]
+    fn span_id(&self) -> &str {
         &self.span_id
     }
 
-    pub fn sampled(&self) -> bool {
+    fn sampled(&self) -> bool {
         self.sampled
     }
 
@@ -98,20 +97,22 @@ impl fmt::Debug for TraceParent {
     }
 }
 
+#[cfg(test)]
 #[derive(Clone, PartialEq, Eq)]
-pub struct TraceContext {
+struct TraceContext {
     traceparent: TraceParent,
     tracestate: Option<String>,
     baggage: Option<String>,
     trust: TraceTrust,
 }
 
+#[cfg(test)]
 impl TraceContext {
-    pub fn from_meta(meta: &Meta, trust: TraceTrust) -> Result<Option<Self>, TraceParseError> {
+    fn from_meta(meta: &Meta, trust: TraceTrust) -> Result<Option<Self>, TraceParseError> {
         Self::from_meta_with_limits(meta, trust, TraceLimits::default())
     }
 
-    pub fn from_meta_with_limits(
+    fn from_meta_with_limits(
         meta: &Meta,
         trust: TraceTrust,
         limits: TraceLimits,
@@ -121,8 +122,9 @@ impl TraceContext {
         };
         let tracestate =
             bounded_optional_meta_string(meta, TRACESTATE_KEY, limits.max_tracestate_len)?;
+        validate_tracestate(tracestate.as_deref())?;
         let baggage = bounded_optional_meta_string(meta, BAGGAGE_KEY, limits.max_baggage_len)?;
-        validate_baggage_member_count(baggage.as_deref(), limits.max_baggage_members)?;
+        validate_baggage(baggage.as_deref(), limits.max_baggage_members)?;
         Ok(Some(Self {
             traceparent,
             tracestate,
@@ -131,15 +133,12 @@ impl TraceContext {
         }))
     }
 
-    pub fn traceparent(&self) -> &TraceParent {
-        &self.traceparent
-    }
-
-    pub fn summary(&self) -> TraceSummary {
+    fn summary(&self) -> TraceSummary {
         TraceSummary::from_context(self)
     }
 }
 
+#[cfg(test)]
 impl fmt::Debug for TraceContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.summary().fmt(f)
@@ -183,39 +182,43 @@ impl TraceSummary {
     }
 
     pub fn from_meta_with_limits(meta: &Meta, trust: TraceTrust, limits: TraceLimits) -> Self {
-        let mut summary = match parse_meta_traceparent(meta, limits) {
-            Ok(Some(traceparent)) => Self::from_traceparent(&traceparent, trust),
+        let (mut summary, has_valid_traceparent) = match parse_meta_traceparent(meta, limits) {
+            Ok(Some(traceparent)) => (Self::from_traceparent(&traceparent, trust), true),
             Ok(None) => {
                 let mut summary = Self::absent();
                 summary.trust = trust;
-                summary
+                (summary, false)
             }
             Err(error) => {
                 let mut summary = Self::absent();
                 summary.trust = trust;
                 summary.record_invalid(&error);
-                summary
+                (summary, false)
             }
         };
-        match bounded_optional_meta_string(meta, TRACESTATE_KEY, limits.max_tracestate_len) {
-            Ok(tracestate) => summary.has_tracestate = tracestate.is_some(),
-            Err(error) => summary.record_invalid(&error),
-        };
-        match bounded_optional_meta_string(meta, BAGGAGE_KEY, limits.max_baggage_len) {
-            Ok(baggage) => {
-                match validate_baggage_member_count(baggage.as_deref(), limits.max_baggage_members)
-                {
-                    Ok(()) => {
-                        let (baggage_member_count, sensitive_baggage_member_count) =
-                            summarize_baggage(baggage.as_deref());
-                        summary.baggage_member_count = baggage_member_count;
-                        summary.sensitive_baggage_member_count = sensitive_baggage_member_count;
-                    }
-                    Err(error) => {
-                        summary.record_invalid(&error);
-                    }
+        match bounded_optional_meta_str(meta, TRACESTATE_KEY, limits.max_tracestate_len) {
+            Ok(Some(tracestate)) if has_valid_traceparent => {
+                match validate_tracestate(Some(tracestate)) {
+                    Ok(()) => summary.has_tracestate = true,
+                    Err(error) => summary.record_invalid(&error),
                 }
             }
+            Ok(Some(_)) => {
+                summary.record_invalid(&TraceParseError::TraceStateRequiresTraceParent);
+            }
+            Ok(None) => {}
+            Err(error) => summary.record_invalid(&error),
+        };
+        match bounded_optional_meta_str(meta, BAGGAGE_KEY, limits.max_baggage_len) {
+            Ok(baggage) => match validate_baggage(baggage, limits.max_baggage_members) {
+                Ok(()) => {
+                    let (baggage_member_count, sensitive_baggage_member_count) =
+                        summarize_baggage(baggage);
+                    summary.baggage_member_count = baggage_member_count;
+                    summary.sensitive_baggage_member_count = sensitive_baggage_member_count;
+                }
+                Err(error) => summary.record_invalid(&error),
+            },
             Err(error) => {
                 summary.record_invalid(&error);
             }
@@ -223,7 +226,8 @@ impl TraceSummary {
         summary
     }
 
-    pub fn from_context(context: &TraceContext) -> Self {
+    #[cfg(test)]
+    fn from_context(context: &TraceContext) -> Self {
         let (baggage_member_count, sensitive_baggage_member_count) =
             summarize_baggage(context.baggage.as_deref());
         let mut summary = Self::from_traceparent(&context.traceparent, context.trust);
@@ -301,6 +305,10 @@ pub enum TraceParseError {
         actual: usize,
         max: usize,
     },
+    TooManyTraceStateMembers {
+        actual: usize,
+        max: usize,
+    },
     InvalidTraceParentLength {
         actual: usize,
     },
@@ -308,7 +316,10 @@ pub enum TraceParseError {
     UnsupportedVersion,
     InvalidTraceId,
     InvalidSpanId,
-    InvalidFlags,
+    TraceStateRequiresTraceParent,
+    InvalidTraceState,
+    DuplicateTraceStateKey,
+    InvalidBaggageMember,
 }
 
 impl TraceParseError {
@@ -321,6 +332,9 @@ impl TraceParseError {
             Self::TooManyBaggageMembers { actual, max } => {
                 format!("baggage exceeded {max} members (actual at least {actual})")
             }
+            Self::TooManyTraceStateMembers { actual, max } => {
+                format!("tracestate exceeded {max} members (actual at least {actual})")
+            }
             Self::InvalidTraceParentLength { actual } => {
                 format!("traceparent length was {actual}, expected 55")
             }
@@ -328,7 +342,12 @@ impl TraceParseError {
             Self::UnsupportedVersion => "traceparent version was unsupported".to_owned(),
             Self::InvalidTraceId => "traceparent trace id was invalid".to_owned(),
             Self::InvalidSpanId => "traceparent span id was invalid".to_owned(),
-            Self::InvalidFlags => "traceparent flags were invalid".to_owned(),
+            Self::TraceStateRequiresTraceParent => {
+                "tracestate requires a valid traceparent".to_owned()
+            }
+            Self::InvalidTraceState => "tracestate format was invalid".to_owned(),
+            Self::DuplicateTraceStateKey => "tracestate contained a duplicate key".to_owned(),
+            Self::InvalidBaggageMember => "baggage member format was invalid".to_owned(),
         }
     }
 }
@@ -352,11 +371,20 @@ fn optional_meta_str<'a>(
     }
 }
 
+#[cfg(test)]
 fn bounded_optional_meta_string(
     meta: &Meta,
     field: &'static str,
     max: usize,
 ) -> Result<Option<String>, TraceParseError> {
+    bounded_optional_meta_str(meta, field, max).map(|value| value.map(str::to_owned))
+}
+
+fn bounded_optional_meta_str<'a>(
+    meta: &'a Meta,
+    field: &'static str,
+    max: usize,
+) -> Result<Option<&'a str>, TraceParseError> {
     let Some(value) = optional_meta_str(meta, field)? else {
         return Ok(None);
     };
@@ -367,7 +395,7 @@ fn bounded_optional_meta_string(
             max,
         });
     }
-    Ok(Some(value.to_owned()))
+    Ok(Some(value))
 }
 
 fn parse_meta_traceparent(
@@ -393,10 +421,10 @@ fn parse_traceparent(value: &str) -> Result<TraceParent, TraceParseError> {
             actual: value.len(),
         });
     }
-    let bytes = value.as_bytes();
-    if !bytes[..TRACEPARENT_V00_LEN].is_ascii() {
+    if !value.is_ascii() {
         return Err(TraceParseError::InvalidTraceParentFormat);
     }
+    let bytes = value.as_bytes();
     if bytes[TRACEPARENT_VERSION_END] != b'-'
         || bytes[TRACEPARENT_TRACE_ID_END] != b'-'
         || bytes[TRACEPARENT_SPAN_ID_END] != b'-'
@@ -434,9 +462,9 @@ fn parse_traceparent(value: &str) -> Result<TraceParent, TraceParseError> {
     if span_id.bytes().all(|b| b == b'0') {
         return Err(TraceParseError::InvalidSpanId);
     }
-    let flag_byte = u8::from_str_radix(flags, 16).map_err(|_| TraceParseError::InvalidFlags)?;
+    let flag_byte =
+        u8::from_str_radix(flags, 16).map_err(|_| TraceParseError::InvalidTraceParentFormat)?;
     Ok(TraceParent {
-        raw: value.to_owned(),
         trace_id: trace_id.to_owned(),
         span_id: span_id.to_owned(),
         sampled: flag_byte & 0x01 == 0x01,
@@ -464,15 +492,57 @@ fn summarize_baggage(baggage: Option<&str>) -> (usize, usize) {
     (total, sensitive)
 }
 
-fn validate_baggage_member_count(baggage: Option<&str>, max: usize) -> Result<(), TraceParseError> {
+fn validate_tracestate(tracestate: Option<&str>) -> Result<(), TraceParseError> {
+    let Some(tracestate) = tracestate else {
+        return Ok(());
+    };
+    let mut keys = BTreeSet::new();
+    let mut total = 0;
+    for member in tracestate.split(',') {
+        let member = member.trim();
+        if member.is_empty() {
+            return Err(TraceParseError::InvalidTraceState);
+        }
+        total += 1;
+        if total > MAX_TRACESTATE_MEMBERS {
+            return Err(TraceParseError::TooManyTraceStateMembers {
+                actual: total,
+                max: MAX_TRACESTATE_MEMBERS,
+            });
+        }
+        let Some((key, value)) = member.split_once('=') else {
+            return Err(TraceParseError::InvalidTraceState);
+        };
+        let key = key.trim();
+        if !is_valid_tracestate_key(key) || !is_valid_tracestate_value(value) {
+            return Err(TraceParseError::InvalidTraceState);
+        }
+        if !keys.insert(key) {
+            return Err(TraceParseError::DuplicateTraceStateKey);
+        }
+    }
+    Ok(())
+}
+
+fn validate_baggage(baggage: Option<&str>, max: usize) -> Result<(), TraceParseError> {
     let Some(baggage) = baggage else {
         return Ok(());
     };
     let mut total = 0;
-    for _ in baggage_keys(baggage) {
+    for member in baggage
+        .split(',')
+        .map(str::trim)
+        .filter(|member| !member.is_empty())
+    {
         total += 1;
         if total > max {
             return Err(TraceParseError::TooManyBaggageMembers { actual: total, max });
+        }
+        let Some((key, _value)) = member.split_once('=') else {
+            return Err(TraceParseError::InvalidBaggageMember);
+        };
+        if !is_valid_baggage_key(key.trim()) {
+            return Err(TraceParseError::InvalidBaggageMember);
         }
     }
     Ok(())
@@ -480,35 +550,241 @@ fn validate_baggage_member_count(baggage: Option<&str>, max: usize) -> Result<()
 
 fn baggage_keys(baggage: &str) -> impl Iterator<Item = &str> {
     baggage.split(',').filter_map(|member| {
-        let key = member
-            .split_once('=')
-            .map(|(key, _)| key)
-            .unwrap_or(member)
-            .trim();
+        let (key, _) = member.split_once('=')?;
+        let key = key.trim();
         (!key.is_empty()).then_some(key)
     })
 }
 
 fn is_sensitive_key(key: &str) -> bool {
-    let normalized: String = key
-        .chars()
-        .filter(|ch| ch.is_ascii_alphanumeric())
-        .flat_map(char::to_lowercase)
-        .collect();
-    matches!(
-        normalized.as_str(),
-        "authorization"
-            | "cookie"
-            | "setcookie"
-            | "password"
-            | "secret"
-            | "token"
-            | "accesstoken"
-            | "refreshtoken"
-            | "apikey"
-            | "xapikey"
-            | "privatekey"
-            | "session"
-            | "sessionid"
-    )
+    const SENSITIVE_KEYS: &[&str] = &[
+        "authorization",
+        "cookie",
+        "setcookie",
+        "password",
+        "secret",
+        "token",
+        "accesstoken",
+        "refreshtoken",
+        "apikey",
+        "xapikey",
+        "privatekey",
+        "session",
+        "sessionid",
+    ];
+    SENSITIVE_KEYS
+        .iter()
+        .any(|sensitive_key| normalized_ascii_key_eq(key, sensitive_key))
+}
+
+fn normalized_ascii_key_eq(key: &str, expected: &str) -> bool {
+    let mut key_bytes = key
+        .bytes()
+        .filter(|byte| byte.is_ascii_alphanumeric())
+        .map(|byte| byte.to_ascii_lowercase());
+    let mut expected_bytes = expected.bytes();
+    loop {
+        match (key_bytes.next(), expected_bytes.next()) {
+            (Some(left), Some(right)) if left == right => {}
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}
+
+fn is_valid_tracestate_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.is_ascii()
+        && key.bytes().all(|byte| {
+            byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || matches!(byte, b'_' | b'-' | b'*' | b'/' | b'@')
+        })
+}
+
+fn is_valid_tracestate_value(value: &str) -> bool {
+    !value.is_empty()
+        && value.is_ascii()
+        && value.trim() == value
+        && value
+            .bytes()
+            .all(|byte| matches!(byte, 0x20..=0x2b | 0x2d..=0x3c | 0x3e..=0x7e))
+}
+
+fn is_valid_baggage_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.is_ascii()
+        && key.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(
+                    byte,
+                    b'!' | b'#'
+                        | b'$'
+                        | b'%'
+                        | b'&'
+                        | b'\''
+                        | b'*'
+                        | b'+'
+                        | b'-'
+                        | b'.'
+                        | b'^'
+                        | b'_'
+                        | b'`'
+                        | b'|'
+                        | b'~'
+                )
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01";
+
+    #[test]
+    fn trace_context_parses_meta_and_summarizes_safely() {
+        let mut meta = Meta::new();
+        meta.set_traceparent(VALID_TRACEPARENT);
+        meta.set_tracestate("vendor=value");
+        meta.set_baggage("region=us-east-1,accessToken=super-secret-token");
+
+        let context = TraceContext::from_meta(&meta, TraceTrust::Untrusted)
+            .expect("valid trace metadata")
+            .expect("trace context exists");
+
+        let summary = context.summary();
+
+        assert_eq!(summary.trace_id_prefix(), Some("0af76519"));
+        assert_eq!(summary.span_id_prefix(), Some("00f067aa"));
+        assert_eq!(summary.sampled(), Some(true));
+        assert_eq!(summary.trust(), TraceTrust::Untrusted);
+        assert!(summary.has_tracestate());
+        assert_eq!(summary.baggage_member_count(), 2);
+        assert_eq!(summary.sensitive_baggage_member_count(), 1);
+        assert_eq!(summary.invalid_count(), 0);
+    }
+
+    #[test]
+    fn malformed_traceparents_are_rejected() {
+        for value in [
+            "",
+            "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7",
+            "ff-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01",
+            "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+            "00-0af7651916cd43dd8448eb211c80319c-0000000000000000-01",
+            "00-0AF7651916CD43DD8448EB211C80319C-00f067aa0ba902b7-01",
+            "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-zz",
+        ] {
+            assert!(
+                TraceParent::parse(value).is_err(),
+                "{value} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn non_ascii_traceparents_are_rejected_without_panicking() {
+        let value = format!("{}\u{00e9}", &VALID_TRACEPARENT[..54]);
+        let result = std::panic::catch_unwind(|| TraceParent::parse(&value));
+
+        assert!(result.is_ok(), "non-ASCII input must not panic");
+        assert!(matches!(
+            result.unwrap(),
+            Err(TraceParseError::InvalidTraceParentFormat)
+        ));
+
+        let higher_version = "01-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01-\u{00e9}";
+        assert!(matches!(
+            TraceParent::parse(higher_version),
+            Err(TraceParseError::InvalidTraceParentFormat)
+        ));
+    }
+
+    #[test]
+    fn traceparent_version_rules_cover_v00_and_higher_version_bounds() {
+        assert!(matches!(
+            TraceParent::parse(&format!("{VALID_TRACEPARENT}-extra")),
+            Err(TraceParseError::InvalidTraceParentLength { actual }) if actual == 61
+        ));
+
+        let higher_base = "01-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01";
+        let max_extra_len = 512 - higher_base.len() - 1;
+        let max_len_value = format!("{higher_base}-{}", "a".repeat(max_extra_len));
+        assert_eq!(max_len_value.len(), 512);
+        TraceParent::parse(&max_len_value).expect("512-byte higher version should be accepted");
+
+        let too_long = format!("{higher_base}-{}", "a".repeat(max_extra_len + 1));
+        assert_eq!(too_long.len(), 513);
+        assert!(matches!(
+            TraceParent::parse(&too_long),
+            Err(TraceParseError::ValueTooLong {
+                field: TRACEPARENT_KEY,
+                actual: 513,
+                max: 512,
+            })
+        ));
+    }
+
+    #[test]
+    fn higher_version_traceparents_preserve_stable_fields() {
+        let traceparent =
+            TraceParent::parse("01-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01-extra")
+                .expect("higher versions can carry additive fields");
+
+        assert_eq!(traceparent.trace_id(), "0af7651916cd43dd8448eb211c80319c");
+        assert_eq!(traceparent.span_id(), "00f067aa0ba902b7");
+        assert!(traceparent.sampled());
+    }
+
+    #[test]
+    fn strict_context_rejects_oversized_optional_metadata() {
+        let mut meta = Meta::new();
+        meta.set_traceparent("x".repeat(4096));
+        assert!(TraceContext::from_meta(&meta, TraceTrust::Untrusted).is_err());
+
+        let mut meta = Meta::new();
+        meta.set_traceparent(VALID_TRACEPARENT);
+        meta.set_tracestate("v".repeat(20));
+        let limits = TraceLimits {
+            max_tracestate_len: 8,
+            ..TraceLimits::default()
+        };
+        assert!(TraceContext::from_meta_with_limits(&meta, TraceTrust::Untrusted, limits).is_err());
+
+        let mut meta = Meta::new();
+        meta.set_traceparent(VALID_TRACEPARENT);
+        meta.set_baggage("a".repeat(20));
+        let limits = TraceLimits {
+            max_baggage_len: 8,
+            ..TraceLimits::default()
+        };
+        assert!(TraceContext::from_meta_with_limits(&meta, TraceTrust::Untrusted, limits).is_err());
+    }
+
+    #[test]
+    fn strict_context_rejects_invalid_optional_metadata() {
+        let mut meta = Meta::new();
+        meta.set_traceparent(VALID_TRACEPARENT);
+        meta.set_tracestate("vendor=value,vendor=other");
+        let error = TraceContext::from_meta(&meta, TraceTrust::Untrusted)
+            .expect_err("duplicate tracestate keys should be rejected");
+        assert!(matches!(error, TraceParseError::DuplicateTraceStateKey));
+
+        let mut meta = Meta::new();
+        meta.set_traceparent(VALID_TRACEPARENT);
+        meta.set_baggage("a=1,b=2,c=3");
+        let limits = TraceLimits {
+            max_baggage_members: 2,
+            ..TraceLimits::default()
+        };
+        let error = TraceContext::from_meta_with_limits(&meta, TraceTrust::Untrusted, limits)
+            .expect_err("baggage member cap should be enforced");
+
+        assert!(matches!(
+            error,
+            TraceParseError::TooManyBaggageMembers { actual: 3, max: 2 }
+        ));
+        assert!(!error.safe_reason().contains("a=1"));
+    }
 }

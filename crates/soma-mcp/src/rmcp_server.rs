@@ -48,6 +48,24 @@ use super::{
     tools::execute_tool,
 };
 
+macro_rules! trace_summary_event {
+    ($level:ident, $trace_summary:expr, $message:literal, $($field:tt)*) => {
+        tracing::$level!(
+            $($field)*
+            trace_id_prefix = ?$trace_summary.trace_id_prefix(),
+            span_id_prefix = ?$trace_summary.span_id_prefix(),
+            trace_sampled = ?$trace_summary.sampled(),
+            trace_trust = ?$trace_summary.trust(),
+            has_tracestate = $trace_summary.has_tracestate(),
+            baggage_member_count = $trace_summary.baggage_member_count(),
+            sensitive_baggage_member_count = $trace_summary.sensitive_baggage_member_count(),
+            trace_invalid_count = $trace_summary.invalid_count(),
+            trace_invalid_reasons = ?$trace_summary.invalid_reasons(),
+            $message
+        );
+    };
+}
+
 // ── server ────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -99,22 +117,14 @@ impl ServerHandler for SomaRmcpServer {
         let response_page = match response_page_request(request.arguments.as_ref()) {
             Ok(response_page) => response_page,
             Err(error) => {
-                tracing::warn!(
-                    tool = %tool_name,
-                    action = action_opt.as_deref().unwrap_or_default(),
-                    "MCP tool rejected response paging params"
-                );
+                tracing::warn!("MCP tool rejected response paging params");
                 return Err(error);
             }
         };
         let auth = match require_auth_context(&self.state, &context) {
             Ok(auth) => auth,
             Err(error) => {
-                tracing::warn!(
-                    tool = %tool_name,
-                    action = action_opt.as_deref().unwrap_or_default(),
-                    "MCP tool rejected auth context"
-                );
+                tracing::warn!("MCP tool rejected auth context");
                 return Err(error);
             }
         };
@@ -125,37 +135,23 @@ impl ServerHandler for SomaRmcpServer {
             }
         }
         if tool_name != "soma" {
-            tracing::warn!(
+            trace_summary_event!(
+                warn,
+                trace_summary,
+                "MCP tool rejected unknown tool",
                 tool = %tool_name,
                 action = action_opt.as_deref().unwrap_or_default(),
-                trace_id_prefix = ?trace_summary.trace_id_prefix(),
-                span_id_prefix = ?trace_summary.span_id_prefix(),
-                trace_sampled = ?trace_summary.sampled(),
-                trace_trust = ?trace_summary.trust(),
-                has_tracestate = trace_summary.has_tracestate(),
-                baggage_member_count = trace_summary.baggage_member_count(),
-                sensitive_baggage_member_count = trace_summary.sensitive_baggage_member_count(),
-                trace_invalid_count = trace_summary.invalid_count(),
-                trace_invalid_reasons = ?trace_summary.invalid_reasons(),
-                "MCP tool rejected unknown tool"
             );
             return Err(unknown_tool_error(&tool_name));
         }
         let action: String = action_opt.unwrap_or_default();
         if let Some(cursor) = response_page.cursor().map(str::to_owned) {
-            tracing::info!(
+            trace_summary_event!(
+                info,
+                trace_summary,
+                "MCP tool returned cached response page",
                 tool = %tool_name,
                 action = empty_action_as_none(&action).unwrap_or_default(),
-                trace_id_prefix = ?trace_summary.trace_id_prefix(),
-                span_id_prefix = ?trace_summary.span_id_prefix(),
-                trace_sampled = ?trace_summary.sampled(),
-                trace_trust = ?trace_summary.trust(),
-                has_tracestate = trace_summary.has_tracestate(),
-                baggage_member_count = trace_summary.baggage_member_count(),
-                sensitive_baggage_member_count = trace_summary.sensitive_baggage_member_count(),
-                trace_invalid_count = trace_summary.invalid_count(),
-                trace_invalid_reasons = ?trace_summary.invalid_reasons(),
-                "MCP tool returned cached response page"
             );
             return tool_result_from_cached_page(
                 &self.state.response_pages,
@@ -180,19 +176,12 @@ impl ServerHandler for SomaRmcpServer {
         let auth_mode = provider_auth_mode(&self.state.auth_policy);
 
         let started = Instant::now();
-        tracing::info!(
+        trace_summary_event!(
+            info,
+            trace_summary,
+            "MCP tool execution started",
             tool = %tool_name,
             action = %action,
-            trace_id_prefix = ?trace_summary.trace_id_prefix(),
-            span_id_prefix = ?trace_summary.span_id_prefix(),
-            trace_sampled = ?trace_summary.sampled(),
-            trace_trust = ?trace_summary.trust(),
-            has_tracestate = trace_summary.has_tracestate(),
-            baggage_member_count = trace_summary.baggage_member_count(),
-            sensitive_baggage_member_count = trace_summary.sensitive_baggage_member_count(),
-            trace_invalid_count = trace_summary.invalid_count(),
-            trace_invalid_reasons = ?trace_summary.invalid_reasons(),
-            "MCP tool execution started"
         );
 
         match execute_tool(
@@ -206,20 +195,13 @@ impl ServerHandler for SomaRmcpServer {
         .await
         {
             Ok(result) => {
-                tracing::info!(
+                trace_summary_event!(
+                    info,
+                    trace_summary,
+                    "MCP tool execution completed",
                     tool = %tool_name,
                     action = %action,
                     elapsed_ms = started.elapsed().as_millis(),
-                    trace_id_prefix = ?trace_summary.trace_id_prefix(),
-                    span_id_prefix = ?trace_summary.span_id_prefix(),
-                    trace_sampled = ?trace_summary.sampled(),
-                    trace_trust = ?trace_summary.trust(),
-                    has_tracestate = trace_summary.has_tracestate(),
-                    baggage_member_count = trace_summary.baggage_member_count(),
-                    sensitive_baggage_member_count = trace_summary.sensitive_baggage_member_count(),
-                    trace_invalid_count = trace_summary.invalid_count(),
-                    trace_invalid_reasons = ?trace_summary.invalid_reasons(),
-                    "MCP tool execution completed"
                 );
                 tool_result_from_json(
                     result,
@@ -233,38 +215,24 @@ impl ServerHandler for SomaRmcpServer {
             Err(error) => {
                 let tool_error = soma_service::classify_service_error(&error);
                 if tool_error.kind == ServiceErrorKind::Validation {
-                    tracing::warn!(
+                    trace_summary_event!(
+                        warn,
+                        trace_summary,
+                        "MCP tool rejected invalid params",
                         tool = %tool_name,
                         action = %action,
                         elapsed_ms = started.elapsed().as_millis(),
-                        trace_id_prefix = ?trace_summary.trace_id_prefix(),
-                        span_id_prefix = ?trace_summary.span_id_prefix(),
-                        trace_sampled = ?trace_summary.sampled(),
-                        trace_trust = ?trace_summary.trust(),
-                        has_tracestate = trace_summary.has_tracestate(),
-                        baggage_member_count = trace_summary.baggage_member_count(),
-                        sensitive_baggage_member_count = trace_summary.sensitive_baggage_member_count(),
-                        trace_invalid_count = trace_summary.invalid_count(),
-                        trace_invalid_reasons = ?trace_summary.invalid_reasons(),
-                        "MCP tool rejected invalid params"
                     );
                 } else {
-                    tracing::error!(
+                    trace_summary_event!(
+                        error,
+                        trace_summary,
+                        "MCP tool execution failed",
                         tool = %tool_name,
                         action = %action,
                         elapsed_ms = started.elapsed().as_millis(),
                         service_error_kind = %tool_error.kind.as_str(),
                         error = %error,
-                        trace_id_prefix = ?trace_summary.trace_id_prefix(),
-                        span_id_prefix = ?trace_summary.span_id_prefix(),
-                        trace_sampled = ?trace_summary.sampled(),
-                        trace_trust = ?trace_summary.trust(),
-                        has_tracestate = trace_summary.has_tracestate(),
-                        baggage_member_count = trace_summary.baggage_member_count(),
-                        sensitive_baggage_member_count = trace_summary.sensitive_baggage_member_count(),
-                        trace_invalid_count = trace_summary.invalid_count(),
-                        trace_invalid_reasons = ?trace_summary.invalid_reasons(),
-                        "MCP tool execution failed"
                     );
                 }
                 tool_error_result(

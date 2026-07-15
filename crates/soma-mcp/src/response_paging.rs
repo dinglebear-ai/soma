@@ -13,6 +13,7 @@ const RESPONSE_CURSOR_PARAM: &str = "_response_cursor";
 pub(crate) const ACTION_DISCRIMINATOR_FIELD: &str = "_soma_action";
 const DEFAULT_RESPONSE_PAGE_BYTES: usize = 16_000;
 const MAX_RESPONSE_PAGE_BYTES: usize = 16_000;
+const MAX_RESPONSE_CURSOR_BYTES: usize = 256;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ResponsePageRequest {
@@ -101,6 +102,19 @@ fn optional_string_arg(
             })),
         ));
     };
+    if field == RESPONSE_CURSOR_PARAM && value.len() > MAX_RESPONSE_CURSOR_BYTES {
+        return Err(ErrorData::invalid_params(
+            format!("{field} exceeded {MAX_RESPONSE_CURSOR_BYTES} bytes"),
+            Some(json!({
+                "kind": "mcp_protocol_error",
+                "schema_version": 1,
+                "code": "response_cursor_too_long",
+                "field": field,
+                "retryable": true,
+                "remediation": format!("Pass {field} exactly as returned by the previous mcp_response_page continuation."),
+            })),
+        ));
+    }
     Ok(Some(value.to_owned()))
 }
 

@@ -2,6 +2,8 @@ use serde_json::json;
 
 use soma_contracts::token_limit::MAX_RESPONSE_BYTES;
 
+use crate::assert_result_has_no_meta;
+
 use super::{response_page_request, tool_result_from_json, ResponsePageRequest};
 
 fn result_text(result: &rmcp::model::CallToolResult) -> &str {
@@ -10,15 +12,6 @@ fn result_text(result: &rmcp::model::CallToolResult) -> &str {
         .expect("tool result should contain text")
         .text
         .as_str()
-}
-
-fn assert_result_has_no_meta(result: &rmcp::model::CallToolResult) {
-    assert!(result.meta.is_none(), "result meta should stay empty");
-    let serialized = serde_json::to_value(result).expect("result should serialize");
-    assert!(
-        serialized.get("_meta").is_none(),
-        "serialized result included _meta: {serialized}"
-    );
 }
 
 #[test]
@@ -250,6 +243,21 @@ fn response_page_request_rejects_offset_without_cursor() {
     let data = error.data.expect("error should include structured data");
     assert_eq!(data["kind"], "mcp_protocol_error");
     assert_eq!(data["code"], "missing_response_cursor");
+    assert_eq!(data["field"], "_response_cursor");
+}
+
+#[test]
+fn response_page_request_rejects_oversized_cursor_before_cloning() {
+    let args = serde_json::Map::from_iter([
+        ("action".to_owned(), json!("status")),
+        ("_response_cursor".to_owned(), json!("x".repeat(257))),
+        ("_response_offset".to_owned(), json!(1)),
+    ]);
+
+    let error = response_page_request(Some(&args)).expect_err("cursor cap should be enforced");
+    let data = error.data.expect("error should include structured data");
+    assert_eq!(data["kind"], "mcp_protocol_error");
+    assert_eq!(data["code"], "response_cursor_too_long");
     assert_eq!(data["field"], "_response_cursor");
 }
 
