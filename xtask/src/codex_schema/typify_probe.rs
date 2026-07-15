@@ -85,8 +85,20 @@ pub fn probe(schema: &Value) -> ProbeOutcome {
 
     let location: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     let location_for_hook = Arc::clone(&location);
+    // `probe_lock` only serializes against *other `probe()` calls* - it does
+    // nothing to stop some unrelated panic on a different thread (e.g. an
+    // assertion failure in an unrelated test running concurrently under
+    // `cargo test`'s default parallel execution) from also invoking this
+    // hook, since `panic::set_hook` is process-global, not per-thread.
+    // Filtering on the calling thread's id keeps such a stray panic from
+    // clobbering the location this specific `probe()` call is trying to
+    // capture.
+    let calling_thread = std::thread::current().id();
     let previous_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
+        if std::thread::current().id() != calling_thread {
+            return;
+        }
         if let Some(loc) = info.location() {
             *location_for_hook.lock().unwrap() =
                 Some(format!("{}:{}:{}", loc.file(), loc.line(), loc.column()));
@@ -106,9 +118,21 @@ pub fn probe(schema: &Value) -> ProbeOutcome {
         Ok(Ok(_)) => ProbeOutcome::Success,
         Ok(Err(e)) => ProbeOutcome::TypifyError(e.to_string()),
         Err(payload) => {
-            let message = panic_message(&payload);
+            // `&*payload`, not `&payload`: `payload: Box<dyn Any + Send>` is
+            // itself a `'static` type, so it satisfies `Any`'s blanket impl
+            // too - `&payload` would coerce to a trait object representing
+            // the *Box's own* type identity, not the panic value it wraps,
+            // making every downcast_ref below silently fail regardless of
+            // the real payload type. Deref first to reach the actual
+            // panic value before widening it to `&dyn Any + Send`.
+            let message = panic_message(&*payload);
+            // Requires BOTH signals, not just the message: a bare
+            // "not yet implemented" match alone would misclassify any
+            // unrelated `todo!()` panic anywhere in typify's call graph as
+            // this specific known bug. The captured location narrows it to
+            // the exact source file the target panic actually comes from.
             let is_target = message.contains("not yet implemented")
-                || captured_location
+                && captured_location
                     .as_deref()
                     .is_some_and(|l| l.contains("merge.rs"));
             if is_target {

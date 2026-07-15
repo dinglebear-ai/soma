@@ -26,10 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cargo xtask codex-schema regen` (staleness is detected and warned about
   automatically). Includes a bounded `EventStream` channel (notifications are
   dropped and logged on overflow, but server requests always get a fallback
-  JSON-RPC error reply rather than being silently dropped), a line-cap fix so
-  `MAX_LINE_BYTES` is enforced on both the newline-found and no-newline read
-  paths, and build-time schema validation that fails loudly on a malformed
-  `response_type` instead of misreading it. See
+  JSON-RPC error reply rather than being silently dropped), a bounded
+  outbound write queue with the same no-silent-drop treatment, a line-cap
+  fix so `MAX_LINE_BYTES` is enforced on both the newline-found and
+  no-newline read paths, build-time schema validation that fails loudly on
+  a malformed `response_type` instead of misreading it, and
+  `ServerNotification::method_name()` for logging a notification's kind
+  without its full (potentially sensitive) payload. See
   `crates/codex-app-server-client/README.md`.
 
 ### Fixed

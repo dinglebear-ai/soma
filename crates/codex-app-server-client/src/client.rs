@@ -57,6 +57,19 @@ const PENDING_SERVER_REQUEST_TIMEOUT: Duration = Duration::from_secs(600);
 /// for the drop policy once this fills up.
 const EVENTS_CHANNEL_CAPACITY: usize = 1024;
 
+/// Capacity of the internal channel from callers (and the reader task's own
+/// reply-forwarding) to the writer task. Bounded for the same reason as
+/// [`EVENTS_CHANNEL_CAPACITY`]: without a cap, a caller issuing many
+/// concurrent requests while the peer write is slow (anywhere up to
+/// [`WRITE_TIMEOUT`] before the connection gets torn down) could grow this
+/// queue by an unbounded number of serialized-but-unwritten lines. A full
+/// queue surfaces as [`Error::TransportClosed`] to the caller that tried to
+/// enqueue onto it - not perfectly accurate wording for "backed up" versus
+/// "closed," but by the time this queue is actually full the connection is
+/// in comparably serious trouble, and treating it as unusable is reasonable
+/// without adding a dedicated error variant for a narrow, rare case.
+const WRITE_CHANNEL_CAPACITY: usize = 1024;
+
 type PendingSender = oneshot::Sender<std::result::Result<serde_json::Value, Error>>;
 type PendingMap = Arc<Mutex<HashMap<i64, PendingSender>>>;
 
@@ -265,7 +278,7 @@ impl Drop for ShutdownOnDrop {
 /// [`Self::send_initialized`].
 #[derive(Clone)]
 pub struct CodexAppServerClient {
-    write_tx: mpsc::UnboundedSender<String>,
+    write_tx: mpsc::Sender<String>,
     pending: PendingMap,
     next_id: Arc<AtomicI64>,
     call_timeout: Duration,
@@ -329,7 +342,7 @@ impl CodexAppServerClient {
         R: AsyncBufRead + Unpin + Send + 'static,
         W: AsyncWrite + Unpin + Send + 'static,
     {
-        let (write_tx, mut write_rx) = mpsc::unbounded_channel::<String>();
+        let (write_tx, mut write_rx) = mpsc::channel::<String>(WRITE_CHANNEL_CAPACITY);
         let (events_tx, events_rx) = mpsc::channel::<Event>(EVENTS_CHANNEL_CAPACITY);
         let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
         let cancel = CancellationToken::new();
@@ -457,6 +470,7 @@ impl CodexAppServerClient {
                                     &pending_reader,
                                     &events_tx,
                                     &write_tx_for_reader,
+                                    &reader_cancel,
                                 );
                             }
                             Err(err) => {
@@ -517,7 +531,7 @@ impl CodexAppServerClient {
         };
 
         let line = serde_json::to_string(&request)?;
-        if self.write_tx.send(line).is_err() {
+        if self.write_tx.try_send(line).is_err() {
             return Err(Error::TransportClosed);
         }
 
@@ -535,7 +549,9 @@ impl CodexAppServerClient {
     /// rejects every other method until it's received.
     pub fn send_initialized(&self) -> Result<()> {
         let line = serde_json::to_string(&serde_json::json!({ "method": "initialized" }))?;
-        self.write_tx.send(line).map_err(|_| Error::TransportClosed)
+        self.write_tx
+            .try_send(line)
+            .map_err(|_| Error::TransportClosed)
     }
 }
 

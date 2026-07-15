@@ -8,6 +8,7 @@
 //! the two beyond that.
 
 use tokio::sync::{mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 
 use super::{Event, PendingMap, PendingServerRequest, PENDING_SERVER_REQUEST_TIMEOUT};
 use crate::protocol::{ServerNotification, ServerRequest};
@@ -60,7 +61,8 @@ pub(super) fn dispatch_incoming_line(
     line: &str,
     pending: &PendingMap,
     events_tx: &mpsc::Sender<Event>,
-    write_tx: &mpsc::UnboundedSender<String>,
+    write_tx: &mpsc::Sender<String>,
+    cancel: &CancellationToken,
 ) {
     let value: serde_json::Value = match serde_json::from_str(line) {
         Ok(v) => v,
@@ -88,45 +90,58 @@ pub(super) fn dispatch_incoming_line(
                         let (reply_tx, reply_rx) = oneshot::channel::<OutgoingReply>();
                         let write_tx = write_tx.clone();
                         let timeout_id = id_value.clone();
+                        let cancel = cancel.clone();
                         tokio::spawn(async move {
-                            match tokio::time::timeout(PENDING_SERVER_REQUEST_TIMEOUT, reply_rx)
-                                .await
-                            {
-                                Ok(Ok(reply)) => match reply.into_line() {
-                                    Ok(line) => {
-                                        let _ = write_tx.send(line);
-                                    }
-                                    Err(err) => {
-                                        tracing::error!(
-                                            error = %err,
-                                            "failed to serialize a reply to a server->client \
-                                             request; the app-server will time out waiting for it"
-                                        );
-                                    }
-                                },
-                                Ok(Err(_recv_error)) => {
-                                    // In practice unreachable via a normal drop:
-                                    // `PendingServerRequest`'s own `Drop` impl always sends a
-                                    // fallback reply before its `reply_tx` itself drops (see
-                                    // that type's doc comment), so this only fires if a caller
-                                    // bypasses `Drop` entirely (e.g. `std::mem::forget`) - kept
-                                    // as a safe no-op rather than assuming it can't happen.
+                            // Raced against the connection's own cancellation, not just
+                            // PENDING_SERVER_REQUEST_TIMEOUT: without this, a caller sitting on
+                            // a human-in-the-loop approval while the connection dies underneath
+                            // them leaves this task lingering for up to 10 minutes doing
+                            // nothing useful before its own timeout fires and no-ops on an
+                            // already-dead write_tx.
+                            tokio::select! {
+                                _ = cancel.cancelled() => {
+                                    // Connection already dead - nothing to write to and no one
+                                    // left waiting for a reply; drop without a fallback write.
                                 }
-                                Err(_elapsed) => {
-                                    tracing::warn!(
-                                        timeout = ?PENDING_SERVER_REQUEST_TIMEOUT,
-                                        "no one responded to a server->client request within the \
-                                         timeout; sending a fallback error reply instead of leaving \
-                                         the app-server waiting forever"
-                                    );
-                                    if let Some(line) = error_reply_line(
-                                        &timeout_id,
-                                        -32000,
-                                        format!(
-                                            "codex-app-server-client: no reply within {PENDING_SERVER_REQUEST_TIMEOUT:?}"
-                                        ),
-                                    ) {
-                                        let _ = write_tx.send(line);
+                                result = tokio::time::timeout(PENDING_SERVER_REQUEST_TIMEOUT, reply_rx) => {
+                                    match result {
+                                        Ok(Ok(reply)) => match reply.into_line() {
+                                            Ok(line) => {
+                                                let _ = write_tx.try_send(line);
+                                            }
+                                            Err(err) => {
+                                                tracing::error!(
+                                                    error = %err,
+                                                    "failed to serialize a reply to a server->client \
+                                                     request; the app-server will time out waiting for it"
+                                                );
+                                            }
+                                        },
+                                        Ok(Err(_recv_error)) => {
+                                            // In practice unreachable via a normal drop:
+                                            // `PendingServerRequest`'s own `Drop` impl always sends a
+                                            // fallback reply before its `reply_tx` itself drops (see
+                                            // that type's doc comment), so this only fires if a caller
+                                            // bypasses `Drop` entirely (e.g. `std::mem::forget`) - kept
+                                            // as a safe no-op rather than assuming it can't happen.
+                                        }
+                                        Err(_elapsed) => {
+                                            tracing::warn!(
+                                                timeout = ?PENDING_SERVER_REQUEST_TIMEOUT,
+                                                "no one responded to a server->client request within the \
+                                                 timeout; sending a fallback error reply instead of leaving \
+                                                 the app-server waiting forever"
+                                            );
+                                            if let Some(line) = error_reply_line(
+                                                &timeout_id,
+                                                -32000,
+                                                format!(
+                                                    "codex-app-server-client: no reply within {PENDING_SERVER_REQUEST_TIMEOUT:?}"
+                                                ),
+                                            ) {
+                                                let _ = write_tx.try_send(line);
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -174,7 +189,7 @@ pub(super) fn dispatch_incoming_line(
                             -32601,
                             format!("codex-app-server-client: unrecognized or undecodable request: {err}"),
                         ) {
-                            let _ = write_tx.send(reply);
+                            let _ = write_tx.try_send(reply);
                         } else {
                             tracing::error!(
                                 "could not build even the fallback error reply; the app-server \
@@ -191,13 +206,14 @@ pub(super) fn dispatch_incoming_line(
                         // is waiting for a reply, so it's safe to just drop this under
                         // backpressure rather than block the reader task. Deliberately not
                         // logging the notification payload itself (could be arbitrarily
-                        // large, e.g. a big diff) - just that one was dropped.
+                        // large, e.g. a big diff) - just its method and that one was dropped.
+                        let method = notification.method_name();
                         if let Err(err) = events_tx.try_send(Event::Notification(notification)) {
                             let cause = match err {
                                 mpsc::error::TrySendError::Full(_) => "channel full",
                                 mpsc::error::TrySendError::Closed(_) => "EventStream dropped",
                             };
-                            tracing::warn!(cause, "dropping a server notification");
+                            tracing::warn!(cause, method, "dropping a server notification");
                         }
                     }
                     Err(err) => {

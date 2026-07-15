@@ -19,7 +19,7 @@ async fn main() -> codex_app_server_client::Result<()> {
     tokio::spawn(async move {
         while let Some(event) = events.recv().await {
             match event {
-                Event::Notification(n) => tracing::debug!(?n, "notification"),
+                Event::Notification(n) => tracing::debug!(method = n.method_name(), "notification"),
                 Event::Request(req) => {
                     tracing::warn!(method = req.method_name(), "unexpected server request");
                     req.respond_error(-32000, "no handler registered in this example", None);

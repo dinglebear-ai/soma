@@ -320,6 +320,29 @@ impl crate::protocol::ServerRequest {{
     }
     writeln!(out, "        }}\n    }}\n}}").unwrap();
 
+    // -------- schema-derived accessor on ServerNotification --------
+    writeln!(
+        out,
+        r#"
+impl crate::protocol::ServerNotification {{
+    /// The wire method name, e.g. `"turn/completed"`. Useful for logging a
+    /// non-sensitive identifier without the full (potentially large or
+    /// sensitive) notification payload.
+    pub fn method_name(&self) -> &'static str {{
+        match self {{"#
+    )
+    .unwrap();
+    for e in &server_notifications {
+        writeln!(
+            out,
+            "            crate::protocol::ServerNotification::{variant} {{ .. }} => {method:?},",
+            variant = e.variant_name,
+            method = e.method,
+        )
+        .unwrap();
+    }
+    writeln!(out, "        }}\n    }}\n}}").unwrap();
+
     // -------- doc comment listing every notification variant handled by ServerNotification --------
     let notif_names: Vec<&str> = server_notifications
         .iter()
