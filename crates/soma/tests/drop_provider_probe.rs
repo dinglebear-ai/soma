@@ -367,10 +367,13 @@ async fn refresh_failure_keeps_the_last_valid_resource_snapshot_active() -> anyh
     );
 
     // Second file whose derived provider name collides with the first
-    // ("Runbook" slugifies to the same "runbook" as "runbook") — an
-    // invalid, refresh-failing drop.
+    // ("runbook!" slugifies to the same "runbook" as "runbook") — an
+    // invalid, refresh-failing drop. Deliberately NOT a case-only variant
+    // (e.g. "Runbook.md"): NTFS and APFS are case-insensitive by default,
+    // so writing "Runbook.md" after "runbook.md" would silently overwrite
+    // the same file instead of creating a second, genuinely colliding one.
     fs::write(
-        resources.join("Runbook.md"),
+        resources.join("runbook!.md"),
         "# Duplicate Runbook\n\nThis should not load.\n",
     )?;
 
