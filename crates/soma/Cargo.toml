@@ -41,7 +41,6 @@ soma-cli = { path = "../soma-cli", optional = true }
 soma-contracts = { path = "../soma-contracts" }
 soma-mcp = { path = "../soma-mcp", optional = true }
 soma-observability = { path = "../soma-observability", optional = true }
-soma-plugin-support = { path = "../soma-plugin-support", optional = true }
 soma-service = { path = "../soma-service", default-features = false }
 soma-web = { path = "../soma-web", optional = true }
 rmcp = { version = "=2.2.0", default-features = false, optional = true }
@@ -68,7 +67,7 @@ auth = [
 ]
 oauth = ["auth", "soma-api?/oauth", "soma-mcp?/oauth", "soma-runtime/oauth"]
 observability = ["dep:soma-observability", "soma-service/observability"]
-plugin = ["cli", "dep:soma-plugin-support"]
+plugin = ["cli"]
 mcp-http = [
   "api",
   "mcp",

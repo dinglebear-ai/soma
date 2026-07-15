@@ -49,7 +49,6 @@ crates/
   soma-runtime/          ← AppState, auth policy, shared runtime wiring
   soma-web/              ← static web asset serving and source bundle helpers
   soma-observability/    ← tracing/metrics wiring
-  soma-plugin-support/   ← plugin manifest discovery and packaging helpers
   soma-test-support/     ← shared test fixtures and harness helpers
 ```
 

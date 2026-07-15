@@ -3515,7 +3515,6 @@ dependencies = [
  "soma-contracts",
  "soma-mcp",
  "soma-observability",
- "soma-plugin-support",
  "soma-runtime",
  "soma-service",
  "soma-test-support",
@@ -3645,16 +3644,6 @@ dependencies = [
  "tempfile",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "soma-plugin-support"
-version = "0.4.1"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "soma-contracts",
 ]
 
 [[package]]

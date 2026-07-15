@@ -140,7 +140,6 @@ soma/
         ├── mcp/
         ├── cli/
         ├── palette/
-        ├── plugin-support/
         ├── test-support/
         └── web/
 ```
@@ -206,7 +205,6 @@ The physical path determines the architectural layer. The package name determine
 | `crates/soma/mcp` | `soma-mcp` | `soma_mcp` | product |
 | `crates/soma/cli` | `soma-cli` | `soma_cli` | product |
 | `crates/soma/palette` | `soma-palette` | `soma_palette` | product |
-| `crates/soma/plugin-support` | `soma-plugin-support` | `soma_plugin_support` | product |
 | `crates/soma/test-support` | `soma-test-support` | `soma_test_support` | product |
 | `crates/soma/web` | `soma-web` | `soma_web` | product |
 
@@ -1863,17 +1861,6 @@ Do not create `crates/shared/palette` yet. Generic Palette action metadata belon
 
 ## 3.26 Remaining Soma product crates
 
-### `crates/soma/plugin-support`
-
-The live crate is currently a placeholder: it only re-exports `soma_contracts::env_registry`. Do not preserve it as a standalone product crate unless real plugin packaging/setup behavior moves into it.
-
-Recommended target:
-
-- fold the current env-registry re-export into `soma-config`, `soma-cli`, or `apps/soma` during the contracts split
-- delete `soma-plugin-support` if no substantial plugin behavior remains
-- recreate `crates/soma/plugin-support` only when Soma has durable product plugin packaging, setup, metadata projection, or hook contracts that justify a crate boundary
-- extract a generic plugin-support shared crate only after another unrelated product consumes the same abstraction
-
 ### `crates/soma/test-support`
 
 The live crate is not a full harness today; it only provides shared tracing-capture helpers used by a few tests.
@@ -2166,7 +2153,6 @@ Most "business for a tool" belongs in `soma-application`. Only invariant rules a
 | `crates/soma-mcp` | `crates/soma/mcp` | `soma-mcp` |
 | new extraction from Palette routes/app contract | `crates/soma/palette` | `soma-palette` |
 | `apps/palette/src-tauri` | remains app-local | `soma-palette-tauri` |
-| `crates/soma-plugin-support` | `crates/soma/plugin-support` | unchanged |
 | `crates/soma-runtime` | `crates/soma/runtime` | unchanged |
 | `crates/soma-test-support` | `crates/soma/test-support` | unchanged |
 | `crates/soma-web` | `crates/soma/web` | unchanged |
@@ -2344,7 +2330,6 @@ soma-api = { path = "crates/soma/api" }
 soma-mcp = { path = "crates/soma/mcp" }
 soma-cli = { path = "crates/soma/cli" }
 soma-palette = { path = "crates/soma/palette" }
-soma-plugin-support = { path = "crates/soma/plugin-support" }
 soma-test-support = { path = "crates/soma/test-support" }
 soma-web = { path = "crates/soma/web" }
 ```
@@ -2406,7 +2391,7 @@ auth = ["dep:soma-auth"]
 oauth = ["auth"]
 web = ["api", "dep:soma-web"]
 observability = ["dep:soma-observability"]
-plugin = ["dep:soma-plugin-support"]
+plugin = ["cli"]
 gateway = ["dep:soma-gateway", "soma-integrations/gateway"]
 codemode = ["dep:soma-codemode", "soma-integrations/codemode"]
 openapi = ["dep:soma-openapi", "soma-integrations/openapi"]
@@ -2690,7 +2675,6 @@ git mv crates/soma-api crates/soma/api
 git mv crates/soma-cli crates/soma/cli
 git mv crates/soma-contracts crates/soma/contracts
 git mv crates/soma-mcp crates/soma/mcp
-git mv crates/soma-plugin-support crates/soma/plugin-support
 git mv crates/soma-runtime crates/soma/runtime
 git mv crates/soma-service crates/soma/service
 git mv crates/soma-test-support crates/soma/test-support

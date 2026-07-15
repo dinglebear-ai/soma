@@ -16,7 +16,6 @@ members = [
   "crates/soma-contracts",
   "crates/soma-mcp",
   "crates/soma-observability",
-  "crates/soma-plugin-support",
   "crates/soma-runtime",
   "crates/soma-service",
   "crates/soma-test-support",
