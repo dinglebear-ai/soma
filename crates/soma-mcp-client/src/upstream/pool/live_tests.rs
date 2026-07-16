@@ -60,7 +60,11 @@ async fn stdio_live_discovery_and_call_routes_echo() {
     let pool = UpstreamPool::default();
     pool.register_config(UpstreamConfig {
         name: "py".to_owned(),
-        command: Some("python3".to_owned()),
+        command: Some(if cfg!(windows) {
+            "python".to_owned()
+        } else {
+            "python3".to_owned()
+        }),
         args: vec![script.to_string_lossy().to_string()],
         ..UpstreamConfig::default()
     })
