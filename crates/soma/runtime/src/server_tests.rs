@@ -1,5 +1,7 @@
 use super::*;
 use soma_contracts::config::{AuthConfig, SomaConfig};
+use soma_gateway::config::{GatewayConfig, GatewayPaths, UpstreamConfig};
+use soma_gateway::gateway::config_store::FsGatewayConfigStore;
 
 fn config(host: &str) -> Config {
     Config {
@@ -57,6 +59,7 @@ fn non_loopback_bearer_token_mounts_bearer_policy() {
     );
 }
 
+#[cfg(feature = "auth")]
 #[test]
 fn non_loopback_oauth_mounts_oauth_policy() {
     let mut config = config("0.0.0.0");
@@ -68,6 +71,18 @@ fn non_loopback_oauth_mounts_oauth_policy() {
         resolve_auth_policy_kind(&config, false).unwrap(),
         AuthPolicyKind::MountedOAuth
     );
+}
+
+#[cfg(not(feature = "auth"))]
+#[test]
+fn non_loopback_oauth_requires_auth_feature() {
+    let mut config = config("0.0.0.0");
+    config.mcp.auth = AuthConfig {
+        mode: AuthMode::OAuth,
+        ..AuthConfig::default()
+    };
+    let error = resolve_auth_policy_kind(&config, false).unwrap_err();
+    assert!(error.to_string().contains("requires compiling"));
 }
 
 #[test]
@@ -93,4 +108,29 @@ fn wildcard_public_url_is_rejected() {
     assert!(error
         .to_string()
         .contains("SOMA_MCP_PUBLIC_URL must not contain wildcard hosts"));
+}
+
+#[tokio::test]
+async fn gateway_product_state_loads_filesystem_config() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = temp.path().join(".mcp-gateway");
+    let paths = GatewayPaths::new(home).expect("paths");
+    let store = FsGatewayConfigStore::from_paths(paths);
+    store
+        .save(&GatewayConfig {
+            upstream: vec![UpstreamConfig {
+                name: "persisted".to_owned(),
+                url: Some("https://example.com/mcp".to_owned()),
+                ..UpstreamConfig::default()
+            }],
+            ..GatewayConfig::default()
+        })
+        .expect("save gateway config");
+
+    let state = gateway_product_state_from_store(store).expect("gateway state");
+
+    assert_eq!(
+        state.discover().await.expect("discover")[0].name,
+        "persisted"
+    );
 }

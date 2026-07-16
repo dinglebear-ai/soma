@@ -63,6 +63,13 @@ impl UpstreamOAuthManager for FakeManager {
     ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
         Box::pin(async { Ok(()) })
     }
+
+    fn access_token<'a>(
+        &'a self,
+        _subject: &'a str,
+    ) -> BoxFuture<'a, Result<String, UpstreamOAuthError>> {
+        Box::pin(async { Ok("token".to_owned()) })
+    }
 }
 
 #[tokio::test]

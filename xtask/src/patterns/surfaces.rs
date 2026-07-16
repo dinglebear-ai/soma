@@ -52,6 +52,7 @@ const BUSINESS_HELPER_TOKENS: &[&str] = &[
 
 const RUST_DELEGATION_TOKENS: &[&str] = &[
     "state.service",
+    "state.provider_registry",
     "service.",
     "execute_service_action",
     "streamable_http_service",

@@ -56,12 +56,22 @@ impl Graph {
         self.packages.get(id).expect("edge references package")
     }
 
-    pub(crate) fn direct_dependencies(&self, id: &str) -> Vec<&Package> {
+    pub(crate) fn direct_dependencies_except(
+        &self,
+        id: &str,
+        exceptions: &[crate::architecture::ArchitectureException],
+    ) -> Vec<&Package> {
         self.edges_by_from
             .get(id)
             .into_iter()
             .flat_map(|edges| edges.iter())
-            .filter_map(|edge| self.packages.get(&self.edges[*edge].to))
+            .map(|edge| &self.edges[*edge])
+            .filter(|edge| {
+                !exceptions
+                    .iter()
+                    .any(|exception| exception.matches(self, edge))
+            })
+            .filter_map(|edge| self.packages.get(&edge.to))
             .collect()
     }
 

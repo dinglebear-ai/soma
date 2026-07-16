@@ -22,13 +22,6 @@ use rmcp::{
     ErrorData, RoleServer, ServerHandler,
 };
 use rmcp_traces::{TraceSummary, TraceTrust};
-#[cfg(feature = "auth")]
-use soma_auth::AuthContext;
-#[cfg(not(feature = "auth"))]
-struct AuthContext {
-    sub: String,
-    scopes: Vec<String>,
-}
 use serde_json::{json, Map, Value};
 
 use soma_contracts::{
@@ -39,12 +32,18 @@ use soma_mcp_server::response_paging::{
     tool_result_from_json, ResponsePagingOptions,
 };
 
-use soma_runtime::server::{AppState, AuthPolicy};
-use soma_service::{ProviderAuthMode, ProviderError, ProviderPrincipal, ResourceReadOutput};
+use soma_runtime::server::AppState;
+use soma_service::{ProviderError, ResourceReadOutput};
 
 use super::{
-    conformance, prompts, schemas::tool_definitions_for_catalogs as tool_definitions,
-    tools::execute_tool, ACTION_DISCRIMINATOR_FIELD,
+    conformance, gateway_proxy, prompts,
+    rmcp_auth::{
+        gateway_oauth_subject, protected_route_scope, protected_scope_allows_service,
+        provider_auth_mode, provider_principal, require_auth_context,
+    },
+    schemas::tool_definitions_for_catalogs as tool_definitions,
+    tools::execute_tool,
+    ACTION_DISCRIMINATOR_FIELD,
 };
 
 macro_rules! trace_summary_event {
@@ -84,10 +83,25 @@ impl ServerHandler for SomaRmcpServer {
         _request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
-        require_auth_context(&self.state, &context)?;
+        let auth = require_auth_context(&self.state, &context)?;
+        let route_scope = protected_route_scope(&context);
+        let soma_allowed = protected_scope_allows_service(route_scope, "soma");
         refresh_file_providers(&self.state)?;
-        let mut tools = rmcp_tool_definitions(&self.state)?;
-        if self.state.config.conformance_fixtures {
+        let mut tools = if soma_allowed {
+            rmcp_tool_definitions(&self.state)?
+        } else {
+            Vec::new()
+        };
+        let gateway_subject = gateway_oauth_subject(auth);
+        tools.extend(
+            gateway_proxy::list_tools_for_subject_and_scope(
+                &self.state.gateway,
+                Some(gateway_subject.as_ref()),
+                route_scope,
+            )
+            .await?,
+        );
+        if soma_allowed && self.state.config.conformance_fixtures {
             tools.extend(conformance::tool_definitions());
         }
         tracing::debug!(tool_count = tools.len(), "MCP tools listed");
@@ -128,12 +142,26 @@ impl ServerHandler for SomaRmcpServer {
             }
         };
         let trace_summary = trace_summary_from_context(&context);
-        if self.state.config.conformance_fixtures {
+        let route_scope = protected_route_scope(&context);
+        let soma_allowed = protected_scope_allows_service(route_scope, "soma");
+        if soma_allowed && self.state.config.conformance_fixtures {
             if let Some(result) = conformance::call_tool(&tool_name) {
                 return Ok(result);
             }
         }
         if tool_name != "soma" {
+            let gateway_subject = gateway_oauth_subject(auth);
+            if let Some(result) = gateway_proxy::call_tool_for_subject_and_scope(
+                &self.state.gateway,
+                &tool_name,
+                request.arguments.clone(),
+                Some(gateway_subject.as_ref()),
+                route_scope,
+            )
+            .await
+            {
+                return Ok(result);
+            }
             trace_summary_event!(
                 warn,
                 trace_summary,
@@ -141,6 +169,9 @@ impl ServerHandler for SomaRmcpServer {
                 tool = %tool_name,
                 action = action_opt.as_deref().unwrap_or_default(),
             );
+            return Err(unknown_tool_error(&tool_name));
+        }
+        if !soma_allowed {
             return Err(unknown_tool_error(&tool_name));
         }
         let action: String = action_opt.unwrap_or_default();
@@ -253,16 +284,32 @@ impl ServerHandler for SomaRmcpServer {
         _request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        require_auth_context(&self.state, &context)?;
+        let auth = require_auth_context(&self.state, &context)?;
+        let route_scope = protected_route_scope(&context);
         refresh_file_providers(&self.state)?;
-        let snapshot = self.state.provider_registry.snapshot();
-        let mut resources = vec![schema_resource()];
+        let soma_allowed = protected_scope_allows_service(route_scope, "soma");
+        let mut resources = if soma_allowed {
+            let snapshot = self.state.provider_registry.snapshot();
+            let mut resources = vec![schema_resource()];
+            resources.extend(
+                snapshot
+                    .exact_resources()
+                    .map(rmcp_resource_from_catalog_resource),
+            );
+            resources
+        } else {
+            Vec::new()
+        };
+        let gateway_subject = gateway_oauth_subject(auth);
         resources.extend(
-            snapshot
-                .exact_resources()
-                .map(rmcp_resource_from_catalog_resource),
+            gateway_proxy::list_resources_for_subject_and_scope(
+                &self.state.gateway,
+                Some(gateway_subject.as_ref()),
+                route_scope,
+            )
+            .await?,
         );
-        if self.state.config.conformance_fixtures {
+        if soma_allowed && self.state.config.conformance_fixtures {
             resources.extend(conformance::resources());
         }
         Ok(ListResourcesResult {
@@ -307,10 +354,29 @@ impl ServerHandler for SomaRmcpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, ErrorData> {
         let auth = require_auth_context(&self.state, &context)?;
-        if self.state.config.conformance_fixtures {
+        let route_scope = protected_route_scope(&context);
+        let soma_allowed = protected_scope_allows_service(route_scope, "soma");
+        if soma_allowed && self.state.config.conformance_fixtures {
             if let Some(result) = conformance::read_resource(&request.uri) {
                 return Ok(result);
             }
+        }
+        let gateway_subject = gateway_oauth_subject(auth);
+        if let Some(result) = gateway_proxy::read_resource_for_subject_and_scope(
+            &self.state.gateway,
+            &request.uri,
+            Some(gateway_subject.as_ref()),
+            route_scope,
+        )
+        .await?
+        {
+            return Ok(result);
+        }
+        if !soma_allowed {
+            return Err(ErrorData::invalid_params(
+                format!("unknown resource: {}", request.uri),
+                None,
+            ));
         }
         refresh_file_providers(&self.state)?;
         if request.uri == SCHEMA_RESOURCE_URI {
@@ -345,14 +411,31 @@ impl ServerHandler for SomaRmcpServer {
         _request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, ErrorData> {
-        require_auth_context(&self.state, &context)?;
-        let mut result = prompts::list_prompts();
+        let auth = require_auth_context(&self.state, &context)?;
+        let route_scope = protected_route_scope(&context);
+        let soma_allowed = protected_scope_allows_service(route_scope, "soma");
+        let mut result = if soma_allowed {
+            prompts::list_prompts()
+        } else {
+            ListPromptsResult::default()
+        };
         refresh_file_providers(&self.state)?;
-        let snapshot = self.state.provider_registry.snapshot();
-        result
-            .prompts
-            .extend(prompts::provider_prompts(&snapshot.catalogs));
-        if self.state.config.conformance_fixtures {
+        if soma_allowed {
+            let snapshot = self.state.provider_registry.snapshot();
+            result
+                .prompts
+                .extend(prompts::provider_prompts(&snapshot.catalogs));
+        }
+        let gateway_subject = gateway_oauth_subject(auth);
+        result.prompts.extend(
+            gateway_proxy::list_prompts_for_subject_and_scope(
+                &self.state.gateway,
+                Some(gateway_subject.as_ref()),
+                route_scope,
+            )
+            .await?,
+        );
+        if soma_allowed && self.state.config.conformance_fixtures {
             result.prompts.extend(conformance::prompts());
         }
         Ok(result)
@@ -364,10 +447,30 @@ impl ServerHandler for SomaRmcpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<GetPromptResult, ErrorData> {
         let auth = require_auth_context(&self.state, &context)?;
-        if self.state.config.conformance_fixtures {
+        let route_scope = protected_route_scope(&context);
+        let soma_allowed = protected_scope_allows_service(route_scope, "soma");
+        if soma_allowed && self.state.config.conformance_fixtures {
             if let Some(result) = conformance::get_prompt(request.clone()) {
                 return Ok(result);
             }
+        }
+        let gateway_subject = gateway_oauth_subject(auth);
+        if let Some(result) = gateway_proxy::get_prompt_for_subject_and_scope(
+            &self.state.gateway,
+            &request.name,
+            request.arguments.clone(),
+            Some(gateway_subject.as_ref()),
+            route_scope,
+        )
+        .await?
+        {
+            return Ok(result);
+        }
+        if !soma_allowed {
+            return Err(ErrorData::invalid_params(
+                format!("unknown prompt: {}", request.name),
+                None,
+            ));
         }
         refresh_file_providers(&self.state)?;
         let snapshot = self.state.provider_registry.snapshot();
@@ -617,80 +720,6 @@ fn unknown_tool_error(tool_name: &str) -> ErrorData {
             "remediation": "Call tools/list, then retry with one of the advertised tool names.",
         })),
     )
-}
-
-// ── auth helpers ──────────────────────────────────────────────────────────────
-
-fn require_auth_context<'a>(
-    state: &AppState,
-    ctx: &'a RequestContext<RoleServer>,
-) -> Result<Option<&'a AuthContext>, ErrorData> {
-    match &state.auth_policy {
-        AuthPolicy::LoopbackDev | AuthPolicy::TrustedGatewayUnscoped => Ok(None),
-        AuthPolicy::Mounted { .. } => {
-            let parts = ctx
-                .extensions
-                .get::<http::request::Parts>()
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "rmcp HTTP Parts extension absent — middleware ordering may be broken"
-                    );
-                    ErrorData::invalid_request(
-                        "forbidden: missing http context",
-                        Some(auth_protocol_error_payload(
-                            "missing_http_context",
-                            "MCP HTTP request context was unavailable for auth enforcement.",
-                            "Check RMCP router mounting and middleware ordering. HTTP transports must preserve request Parts extensions before auth is enforced.",
-                        )),
-                    )
-                })?;
-            let auth = parts.extensions.get::<AuthContext>().ok_or_else(|| {
-                tracing::warn!("AuthContext absent — AuthLayer may not be mounted");
-                ErrorData::invalid_request(
-                    "forbidden: missing auth context",
-                    Some(auth_protocol_error_payload(
-                        "missing_auth_context",
-                        "MCP auth context was unavailable for this request.",
-                        "Reconnect with a valid bearer token or OAuth session, and verify AuthLayer is mounted for the MCP route.",
-                    )),
-                )
-            })?;
-            Ok(Some(auth))
-        }
-    }
-}
-
-fn provider_principal(auth: Option<&AuthContext>) -> ProviderPrincipal {
-    match auth {
-        Some(auth) => ProviderPrincipal {
-            subject: auth.sub.clone(),
-            scopes: auth.scopes.clone(),
-        },
-        None => ProviderPrincipal::loopback_dev(),
-    }
-}
-
-fn provider_auth_mode(policy: &AuthPolicy) -> ProviderAuthMode {
-    match policy {
-        AuthPolicy::LoopbackDev => ProviderAuthMode::LoopbackDev,
-        AuthPolicy::TrustedGatewayUnscoped => ProviderAuthMode::TrustedGateway,
-        AuthPolicy::Mounted { .. } => ProviderAuthMode::Mounted,
-    }
-}
-
-fn auth_protocol_error_payload(
-    code: &str,
-    message: impl Into<String>,
-    remediation: impl Into<String>,
-) -> Value {
-    json!({
-        "kind": "mcp_auth_error",
-        "schema_version": 1,
-        "code": code,
-        "message": message.into(),
-        "retryable": false,
-        "remediation": remediation.into(),
-    })
 }
 
 #[cfg(test)]

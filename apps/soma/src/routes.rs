@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use axum::{
     http::{HeaderName, HeaderValue, Method, StatusCode},
+    middleware,
     response::Json,
     routing::{get, post},
     Router,
@@ -24,6 +25,7 @@ use crate::api::{
     health, openapi_json, readyz, status, v1_capabilities, v1_dynamic_provider_route, v1_echo,
     v1_greet, v1_help, v1_provider_tool_action, v1_providers, v1_service_status,
 };
+use crate::gateway_api::v1_gateway_action;
 use soma_mcp::{allowed_origins, streamable_http_config, streamable_http_service};
 use soma_runtime::server::{build_auth_layer, AppState, AuthPolicy};
 
@@ -57,6 +59,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/echo", post(v1_echo))
         .route("/v1/status", get(v1_service_status))
         .route("/v1/help", get(v1_help))
+        .route("/v1/gateway/{action}", post(v1_gateway_action))
         .route("/v1/tools/{action}", post(v1_provider_tool_action))
         .route(
             "/v1/{*path}",
@@ -103,7 +106,11 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/readyz", get(readyz))
         .route("/status", get(status))
-        .route("/openapi.json", get(openapi_json));
+        .route("/openapi.json", get(openapi_json))
+        .route(
+            "/.well-known/oauth-protected-resource/{*route}",
+            get(crate::protected_routes::protected_route_resource_metadata),
+        );
     // Prometheus metrics are only meaningful when the observability feature
     // installed a recorder at startup; gate the route on the same feature.
     #[cfg(feature = "observability")]
@@ -125,6 +132,11 @@ pub fn router(state: AppState) -> Router {
     #[cfg(not(feature = "web"))]
     let base =
         base.fallback(|| async { (StatusCode::NOT_FOUND, Json(json!({"error": "not_found"}))) });
+
+    let base = base.layer(middleware::from_fn_with_state(
+        state.clone(),
+        crate::protected_routes::protected_mcp_intercept,
+    ));
 
     base.layer(RequestBodyLimitLayer::new(MCP_BODY_LIMIT_BYTES))
         .layer(cors_layer(&state.config))

@@ -3,11 +3,11 @@ name = "codex-app-server-client"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.96"
-authors.workspace = true
+authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "Standalone, fully-typed async Rust client for the Codex CLI's app-server v2 JSON-RPC protocol."
-homepage.workspace = true
+homepage = "https://soma.dinglebear.ai"
 license = "MIT"
-repository.workspace = true
+repository = "https://github.com/jmagar/soma"
 publish = false
 
 [package.metadata.soma-architecture]
@@ -17,6 +17,7 @@ layer = "shared"
 # see README.md. Only external, published dependencies below.
 
 [dependencies]
+axum = { version = "0.8", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -28,12 +29,17 @@ tokio = { version = "1", features = [
   "rt",
   "macros",
   "time",
+  "net",
 ] }
 # Only `tokio_util::sync::CancellationToken` is used (for coordinated
 # connection shutdown); that module has no feature gate, so no features are
 # needed here.
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
+
+[features]
+default = []
+rest = ["dep:axum"]
 
 [target.'cfg(unix)'.dependencies]
 tokio = { version = "1", features = ["net"] }
@@ -47,8 +53,13 @@ syn = { version = "2", features = ["full"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["util"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tempfile = "3"
 
 [[example]]
 name = "basic"
+
+[[example]]
+name = "rest_server"
+required-features = ["rest"]

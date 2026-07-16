@@ -13,10 +13,35 @@ const CONCRETE_SHARED_ENGINE_PATHS: &[&str] = &[
     "crates/shared/openapi",
 ];
 
-const TEMPORARY_EXCEPTIONS: &[ArchitectureException] = &[];
+const TEMPORARY_EXCEPTIONS: &[ArchitectureException] = &[
+    ArchitectureException {
+        from_path: "crates/soma/api",
+        to_path: "crates/shared/mcp/gateway",
+        owner: "architecture-refactor",
+        reason: "REST still composes the legacy service and shared gateway during migration",
+        removal_pr: "PR 6",
+        expiration_milestone: "REST migration to SomaApplication",
+    },
+    ArchitectureException {
+        from_path: "crates/soma/mcp",
+        to_path: "crates/shared/mcp/gateway",
+        owner: "architecture-refactor",
+        reason: "MCP still composes the legacy service and shared gateway during migration",
+        removal_pr: "PR 7",
+        expiration_milestone: "MCP migration to SomaApplication",
+    },
+    ArchitectureException {
+        from_path: "crates/soma/runtime",
+        to_path: "crates/shared/mcp/gateway",
+        owner: "architecture-refactor",
+        reason: "runtime still composes the legacy service and shared gateway during migration",
+        removal_pr: "PR 8",
+        expiration_milestone: "runtime migration to SomaApplication",
+    },
+];
 
 #[derive(Debug)]
-struct ArchitectureException {
+pub(crate) struct ArchitectureException {
     from_path: &'static str,
     to_path: &'static str,
     owner: &'static str,
@@ -31,7 +56,7 @@ pub fn check(root: &Path) -> Result<()> {
         .with_context(|| format!("failed to canonicalize {}", root.display()))?;
     let metadata = cargo_metadata(&root)?;
     let graph = Graph::from_metadata(&root, &metadata)?;
-    let failures = check_graph(&graph);
+    let failures = check_graph(&graph, TEMPORARY_EXCEPTIONS);
 
     if failures.is_empty() {
         println!(
@@ -72,11 +97,11 @@ fn cargo_metadata(root: impl AsRef<Path>) -> Result<Value> {
     serde_json::from_slice(&output.stdout).context("cargo metadata emitted invalid JSON")
 }
 
-fn check_graph(graph: &Graph) -> Vec<String> {
+fn check_graph(graph: &Graph, exceptions: &[ArchitectureException]) -> Vec<String> {
     let mut failures = Vec::new();
     failures.extend(check_metadata_layers(graph));
-    failures.extend(check_exception_integrity(graph, TEMPORARY_EXCEPTIONS));
-    failures.extend(check_direct_edges(graph));
+    failures.extend(check_exception_integrity(graph, exceptions));
+    failures.extend(check_direct_edges(graph, exceptions));
     failures.extend(check_internal_cycles(graph));
     failures
 }
@@ -104,10 +129,10 @@ fn check_metadata_layers(graph: &Graph) -> Vec<String> {
         .collect()
 }
 
-fn check_direct_edges(graph: &Graph) -> Vec<String> {
+fn check_direct_edges(graph: &Graph, exceptions: &[ArchitectureException]) -> Vec<String> {
     let mut failures = Vec::new();
     for edge in graph.edges.iter().filter(|edge| edge.from != edge.to) {
-        if is_exception(graph, edge) {
+        if is_exception(graph, edge, exceptions) {
             continue;
         }
         let from = graph.package(&edge.from);
@@ -124,7 +149,7 @@ fn check_direct_edges(graph: &Graph) -> Vec<String> {
         }
         failures.extend(check_layer_edge(graph, edge, from, to));
     }
-    failures.extend(check_mixed_application_and_engine_edges(graph));
+    failures.extend(check_mixed_application_and_engine_edges(graph, exceptions));
     failures
 }
 
@@ -166,12 +191,15 @@ fn check_layer_edge(graph: &Graph, edge: &Edge, from: &Package, to: &Package) ->
     failures
 }
 
-fn check_mixed_application_and_engine_edges(graph: &Graph) -> Vec<String> {
+fn check_mixed_application_and_engine_edges(
+    graph: &Graph,
+    exceptions: &[ArchitectureException],
+) -> Vec<String> {
     graph
         .packages
         .values()
         .filter_map(|package| {
-            let deps = graph.direct_dependencies(&package.id);
+            let deps = graph.direct_dependencies_except(&package.id, exceptions);
             let has_application_port = deps.iter().any(|package| is_application_port(package));
             let has_concrete_engine = deps.iter().any(|package| is_concrete_shared_engine(package));
             (has_application_port
@@ -286,14 +314,14 @@ fn cycle_names(graph: &Graph, stack: &[String], repeated: &str) -> Vec<String> {
     cycle
 }
 
-fn is_exception(graph: &Graph, edge: &Edge) -> bool {
-    TEMPORARY_EXCEPTIONS
+fn is_exception(graph: &Graph, edge: &Edge, exceptions: &[ArchitectureException]) -> bool {
+    exceptions
         .iter()
         .any(|exception| exception.matches(graph, edge))
 }
 
 impl ArchitectureException {
-    fn matches(&self, graph: &Graph, edge: &Edge) -> bool {
+    pub(crate) fn matches(&self, graph: &Graph, edge: &Edge) -> bool {
         let from = &graph.package(&edge.from).rel_path;
         let to = &graph.package(&edge.to).rel_path;
         self.from_path == from && self.to_path == to && edge.kind == "normal"

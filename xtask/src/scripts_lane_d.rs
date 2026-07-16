@@ -307,6 +307,10 @@ fn allowed_unicode(codepoint: u32) -> bool {
             | 0x2514
             | 0x2518
             | 0x251C
+            | 0x253C
+            | 0x25B2
+            | 0x25B6
+            | 0x25BC
             | 0x26A0
             | 0x2713
             | 0x2717
@@ -1726,6 +1730,10 @@ mod tests {
     #[test]
     fn ascii_allowlist_and_substitutions_match_script_policy() {
         assert!(allowed_unicode(0x2713));
+        assert!(allowed_unicode(0x253C));
+        assert!(allowed_unicode(0x25B2));
+        assert!(allowed_unicode(0x25B6));
+        assert!(allowed_unicode(0x25BC));
         assert!(!allowed_unicode(0x00E9));
         assert_eq!(substitution(0x2014), Some("-"));
         assert_eq!(substitution(0x2026), Some("..."));

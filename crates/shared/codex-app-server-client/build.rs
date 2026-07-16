@@ -43,6 +43,7 @@ fn main() {
 
     generate_protocol_types(out_dir);
     generate_method_wrappers(out_dir);
+    generate_compat_constants(out_dir);
     check_codex_staleness();
 }
 
@@ -258,7 +259,7 @@ fn generate_method_wrappers(out_dir: &Path) {
         r#"
 impl crate::protocol::ServerRequest {{
     /// The `RequestId` the app-server expects echoed back in the reply.
-    pub(crate) fn id(&self) -> &crate::protocol::RequestId {{
+    pub fn id(&self) -> &crate::protocol::RequestId {{
         match self {{"#
     )
     .unwrap();
@@ -276,7 +277,7 @@ impl crate::protocol::ServerRequest {{
     }}
 
     /// The wire method name, e.g. `"execCommandApproval"`.
-    pub(crate) fn method_name(&self) -> &'static str {{
+    pub fn method_name(&self) -> &'static str {{
         match self {{"#
     )
     .unwrap();
@@ -300,7 +301,7 @@ impl crate::protocol::ServerRequest {{
     /// irregular name (see `RESPONSE_OVERRIDES` in
     /// `xtask/src/codex_schema/naming.rs`) - so prefer this accessor over
     /// guessing the name yourself.
-    pub(crate) fn expected_response_type_name(&self) -> &'static str {{
+    pub fn expected_response_type_name(&self) -> &'static str {{
         match self {{"#
     )
     .unwrap();
@@ -365,6 +366,37 @@ impl crate::protocol::ServerNotification {{
     .unwrap();
 
     write_formatted_rust(out_dir, "methods_generated.rs", &out);
+}
+
+fn generate_compat_constants(out_dir: &Path) {
+    let codex_version = fs::read_to_string("schema/CODEX_VERSION.txt")
+        .expect("read schema/CODEX_VERSION.txt")
+        .trim()
+        .to_owned();
+    let content = fs::read_to_string("schema/methods.json").expect("read schema/methods.json");
+    let manifest: Value = serde_json::from_str(&content).expect("parse methods.json");
+
+    let len = |key: &str| -> usize {
+        manifest[key]
+            .as_array()
+            .unwrap_or_else(|| panic!("methods.json section {key:?} is not an array"))
+            .len()
+    };
+
+    let out = format!(
+        r#"
+pub const CODEX_SCHEMA_VERSION: &str = {codex_version:?};
+pub const CLIENT_REQUEST_METHOD_COUNT: usize = {client_requests};
+pub const SERVER_REQUEST_METHOD_COUNT: usize = {server_requests};
+pub const SERVER_NOTIFICATION_METHOD_COUNT: usize = {server_notifications};
+pub const CLIENT_NOTIFICATION_METHOD_COUNT: usize = {client_notifications};
+"#,
+        client_requests = len("client_requests"),
+        server_requests = len("server_requests"),
+        server_notifications = len("server_notifications"),
+        client_notifications = len("client_notifications"),
+    );
+    write_formatted_rust(out_dir, "compat_generated.rs", &out);
 }
 
 /// `client_notifications` (client->server, fire-and-forget messages) has

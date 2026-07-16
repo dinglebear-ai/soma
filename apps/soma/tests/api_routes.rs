@@ -3,7 +3,7 @@
 
 use async_trait::async_trait;
 use axum::{
-    body::{to_bytes, Body},
+    body::Body,
     http::{header, Method, Request, StatusCode},
 };
 use serde_json::{json, Value};
@@ -20,6 +20,9 @@ use soma_service::provider_registry::{Provider, ProviderOutput, ProviderRegistry
 use soma_service::ProviderError;
 use std::sync::Arc;
 use tower::ServiceExt;
+
+mod support;
+use support::request_json;
 
 fn provider_tool(name: &str, description: &str, input_schema: Value) -> ProviderTool {
     ProviderTool {
@@ -42,35 +45,6 @@ fn provider_tool(name: &str, description: &str, input_schema: Value) -> Provider
         examples: Vec::new(),
         meta: json!({}),
     }
-}
-
-async fn request_json(
-    app: axum::Router,
-    method: Method,
-    path: &str,
-    auth: Option<&str>,
-    body: Option<Value>,
-) -> (StatusCode, Value) {
-    let mut builder = Request::builder().method(method).uri(path);
-    if let Some(token) = auth {
-        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
-    }
-    let request = if let Some(body) = body {
-        builder
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(body.to_string()))
-            .expect("request should build")
-    } else {
-        builder.body(Body::empty()).expect("request should build")
-    };
-
-    let response = app.oneshot(request).await.expect("route should respond");
-    let status = response.status();
-    let bytes = to_bytes(response.into_body(), usize::MAX)
-        .await
-        .expect("body should read");
-    let value = serde_json::from_slice(&bytes).expect("response should be JSON");
-    (status, value)
 }
 
 #[derive(Clone)]
@@ -343,6 +317,10 @@ async fn capabilities_advertises_direct_rest_routes() {
         .as_array()
         .expect("supported_routes should be an array")
         .contains(&json!("POST /v1/tools/{action}")));
+    assert!(body["supported_routes"]
+        .as_array()
+        .expect("supported_routes should be an array")
+        .contains(&json!("POST /v1/gateway/{action}")));
     assert!(!body["supported_routes"]
         .as_array()
         .expect("supported_routes should be an array")
@@ -358,6 +336,7 @@ async fn openapi_json_is_public_and_lists_direct_routes() {
     assert_eq!(body["openapi"], "3.1.0");
     assert!(body["paths"].get("/v1/echo").is_some());
     assert!(body["paths"].get("/v1/capabilities").is_some());
+    assert!(body["paths"].get("/v1/gateway/{action}").is_some());
     assert!(body["paths"].get("/v1/soma").is_none());
     assert_eq!(body["x-soma"]["preferred_rest_style"], "direct_routes");
     assert!(
@@ -403,6 +382,15 @@ async fn trusted_gateway_unscoped_bypasses_local_auth() {
     state.auth_policy = AuthPolicy::TrustedGatewayUnscoped;
     let app = server::router(state);
     let (status, body) = request_json(app, Method::GET, "/v1/status", None, None).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "ok");
+}
+
+#[tokio::test]
+async fn public_health_is_unaffected_by_gateway_auth() {
+    let app = server::router(bearer_state("secret"));
+    let (status, body) = request_json(app, Method::GET, "/health", None, None).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "ok");

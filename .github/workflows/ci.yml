@@ -169,6 +169,9 @@ jobs:
       - name: cargo clippy -- -D warnings
         run: cargo clippy --all-targets -- -D warnings
 
+      - name: soma-gateway clippy all features
+        run: cargo clippy -p soma-gateway --all-targets --all-features -- -D warnings
+
   # ── test: cargo nextest run --profile ci ─────────────────────────────────────
   test:
     name: Test
@@ -199,6 +202,9 @@ jobs:
 
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
+
+      - name: soma-gateway all-features tests
+        run: cargo test -p soma-gateway --all-features
 
       - name: Upload nextest report
         if: always()

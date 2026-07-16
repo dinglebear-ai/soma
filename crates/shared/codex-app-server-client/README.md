@@ -25,12 +25,20 @@ copied into another project wholesale and will keep working.
   helpers (`PendingServerRequest::respond` / `respond_error`) for the latter.
 - Handles the `initialize` / `initialized` handshake, request-id correlation,
   and JSON-RPC error mapping.
+- Provides batteries-included helpers on top of the generated protocol:
+  `CodexSession` for one-call handshakes, builder constructors for common
+  params, one-call text-turn helpers, `ApprovalHandler` policies for server
+  requests, `EventCollector` for streamed turn output, `CodexDaemon` socket
+  helpers, and `CompatibilityReport` for schema/version diagnostics.
 
 ## What it deliberately doesn't do
 
 - No WebSocket transport - OpenAI's own docs mark it "experimental and
   unsupported." Stdio (the default) and Unix sockets cover the documented,
   supported surface.
+- No native Codex app-server REST transport exists upstream. This crate's
+  optional `rest` feature is an HTTP adapter that calls the real JSON-RPC
+  app-server client underneath.
 - No opinion on auth, sandboxing, or approval policy - that's all `codex`
   CLI/config territory, passed straight through via `extra_args` or the
   typed params structs.
@@ -40,46 +48,309 @@ copied into another project wholesale and will keep working.
 ## Quick start
 
 ```rust,no_run
-use codex_app_server_client::protocol::{ClientInfo, InitializeParams};
-use codex_app_server_client::{CodexAppServerClient, Event};
+use codex_app_server_client::{CodexSession, DenyAllApprovalHandler, SessionOptions};
 
 #[tokio::main]
 async fn main() -> codex_app_server_client::Result<()> {
-    let (client, mut events) = CodexAppServerClient::spawn("codex", &[])?;
-
-    client
-        .initialize(InitializeParams {
-            client_info: ClientInfo {
-                name: "my_integration".into(),
-                title: None,
-                version: "0.1.0".into(),
-            },
-            capabilities: None,
-        })
+    let mut session = CodexSession::spawn(SessionOptions::new("my_integration", "0.1.0")).await?;
+    let result = session
+        .run_text_turn_with_model_and_handler(
+            "gpt-5.4",
+            "Say hello in one sentence.",
+            &DenyAllApprovalHandler::default(),
+        )
         .await?;
-    client.send_initialized()?;
 
-    tokio::spawn(async move {
-        while let Some(event) = events.recv().await {
-            match event {
-                Event::Notification(n) => println!("{n:?}"),
-                Event::Request(req) => req.respond_error(-1, "not handled", None),
-                Event::Closed => break,
-            }
-        }
-    });
-
-    let thread = client
-        .thread_start(serde_json::from_value(serde_json::json!({ "model": "gpt-5.4" }))?)
-        .await?;
-    println!("started thread {}", thread.thread.id);
+    println!("{}", result.agent_message());
     Ok(())
 }
 ```
 
-See `examples/basic.rs` for a runnable version that only calls
-no-auth-required methods, and `tests/smoke.rs` for a live integration test
-against the real binary (skips gracefully if `codex` isn't on `PATH`).
+See:
+
+- `examples/basic.rs` for a no-auth/no-turn smoke using `CodexSession`.
+- `examples/session_turn.rs` for the one-call text-turn helper.
+- `examples/approval_handler.rs` for routing server requests through a custom
+  policy; use the documented preset handlers when they fit.
+- `examples/daemon.rs` for Unix socket connection helpers.
+- `examples/compatibility.rs` for schema/version diagnostics.
+- `examples/rest_server.rs` for the optional HTTP bridge.
+- `tests/smoke.rs` for a live integration test against the real binary
+  (skips gracefully if `codex` isn't on `PATH`).
+
+## Batteries-included surface
+
+The generated low-level methods are still available directly through
+`CodexAppServerClient`, but most integrations should start with:
+
+- `SessionOptions` + `CodexSession::spawn(...)`: spawn, initialize, send
+  `initialized`, keep the client and event stream together, and expose helpers
+  for starting threads, sending turns, and draining events.
+- `CodexSession::run_text_turn(prompt)`: start a default thread, send one text
+  turn, drain events until completion, and return a `TextTurnResult`. It uses
+  `DenyAllApprovalHandler`, so it is best for read-only/smoke prompts.
+- `CodexSession::run_text_turn_with_model_and_handler(model, prompt, handler)`:
+  the same one-shot text flow with an explicit model and approval policy.
+- `CodexSession::start_thread_with_model(model)`: start a thread without
+  manually building `ThreadStartParams` when the only override is the model.
+- `CodexSession::send_text_turn(thread_id, prompt)`: send a single text
+  `UserInput` to an existing thread.
+- `CodexSession::wait_for_turn_completed(thread_id, turn_id, handler)`: drain
+  notifications for one turn and return the populated `EventCollector`.
+- `CodexSession::collect_agent_message(thread_id, turn_id, handler)`: drain a
+  turn and return only the concatenated assistant message text.
+- `TextTurnResult`: bundles the `thread/start` response, `turn/start`
+  response, and collected events; convenience accessors expose
+  `agent_message()`, `latest_diff()`, and `errors()`.
+- `ClientInfo::new`, `InitializeParams::for_client`,
+  `ThreadStartParams::new`, `TurnStartParams::text`, `UserInput::text`,
+  `ConfigReadParams::for_cwd`: common constructors that avoid ad hoc JSON for
+  the first mile.
+- `ApprovalHandler`, `ServerRequestReply`, and policy helpers:
+  `DenyAllApprovalHandler` rejects every server request with a JSON-RPC error;
+  `ReadOnlyApprovalHandler` answers `currentTime/read` and declines
+  command/file-change prompts; `AllowAllApprovalHandler` approves command,
+  file-change, legacy command/patch, and permission-profile approval requests;
+  `FnApprovalHandler` lets you route each typed `ServerRequest` through custom
+  logic. Preset handlers intentionally return clear errors for dynamic tool
+  calls, auth refreshes, and other app-specific requests they cannot answer
+  safely.
+- `EventCollector`: collect streamed agent text, latest diff, completion, and
+  turn errors from `ServerNotification`s.
+- `CodexDaemon`: build real `codex app-server --listen unix://...` args and
+  connect to an existing Unix socket with the same session handshake.
+- `CodexAppServerClient::call_raw_method(...)`: dynamic JSON-RPC method calls
+  for bridge layers and generated surfaces that need to route methods by name.
+- `CompatibilityReport::current()`: compare the installed `codex --version`
+  with the vendored schema stamp and print method-count diagnostics.
+
+## Optional REST adapter
+
+Enable the `rest` feature when you want a portable HTTP bridge for the Codex
+app-server protocol:
+
+```toml
+codex-app-server-client = { path = "crates/codex-app-server-client", features = ["rest"] }
+```
+
+The adapter is deliberately self-contained: it uses crates.io dependencies
+only, has no Soma path-dependencies, and does not assume any auth, gateway,
+Labby, Beads, or repo-specific runtime.
+
+```rust,no_run
+use codex_app_server_client::rest;
+
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+let listener = tokio::net::TcpListener::bind("127.0.0.1:43210").await?;
+axum::serve(listener, rest::router()).await?;
+# Ok(())
+# }
+```
+
+Routes:
+
+- `GET /health` and `GET /v1/health`: liveness probe.
+- `GET /v1/compatibility`: schema stamp, installed `codex --version`, and
+  generated method-count summary.
+- `POST /v1/text-turn`: starts a fresh Codex session, sends one text prompt,
+  waits for turn completion, and returns assistant text, latest diff, and
+  turn errors.
+
+`rest::router()` mounts only those conservative helper routes. It rejects
+`approvalPolicy: "allow_all"` plus client `command`, `extraArgs`, and `config`
+overrides because those controls can change what the local Codex process is
+allowed to run.
+
+For a full REST bridge to every callable, mount the trusted router behind your
+own authentication and authorization boundary:
+
+```rust,no_run
+use codex_app_server_client::rest;
+
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+let listener = tokio::net::TcpListener::bind("127.0.0.1:43210").await?;
+axum::serve(listener, rest::trusted_bridge_router()).await?;
+# Ok(())
+# }
+```
+
+Trusted bridge routes:
+
+- `POST /v1/call/{method}`: one-shot raw JSON-RPC bridge. The backend starts
+  a fresh session, calls the app-server method named by the path (for example
+  `/v1/call/config/read` or `/v1/call/thread/start`), and returns the raw
+  result.
+- `POST /v1/sessions`: starts a persistent app-server session and returns a
+  `sessionId` plus the raw initialize response.
+- `GET /v1/sessions`: lists active REST bridge sessions.
+- `DELETE /v1/sessions/{sessionId}`: drops a bridge session and terminates the
+  owned app-server process when no client clones remain.
+- `POST /v1/sessions/{sessionId}/call/{method}`: calls any app-server method
+  on an existing session, preserving thread/event state across calls.
+- `GET /v1/sessions/{sessionId}/events?timeoutMs=30000`: long-polls the next
+  server notification/request. Server requests are returned with a
+  `requestKey` so REST clients can answer them later.
+- `POST /v1/sessions/{sessionId}/requests/{requestKey}/result`: replies to a
+  pending server-originated request with a JSON-RPC `result`.
+- `POST /v1/sessions/{sessionId}/requests/{requestKey}/error`: replies to a
+  pending server-originated request with a JSON-RPC `error`.
+
+One-shot text helper request:
+
+```json
+{
+  "prompt": "Say hello in one sentence.",
+  "model": "gpt-5",
+  "approvalPolicy": "read_only",
+  "client": {
+    "name": "my_rest_client",
+    "version": "0.1.0",
+    "callTimeoutMs": 120000
+  }
+}
+```
+
+One-shot text helper response:
+
+```json
+{
+  "threadId": "019...",
+  "turnId": "019...",
+  "turnStatus": "completed",
+  "agentMessage": "Hello.",
+  "latestDiff": null,
+  "errors": []
+}
+```
+
+One-shot raw bridge request:
+
+```http
+POST /v1/call/thread/start
+content-type: application/json
+```
+
+```json
+{
+  "params": {
+    "model": "gpt-5",
+    "cwd": "/workspace"
+  },
+  "client": {
+    "name": "my_rest_client",
+    "version": "0.1.0",
+    "extraArgs": ["--experimental"]
+  }
+}
+```
+
+One-shot raw bridge response:
+
+```json
+{
+  "method": "thread/start",
+  "result": {
+    "thread": {
+      "id": "019..."
+    }
+  }
+}
+```
+
+Stateful bridge flow:
+
+```http
+POST /v1/sessions
+content-type: application/json
+```
+
+```json
+{
+  "client": {
+    "name": "my_rest_client",
+    "version": "0.1.0"
+  }
+}
+```
+
+```json
+{
+  "sessionId": "session-1",
+  "initializeResponse": {
+    "platformOs": "linux"
+  }
+}
+```
+
+```http
+POST /v1/sessions/session-1/call/turn/start
+content-type: application/json
+```
+
+```json
+{
+  "params": {
+    "threadId": "019...",
+    "input": [{ "type": "text", "text": "Hello" }]
+  }
+}
+```
+
+Event polling response shapes:
+
+```json
+{ "event": "timeout" }
+```
+
+```json
+{
+  "event": "notification",
+  "notification": {
+    "method": "turn/completed",
+    "params": {}
+  }
+}
+```
+
+```json
+{
+  "event": "request",
+  "requestKey": "request-1",
+  "requestId": 42,
+  "method": "currentTime/read",
+  "request": {
+    "id": 42,
+    "method": "currentTime/read",
+    "params": {}
+  }
+}
+```
+
+Request reply examples:
+
+```json
+{ "result": { "currentTimeAt": 1760000000 } }
+```
+
+```json
+{
+  "code": -32000,
+  "message": "denied",
+  "data": null
+}
+```
+
+Run the example server:
+
+```bash
+cargo run -p codex-app-server-client --features rest --example rest_server
+```
+
+Set `CODEX_APP_SERVER_REST_ADDR=127.0.0.1:43211` to pick a different bind
+address. Host applications that want pooling, auth, tenancy, or their own
+process lifecycle can mount `rest::router_with_backend(...)` for conservative
+helper routes, or `rest::router_with_backend_and_options(backend,
+rest::RestRouterOptions::trusted_bridge())` for the full trusted bridge.
 
 ## How the typed protocol layer is built
 

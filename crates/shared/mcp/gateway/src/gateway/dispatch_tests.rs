@@ -98,7 +98,7 @@ async fn gateway_test_connects_and_discovers_stdio_upstream() {
         "gateway.test",
         serde_json::json!({
             "name": "probe",
-            "command": "python3",
+            "command": if cfg!(windows) { "python" } else { "python3" },
             "args": [script.to_string_lossy()]
         }),
     )

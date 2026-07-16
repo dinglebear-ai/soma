@@ -34,6 +34,7 @@ rmcp = { version = "=2.2.0", default-features = false, features = [
 rmcp-traces = { path = "../../shared/traces" }
 soma-auth = { path = "../../shared/auth", optional = true, features = ["http-axum"] }
 soma-contracts = { path = "../contracts" }
+soma-gateway = { path = "../../shared/mcp/gateway", features = ["protected-routes"] }
 soma-mcp-server = { path = "../../shared/mcp/server" }
 soma-runtime = { path = "../runtime", default-features = false }
 soma-service = { path = "../service", default-features = false }
@@ -50,5 +51,6 @@ rmcp = { version = "=2.2.0", default-features = false, features = [
   "transport-io",
 ] }
 soma-test-support = { path = "../test-support" }
+tempfile = "3"
 tokio = { version = "1", features = ["io-util", "macros", "rt"] }
 tracing-subscriber = { version = "0.3", features = ["fmt"] }

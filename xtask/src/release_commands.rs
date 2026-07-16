@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::release_versions;
 
-pub(crate) fn check_release_versions(root: &Path, args: &[String]) -> Result<()> {
+pub(crate) fn check(root: &Path, args: &[String]) -> Result<()> {
     let options = ReleaseCommandOptions::parse(args)?;
     release_versions::check(
         root,
@@ -14,13 +14,13 @@ pub(crate) fn check_release_versions(root: &Path, args: &[String]) -> Result<()>
     )
 }
 
-pub(crate) fn release_plan(root: &Path, args: &[String]) -> Result<()> {
+pub(crate) fn plan(root: &Path, args: &[String]) -> Result<()> {
     let options = ReleaseCommandOptions::parse(args)?;
     let plans = release_versions::plan(root, options.base.as_deref(), &options.head, options.mode)?;
     release_versions::print_plans(&plans, options.json)
 }
 
-pub(crate) fn bump_version(root: &Path, args: &[String]) -> Result<()> {
+pub(crate) fn bump(root: &Path, args: &[String]) -> Result<()> {
     if args.len() != 2 {
         bail!("Usage: cargo xtask bump-version <component> <patch|minor|major>");
     }
@@ -28,6 +28,7 @@ pub(crate) fn bump_version(root: &Path, args: &[String]) -> Result<()> {
     release_versions::bump(root, &args[0], level)
 }
 
+#[derive(Debug, PartialEq, Eq)]
 struct ReleaseCommandOptions {
     base: Option<String>,
     head: String,
@@ -46,7 +47,11 @@ impl ReleaseCommandOptions {
             match args[index].as_str() {
                 "--base" => {
                     index += 1;
-                    base = Some(args.get(index).context("--base requires a value")?.to_owned());
+                    base = Some(
+                        args.get(index)
+                            .context("--base requires a value")?
+                            .to_owned(),
+                    );
                 }
                 "--head" => {
                     index += 1;
@@ -60,7 +65,9 @@ impl ReleaseCommandOptions {
                     mode = parse_gate_mode(args.get(index).context("--mode requires a value")?)?;
                 }
                 "--json" => json = true,
-                "--help" | "-h" => bail!("Usage: cargo xtask <check-release-versions|release-plan> [--base REF] [--head REF] [--mode pr|main] [--json]"),
+                "--help" | "-h" => {
+                    bail!("Usage: cargo xtask <check-release-versions|release-plan> [--base REF] [--head REF] [--mode pr|main] [--json]");
+                }
                 unknown => bail!("unknown release option: {unknown}"),
             }
             index += 1;

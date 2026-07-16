@@ -81,6 +81,11 @@ pub trait UpstreamOAuthManager: Send + Sync {
         &'a self,
         subject: &'a str,
     ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>>;
+
+    fn access_token<'a>(
+        &'a self,
+        subject: &'a str,
+    ) -> BoxFuture<'a, Result<String, UpstreamOAuthError>>;
 }
 
 #[derive(Clone)]

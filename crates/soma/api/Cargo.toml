@@ -15,14 +15,15 @@ layer = "product-surface"
 
 [features]
 default = []
-auth = ["dep:soma-auth"]
-oauth = ["auth"]
+auth = ["dep:soma-auth", "soma-runtime/auth"]
+oauth = ["auth", "soma-runtime/oauth"]
 
 [dependencies]
 anyhow = "1"
 axum = "0.8"
 soma-auth = { path = "../../shared/auth", optional = true, features = ["http-axum"] }
 soma-contracts = { path = "../contracts" }
+soma-gateway = { path = "../../shared/mcp/gateway" }
 soma-runtime = { path = "../runtime", default-features = false }
 soma-service = { path = "../service", default-features = false }
 serde = { version = "1", features = ["derive"] }

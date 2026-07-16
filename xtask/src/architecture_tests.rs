@@ -44,7 +44,7 @@ fn graph(packages: Vec<Value>) -> Graph {
 }
 
 fn failures(packages: Vec<Value>) -> Vec<String> {
-    check_graph(&graph(packages))
+    check_graph(&graph(packages), &[])
 }
 
 #[test]
@@ -246,7 +246,7 @@ fn path_anchored_exceptions_cannot_be_spoofed_by_package_name() {
     };
 
     assert!(!exception.matches(&graph, &graph.edges[0]));
-    assert!(check_direct_edges(&graph)
+    assert!(check_direct_edges(&graph, &[])
         .join("\n")
         .contains("shared package soma-application"));
 }
@@ -309,6 +309,76 @@ fn only_app_or_integration_may_bridge_application_ports_to_engines() {
     assert!(failures
         .join("\n")
         .contains("depends on both product application ports and concrete shared engines"));
+}
+
+#[test]
+fn mixed_application_engine_check_honors_only_the_named_exception_edge() {
+    let graph = graph(vec![
+        pkg(
+            "soma-api",
+            "crates/soma/api",
+            "product-surface",
+            vec![
+                dep("soma-service", "crates/soma/service"),
+                dep("soma-gateway", "crates/shared/mcp/gateway"),
+                dep("soma-openapi", "crates/shared/openapi"),
+            ],
+        ),
+        pkg("soma-service", "crates/soma/service", "legacy", vec![]),
+        pkg(
+            "soma-gateway",
+            "crates/shared/mcp/gateway",
+            "shared",
+            vec![],
+        ),
+        pkg("soma-openapi", "crates/shared/openapi", "shared", vec![]),
+    ]);
+    let gateway_exception = ArchitectureException {
+        from_path: "crates/soma/api",
+        to_path: "crates/shared/mcp/gateway",
+        owner: "architecture-refactor",
+        reason: "temporary surface bridge",
+        removal_pr: "PR 6",
+        expiration_milestone: "REST migration",
+    };
+
+    let report = check_mixed_application_and_engine_edges(&graph, &[gateway_exception]).join("\n");
+
+    assert!(
+        report.contains("depends on both product application ports and concrete shared engines")
+    );
+}
+
+#[test]
+fn mixed_application_engine_check_allows_a_named_temporary_bridge() {
+    let graph = graph(vec![
+        pkg(
+            "soma-api",
+            "crates/soma/api",
+            "product-surface",
+            vec![
+                dep("soma-service", "crates/soma/service"),
+                dep("soma-gateway", "crates/shared/mcp/gateway"),
+            ],
+        ),
+        pkg("soma-service", "crates/soma/service", "legacy", vec![]),
+        pkg(
+            "soma-gateway",
+            "crates/shared/mcp/gateway",
+            "shared",
+            vec![],
+        ),
+    ]);
+    let gateway_exception = ArchitectureException {
+        from_path: "crates/soma/api",
+        to_path: "crates/shared/mcp/gateway",
+        owner: "architecture-refactor",
+        reason: "temporary surface bridge",
+        removal_pr: "PR 6",
+        expiration_milestone: "REST migration",
+    };
+
+    assert!(check_mixed_application_and_engine_edges(&graph, &[gateway_exception]).is_empty());
 }
 
 #[test]

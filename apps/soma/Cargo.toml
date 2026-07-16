@@ -37,17 +37,22 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 axum = { version = "0.8", optional = true }
+futures = { version = "0.3", optional = true }
 soma-runtime = { path = "../../crates/soma/runtime", default-features = false }
 soma-api = { path = "../../crates/soma/api", optional = true }
 soma-auth = { path = "../../crates/shared/auth", optional = true, features = ["http-axum"] }
 soma-cli = { path = "../../crates/soma/cli", optional = true }
 soma-contracts = { path = "../../crates/soma/contracts" }
+soma-gateway = { path = "../../crates/shared/mcp/gateway" }
+mcp-client = { package = "soma-mcp-client", path = "../../crates/shared/mcp/client", optional = true, features = ["oauth"] }
 soma-mcp = { path = "../../crates/soma/mcp", optional = true }
 soma-observability = { path = "../../crates/shared/observability", optional = true }
 soma-service = { path = "../../crates/soma/service", default-features = false }
 soma-web = { path = "../../crates/soma/web", optional = true }
 rmcp = { version = "=2.2.0", default-features = false, optional = true }
+reqwest = { version = "0.13.2", default-features = false, features = ["rustls-no-provider", "stream"], optional = true }
 serde_json = { version = "1", optional = true }
+tower = { version = "0.5", features = ["util"], optional = true }
 tower-http = { version = "0.7", features = ["cors", "limit", "trace"], optional = true }
 
 [features]
@@ -68,15 +73,27 @@ auth = [
   "soma-mcp?/auth",
   "soma-runtime/auth",
 ]
-oauth = ["auth", "soma-api?/oauth", "soma-mcp?/oauth", "soma-runtime/oauth"]
+oauth = [
+  "auth",
+  "soma-api?/oauth",
+  "dep:mcp-client",
+  "dep:futures",
+  "soma-auth/upstream-oauth-rmcp",
+  "soma-gateway/oauth",
+  "soma-mcp?/oauth",
+  "soma-runtime/oauth",
+]
 observability = ["dep:soma-observability", "soma-service/observability"]
 plugin = ["cli"]
 mcp-http = [
   "api",
   "mcp",
   "dep:axum",
+  "dep:reqwest",
   "dep:serde_json",
+  "dep:tower",
   "dep:tower-http",
+  "soma-gateway/protected-routes",
   "soma-mcp/http",
   "soma-service/client",
 ]
