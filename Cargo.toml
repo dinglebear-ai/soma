@@ -17,6 +17,7 @@ members = [
   "crates/shared/mcp/server",
   "crates/shared/observability",
   "crates/shared/openapi",
+  "crates/shared/provider-core",
   "crates/shared/traces",
   "crates/soma/api",
   "crates/soma/application",

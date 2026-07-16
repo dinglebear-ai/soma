@@ -2,8 +2,43 @@
 
 **Repository:** `jmagar/soma`
 **Date:** 2026-07-15
-**Status:** Proposed target architecture and implementation sequence
+**Status:** In progress; PR 0 through PR 9 completed
 **Supersedes:** `soma-architecture-refactor-plan-v2.md`
+
+## Execution status
+
+Last updated: 2026-07-16.
+
+This ledger is the source of truth for plan execution. "Completed" means the
+slice's acceptance boundary is implemented and reviewed; merge evidence names
+the GitHub PRs that landed it. PR 1 was intentionally satisfied as a distributed
+safety-net effort rather than a standalone pull request.
+
+| Plan slice | Status | Merge evidence or remaining outcome |
+|---|---|---|
+| PR 0 - merge preparation and shared-crate corrections | Completed | Traces #134 and shared MCP/gateway foundations #141, plus the reviewed gateway landing |
+| PR 1 - freeze post-merge behavior | Completed (distributed) | Characterization, contract, profile, schema, parity, and compatibility gates were expanded and run throughout PRs 0 and 2-9 |
+| PR 2 - physical workspace taxonomy | Completed | #139 |
+| PR 3 - architecture enforcement | Completed | #140 |
+| PR 4 - `soma-domain` and `soma-application` | Completed | #143 |
+| PR 5 - CLI through `SomaApplication` | Completed | #144 |
+| PR 6 - REST through `SomaApplication` | Completed | #145 |
+| PR 7 - MCP through `SomaApplication` | Completed | #146 and stdio/profile follow-up #147 |
+| PR 8 - runtime application facade | Completed | #148 |
+| PR 9 - extract canonical `soma-provider-core` | Completed | #149; shared-only provider contracts/registry with Soma as a product-policy wrapper |
+| PR 10 - provider adapters and engine reconciliation | Remaining | Extract reusable adapters; remove duplicate OpenAPI, Code Mode, and upstream MCP engines |
+| PR 11 - `soma-integrations` | Remaining | Centralize product bridges to shared engines, auth, gateway, and infrastructure |
+| PR 12 - split `soma-service` | Remaining | Move workflows, client, providers, and integrations to their owning crates |
+| PR 13 - split `soma-contracts` | Remaining | Move contracts by ownership, including reusable HTTP API mechanics into `soma-http-api` |
+| PR 14 - finish MCP role-crate cleanup | Remaining | Move residual generic client/server/proxy mechanics out of `soma-mcp` |
+| PR 15 - extract `soma-http-server` | Remaining | Reusable Axum lifecycle, middleware, limits, shutdown, and server plumbing |
+| PR 16 - extract `soma-cli-core` | Remaining | Reusable output, terminal, confirmation, completion, and progress mechanics |
+| PR 17 - Palette and Tauri split | Remaining | Create `soma-palette` and `soma-tauri-shell`; keep `apps/palette` as the desktop app |
+| PR 18 - slim `apps/soma` | Remaining | Finalize the executable as a composition root with no business rules |
+| PR 19 - delete legacy facades and update artifacts | Remaining | Remove `soma-service`, `soma-contracts`, temporary exceptions, aliases, and duplicate engines |
+
+Current stopping point: merge and clean PR 9, then resume with PR 10 in a new
+worktree. Do not begin PR 10 as part of the PR 9 delivery.
 
 This revision adopts the physical workspace taxonomy selected for Soma:
 

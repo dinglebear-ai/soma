@@ -3732,11 +3732,11 @@ dependencies = [
  "anyhow",
  "dirs",
  "dotenvy",
- "jsonschema",
  "schemars 1.2.1",
  "serde",
  "serde_json",
  "serial_test",
+ "soma-provider-core",
  "thiserror 2.0.18",
  "toml",
 ]
@@ -3876,6 +3876,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "soma-provider-core"
+version = "0.4.1"
+dependencies = [
+ "async-trait",
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "soma-runtime"
 version = "0.4.1"
 dependencies = [
@@ -3909,6 +3922,7 @@ dependencies = [
  "sha2 0.11.0",
  "soma-contracts",
  "soma-observability",
+ "soma-provider-core",
  "tempfile",
  "tokio",
  "tracing",

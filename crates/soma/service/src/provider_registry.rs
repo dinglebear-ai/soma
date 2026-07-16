@@ -4,13 +4,15 @@ use std::{
 };
 
 use async_trait::async_trait;
-use jsonschema::Validator;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use sha2::{Digest, Sha256};
 use soma_contracts::{
     provider_validation::{validate_provider_manifest, ProviderValidationError},
-    providers::{HostCapabilities, ProviderCatalog, ProviderResource, ProviderTool},
+    providers::{ProviderCatalog, ProviderResource},
+};
+use soma_provider_core::{
+    ProviderCall as CoreProviderCall, ProviderRegistry as CoreRegistry,
+    RegistrySnapshot as CoreRegistrySnapshot,
 };
 
 use crate::{
@@ -23,14 +25,17 @@ mod refresh;
 mod reports;
 mod resources;
 pub(super) use enforcement::provider_tool_surface_enabled;
-use enforcement::{enforce_call, enforce_output_schema, enforce_response_limit};
+use enforcement::{enforce_capabilities, enforce_pre_input, enforce_response_limit};
 use refresh::ProviderRefreshEvent;
 use resources::ResourceIndex;
 pub use resources::{DynamicResourceTemplate, ResourceReadOutput};
+pub use soma_provider_core::{Provider as CoreProvider, ProviderOutput};
+pub type ProviderInvocation = CoreProviderCall;
 
 #[async_trait]
 pub trait Provider: Send + Sync {
     fn catalog(&self) -> ProviderCatalog;
+
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError>;
 
     /// Dynamic resource templates this provider serves. Every provider
@@ -88,6 +93,15 @@ impl ProviderSurface {
             Self::Rest => "rest",
             Self::Cli => "cli",
             Self::Palette => "palette",
+        }
+    }
+
+    fn core(self) -> soma_provider_core::ProviderSurface {
+        match self {
+            Self::Mcp => soma_provider_core::ProviderSurface::Mcp,
+            Self::Rest => soma_provider_core::ProviderSurface::Rest,
+            Self::Cli => soma_provider_core::ProviderSurface::Cli,
+            Self::Palette => soma_provider_core::ProviderSurface::Palette,
         }
     }
 }
@@ -149,17 +163,17 @@ pub struct ProviderCall {
     pub snapshot_id: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ProviderExecutionEnvelope {
-    pub schema_version: u32,
-    pub provider: String,
-    pub action: String,
-    pub params: Value,
-    pub surface: ProviderSurface,
-    pub snapshot_id: String,
-}
-
 impl ProviderCall {
+    pub fn provider_invocation(&self) -> ProviderInvocation {
+        ProviderInvocation {
+            provider: self.provider.clone(),
+            action: self.action.clone(),
+            params: self.params.clone(),
+            surface: self.surface.core(),
+            snapshot_id: self.snapshot_id.clone(),
+        }
+    }
+
     pub fn execution_envelope(&self) -> ProviderExecutionEnvelope {
         ProviderExecutionEnvelope {
             schema_version: 1,
@@ -176,15 +190,14 @@ impl ProviderCall {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ProviderOutput {
-    pub value: Value,
-}
-
-impl ProviderOutput {
-    pub fn json(value: Value) -> Self {
-        Self { value }
-    }
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderExecutionEnvelope {
+    pub schema_version: u32,
+    pub provider: String,
+    pub action: String,
+    pub params: Value,
+    pub surface: ProviderSurface,
+    pub snapshot_id: String,
 }
 
 #[derive(Clone)]
@@ -192,10 +205,7 @@ pub struct RegistrySnapshot {
     pub id: String,
     pub fingerprint: String,
     pub catalogs: Vec<ProviderCatalog>,
-    action_index: HashMap<String, ToolEntry>,
-    rest_index: HashMap<(String, String), String>,
-    cli_index: HashMap<String, String>,
-    primitive_index: HashMap<String, String>,
+    core: Arc<CoreRegistrySnapshot>,
     exact_resources: HashMap<String, (String, ProviderResource)>,
     dynamic_resources: Vec<(String, DynamicResourceTemplate)>,
     pub compiled_validator_count: usize,
@@ -206,52 +216,41 @@ pub struct RegistrySnapshot {
 
 impl RegistrySnapshot {
     pub fn action_names(&self) -> Vec<&str> {
-        let mut names = self
-            .action_index
-            .keys()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        names.sort_unstable();
-        names
+        self.core.action_names().collect()
     }
 
     pub fn route_action(&self, method: &str, path: &str) -> Option<&str> {
-        self.rest_index
-            .get(&(method.to_owned(), path.to_owned()))
-            .map(String::as_str)
+        self.core.route_action(method, path)
     }
 
     pub fn cli_action(&self, command: &str) -> Option<&str> {
-        self.cli_index.get(command).map(String::as_str)
+        self.core.cli_action(command)
     }
 
     pub fn primitive_kind(&self, name: &str) -> Option<&str> {
-        self.primitive_index.get(name).map(String::as_str)
+        self.core.primitive_kind(name)
     }
 
     pub fn action_requires_confirmation(&self, action: &str) -> bool {
-        self.tool_entry(action)
-            .map(|entry| entry.tool.destructive)
+        self.core
+            .tool(action)
+            .map(|entry| entry.spec().destructive)
             .unwrap_or(false)
     }
 
     pub fn provider_for_action(&self, action: &str) -> Option<&str> {
-        self.tool_entry(action).map(|entry| entry.provider.as_str())
+        self.core
+            .tool(action)
+            .map(|entry| entry.provider_id().as_str())
     }
 
-    fn tool_entry(&self, action: &str) -> Option<&ToolEntry> {
-        self.action_index.get(action)
+    pub fn core_snapshot(&self) -> &CoreRegistrySnapshot {
+        &self.core
     }
-}
 
-#[derive(Clone)]
-struct ToolEntry {
-    provider: String,
-    action: String,
-    tool: ProviderTool,
-    capabilities: HostCapabilities,
-    input_validator: Arc<Validator>,
-    output_validator: Option<Arc<Validator>>,
+    pub(crate) fn rest_routes(&self) -> impl Iterator<Item = (&str, &str, &str)> {
+        self.core.rest_routes()
+    }
 }
 
 #[derive(Clone)]
@@ -264,6 +263,7 @@ pub struct ProviderRegistry {
 
 struct RegistryState {
     providers: BTreeMap<String, Arc<dyn Provider>>,
+    core_registry: CoreRegistry,
     snapshot: Arc<RegistrySnapshot>,
     file_fingerprint: Option<String>,
 }
@@ -277,11 +277,11 @@ impl ProviderRegistry {
         providers: Vec<Arc<dyn Provider>>,
         capabilities: CapabilityBroker,
     ) -> Result<Self, ProviderValidationError> {
-        let providers = provider_map(providers)?;
-        let snapshot = Arc::new(build_snapshot(providers.values().cloned().collect())?);
+        let (providers, core_registry, snapshot) = build_registry(providers)?;
         Ok(Self {
             state: Arc::new(RwLock::new(RegistryState {
                 providers,
+                core_registry,
                 snapshot,
                 file_fingerprint: None,
             })),
@@ -305,11 +305,11 @@ impl ProviderRegistry {
         let base_providers = Arc::new(providers);
         let mut all_providers = base_providers.iter().cloned().collect::<Vec<_>>();
         all_providers.extend(dynamic_providers);
-        let providers = provider_map(all_providers)?;
-        let snapshot = Arc::new(build_snapshot(providers.values().cloned().collect())?);
+        let (providers, core_registry, snapshot) = build_registry(all_providers)?;
         Ok(Self {
             state: Arc::new(RwLock::new(RegistryState {
                 providers,
+                core_registry,
                 snapshot,
                 file_fingerprint: Some(file_fingerprint),
             })),
@@ -366,12 +366,11 @@ impl ProviderRegistry {
             })?;
             let mut providers = self.base_providers.iter().cloned().collect::<Vec<_>>();
             providers.extend(dynamic_providers);
-            let providers = provider_map(providers)?;
-            let snapshot = Arc::new(build_snapshot(providers.values().cloned().collect())?);
-            Ok((providers, snapshot))
+            let (providers, core_registry, snapshot) = build_registry(providers)?;
+            Ok((providers, core_registry, snapshot))
         })();
-        let (providers, snapshot) = match rebuilt {
-            Ok(pair) => pair,
+        let (providers, core_registry, snapshot) = match rebuilt {
+            Ok(parts) => parts,
             Err(error) => {
                 return Ok(self.snapshot_after_refresh_failure(
                     file_source,
@@ -391,6 +390,7 @@ impl ProviderRegistry {
         let previous = state.snapshot.clone();
         let event = ProviderRefreshEvent::new(&previous, &snapshot);
         state.providers = providers;
+        state.core_registry = core_registry;
         state.snapshot = snapshot.clone();
         state.file_fingerprint = Some(file_fingerprint);
         event.log(file_source.root());
@@ -416,36 +416,34 @@ impl ProviderRegistry {
         &self,
         providers: Vec<Arc<dyn Provider>>,
     ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
-        let providers = provider_map(providers)?;
-        Ok(Arc::new(build_snapshot(
-            providers.values().cloned().collect(),
-        )?))
+        let (_, _, snapshot) = build_registry(providers)?;
+        Ok(snapshot)
     }
 
     pub fn reload(
         &self,
         providers: Vec<Arc<dyn Provider>>,
     ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
-        let providers = provider_map(providers)?;
-        let snapshot = Arc::new(build_snapshot(providers.values().cloned().collect())?);
+        let (providers, core_registry, snapshot) = build_registry(providers)?;
         let mut state = self
             .state
             .write()
             .expect("provider registry lock should not be poisoned");
         state.providers = providers;
+        state.core_registry = core_registry;
         state.snapshot = snapshot.clone();
         state.file_fingerprint = None;
         Ok(snapshot)
     }
 
     pub async fn dispatch(&self, mut call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
-        let (snapshot, provider, entry) = {
+        let (snapshot, core_registry, provider, tool, capabilities) = {
             let state = self
                 .state
                 .read()
                 .expect("provider registry lock should not be poisoned");
             let snapshot = state.snapshot.clone();
-            let entry = snapshot.tool_entry(&call.action).ok_or_else(|| {
+            let entry = snapshot.core_snapshot().tool(&call.action).ok_or_else(|| {
                 ProviderError::validation(
                     "registry",
                     call.action.clone(),
@@ -453,34 +451,64 @@ impl ProviderRegistry {
                     format!("unknown provider action `{}`", call.action),
                 )
             })?;
-            let entry = entry.clone();
-            let provider = state
-                .providers
-                .get(&entry.provider)
-                .cloned()
-                .ok_or_else(|| {
-                    ProviderError::new(
-                        "provider_not_loaded",
-                        &entry.provider,
-                        Some(entry.action.clone()),
-                        "provider is not loaded in the active registry",
-                        "Reload providers and retry.",
-                    )
-                })?;
-            (snapshot, provider, entry)
+            let provider_name = entry.provider_id().as_str();
+            let tool = entry.spec().clone();
+            let provider = state.providers.get(provider_name).cloned().ok_or_else(|| {
+                ProviderError::new(
+                    "provider_not_loaded",
+                    provider_name,
+                    Some(entry.spec().name.clone()),
+                    "provider is not loaded in the active registry",
+                    "Reload providers and retry.",
+                )
+            })?;
+            let capabilities = snapshot
+                .catalogs
+                .iter()
+                .find(|catalog| catalog.provider.name == provider_name)
+                .map(|catalog| catalog.capabilities.clone())
+                .expect("core provider index must reference an active catalog");
+            (
+                snapshot,
+                state.core_registry.clone(),
+                provider,
+                tool,
+                capabilities,
+            )
         };
 
-        call.provider = entry.provider.clone();
+        call.provider = provider.catalog().provider.name;
         call.snapshot_id = snapshot.id.clone();
-        enforce_call(&entry, &call, &self.capabilities)?;
-
-        let output = provider.call(call.clone()).await.inspect_err(|error| {
-            let (provider, action, code) = error.log_code();
-            tracing::warn!(provider, action, code, "provider call failed");
-        })?;
-        enforce_response_limit(&entry, &call, &output)?;
-        enforce_output_schema(&entry, &output)?;
-        Ok(output)
+        let pre_input_call = call.clone();
+        let invocation_call = call.clone();
+        let pre_input_tool = tool.clone();
+        let capability_broker = self.capabilities.clone();
+        core_registry
+            .dispatch_with_pre_input(
+                call.provider_invocation(),
+                move |invocation| {
+                    let mut call = pre_input_call;
+                    call.provider.clone_from(&invocation.provider);
+                    call.snapshot_id.clone_from(&invocation.snapshot_id);
+                    enforce_pre_input(&pre_input_tool, &call)
+                },
+                move |_, invocation| {
+                    let mut call = invocation_call;
+                    call.provider = invocation.provider;
+                    call.snapshot_id = invocation.snapshot_id;
+                    async move {
+                        enforce_capabilities(&capabilities, &call, &capability_broker)?;
+                        let output = provider.call(call.clone()).await?;
+                        enforce_response_limit(&tool, &call, &output)?;
+                        Ok(output)
+                    }
+                },
+            )
+            .await
+            .inspect_err(|error| {
+                let (provider, action, code) = error.log_code();
+                tracing::warn!(provider, action, code, "provider call failed");
+            })
     }
 }
 
@@ -500,121 +528,82 @@ fn provider_map(
     Ok(map)
 }
 
-fn build_snapshot(
-    providers: Vec<Arc<dyn Provider>>,
-) -> Result<RegistrySnapshot, ProviderValidationError> {
-    let mut catalogs = Vec::new();
-    let mut action_index = HashMap::new();
-    let mut rest_index = HashMap::new();
-    let mut cli_index = HashMap::new();
-    let mut primitive_index = HashMap::new();
-    let mut resources = ResourceIndex::new();
-    let mut compiled_validator_count = 0usize;
+#[derive(Clone)]
+struct CoreProviderAdapter(Arc<dyn Provider>);
 
-    for provider in providers {
-        let catalog = provider.catalog();
-        validate_provider_manifest(&catalog)?;
-        resources.register(&*provider, &catalog.provider.name, &catalog.resources)?;
-        for tool in &catalog.tools {
-            let input_validator = Arc::new(jsonschema::validator_for(&tool.input_schema).map_err(
-                |error| {
-                    ProviderValidationError::new(
-                        "input_schema_invalid",
-                        format!("tool `{}` has invalid input_schema: {error}", tool.name),
-                    )
-                },
-            )?);
-            compiled_validator_count += 1;
-            let output_validator = match &tool.output_schema {
-                Some(output_schema) => {
-                    let validator =
-                        Arc::new(jsonschema::validator_for(output_schema).map_err(|error| {
-                            ProviderValidationError::new(
-                                "output_schema_invalid",
-                                format!("tool `{}` has invalid output_schema: {error}", tool.name),
-                            )
-                        })?);
-                    compiled_validator_count += 1;
-                    Some(validator)
-                }
-                None => None,
-            };
-            let action = tool.name.clone();
-            let entry = ToolEntry {
-                provider: catalog.provider.name.clone(),
-                action: action.clone(),
-                tool: tool.clone(),
-                capabilities: catalog.capabilities.clone(),
-                input_validator,
-                output_validator,
-            };
-            if action_index.insert(action.clone(), entry).is_some() {
-                return Err(ProviderValidationError::new(
-                    "duplicate_tool_name",
-                    format!("duplicate action `{action}`"),
+type BuiltRegistry = (
+    BTreeMap<String, Arc<dyn Provider>>,
+    CoreRegistry,
+    Arc<RegistrySnapshot>,
+);
+
+#[async_trait]
+impl CoreProvider for CoreProviderAdapter {
+    fn catalog(&self) -> ProviderCatalog {
+        self.0.catalog()
+    }
+
+    async fn call(&self, call: CoreProviderCall) -> Result<ProviderOutput, ProviderError> {
+        let surface = match call.surface {
+            soma_provider_core::ProviderSurface::Mcp => ProviderSurface::Mcp,
+            soma_provider_core::ProviderSurface::Rest => ProviderSurface::Rest,
+            soma_provider_core::ProviderSurface::Cli => ProviderSurface::Cli,
+            soma_provider_core::ProviderSurface::Palette => ProviderSurface::Palette,
+            soma_provider_core::ProviderSurface::Internal
+            | soma_provider_core::ProviderSurface::Ui => {
+                return Err(ProviderError::validation(
+                    call.provider,
+                    call.action,
+                    "unsupported_product_surface",
+                    "Soma providers expose only MCP, REST, CLI, and Palette surfaces",
                 ));
             }
-            if let Some(rest) = &tool.rest {
-                if rest.enabled {
-                    let method = rest.method.clone().unwrap_or_else(|| "POST".to_owned());
-                    let path = rest
-                        .path
-                        .clone()
-                        .unwrap_or_else(|| format!("/v1/{}", tool.name));
-                    if rest_index
-                        .insert((method.clone(), path.clone()), tool.name.clone())
-                        .is_some()
-                    {
-                        return Err(ProviderValidationError::new(
-                            "duplicate_rest_route",
-                            format!("duplicate REST route {method} {path}"),
-                        ));
-                    }
-                }
-            }
-            if let Some(cli) = &tool.cli {
-                if cli.enabled {
-                    let command = cli.command.clone().unwrap_or_else(|| tool.name.clone());
-                    if cli_index
-                        .insert(command.clone(), tool.name.clone())
-                        .is_some()
-                    {
-                        return Err(ProviderValidationError::new(
-                            "duplicate_cli_command",
-                            format!("duplicate CLI command `{command}`"),
-                        ));
-                    }
-                    for alias in &cli.aliases {
-                        if cli_index.insert(alias.clone(), tool.name.clone()).is_some() {
-                            return Err(ProviderValidationError::new(
-                                "duplicate_cli_command",
-                                format!("duplicate CLI alias `{alias}`"),
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-        for prompt in &catalog.prompts {
-            insert_primitive(&mut primitive_index, "prompt", &prompt.name)?;
-        }
-        for resource in &catalog.resources {
-            insert_primitive(&mut primitive_index, "resource", &resource.name)?;
-        }
-        for task in &catalog.tasks {
-            insert_primitive(&mut primitive_index, "task", &task.name)?;
-        }
-        for elicitation in &catalog.elicitation {
-            insert_primitive(&mut primitive_index, "elicitation", &elicitation.name)?;
-        }
-        catalogs.push(catalog);
+        };
+        self.0
+            .call(ProviderCall {
+                provider: call.provider,
+                action: call.action,
+                params: call.params,
+                principal: ProviderPrincipal::anonymous(),
+                auth_mode: ProviderAuthMode::TrustedGateway,
+                surface,
+                destructive_confirmed: false,
+                limits: ProviderRequestLimits::default(),
+                snapshot_id: call.snapshot_id,
+            })
+            .await
     }
-    catalogs.sort_by(|left, right| left.provider.name.cmp(&right.provider.name));
-    let fingerprint = fingerprint_catalogs(&catalogs);
+}
+
+fn build_registry(
+    providers: Vec<Arc<dyn Provider>>,
+) -> Result<BuiltRegistry, ProviderValidationError> {
+    let providers = provider_map(providers)?;
+    let mut builder = CoreRegistry::builder();
+    for provider in providers.values() {
+        validate_provider_manifest(&provider.catalog())?;
+        builder = builder.register_arc(Arc::new(CoreProviderAdapter(provider.clone())))?;
+    }
+    let core_registry = builder.build()?;
+    let snapshot = Arc::new(build_snapshot(&providers, &core_registry)?);
+    Ok((providers, core_registry, snapshot))
+}
+
+fn build_snapshot(
+    providers: &BTreeMap<String, Arc<dyn Provider>>,
+    core_registry: &CoreRegistry,
+) -> Result<RegistrySnapshot, ProviderValidationError> {
+    let core = core_registry.snapshot();
+    let mut resources = ResourceIndex::new();
+    for provider in providers.values() {
+        let catalog = provider.catalog();
+        resources.register(&**provider, &catalog.provider.name, &catalog.resources)?;
+    }
+    let catalogs = core.catalogs().to_vec();
+    let fingerprint = core.fingerprint().to_string();
     let id = fingerprint.clone();
-    let mut action_names = action_index.keys().cloned().collect::<Vec<_>>();
-    action_names.sort();
-    let openapi_paths = openapi_paths_from_rest_index(&rest_index);
+    let action_names = core.action_names().map(str::to_owned).collect::<Vec<_>>();
+    let openapi_paths = openapi_paths_from_core(&core);
     let cached_catalog_summary = Arc::new(json!({
         "schema_version": 1,
         "provider_fingerprint": fingerprint,
@@ -648,20 +637,17 @@ fn build_snapshot(
         id,
         fingerprint,
         catalogs,
-        action_index,
-        rest_index,
-        cli_index,
-        primitive_index,
+        core: core.clone(),
         exact_resources: resources.exact,
         dynamic_resources: resources.dynamic,
-        compiled_validator_count,
+        compiled_validator_count: core.compiled_validator_count(),
         cached_openapi_bytes,
         cached_catalog_summary,
         cached_palette_manifest,
     })
 }
 
-fn openapi_paths_from_rest_index(rest_index: &HashMap<(String, String), String>) -> Value {
+fn openapi_paths_from_core(core: &CoreRegistrySnapshot) -> Value {
     let mut paths = Map::new();
     paths.insert(
         "/v1/capabilities".to_owned(),
@@ -718,9 +704,9 @@ fn openapi_paths_from_rest_index(rest_index: &HashMap<(String, String), String>)
         }),
     );
 
-    let mut routes = rest_index
-        .iter()
-        .map(|((method, path), action)| (method.clone(), path.clone(), action.clone()))
+    let mut routes = core
+        .rest_routes()
+        .map(|(method, path, action)| (method.to_owned(), path.to_owned(), action.to_owned()))
         .collect::<Vec<_>>();
     routes.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
 
@@ -743,28 +729,4 @@ fn openapi_paths_from_rest_index(rest_index: &HashMap<(String, String), String>)
         }
     }
     Value::Object(paths)
-}
-
-fn insert_primitive(
-    index: &mut HashMap<String, String>,
-    kind: &str,
-    name: &str,
-) -> Result<(), ProviderValidationError> {
-    if index.insert(name.to_owned(), kind.to_owned()).is_some() {
-        return Err(ProviderValidationError::new(
-            "duplicate_mcp_primitive",
-            format!("duplicate MCP primitive `{name}`"),
-        ));
-    }
-    Ok(())
-}
-
-fn fingerprint_catalogs(catalogs: &[ProviderCatalog]) -> String {
-    let canonical = serde_json::to_vec(catalogs).expect("catalogs serialize");
-    let digest = Sha256::digest(canonical);
-    let hex = digest
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    format!("sha256:{hex}")
 }

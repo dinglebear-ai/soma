@@ -16,7 +16,7 @@ use soma::{
 use soma_contracts::providers::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool,
 };
-use soma_service::provider_registry::{Provider, ProviderOutput, ProviderRegistry};
+use soma_service::provider_registry::{Provider, ProviderCall, ProviderOutput, ProviderRegistry};
 use soma_service::ProviderError;
 use std::sync::Arc;
 
@@ -83,10 +83,7 @@ impl Provider for DynamicProvider {
         }
     }
 
-    async fn call(
-        &self,
-        call: soma_service::provider_registry::ProviderCall,
-    ) -> Result<ProviderOutput, ProviderError> {
+    async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
         Ok(ProviderOutput::json(json!({
             "provider": call.provider,
             "action": call.action,

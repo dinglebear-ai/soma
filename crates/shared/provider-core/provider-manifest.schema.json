@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://soma.local/schemas/provider-manifest.schema.json",
-  "title": "soma Provider Manifest",
-  "description": "Resolved provider manifest consumed by the dynamic provider runtime.",
+  "$id": "https://dinglebear.ai/schemas/provider-manifest.schema.json",
+  "title": "Provider Manifest",
+  "description": "A transport-neutral provider catalog consumed by a provider runtime.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "provider"],

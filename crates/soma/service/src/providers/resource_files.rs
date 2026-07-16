@@ -37,7 +37,7 @@ const DYNAMIC_RESOURCE_MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 enum ResourceFileKind {
     Static {
         path: PathBuf,
-        resource: ProviderResource,
+        resource: Box<ProviderResource>,
         mime_type: String,
     },
     Dynamic {
@@ -163,7 +163,7 @@ impl ResourceFileProvider {
             provider_name,
             kind: ResourceFileKind::Static {
                 path: absolute_path,
-                resource,
+                resource: Box::new(resource),
                 mime_type,
             },
             canonical_root: canonical_root.to_owned(),
@@ -285,7 +285,7 @@ impl Provider for ResourceFileProvider {
             ResourceFileKind::Static { resource, path, .. } => (
                 resource.description.clone(),
                 format!("Static resource file loaded from {}", path.display()),
-                vec![resource.clone()],
+                vec![resource.as_ref().clone()],
             ),
             ResourceFileKind::Dynamic { template, path } => (
                 template.description.clone(),

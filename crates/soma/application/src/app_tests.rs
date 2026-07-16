@@ -285,10 +285,7 @@ async fn execute_action_applies_defaults_and_returns_request_context() {
     let calls = provider.calls.lock().unwrap();
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].surface, soma_service::ProviderSurface::Rest);
-    assert_eq!(
-        calls[0].limits,
-        soma_service::ProviderRequestLimits::default()
-    );
+    assert!(!calls[0].snapshot_id.is_empty());
 }
 
 #[tokio::test]

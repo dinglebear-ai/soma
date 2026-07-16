@@ -15,7 +15,7 @@ layer = "legacy"
 
 [features]
 default = ["client", "observability"]
-client = []
+client = ["soma-provider-core/preserve-order"]
 observability = ["dep:soma-observability", "dep:metrics"]
 test-support = []
 
@@ -31,6 +31,7 @@ rmcp = { version = "=2.2.0", default-features = false, features = ["client", "tr
 # process to install a rustls crypto provider before any TLS client is built.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 soma-contracts = { path = "../contracts" }
+soma-provider-core = { path = "../../shared/provider-core", default-features = false }
 soma-observability = { path = "../../shared/observability", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

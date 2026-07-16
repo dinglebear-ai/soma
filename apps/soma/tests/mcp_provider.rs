@@ -138,11 +138,8 @@ async fn mcp_provider_infers_http_transport_from_url() -> anyhow::Result<()> {
             provider: "upstream-http-mcp".to_owned(),
             action: "http_echo".to_owned(),
             params: json!({"message": "hello over http"}),
-            principal: ProviderPrincipal {
-                subject: "test".to_owned(),
-                scopes: vec!["soma:read".to_owned()],
-            },
-            auth_mode: ProviderAuthMode::Mounted,
+            principal: ProviderPrincipal::loopback_dev(),
+            auth_mode: ProviderAuthMode::LoopbackDev,
             surface: ProviderSurface::Mcp,
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
