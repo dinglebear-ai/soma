@@ -368,14 +368,16 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $pythonName = "python"
           $python = Get-Command python -ErrorAction SilentlyContinue
           if (-not $python) {
+            $pythonName = "py"
             $python = Get-Command py -ErrorAction SilentlyContinue
           }
           if (-not $python) {
             throw "Python launcher not found on Windows runner"
           }
-          "SOMA_PYTHON_COMMAND=$($python.Source)" >> $env:GITHUB_ENV
+          "SOMA_PYTHON_COMMAND=$pythonName" >> $env:GITHUB_ENV
           & $python.Source --version
 
       - name: cargo test

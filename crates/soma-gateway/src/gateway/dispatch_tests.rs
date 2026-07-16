@@ -17,13 +17,28 @@ fn default_manager() -> GatewayManager {
 }
 
 fn python_command() -> String {
-    std::env::var("SOMA_PYTHON_COMMAND").unwrap_or_else(|_| {
-        if cfg!(windows) {
-            "python".to_owned()
-        } else {
-            "python3".to_owned()
-        }
-    })
+    std::env::var("SOMA_PYTHON_COMMAND")
+        .ok()
+        .and_then(|value| bare_command_name(&value))
+        .unwrap_or_else(default_python_command)
+}
+
+fn bare_command_name(value: &str) -> Option<String> {
+    value
+        .trim()
+        .trim_matches('"')
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn default_python_command() -> String {
+    if cfg!(windows) {
+        "python".to_owned()
+    } else {
+        "python3".to_owned()
+    }
 }
 #[tokio::test]
 async fn read_access_can_list_but_cannot_admin_test() {
