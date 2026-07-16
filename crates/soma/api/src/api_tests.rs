@@ -1,9 +1,15 @@
-use super::rest_principal;
+use serde_json::json;
+
+use super::{optional_name_params, rest_params};
+use soma_contracts::actions::SomaAction;
 
 #[test]
-fn missing_rest_auth_context_uses_anonymous_principal() {
-    let principal = rest_principal(None);
-
-    assert_eq!(principal.subject, "anonymous");
-    assert!(principal.scopes.is_empty());
+fn rest_dto_translation_stays_in_the_http_adapter() {
+    assert_eq!(optional_name_params(None), json!({}));
+    assert_eq!(
+        rest_params(&SomaAction::Echo {
+            message: "hello".to_owned(),
+        }),
+        json!({"message": "hello"})
+    );
 }

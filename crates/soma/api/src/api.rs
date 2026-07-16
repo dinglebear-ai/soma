@@ -1,7 +1,6 @@
 //! REST API handlers — direct `/v1/*` routes plus public health/status docs.
 //!
-//! All handlers are thin: parse the request, call the service, return JSON.
-//! Business logic lives in `app.rs`.
+//! All handlers are thin: parse HTTP input, call `SomaApplication`, return JSON.
 
 #[path = "openapi.rs"]
 mod openapi;
@@ -26,16 +25,13 @@ pub struct AuthContext {
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use soma_application::ExecuteActionRequest;
 use soma_contracts::actions::SomaAction;
-use soma_runtime::server::{AppState, AuthPolicy};
-use soma_service::{
-    ProviderAuthMode, ProviderCall, ProviderPrincipal, ProviderRequestLimits, ProviderSurface,
-};
 
 use crate::responses::{
-    cap_rest_response, provider_rest_error_response, rest_error_response,
-    rest_json_rejection_response,
+    application_error_response, rest_error_response, rest_json_rejection_response,
 };
+use crate::ApiState;
 pub use probes::{health, readyz, status};
 pub use route_inventory::{CapabilitiesResponse, RestRoute, REST_ROUTES};
 
@@ -56,15 +52,15 @@ pub async fn v1_capabilities() -> impl IntoResponse {
     Json(route_inventory::capabilities_response())
 }
 
-pub async fn v1_providers(State(state): State<AppState>) -> axum::response::Response {
+pub async fn v1_providers(State(state): State<ApiState>) -> axum::response::Response {
     if let Some(response) = refresh_file_providers(&state) {
         return response;
     }
-    Json(state.provider_registry.snapshot().inspection_report()).into_response()
+    Json(state.application().provider_inspection_report()).into_response()
 }
 
 pub async fn v1_greet(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     auth: Option<Extension<AuthContext>>,
     body: Result<Json<GreetRequest>, JsonRejection>,
 ) -> axum::response::Response {
@@ -82,7 +78,7 @@ pub async fn v1_greet(
 }
 
 pub async fn v1_echo(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     auth: Option<Extension<AuthContext>>,
     body: Result<Json<EchoRequest>, JsonRejection>,
 ) -> axum::response::Response {
@@ -100,7 +96,7 @@ pub async fn v1_echo(
 }
 
 pub async fn v1_service_status(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     auth: Option<Extension<AuthContext>>,
 ) -> axum::response::Response {
     run_rest_action_request(
@@ -113,7 +109,7 @@ pub async fn v1_service_status(
 }
 
 pub async fn v1_help(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     auth: Option<Extension<AuthContext>>,
 ) -> axum::response::Response {
     run_rest_action_request(
@@ -126,7 +122,7 @@ pub async fn v1_help(
 }
 
 pub async fn v1_provider_tool_action(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     auth: Option<Extension<AuthContext>>,
     Path(action): Path<String>,
     body: Result<Json<Value>, JsonRejection>,
@@ -146,7 +142,7 @@ pub async fn v1_provider_tool_action(
 }
 
 pub async fn v1_dynamic_provider_route(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     auth: Option<Extension<AuthContext>>,
     method: Method,
     Path(path): Path<String>,
@@ -157,12 +153,7 @@ pub async fn v1_dynamic_provider_route(
     if let Some(response) = refresh_file_providers(&state) {
         return response;
     }
-    let action = match state
-        .provider_registry
-        .snapshot()
-        .route_action(&method, &route_path)
-        .map(str::to_owned)
-    {
+    let action = match state.application().resolve_rest_route(&method, &route_path) {
         Some(action) => action,
         None => {
             return (
@@ -191,7 +182,7 @@ pub async fn v1_dynamic_provider_route(
 }
 
 async fn run_rest_action_request(
-    state: AppState,
+    state: ApiState,
     auth: Option<&AuthContext>,
     action: Result<SomaAction>,
     action_name: &str,
@@ -206,7 +197,7 @@ async fn run_rest_action_request(
 }
 
 async fn run_provider_rest_action(
-    state: AppState,
+    state: ApiState,
     auth: Option<&AuthContext>,
     action_name: String,
     params: Value,
@@ -214,31 +205,18 @@ async fn run_provider_rest_action(
     if let Some(response) = refresh_file_providers(&state) {
         return response;
     }
-    let call = ProviderCall {
-        provider: String::new(),
+    let request = ExecuteActionRequest {
         action: action_name.clone(),
         params,
-        principal: rest_principal(auth),
-        auth_mode: rest_auth_mode(&state),
-        surface: ProviderSurface::Rest,
-        destructive_confirmed: false,
-        limits: ProviderRequestLimits::default(),
-        snapshot_id: String::new(),
     };
 
-    match state.provider_registry.dispatch(call).await {
-        Ok(output) => match cap_rest_response(output.value) {
-            Ok(value) => Json(value).into_response(),
-            Err(e) => {
-                tracing::error!(error = %e, action = %action_name, "REST response serialization failed");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": "internal server error"})),
-                )
-                    .into_response()
-            }
-        },
-        Err(e) => provider_rest_error_response(e),
+    match state
+        .application()
+        .execute_action(request, rest_execution_context(&state, auth))
+        .await
+    {
+        Ok(output) => Json(output.output).into_response(),
+        Err(error) => application_error_response(error),
     }
 }
 
@@ -253,22 +231,12 @@ fn rest_params(action: &SomaAction) -> Value {
     }
 }
 
-fn rest_principal(auth: Option<&AuthContext>) -> ProviderPrincipal {
-    match auth {
-        Some(auth) => ProviderPrincipal {
-            subject: auth.sub.clone(),
-            scopes: auth.scopes.clone(),
-        },
-        None => ProviderPrincipal::anonymous(),
-    }
-}
-
-fn rest_auth_mode(state: &AppState) -> ProviderAuthMode {
-    match &state.auth_policy {
-        AuthPolicy::LoopbackDev => ProviderAuthMode::LoopbackDev,
-        AuthPolicy::TrustedGatewayUnscoped => ProviderAuthMode::TrustedGateway,
-        AuthPolicy::Mounted { .. } => ProviderAuthMode::Mounted,
-    }
+fn rest_execution_context(
+    state: &ApiState,
+    auth: Option<&AuthContext>,
+) -> soma_application::ExecutionContext {
+    let scopes = auth.map(|auth| auth.scopes.as_slice()).unwrap_or_default();
+    state.execution_context(auth.map(|auth| auth.sub.as_str()), scopes)
 }
 
 fn optional_name_params(name: Option<String>) -> Value {
@@ -297,42 +265,25 @@ fn json_body_or_empty(
 }
 
 /// `GET /openapi.json` — generated OpenAPI schema for the REST surface.
-pub async fn openapi_json(State(state): State<AppState>) -> axum::response::Response {
+pub async fn openapi_json(State(state): State<ApiState>) -> axum::response::Response {
     if let Some(response) = refresh_file_providers(&state) {
         return response;
     }
-    match serde_json::from_slice::<Value>(&state.provider_registry.snapshot().cached_openapi_bytes)
-    {
+    match state.application().openapi_document() {
         Ok(mut value) => {
             openapi::augment_with_gateway_route(&mut value);
             Json(value).into_response()
         }
-        Err(error) => {
-            tracing::error!(%error, "runtime OpenAPI snapshot failed to deserialize");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": "openapi_unavailable"})),
-            )
-                .into_response()
-        }
+        Err(error) => application_error_response(error),
     }
 }
 
-fn refresh_file_providers(state: &AppState) -> Option<axum::response::Response> {
-    match state.provider_registry.refresh_file_providers() {
+fn refresh_file_providers(state: &ApiState) -> Option<axum::response::Response> {
+    match state.application().refresh_providers() {
         Ok(_) => None,
         Err(error) => {
             tracing::error!(%error, "provider refresh failed");
-            Some(
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({
-                        "error": "provider_refresh_failed",
-                        "message": error.to_string(),
-                    })),
-                )
-                    .into_response(),
-            )
+            Some(application_error_response(error))
         }
     }
 }

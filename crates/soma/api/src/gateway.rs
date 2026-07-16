@@ -7,23 +7,16 @@ use axum::{
 use soma_auth::AuthContext;
 #[cfg(not(feature = "auth"))]
 pub struct AuthContext {
+    pub sub: String,
     pub scopes: Vec<String>,
 }
 use serde_json::{json, Value};
+use soma_application::{ApplicationError, GatewayExecuteRequest};
 
-use soma_contracts::actions::{scopes_satisfy, READ_SCOPE};
-use soma_contracts::scopes::has_admin_scope;
-use soma_gateway::gateway::dispatch::{
-    dispatch_gateway_action, GatewayAccess, GatewayDispatchError,
-};
-use soma_gateway::gateway::manager::GatewayManagerError;
-use soma_gateway::upstream::UpstreamError;
-use soma_runtime::server::{AppState, AuthPolicy};
-
-use crate::responses::cap_json_response;
+use crate::{responses::application_error_status, ApiState};
 
 pub async fn v1_gateway_action(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     auth: Option<Extension<AuthContext>>,
     Path(action): Path<String>,
     body: Result<Json<Value>, JsonRejection>,
@@ -33,80 +26,55 @@ pub async fn v1_gateway_action(
         Err(JsonRejection::MissingJsonContentType(_)) => json!({}),
         Err(error) => return json_rejection_response(error),
     };
-    let access = gateway_access_from_scopes(
-        &state.auth_policy,
-        auth.as_ref()
-            .map(|Extension(auth)| auth.scopes.as_slice())
-            .unwrap_or_default(),
-    );
+    let auth = auth.as_ref().map(|Extension(auth)| auth);
+    let scopes = auth.map(|auth| auth.scopes.as_slice()).unwrap_or_default();
+    let context = state.execution_context(auth.map(|auth| auth.sub.as_str()), scopes);
 
-    match dispatch_gateway_action(&state.gateway, access, &action, params).await {
-        Ok(value) => Json(cap_gateway_response(value)).into_response(),
+    match state
+        .application()
+        .gateway_execute(
+            GatewayExecuteRequest {
+                action: action.clone(),
+                params,
+            },
+            context,
+        )
+        .await
+    {
+        Ok(response) => Json(response.output).into_response(),
         Err(error) => gateway_error_response(&action, error),
     }
 }
 
-#[must_use]
-pub fn gateway_access_from_scopes(policy: &AuthPolicy, scopes: &[String]) -> GatewayAccess {
-    match policy {
-        AuthPolicy::LoopbackDev | AuthPolicy::TrustedGatewayUnscoped => GatewayAccess {
-            read: true,
-            admin: true,
-        },
-        AuthPolicy::Mounted { .. } => {
-            let admin = has_admin_scope(scopes);
-            GatewayAccess {
-                read: admin || scopes_satisfy(scopes, READ_SCOPE),
-                admin,
-            }
-        }
-    }
-}
-
-fn gateway_error_response(action: &str, error: GatewayDispatchError) -> axum::response::Response {
-    let status = match &error {
-        GatewayDispatchError::AdminRequired => StatusCode::FORBIDDEN,
-        GatewayDispatchError::Params(_) | GatewayDispatchError::SpawnValidation => {
-            StatusCode::BAD_REQUEST
-        }
-        GatewayDispatchError::UnknownAction => StatusCode::NOT_FOUND,
-        GatewayDispatchError::Manager(error) => manager_error_status(error),
+fn gateway_error_response(action: &str, error: ApplicationError) -> axum::response::Response {
+    let status = application_error_status(&error);
+    let kind = match error.code.as_str() {
+        "admin_required" | "not_exposed" => "authorization",
+        "invalid_param"
+        | "unknown_action"
+        | "spawn_validation_failed"
+        | "upstream_exists"
+        | "upstream_missing"
+        | "invalid_config"
+        | "unknown_upstream" => "validation",
+        "unsupported_transport" => "unsupported",
+        "response_too_large" => "limits",
+        "store_not_mounted" => "configuration",
+        _ => "runtime",
     };
-    (status, Json(error.structured(action).to_json())).into_response()
-}
-
-fn manager_error_status(error: &GatewayManagerError) -> StatusCode {
-    match error {
-        GatewayManagerError::Config(_)
-        | GatewayManagerError::UpstreamExists(_)
-        | GatewayManagerError::Upstream(UpstreamError::ParamsMustBeObject) => {
-            StatusCode::BAD_REQUEST
-        }
-        GatewayManagerError::UpstreamMissing(_)
-        | GatewayManagerError::Upstream(UpstreamError::UnknownUpstream { .. }) => {
-            StatusCode::NOT_FOUND
-        }
-        GatewayManagerError::Upstream(UpstreamError::NotExposed { .. }) => StatusCode::FORBIDDEN,
-        GatewayManagerError::Upstream(UpstreamError::Unsupported { .. }) => {
-            StatusCode::NOT_IMPLEMENTED
-        }
-        GatewayManagerError::Upstream(UpstreamError::LiveConnect { .. })
-        | GatewayManagerError::Upstream(UpstreamError::LiveCall { .. })
-        | GatewayManagerError::OAuth(_) => StatusCode::SERVICE_UNAVAILABLE,
-        GatewayManagerError::Upstream(UpstreamError::ResponseTooLarge { .. }) => {
-            StatusCode::PAYLOAD_TOO_LARGE
-        }
-        GatewayManagerError::GatewayReloading
-        | GatewayManagerError::StoreNotMounted
-        | GatewayManagerError::Upstream(UpstreamError::NotRoutable { .. }) => {
-            StatusCode::SERVICE_UNAVAILABLE
-        }
-    }
-}
-
-fn cap_gateway_response(value: Value) -> Value {
-    cap_json_response(value, "Use a narrower gateway action or filter.")
-        .unwrap_or_else(|_| json!({"error": "internal server error"}))
+    (
+        status,
+        Json(json!({
+            "isError": true,
+            "schema_version": "mcp.gateway.error.v1",
+            "code": error.code,
+            "kind": kind,
+            "tool": "gateway",
+            "action": action,
+            "remediation": error.remediation,
+        })),
+    )
+        .into_response()
 }
 
 fn json_rejection_response(error: JsonRejection) -> axum::response::Response {

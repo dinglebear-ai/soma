@@ -34,6 +34,8 @@ pub use soma_contracts::token_limit;
 #[cfg(feature = "web")]
 pub use soma_web as web;
 
+#[cfg(feature = "mcp-http")]
+mod application_ports;
 #[cfg(feature = "oauth")]
 mod gateway_auth;
 #[cfg(feature = "mcp-http")]

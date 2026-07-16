@@ -34,6 +34,7 @@ required-features = ["cli", "mcp-stdio"]
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
+async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 axum = { version = "0.8", optional = true }
@@ -44,6 +45,7 @@ soma-application = { path = "../../crates/soma/application" }
 soma-auth = { path = "../../crates/shared/auth", optional = true, features = ["http-axum"] }
 soma-cli = { path = "../../crates/soma/cli", optional = true }
 soma-contracts = { path = "../../crates/soma/contracts" }
+soma-domain = { path = "../../crates/soma/domain" }
 soma-gateway = { path = "../../crates/shared/mcp/gateway" }
 mcp-client = { package = "soma-mcp-client", path = "../../crates/shared/mcp/client", optional = true, features = ["oauth"] }
 soma-mcp = { path = "../../crates/soma/mcp", optional = true }
@@ -105,7 +107,6 @@ full = ["local-adapter", "server", "web", "oauth", "observability", "plugin"]
 test-support = ["soma-mcp?/test-support"]
 
 [dev-dependencies]
-async-trait = "0.1"
 axum = "0.8"
 soma = { path = ".", package = "soma", features = ["test-support"] }
 soma-contracts = { path = "../../crates/soma/contracts" }

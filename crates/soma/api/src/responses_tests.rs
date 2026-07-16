@@ -1,31 +1,20 @@
-use serde_json::json;
-use soma_contracts::token_limit::MAX_RESPONSE_BYTES;
+use axum::{body::to_bytes, http::StatusCode};
+use soma_application::ApplicationError;
 
-use super::cap_rest_response;
+use super::application_error_response;
 
-#[test]
-fn cap_rest_response_leaves_small_json_unchanged() {
-    let value = json!({"echo": "hello"});
-    assert_eq!(cap_rest_response(value.clone()).unwrap(), value);
-}
+#[tokio::test]
+async fn application_errors_map_to_stable_http_status_and_json() {
+    let response = application_error_response(ApplicationError::new(
+        "response_too_large",
+        "too large",
+        false,
+        "request less data",
+    ));
 
-#[test]
-fn cap_rest_response_returns_json_safe_truncation_envelope() {
-    let value = json!({"payload": "x".repeat(MAX_RESPONSE_BYTES + 1)});
-    let capped = cap_rest_response(value).unwrap();
-
-    assert_eq!(capped["truncated"], true);
-    assert_eq!(
-        capped["error"],
-        "response exceeded REST response size limit"
-    );
-    assert_eq!(capped["max_response_bytes"], MAX_RESPONSE_BYTES);
-    assert!(capped["hint"]
-        .as_str()
-        .unwrap_or_default()
-        .contains("limit"));
-    assert!(
-        serde_json::to_vec(&capped).unwrap().len() < MAX_RESPONSE_BYTES,
-        "{capped}"
-    );
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["code"], "response_too_large");
+    assert_eq!(body["remediation"], "request less data");
 }

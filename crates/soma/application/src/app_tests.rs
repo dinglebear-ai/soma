@@ -367,6 +367,21 @@ fn cli_catalog_queries_stay_behind_the_application_facade() {
 }
 
 #[test]
+fn rest_catalog_queries_and_openapi_stay_behind_the_application_facade() {
+    let (application, _, _) = application(false, json!({}));
+
+    assert_eq!(
+        application
+            .resolve_rest_route("POST", "/v1/echo")
+            .as_deref(),
+        Some("echo")
+    );
+    assert!(application.openapi_document().unwrap()["paths"]
+        .get("/v1/echo")
+        .is_some());
+}
+
+#[test]
 fn application_errors_redact_sensitive_diagnostics() {
     let port_error = ApplicationError::from(PortError::new(
         "engine_failed",

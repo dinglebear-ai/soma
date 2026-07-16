@@ -3599,6 +3599,7 @@ dependencies = [
  "soma-auth",
  "soma-cli",
  "soma-contracts",
+ "soma-domain",
  "soma-gateway",
  "soma-mcp",
  "soma-mcp-client",
@@ -3624,11 +3625,11 @@ dependencies = [
  "axum",
  "serde",
  "serde_json",
+ "soma-application",
  "soma-auth",
  "soma-contracts",
- "soma-gateway",
- "soma-runtime",
- "soma-service",
+ "soma-domain",
+ "tokio",
  "tracing",
 ]
 

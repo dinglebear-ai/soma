@@ -31,14 +31,6 @@ const TEMPORARY_EXCEPTIONS: &[ArchitectureException] = &[
         expiration_milestone: "legacy contracts decomposition",
     },
     ArchitectureException {
-        from_path: "crates/soma/api",
-        to_path: "crates/shared/mcp/gateway",
-        owner: "architecture-refactor",
-        reason: "REST still composes the legacy service and shared gateway during migration",
-        removal_pr: "PR 6",
-        expiration_milestone: "REST migration to SomaApplication",
-    },
-    ArchitectureException {
         from_path: "crates/soma/mcp",
         to_path: "crates/shared/mcp/gateway",
         owner: "architecture-refactor",

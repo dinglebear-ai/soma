@@ -159,6 +159,11 @@ pub(super) fn thin_shims(reporter: &mut PatternReporter) {
             &["SomaApplication", ".execute_action("][..],
             &["reqwest::", "hyper::Client", "sqlx::", "rusqlite::"][..],
         ),
+        (
+            "crates/soma/api/src/api.rs",
+            &[".application()", ".execute_action("][..],
+            FORBIDDEN_SHIM_TOKENS,
+        ),
     ];
 
     for (path, required, forbidden) in policies {

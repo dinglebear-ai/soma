@@ -25,7 +25,11 @@ use crate::api::{
     health, openapi_json, readyz, status, v1_capabilities, v1_dynamic_provider_route, v1_echo,
     v1_greet, v1_help, v1_provider_tool_action, v1_providers, v1_service_status,
 };
+use crate::application_ports::GatewayApplicationPort;
 use crate::gateway_api::v1_gateway_action;
+use soma_api::ApiState;
+use soma_application::{ApplicationPorts, SomaApplication};
+use soma_domain::AuthorizationMode;
 use soma_mcp::{allowed_origins, streamable_http_config, streamable_http_service};
 use soma_runtime::server::{build_auth_layer, AppState, AuthPolicy};
 
@@ -33,6 +37,7 @@ const MCP_BODY_LIMIT_BYTES: usize = 65_536;
 
 pub fn router(state: AppState) -> Router {
     let rmcp_config = streamable_http_config(&state.config);
+    let api_state = api_state(&state);
 
     let resource_url = match &state.auth_policy {
         AuthPolicy::Mounted { .. } => state
@@ -51,8 +56,9 @@ pub fn router(state: AppState) -> Router {
         resource_url,
     );
 
-    let api_and_mcp: Router<AppState> = Router::new()
-        .nest_service("/mcp", streamable_http_service(state.clone(), rmcp_config))
+    let mcp: Router<AppState> =
+        Router::new().nest_service("/mcp", streamable_http_service(state.clone(), rmcp_config));
+    let api: Router<ApiState> = Router::new()
         .route("/v1/capabilities", get(v1_capabilities))
         .route("/v1/providers", get(v1_providers))
         .route("/v1/greet", post(v1_greet))
@@ -70,7 +76,9 @@ pub fn router(state: AppState) -> Router {
                 .delete(v1_dynamic_provider_route),
         );
 
-    let api_and_mcp_resolved: Router<()> = api_and_mcp.with_state(state.clone());
+    let api_and_mcp_resolved: Router<()> = mcp
+        .with_state(state.clone())
+        .merge(api.with_state(api_state.clone()));
 
     let authenticated = if let Some(layer) = auth_layer {
         api_and_mcp_resolved.layer(layer)
@@ -102,20 +110,22 @@ pub fn router(state: AppState) -> Router {
         None
     };
 
-    let public_state: Router<AppState> = Router::new()
+    let public_api: Router<ApiState> = Router::new()
         .route("/health", get(health))
         .route("/readyz", get(readyz))
         .route("/status", get(status))
-        .route("/openapi.json", get(openapi_json))
-        .route(
-            "/.well-known/oauth-protected-resource/{*route}",
-            get(crate::protected_routes::protected_route_resource_metadata),
-        );
+        .route("/openapi.json", get(openapi_json));
+    let public_runtime: Router<AppState> = Router::new().route(
+        "/.well-known/oauth-protected-resource/{*route}",
+        get(crate::protected_routes::protected_route_resource_metadata),
+    );
     // Prometheus metrics are only meaningful when the observability feature
     // installed a recorder at startup; gate the route on the same feature.
     #[cfg(feature = "observability")]
-    let public_state = public_state.route("/metrics", get(metrics_handler));
-    let public: Router<()> = public_state.with_state(state.clone());
+    let public_api = public_api.route("/metrics", get(metrics_handler));
+    let public: Router<()> = public_api
+        .with_state(api_state)
+        .merge(public_runtime.with_state(state.clone()));
 
     let mut base: Router<()> = Router::new().merge(authenticated).merge(public);
 
@@ -140,6 +150,26 @@ pub fn router(state: AppState) -> Router {
 
     base.layer(RequestBodyLimitLayer::new(MCP_BODY_LIMIT_BYTES))
         .layer(cors_layer(&state.config))
+}
+
+fn api_state(state: &AppState) -> ApiState {
+    let authorization_mode = match &state.auth_policy {
+        AuthPolicy::LoopbackDev => AuthorizationMode::LoopbackDev,
+        AuthPolicy::TrustedGatewayUnscoped => AuthorizationMode::TrustedGateway,
+        AuthPolicy::Mounted { .. } => AuthorizationMode::Mounted,
+    };
+    let ports = ApplicationPorts::unavailable()
+        .with_gateway(Arc::new(GatewayApplicationPort::new(state.gateway.clone())));
+    let application = Arc::new(SomaApplication::new(
+        Arc::new(state.service.clone()),
+        Arc::new(state.provider_registry.clone()),
+        ports,
+    ));
+    ApiState::new(
+        application,
+        authorization_mode,
+        state.config.server_name.clone(),
+    )
 }
 
 /// `GET /metrics` — Prometheus text exposition (unauthenticated).

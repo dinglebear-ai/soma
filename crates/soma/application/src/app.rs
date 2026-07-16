@@ -100,11 +100,39 @@ impl SomaApplication {
         self.legacy_registry.snapshot().inspection_report()
     }
 
+    pub fn resolve_rest_route(&self, method: &str, path: &str) -> Option<String> {
+        self.legacy_registry
+            .snapshot()
+            .route_action(method, path)
+            .map(ToOwned::to_owned)
+    }
+
+    pub fn openapi_document(&self) -> Result<Value, ApplicationError> {
+        serde_json::from_slice(&self.legacy_registry.snapshot().cached_openapi_bytes).map_err(
+            |error| {
+                ApplicationError::new(
+                    "openapi_unavailable",
+                    format!("runtime OpenAPI document is unavailable: {error}"),
+                    false,
+                    "Refresh the provider catalog and retry.",
+                )
+            },
+        )
+    }
+
     pub fn refresh_providers(&self) -> Result<CatalogSnapshot, ApplicationError> {
         self.legacy_registry
             .refresh_file_providers()
             .map(|snapshot| catalog_snapshot(snapshot.as_ref()))
-            .map_err(|error| ApplicationError::legacy("provider refresh", error))
+            .map_err(|error| {
+                let diagnostic = soma_service::provider_errors::redact_public(&error.to_string());
+                ApplicationError::new(
+                    "provider_refresh_failed",
+                    format!("provider refresh failed: {diagnostic}"),
+                    false,
+                    "Fix invalid provider files and retry.",
+                )
+            })
     }
 
     pub async fn read_resource(

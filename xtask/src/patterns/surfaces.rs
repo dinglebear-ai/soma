@@ -51,6 +51,7 @@ const BUSINESS_HELPER_TOKENS: &[&str] = &[
 ];
 
 const RUST_DELEGATION_TOKENS: &[&str] = &[
+    ".application()",
     "state.service",
     "state.provider_registry",
     "service.",

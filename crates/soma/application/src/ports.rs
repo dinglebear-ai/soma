@@ -75,6 +75,11 @@ impl ApplicationPorts {
             openapi: port,
         }
     }
+
+    pub fn with_gateway(mut self, gateway: Arc<dyn GatewayPort>) -> Self {
+        self.gateway = gateway;
+        self
+    }
 }
 
 struct UnavailableEnginePort;

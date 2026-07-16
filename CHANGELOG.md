@@ -90,6 +90,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Route CLI product actions through `SomaApplication`; `soma-cli` now owns only
   parsing, confirmation I/O, rendering, and error presentation while app
   composition selects local or remote provider infrastructure.
+- Route REST actions, dynamic route lookup, provider inspection, readiness,
+  OpenAPI snapshots, and gateway operations through `SomaApplication`;
+  `soma-api` now depends only on product application/domain contracts and HTTP
+  types rather than runtime, service, provider-registry, or gateway engines.
 
 - `soma-auth` no longer forces a Google re-consent screen on every dynamic
   client registration attempt — `force_consent` is now only set the first
