@@ -427,11 +427,16 @@ fn codemode_openapi_sources_do_not_reintroduce_labby_runtime_names() {
 fn application_ports_are_available_to_both_mcp_transports() {
     let source = fs::read_to_string(workspace_root().join("apps/soma/src/lib.rs"))
         .expect("read Soma facade source");
+    let lines = source.lines().map(str::trim).collect::<Vec<_>>();
 
     assert!(
-        source.contains(
-            "#[cfg(any(feature = \"mcp-stdio\", feature = \"mcp-http\"))]\nmod application_ports;"
-        ),
+        lines.windows(2).any(|lines| {
+            lines
+                == [
+                    "#[cfg(any(feature = \"mcp-stdio\", feature = \"mcp-http\"))]",
+                    "mod application_ports;",
+                ]
+        }),
         "application_ports must compile for both MCP transport features"
     );
 }
