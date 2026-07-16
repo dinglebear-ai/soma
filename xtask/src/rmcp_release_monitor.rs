@@ -1324,9 +1324,9 @@ mod tests {
     #[test]
     fn report_includes_mcp_schema_drift_when_schema_hash_changes() {
         let temp = TempDir::new().unwrap();
-        fs::create_dir_all(temp.path().join("crates/soma-mcp/src")).unwrap();
+        fs::create_dir_all(temp.path().join("crates/soma/mcp/src")).unwrap();
         fs::write(
-            temp.path().join("crates/soma-mcp/src/rmcp_server.rs"),
+            temp.path().join("crates/soma/mcp/src/rmcp_server.rs"),
             "fn inspect_schema() { let _schema_type = \"NewThing\"; }\n",
         )
         .unwrap();
@@ -1364,7 +1364,7 @@ mod tests {
             .contains("Potential schema impact in this repo"));
         assert!(report
             .issue_body
-            .contains("crates/soma-mcp/src/rmcp_server.rs"));
+            .contains("crates/soma/mcp/src/rmcp_server.rs"));
         assert!(report.issue_body.contains("`NewThing`"));
         assert!(report.issue_body.contains("+export interface NewThing {}"));
     }
@@ -1399,9 +1399,9 @@ mod tests {
     #[test]
     fn report_includes_conformance_drift_and_repo_impact_candidates() {
         let temp = TempDir::new().unwrap();
-        fs::create_dir_all(temp.path().join("crates/soma-runtime/src")).unwrap();
+        fs::create_dir_all(temp.path().join("crates/soma/runtime/src")).unwrap();
         fs::write(
-            temp.path().join("crates/soma-runtime/src/server.rs"),
+            temp.path().join("crates/soma/runtime/src/server.rs"),
             "const AUTH_METADATA_FIELD: &str = \"client_id_metadata_document_supported\";\n",
         )
         .unwrap();
@@ -1439,7 +1439,7 @@ mod tests {
             .contains("Potential conformance impact in this repo"));
         assert!(report
             .issue_body
-            .contains("crates/soma-runtime/src/server.rs"));
+            .contains("crates/soma/runtime/src/server.rs"));
         assert!(report
             .issue_body
             .contains("`client_id_metadata_document_supported`"));
@@ -1449,10 +1449,15 @@ mod tests {
     fn current_version_discovery_requires_consistent_rmcp_pins() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        for crate_name in ["soma", "soma-auth", "soma-mcp", "rmcp-traces"] {
-            fs::create_dir_all(root.join(format!("crates/{crate_name}"))).unwrap();
+        for crate_path in [
+            "apps/soma",
+            "crates/shared/auth",
+            "crates/soma/mcp",
+            "crates/shared/traces",
+        ] {
+            fs::create_dir_all(root.join(crate_path)).unwrap();
             fs::write(
-                root.join(format!("crates/{crate_name}/Cargo.toml")),
+                root.join(format!("{crate_path}/Cargo.toml")),
                 "rmcp = { version = \"1.7.0\", default-features = false }\n",
             )
             .unwrap();
@@ -1473,7 +1478,7 @@ mod tests {
         assert_eq!(detect_current_rmcp_version(root).unwrap(), "1.7.0");
 
         fs::write(
-            root.join("crates/rmcp-traces/Cargo.toml"),
+            root.join("crates/shared/traces/Cargo.toml"),
             "rmcp = { version = \"1.8.0\", default-features = false }\n",
         )
         .unwrap();
@@ -1481,7 +1486,7 @@ mod tests {
         let message = error.to_string();
         let normalized_message = message.replace('\\', "/");
         assert!(message.contains("conflicting rmcp versions"));
-        assert!(normalized_message.contains("crates/rmcp-traces/Cargo.toml=1.8.0"));
+        assert!(normalized_message.contains("crates/shared/traces/Cargo.toml=1.8.0"));
         assert!(!message.contains("9.9.9"));
     }
 

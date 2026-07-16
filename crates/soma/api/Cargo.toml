@@ -1,0 +1,28 @@
+[package]
+name = "soma-api"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "REST API and HTTP server composition for soma"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+auth = ["dep:soma-auth", "soma-runtime/auth"]
+oauth = ["auth", "soma-runtime/oauth"]
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+soma-auth = { path = "../../shared/auth", optional = true, features = ["http-axum"] }
+soma-contracts = { path = "../contracts" }
+soma-gateway = { path = "../../shared/mcp/gateway" }
+soma-runtime = { path = "../runtime", default-features = false }
+soma-service = { path = "../service", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"

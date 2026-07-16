@@ -1,31 +1,31 @@
 # =============================================================================
 # Cargo.toml — Virtual workspace root for the soma project
 #
-# The runnable/library package lives in crates/soma. Keep new Rust code
+# The runnable package lives in apps/soma. Keep new Rust code
 # in workspace crates; the repository root has no src/ crate.
 # =============================================================================
 
 [workspace]
 members = [
-  "crates/codex-app-server-client",
-  "crates/rmcp-traces",
-  "crates/soma",
-  "crates/soma-api",
-  "crates/soma-auth",
-  "crates/soma-cli",
-  "crates/soma-contracts",
-  "crates/soma-codemode",
-  "crates/soma-gateway",
-  "crates/soma-mcp-client",
-  "crates/soma-mcp",
-  "crates/soma-mcp-server",
-  "crates/soma-mcp-proxy",
-  "crates/soma-observability",
-  "crates/soma-openapi",
-  "crates/soma-runtime",
-  "crates/soma-service",
-  "crates/soma-test-support",
-  "crates/soma-web",
+  "apps/soma",
+  "crates/shared/auth",
+  "crates/shared/codemode",
+  "crates/shared/codex-app-server-client",
+  "crates/shared/mcp/client",
+  "crates/shared/mcp/gateway",
+  "crates/shared/mcp/proxy",
+  "crates/shared/mcp/server",
+  "crates/shared/observability",
+  "crates/shared/openapi",
+  "crates/shared/traces",
+  "crates/soma/api",
+  "crates/soma/cli",
+  "crates/soma/contracts",
+  "crates/soma/mcp",
+  "crates/soma/runtime",
+  "crates/soma/service",
+  "crates/soma/test-support",
+  "crates/soma/web",
   "xtask",
 ]
 resolver = "2"

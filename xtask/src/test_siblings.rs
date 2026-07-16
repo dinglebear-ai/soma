@@ -105,16 +105,16 @@ fn filename(path: &Path) -> String {
 
 fn crate_src_roots() -> Vec<PathBuf> {
     [
-        "crates/soma/src",
-        "crates/soma-api/src",
-        "crates/soma-cli/src",
-        "crates/soma-contracts/src",
-        "crates/soma-gateway/src",
-        "crates/soma-mcp/src",
-        "crates/soma-observability/src",
-        "crates/soma-runtime/src",
-        "crates/soma-service/src",
-        "crates/soma-web/src",
+        "apps/soma/src",
+        "crates/soma/api/src",
+        "crates/soma/cli/src",
+        "crates/soma/contracts/src",
+        "crates/shared/mcp/gateway/src",
+        "crates/soma/mcp/src",
+        "crates/shared/observability/src",
+        "crates/soma/runtime/src",
+        "crates/soma/service/src",
+        "crates/soma/web/src",
     ]
     .into_iter()
     .map(PathBuf::from)

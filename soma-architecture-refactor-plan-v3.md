@@ -2216,13 +2216,13 @@ errors.rs
 ### From current runtime and app package
 
 ```text
-crates/soma/src/routes.rs
+apps/soma/src/routes.rs
     → apps/soma/src/http.rs for composition
     → soma-api for product REST routes
     → soma-mcp for product HTTP MCP adapter
     → soma-http-server for generic listener/middleware
 
-crates/soma/src/runtime.rs
+apps/soma/src/runtime.rs
     → apps/soma/src/bootstrap.rs for construction
     → apps/soma/src/local.rs for one-shot CLI mode
     → apps/soma/src/stdio.rs for stdio mode

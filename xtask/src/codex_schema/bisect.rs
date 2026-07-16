@@ -2,7 +2,7 @@
 //! dump for the minimal definition(s) that panic typify's schema-merge
 //! logic (typify-impl-0.7.0's `merge.rs:427`, "not yet implemented" - the
 //! same failure mode `McpServerElicitationRequestParams` hit; see
-//! `crates/codex-app-server-client/README.md`). Automates the "opaque out
+//! `crates/shared/codex-app-server-client/README.md`). Automates the "opaque out
 //! half the new/changed definitions, see if the panic goes away" process
 //! that was previously done by hand.
 

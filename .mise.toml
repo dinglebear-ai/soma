@@ -1,6 +1,6 @@
 [tools]
 # Exact pnpm follows the packageManager contracts in apps/web and
-# crates/soma-web/assets/source. Update package.json, lockfiles, and this file
+# crates/soma/web/assets/source. Update package.json, lockfiles, and this file
 # together when deliberately moving Soma to a newer pnpm release.
 pnpm = "10.33.2"
 node = "lts"

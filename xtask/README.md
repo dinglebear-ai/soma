@@ -282,7 +282,7 @@ from the generated project and removes that temporary file before returning.
 
 ### `cargo xtask sync-web-source`
 
-Copy editable `apps/web` source into `crates/soma-web/assets/source`.
+Copy editable `apps/web` source into `crates/soma/web/assets/source`.
 Generated artifacts are excluded: `.next`, `node_modules`, `out`,
 `tsconfig.tsbuildinfo`, and `.DS_Store`.
 

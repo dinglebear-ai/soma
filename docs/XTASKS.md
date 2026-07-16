@@ -36,11 +36,11 @@ xtask/
 | `cargo xtask generate-docs` | Regenerate volatile docs and metadata from canonical Rust specs. |
 | `cargo xtask check-docs` | Fail when generated docs or metadata drift from canonical Rust specs. |
 | `cargo xtask check-stale-claims` | Fail when known stale hardcoded Soma claims reappear. |
-| `cargo xtask sync-web-source` | Copy editable `apps/web` source into `crates/soma-web/assets/source` with generated artifacts excluded. |
+| `cargo xtask sync-web-source` | Copy editable `apps/web` source into `crates/soma/web/assets/source` with generated artifacts excluded. |
 | `cargo xtask check-web-source-sync` | Fail if the bundled web source has drifted from `apps/web`. |
 | `cargo xtask update-aurora-web` | Refresh the known Aurora registry components, validate `apps/web`, then sync the bundle. |
 | `cargo xtask changed-paths` | Classify changed files into CI routing categories consumed by path-aware GitHub workflow gates. |
-| `cargo xtask codex-schema regen <dir>` | Regenerate `crates/codex-app-server-client/schema/{protocol.schema.json,methods.json,CODEX_VERSION.txt}` from a `codex app-server generate-json-schema` output directory. |
+| `cargo xtask codex-schema regen <dir>` | Regenerate `crates/shared/codex-app-server-client/schema/{protocol.schema.json,methods.json,CODEX_VERSION.txt}` from a `codex app-server generate-json-schema` output directory. |
 | `cargo xtask codex-schema bisect <dir>` | Binary-search a fresh schema dump for the minimal definition(s) that panic typify's schema-merge logic, when `codex-app-server-client` fails to build after a `codex` CLI upgrade. |
 
 ## Justfile delegates to xtask
@@ -68,16 +68,16 @@ symlink-docs:
 ### What the pattern checker catches
 
 ```
-WARN  crates/soma-mcp/src/tools.rs  line 42: potential business logic in MCP shim
-WARN  crates/soma-cli/src/lib.rs  line 87: potential business logic in CLI shim
-ERROR crates/soma-service/src/app/mod.rs: mod.rs files are banned
-ERROR crates/soma-mcp/src/tools.rs: action "new_action" in ACTION_SPECS missing from dispatch
-ERROR crates/soma/tests/tool_dispatch.rs: action "new_action" has no test
+WARN  crates/soma/mcp/src/tools.rs  line 42: potential business logic in MCP shim
+WARN  crates/soma/cli/src/lib.rs  line 87: potential business logic in CLI shim
+ERROR crates/soma/service/src/app/mod.rs: mod.rs files are banned
+ERROR crates/soma/mcp/src/tools.rs: action "new_action" in ACTION_SPECS missing from dispatch
+ERROR apps/soma/tests/tool_dispatch.rs: action "new_action" has no test
 ## Web Source Sync
 
 `soma-web` bundles editable Aurora frontend source for generated projects.
 The source of truth is `apps/web`; the bundled copy lives at
-`crates/soma-web/assets/source`.
+`crates/soma/web/assets/source`.
 
 ```bash
 cargo xtask sync-web-source
@@ -167,7 +167,7 @@ manual dispatch, and empty changed-file sets fail safe to full CI.
 
 `cargo xtask codex-schema` regenerates and troubleshoots the vendored JSON
 Schema `codex-app-server-client` generates its protocol types from. See
-`crates/codex-app-server-client/README.md`'s "Regenerating the schema"
+`crates/shared/codex-app-server-client/README.md`'s "Regenerating the schema"
 section for the full workflow:
 
 ```bash

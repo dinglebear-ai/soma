@@ -1,7 +1,7 @@
 //! `cargo xtask codex-schema regen <dir>` - rebuilds the vendored schema
 //! assets from a fresh `codex app-server generate-json-schema` dump, and
 //! stamps the `codex` version they were generated from for staleness
-//! detection (see `crates/codex-app-server-client/build.rs`).
+//! detection (see `crates/shared/codex-app-server-client/build.rs`).
 
 use std::fs;
 use std::path::{Path, PathBuf};

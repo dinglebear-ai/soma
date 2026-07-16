@@ -125,7 +125,7 @@ The stdio transport (`soma mcp`) bypasses all HTTP auth entirely. It is always `
 
 ## Auth policy reference
 
-The `AuthPolicy` enum in `crates/soma-runtime/src/server.rs` controls what the router does:
+The `AuthPolicy` enum in `crates/soma/runtime/src/server.rs` controls what the router does:
 
 | Policy | When | Auth enforced? | Scope checks? |
 |---|---|---|---|
@@ -141,5 +141,5 @@ Public endpoints (`/health`, `/status`) are never gated by auth, regardless of p
 ## CUSTOMIZE
 
 When you adapt Soma, replace all `SOMA_` prefixes with your service's prefix
-throughout `crates/soma-contracts/src/config.rs`,
-`crates/soma/src/bin/soma.rs`, and this document.
+throughout `crates/soma/contracts/src/config.rs`,
+`apps/soma/src/bin/soma.rs`, and this document.

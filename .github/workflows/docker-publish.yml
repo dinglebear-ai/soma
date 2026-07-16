@@ -73,10 +73,10 @@ jobs:
             exit 1
           fi
           version="${tag#v}"
-          cargo_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' crates/soma/Cargo.toml | head -n 1)"
+          cargo_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' apps/soma/Cargo.toml | head -n 1)"
           npm_version="$(python3 -c 'import json; print(json.load(open("packages/soma-rmcp/package.json"))["version"])')"
           if [[ "${cargo_version}" != "${version}" ]]; then
-            echo "crates/soma/Cargo.toml version ${cargo_version} does not match ${tag}" >&2
+            echo "apps/soma/Cargo.toml version ${cargo_version} does not match ${tag}" >&2
             exit 1
           fi
           if [[ "${npm_version}" != "${version}" ]]; then

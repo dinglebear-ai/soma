@@ -81,7 +81,7 @@ MCP primitive name) — the live registry rejects that combination too. Either
 kind of failure is reported `invalid`, and `lint` fails on it.
 
 A REST route can also be unreachable for a reason the provider registry
-itself doesn't check: `crates/soma/src/routes.rs` wires `/v1/capabilities`,
+itself doesn't check: `apps/soma/src/routes.rs` wires `/v1/capabilities`,
 `/v1/providers`, `/v1/greet`, `/v1/echo`, `/v1/status`, `/v1/help`, and
 `/v1/tools/{action}` directly on the same router, ahead of the dynamic
 `/v1/{*path}` fallback that dispatches to provider-declared routes. Axum

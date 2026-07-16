@@ -153,7 +153,7 @@ ascii-fix:
 file-size-check:
     cargo xtask check-file-size
 
-# Regenerate MCP schema contract docs from crates/soma-mcp/src/schemas.rs
+# Regenerate MCP schema contract docs from crates/soma/mcp/src/schemas.rs
 schema-docs:
     cargo xtask check-schema-docs --write
 
@@ -421,7 +421,7 @@ test-mcporter:
         echo "mcporter not found. Install it first."
         exit 1
     fi
-    bash crates/soma/tests/mcporter/test-mcp.sh
+    bash apps/soma/tests/mcporter/test-mcp.sh
 
 # ── MCP conformance ────────────────────────────────────────────────────────────
 

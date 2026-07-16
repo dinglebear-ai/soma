@@ -44,19 +44,19 @@ retries = 2
 
 | File | Purpose |
 |---|---|
-| `crates/soma/tests/cli_parse.rs` | CLI parser behavior. |
-| `crates/soma/tests/tool_dispatch.rs` | Service/action semantics without live credentials. |
-| `crates/soma/tests/api_routes.rs` | REST and mounted auth route behavior. |
-| `crates/soma/tests/plugin_contract.rs` | Plugin package and hook contracts. |
-| `crates/soma/tests/soma_invariants.rs` | Automation/Soma invariants. |
-| `crates/soma-service/src/app_tests.rs` | Private service-layer unit tests (sidecar to `app.rs`). |
+| `apps/soma/tests/cli_parse.rs` | CLI parser behavior. |
+| `apps/soma/tests/tool_dispatch.rs` | Service/action semantics without live credentials. |
+| `apps/soma/tests/api_routes.rs` | REST and mounted auth route behavior. |
+| `apps/soma/tests/plugin_contract.rs` | Plugin package and hook contracts. |
+| `apps/soma/tests/soma_invariants.rs` | Automation/Soma invariants. |
+| `crates/soma/service/src/app_tests.rs` | Private service-layer unit tests (sidecar to `app.rs`). |
 
 ## Test sidecars
 
 All tests that need access to private functions live in `_tests.rs` sidecar files, not inline:
 
 ```rust
-// crates/soma-service/src/app.rs
+// crates/soma/service/src/app.rs
 pub struct SomaService { ... }
 impl SomaService { ... }
 
@@ -64,7 +64,7 @@ impl SomaService { ... }
 #[path = "app_tests.rs"]
 mod tests;
 
-// crates/soma-service/src/app_tests.rs
+// crates/soma/service/src/app_tests.rs
 use super::*;  // access to private items
 
 #[test]
@@ -83,7 +83,7 @@ fn destructive_gate_allows_with_confirm() {
 
 ## Test helpers
 
-`crates/soma/src/lib.rs` exports helpers for integration tests. Prefer the helper over
+`apps/soma/src/lib.rs` exports helpers for integration tests. Prefer the helper over
 hand-constructing `AppState` in integration tests:
 
 ```rust
@@ -99,7 +99,7 @@ async fn tool_path_uses_loopback_state() {
 Use `loopback_state()` in integration tests:
 
 ```rust
-// crates/soma/tests/tool_dispatch.rs
+// apps/soma/tests/tool_dispatch.rs
 use soma::testing::loopback_state;
 
 #[tokio::test]
@@ -115,7 +115,7 @@ async fn help_returns_help_key() {
 
 ```bash
 just dev
-bash crates/soma/tests/mcporter/test-mcp.sh
+bash apps/soma/tests/mcporter/test-mcp.sh
 just test-mcporter
 ```
 

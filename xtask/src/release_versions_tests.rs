@@ -123,7 +123,7 @@ fn release_please_manifest_sync_updates_all_version_files() {
     let server = fs::read_to_string(fixture.path("server.json")).unwrap();
     assert!(server.contains(r#""version": "0.4.2""#));
     assert!(server.contains("soma-rmcp@0.4.2"));
-    assert!(fs::read_to_string(fixture.path("crates/soma/Cargo.toml"))
+    assert!(fs::read_to_string(fixture.path("apps/soma/Cargo.toml"))
         .unwrap()
         .contains(r#"version = "0.4.2""#));
     assert!(fs::read_to_string(fixture.path("Cargo.lock"))
@@ -163,11 +163,11 @@ fn shipping_change_requires_version_greater_than_latest_tag() {
     fixture.init_repo();
     fixture.git(&["tag", "v0.4.1"]);
     fs::write(
-        fixture.path("crates/soma/src/lib.rs"),
+        fixture.path("apps/soma/src/lib.rs"),
         "pub fn changed() {}\n",
     )
     .unwrap();
-    fixture.git(&["add", "crates/soma/src/lib.rs"]);
+    fixture.git(&["add", "apps/soma/src/lib.rs"]);
     fixture.git(&["commit", "-m", "change source"]);
 
     let error = check(fixture.root(), Some("v0.4.1"), "HEAD", GateMode::Pr, false)
@@ -200,11 +200,11 @@ fn pr_mode_uses_merge_base_not_direct_base_diff() {
     fixture.git(&["commit", "-m", "docs"]);
     fixture.git(&["checkout", "main"]);
     fs::write(
-        fixture.path("crates/soma/src/lib.rs"),
+        fixture.path("apps/soma/src/lib.rs"),
         "pub fn main_changed() {}\n",
     )
     .unwrap();
-    fixture.git(&["add", "crates/soma/src/lib.rs"]);
+    fixture.git(&["add", "apps/soma/src/lib.rs"]);
     fixture.git(&["commit", "-m", "main source change"]);
     fixture.git(&["checkout", "feature"]);
 
@@ -219,11 +219,11 @@ fn main_mode_uses_latest_semver_tag() {
     fixture.git(&["tag", "v0.4.0"]);
     fixture.git(&["tag", "v0.4.1"]);
     fs::write(
-        fixture.path("crates/soma/src/lib.rs"),
+        fixture.path("apps/soma/src/lib.rs"),
         "pub fn changed() {}\n",
     )
     .unwrap();
-    fixture.git(&["add", "crates/soma/src/lib.rs"]);
+    fixture.git(&["add", "apps/soma/src/lib.rs"]);
     fixture.git(&["commit", "-m", "change source"]);
 
     let plans = plan(fixture.root(), None, "HEAD", GateMode::Main).unwrap();
@@ -281,7 +281,7 @@ members = ["crates/soma"]
 "#,
         );
         write(
-            &self.path("crates/soma/Cargo.toml"),
+            &self.path("apps/soma/Cargo.toml"),
             r#"[package]
 name = "soma"
 version = "0.4.1"
@@ -323,10 +323,7 @@ version = "0.4.1"
             &self.path("plugins/soma/gemini-extension.json"),
             r#"{"name":"soma"}"#,
         );
-        write(
-            &self.path("crates/soma/src/lib.rs"),
-            "pub fn original() {}\n",
-        );
+        write(&self.path("apps/soma/src/lib.rs"), "pub fn original() {}\n");
         write(&self.path("apps/web/.keep"), "");
         write(&self.path("config/Dockerfile"), "");
         write(&self.path("entrypoint.sh"), "");

@@ -14,9 +14,9 @@ from readme_related_servers import replace_related_servers_section
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ACTION_RS = ROOT / "crates/soma-contracts/src/actions.rs"
-CONFIG_RS = ROOT / "crates/soma-contracts/src/config.rs"
-ENV_REGISTRY_RS = ROOT / "crates/soma-contracts/src/env_registry.rs"
+ACTION_RS = ROOT / "crates/soma/contracts/src/actions.rs"
+CONFIG_RS = ROOT / "crates/soma/contracts/src/config.rs"
+ENV_REGISTRY_RS = ROOT / "crates/soma/contracts/src/env_registry.rs"
 ENV_DOC = ROOT / "docs/ENV.md"
 ENV_EXAMPLE = ROOT / ".env.example"
 CONFIG_EXAMPLE = ROOT / "config.soma.toml"
@@ -330,8 +330,8 @@ def render_env_doc() -> str:
         'scope: "soma"',
         "source_of_truth: false",
         "upstream_refs:",
-        '  - "crates/soma-contracts/src/env_registry.rs"',
-        '  - "crates/soma-contracts/src/config.rs"',
+        '  - "crates/soma/contracts/src/env_registry.rs"',
+        '  - "crates/soma/contracts/src/config.rs"',
         'last_reviewed: "2026-06-19"',
         "---",
         "",
@@ -801,7 +801,7 @@ def render_plugin_settings_doc() -> str:
     lines = [
         "# Plugin Settings",
         "",
-        "Generated from `crates/soma-contracts/src/env_registry.rs`.",
+        "Generated from `crates/soma/contracts/src/env_registry.rs`.",
         "",
         "| Plugin option env | Runtime env | Secret | TOML destination |",
         "|---|---|---:|---|",

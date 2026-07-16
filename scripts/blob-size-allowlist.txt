@@ -9,4 +9,4 @@
 # reads directly to generate protocol types via typify - a real, necessary
 # checked-in asset (the crate can't build without it), not something to
 # shrink or keep out of git. Regenerate via `cargo xtask codex-schema regen`.
-crates/codex-app-server-client/schema/protocol.schema.json
+crates/shared/codex-app-server-client/schema/protocol.schema.json

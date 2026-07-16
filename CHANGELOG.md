@@ -80,7 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a malformed `response_type` instead of misreading it, and
   `ServerNotification::method_name()` for logging a notification's kind
   without its full (potentially sensitive) payload. See
-  `crates/codex-app-server-client/README.md`.
+  `crates/shared/codex-app-server-client/README.md`.
 
 ### Changed
 

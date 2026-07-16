@@ -17,7 +17,7 @@ last_reviewed: "2026-05-22"
 
 The optional web UI lives under `apps/web/`. Soma treats it two ways:
 
-- Editable scaffold source is bundled by `soma-web` from `crates/soma-web/assets/source/`, copied from `apps/web/` without generated artifacts.
+- Editable scaffold source is bundled by `soma-web` from `crates/soma/web/assets/source/`, copied from `apps/web/` without generated artifacts.
 - Runtime web serving embeds the static Next.js export from `apps/web/out/` into the Rust binary at compile time using `include_dir!`.
 
 ## Build flow
@@ -27,10 +27,10 @@ apps/web/           ← Next.js app source
   next.config.ts    ← output: "export" (static HTML/CSS/JS)
   out/              ← compiled static output (gitignored, built in CI)
 
-crates/soma-web/assets/source/
+crates/soma/web/assets/source/
                     ← bundled editable source for generated/scaffolded apps
 
-crates/soma-web/src/web.rs
+crates/soma/web/src/web.rs
                     ← Rust: embeds source scaffold + out/ runtime assets
 ```
 
@@ -86,7 +86,7 @@ cargo xtask update-aurora-web
 use include_dir::{Dir, include_dir};
 
 // Compiled at build time — zero runtime file I/O
-static WEB_ASSETS: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/apps/web/out");
+static WEB_ASSETS: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../../apps/web/out");
 
 pub fn web_assets_available() -> bool {
     WEB_ASSETS.get_file("index.html").is_some()

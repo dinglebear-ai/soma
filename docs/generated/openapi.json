@@ -44,7 +44,7 @@
     },
     "schemas": {
       "ActionName": {
-        "description": "REST-capable action names from crates/soma-contracts/src/actions.rs.",
+        "description": "REST-capable action names from crates/soma/contracts/src/actions.rs.",
         "enum": [
           "greet",
           "echo",
@@ -777,7 +777,7 @@
       "scaffold_intent": "moderate",
       "status": "cheap"
     },
-    "action_metadata": "crates/soma-contracts/src/actions.rs",
+    "action_metadata": "crates/soma/contracts/src/actions.rs",
     "auth_modes": [
       "loopback-dev",
       "bearer",

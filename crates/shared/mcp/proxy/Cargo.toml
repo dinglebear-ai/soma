@@ -1,0 +1,20 @@
+[package]
+name = "soma-mcp-proxy"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Reusable MCP proxy route projection helpers for upstream tools, resources, and prompts"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+
+[dependencies]
+soma-mcp-client = { path = "../client", default-features = false }
+
+[dev-dependencies]
+serde_json = "1"

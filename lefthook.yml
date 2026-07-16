@@ -20,7 +20,8 @@
 #   5. lefthook_speed — keep this pre-commit stage fast (< 1s)
 #
 # Pre-push runs `scripts/ci/pre_push.py`, which chooses checks by changed
-# paths. Full local validation remains opt-in with SOMA_FULL_PRE_PUSH=1.
+# paths, including moved app/MCP paths such as `apps/soma/tests/mcporter`.
+# Full local validation remains opt-in with SOMA_FULL_PRE_PUSH=1.
 #
 # NOT in pre-commit (too slow / too blocking for rapid commits):
 #   - cargo clippy    → runs in CI (.github/workflows/ci.yml)

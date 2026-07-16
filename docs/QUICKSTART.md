@@ -127,11 +127,11 @@ Or use Streamable HTTP (server must be running):
 Use this when creating a real service from soma:
 
 - [ ] Replace every occurrence of `soma`/`Example`/`EXAMPLE` with your service name
-- [ ] Implement API client in `crates/soma-service/src/soma.rs` (transport only — no logic)
-- [ ] Add service methods to `crates/soma-service/src/app.rs` (ALL logic here)
-- [ ] Add native actions to `crates/soma-service/src/actions.rs` and keep MCP/CLI/REST shims registry-driven
+- [ ] Implement API client in `crates/soma/service/src/soma.rs` (transport only — no logic)
+- [ ] Add service methods to `crates/soma/service/src/app.rs` (ALL logic here)
+- [ ] Add native actions to `crates/soma/contracts/src/actions.rs` and keep MCP/CLI/REST shims registry-driven
 - [ ] Regenerate schema docs and OpenAPI after changing the service registry
-- [ ] Update `crates/soma-contracts/src/config.rs` with service-specific config fields
+- [ ] Update `crates/soma/contracts/src/config.rs` with service-specific config fields
 - [ ] Add elicitation to destructive actions (or `confirm=true` flag fallback)
 - [ ] Set port in `config.toml`, `docker-compose.yml`, and Dockerfile `EXPOSE`
 - [ ] Implement central auth policy resolution in library code
@@ -142,8 +142,8 @@ Use this when creating a real service from soma:
 - [ ] Configure taplo (`taplo.toml`)
 - [ ] Configure lefthook (`lefthook.yml`) — minimal hooks only
 - [ ] Write `.github/workflows/ci.yml`, `docker-publish.yml`, `release.yml`
-- [ ] Write tests in `*_tests.rs` sidecars + `crates/soma/tests/` integration tests
-- [ ] Write `crates/soma/tests/mcporter/test-mcp.sh` with semantic validation
+- [ ] Write tests in `*_tests.rs` sidecars + `apps/soma/tests/` integration tests
+- [ ] Write `apps/soma/tests/mcporter/test-mcp.sh` with semantic validation
 - [ ] Update `plugins/<service>/skills/<service>/SKILL.md` with real API details
 - [ ] Write `install.sh` matching the GitHub release tarball names
 - [ ] Copy `.gitignore` and `.dockerignore` from cortex
@@ -154,7 +154,7 @@ Use this when creating a real service from soma:
 - [ ] Add `.worktreeinclude` at the repo root with `.env` and `config.toml`
 - [ ] Run `cargo check` — must compile clean, zero warnings
 - [ ] Run `cargo nextest run` — all tests pass
-- [ ] Run `./crates/soma/tests/mcporter/test-mcp.sh` against a live server instance
+- [ ] Run `./apps/soma/tests/mcporter/test-mcp.sh` against a live server instance
 
 For new projects, replace the manual rename checklist with:
 

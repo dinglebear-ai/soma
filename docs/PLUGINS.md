@@ -313,7 +313,7 @@ When creating a real server from Soma:
 3. Keep credential names aligned across Claude `userConfig`, Codex plugin
    settings, and Gemini `settings`.
 4. Replace upstream credential fields such as `soma_api_url` and `soma_api_key`.
-5. Update `apply_plugin_options()` in `crates/soma-cli/src/setup.rs` to map service-specific plugin options into env vars.
+5. Update `apply_plugin_options()` in `crates/soma/cli/src/setup.rs` to map service-specific plugin options into env vars.
 6. Implement `<binary> setup plugin-hook`, `--no-repair`, `check`, and `repair`.
 7. Update shared skill docs for the actual action surface.
 8. Replace Codex `defaultPrompt` entries with realistic prompts.

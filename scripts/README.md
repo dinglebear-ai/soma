@@ -84,7 +84,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 
 | File | Type | Entry points | What it does |
 |---|---|---|---|
-| `ci/changed_paths.py` | Python | `scripts/ci/pre_push.py`, future CI routing | Classifies changed paths into coarse categories such as rust, web, docker, MCP, release, security, and Soma. |
+| `ci/changed_paths.py` | Python | `scripts/ci/pre_push.py`, future CI routing | Classifies changed paths into coarse categories such as rust, web, docker, MCP, release, security, and Soma; keep its path taxonomy in parity with `cargo xtask changed-paths`. |
 | `ci/pre_push.py` | Python | `lefthook` pre-push, `just pre-push`, `just pre-push-plan` | Runs a path-aware local pre-push plan. Full local validation is opt-in with `SOMA_FULL_PRE_PUSH=1` or `just pre-push-full`. |
 | `with_timeout.sh` | Bash | `lefthook.yml` | Applies a wall-clock budget to local hook commands so one check cannot stall commits indefinitely. |
 | `check_lefthook_pre_commit_speed.py` | Python | `lefthook.yml`, `just lefthook-speed-check`, CI | Fails if the pre-commit stage grows workspace-scale cargo/test/build commands. |
@@ -121,7 +121,7 @@ Each non-comment line is a glob pattern for an intentional large artifact. The
 checker strips comments and blank lines, then treats matching paths as
 allowlisted instead of failing the size budget.
 
-Currently allowlists `crates/codex-app-server-client/schema/protocol.schema.json`
+Currently allowlists `crates/shared/codex-app-server-client/schema/protocol.schema.json`
 (a vendored JSON Schema `build.rs` reads directly to generate protocol types -
 see that crate's README).
 
@@ -217,7 +217,7 @@ automation drift:
 
 - `Justfile` without `lefthook.yml`, or vice versa.
 - `scripts/*` without `scripts/README.md`.
-- `crates/soma-mcp/src/schemas.rs` without `docs/MCP_SCHEMA.md`.
+- `crates/soma/mcp/src/schemas.rs` without `docs/MCP_SCHEMA.md`.
 - plugin package changes without `docs/PLUGINS.md`.
 
 Used in CI as a guardrail. It intentionally reports coupled-file concerns rather
@@ -298,7 +298,7 @@ Generates `docs/generated/openapi.json` for Soma REST API surface:
 - deprecated `retired REST action-envelope route` compatibility envelope
 
 The version comes from `Cargo.toml`. The REST action enum is derived from
-`crates/soma-contracts/src/actions.rs`, excluding MCP-only actions.
+`crates/soma/contracts/src/actions.rs`, excluding MCP-only actions.
 
 ### `check-readme-guide.py`
 
@@ -442,7 +442,7 @@ just schema-docs
 just schema-docs-check
 ```
 
-Treats `crates/soma-contracts/src/actions.rs::ACTION_SPECS` as canonical
+Treats `crates/soma/contracts/src/actions.rs::ACTION_SPECS` as canonical
 and generates/checks `docs/MCP_SCHEMA.md`.
 
 It also checks that action docs stay mentioned in key user-facing surfaces such

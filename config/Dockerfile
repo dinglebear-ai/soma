@@ -50,6 +50,7 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 # BuildKit cache the compiled dependencies as a separate layer — subsequent
 # builds that only change app code skip this expensive step entirely.
 COPY Cargo.toml Cargo.lock ./
+COPY apps/soma/ apps/soma/
 COPY crates/ crates/
 COPY xtask/ xtask/
 COPY docs/generated/openapi.json docs/generated/openapi.json

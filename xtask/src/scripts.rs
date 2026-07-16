@@ -59,11 +59,11 @@ pub fn check_coupled_files(args: &[String]) -> Result<()> {
     if changed_path(&changed, "scripts/*") && !changed_path(&changed, "scripts/README.md") {
         issues.push("scripts changed but scripts/README.md did not; document new or changed script behavior.");
     }
-    if changed_path(&changed, "crates/soma-mcp/src/schemas.rs")
+    if changed_path(&changed, "crates/soma/mcp/src/schemas.rs")
         && !changed_path(&changed, "docs/MCP_SCHEMA.md")
         && crate::scripts_lane_d::check_schema_docs(&["--check".to_owned()]).is_err()
     {
-        issues.push("crates/soma-mcp/src/schemas.rs changed but docs/MCP_SCHEMA.md did not; run scripts/check-schema-docs.py --write.");
+        issues.push("crates/soma/mcp/src/schemas.rs changed but docs/MCP_SCHEMA.md did not; run scripts/check-schema-docs.py --write.");
     }
     if changed_path(&changed, "plugins/soma/*") && !changed_path(&changed, "docs/PLUGINS.md") {
         issues.push("plugin package changed but docs/PLUGINS.md did not; confirm plugin docs are still current.");

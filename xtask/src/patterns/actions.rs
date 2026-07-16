@@ -6,7 +6,7 @@ const ACTION_TEST_COVERAGE_EXCEPTIONS: &[&str] = &[
 ];
 
 pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
-    let actions_text = read_file("crates/soma-contracts/src/actions.rs");
+    let actions_text = read_file("crates/soma/contracts/src/actions.rs");
     let action_specs = action_specs_body(&actions_text).unwrap_or(&actions_text);
     let action_names = extract_action_names(action_specs);
     let mcp_only = extract_mcp_only_actions(action_specs);
@@ -14,15 +14,15 @@ pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
     if action_names.is_empty() {
         reporter.fail(
             "actions",
-            "could not parse ACTION_SPECS from crates/soma-contracts/src/actions.rs",
+            "could not parse ACTION_SPECS from crates/soma/contracts/src/actions.rs",
         );
         return;
     }
 
-    let schema = read_file("crates/soma-mcp/src/schemas.rs");
-    let tools = read_file("crates/soma-mcp/src/tools.rs");
-    let tests = read_file("crates/soma/tests/tool_dispatch.rs");
-    let cli = read_file("crates/soma-cli/src/lib.rs");
+    let schema = read_file("crates/soma/mcp/src/schemas.rs");
+    let tools = read_file("crates/soma/mcp/src/tools.rs");
+    let tests = read_file("apps/soma/tests/tool_dispatch.rs");
+    let cli = read_file("crates/soma/cli/src/lib.rs");
 
     let schema_uses_metadata = schema.contains("tool_definitions_for_catalogs")
         && schema.contains("action_names(catalogs)");
@@ -88,7 +88,7 @@ pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
         reporter.warn(
             "actions",
             format!(
-                "crates/soma/tests/tool_dispatch.rs may be missing action coverage: {}. Hint: add a direct dispatch/service test or an explicit exception.",
+                "apps/soma/tests/tool_dispatch.rs may be missing action coverage: {}. Hint: add a direct dispatch/service test or an explicit exception.",
                 missing_tests.join(", ")
             ),
         );

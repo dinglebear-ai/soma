@@ -4,7 +4,7 @@ name: release-please
 #
 # This repo intentionally uses release-type "simple": the root Cargo.toml is a
 # virtual workspace manifest and the shipped binary crate version lives in
-# crates/soma/Cargo.toml. release-please owns the release PR, changelog,
+# apps/soma/Cargo.toml. release-please owns the release PR, changelog,
 # manifest, tag, and GitHub Release; the fixup job below syncs derived version
 # files such as Cargo.lock and OCI image references.
 #
@@ -88,6 +88,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.lock CHANGELOG.md crates/soma/Cargo.toml docs/generated/openapi.json docs/generated/provider-surfaces.json docs/generated/provider-surfaces.md packages/soma-rmcp/package.json server.json
+          git add Cargo.lock CHANGELOG.md apps/soma/Cargo.toml docs/generated/openapi.json docs/generated/provider-surfaces.json docs/generated/provider-surfaces.md packages/soma-rmcp/package.json server.json
           git diff --staged --quiet || git commit -m "chore: apply release-please fixups"
           git push origin HEAD:"${{ fromJson(needs.release-please.outputs.pr).headBranchName }}"

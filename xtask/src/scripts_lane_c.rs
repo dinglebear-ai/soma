@@ -1762,7 +1762,7 @@ reference material.\n\n\
 - **server.json schema**: `mcp/repos/modelcontextprotocol-registry.xml`\n\
   JSON schema for MCP registry publishing (`server.json`).\n\n\
 - **mcporter**: `mcporter/repos/openclaw-mcporter.xml`\n\
-  Integration testing tool used by `crates/soma/tests/mcporter/test-mcp.sh`.\n\n\
+  Integration testing tool used by `apps/soma/tests/mcporter/test-mcp.sh`.\n\n\
 _Updated: {updated}_\n"
         ),
     )

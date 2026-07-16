@@ -78,7 +78,7 @@ Timeout: 300 seconds.
 
 The lifecycle command. Runs on every session start and config change, called directly by `hooks.json` (no shell wrapper).
 
-- Reads `CLAUDE_PLUGIN_OPTION_*` env vars from plugin `userConfig` and maps them to the binary's `SOMA_*` runtime env vars (`apply_plugin_options()` in `src/cli/setup.rs`)
+- Reads `CLAUDE_PLUGIN_OPTION_*` env vars from plugin `userConfig` and maps them to the binary's `SOMA_*` runtime env vars (`apply_plugin_options()` in `crates/soma/cli/src/setup.rs`)
 - Runs from the binary already installed on `PATH`
 - Prepares the plugin appdata directory
 - Checks/repairs setup and emits the JSON hook contract

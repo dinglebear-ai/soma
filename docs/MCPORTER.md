@@ -22,7 +22,7 @@ last_reviewed: "2026-05-15"
 The live test script is:
 
 ```bash
-crates/soma/tests/mcporter/test-mcp.sh
+apps/soma/tests/mcporter/test-mcp.sh
 ```
 
 Run it through Just:

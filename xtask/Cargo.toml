@@ -28,8 +28,8 @@ publish = false
 #           Add more only if a new command truly requires it.
 anyhow = "1"
 jsonschema = "0.47"
-soma-contracts = { path = "../crates/soma-contracts" }
-soma-service = { path = "../crates/soma-service", default-features = false }
+soma-contracts = { path = "../crates/soma/contracts" }
+soma-service = { path = "../crates/soma/service", default-features = false }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 # NOT "preserve_order": that feature is unified across the whole workspace's
@@ -50,7 +50,7 @@ walkdir = "2"
 # crate doesn't support.
 fancy-regex = "0.18"
 # codex-schema bisect: programmatically drives typify (same version/feature
-# flags as crates/codex-app-server-client/build.rs) to detect the specific
+# flags as crates/shared/codex-app-server-client/build.rs) to detect the specific
 # typify-0.7.0 merge.rs panic while binary-searching for the culprit schema.
 typify = { version = "0.7", default-features = false }
 schemars = "0.8"

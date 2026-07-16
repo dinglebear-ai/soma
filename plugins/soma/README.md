@@ -73,7 +73,7 @@ from each platform's user-configurable settings at runtime.
 
 `hooks/hooks.json` runs `soma setup plugin-hook` directly on `SessionStart` and `ConfigChange` (no shell wrapper).
 
-The binary maps plugin settings (`CLAUDE_PLUGIN_OPTION_*`) to its `SOMA_*` environment variables via `apply_plugin_options()` (`src/cli/setup.rs`), self-installs into `~/.local/bin`, prepares appdata, and runs setup checks/repair.
+The binary maps plugin settings (`CLAUDE_PLUGIN_OPTION_*`) to its `SOMA_*` environment variables via `apply_plugin_options()` (`crates/soma/cli/src/setup.rs`), self-installs into `~/.local/bin`, prepares appdata, and runs setup checks/repair.
 
 ## Monitors
 
@@ -112,5 +112,5 @@ Disabling the plugin mid-session does not stop an already-running monitor; it st
 3. Update `skills/soma/SKILL.md` — action table, parameters, response shapes, workflows
 4. Set `brandColor` and `defaultPrompt` in `.codex-plugin/plugin.json`
 5. Keep MCP registration stdio-first (`soma mcp`) unless your service must be remote HTTP only
-6. Update `apply_plugin_options()` in `src/cli/setup.rs` to map your service's plugin options to its `SOMA_*` vars
+6. Update `apply_plugin_options()` in `crates/soma/cli/src/setup.rs` to map your service's plugin options to its `SOMA_*` vars
 7. Run `cargo xtask symlink-docs` after adding any new `CLAUDE.md`

@@ -137,7 +137,7 @@ fn ensure_unprocessed_template_root(root: &Path) -> Result<()> {
     for relative in [
         "Cargo.toml",
         ".cargo-generate-values.toml",
-        "crates/soma/Cargo.toml",
+        "apps/soma/Cargo.toml",
     ] {
         let path = root.join(relative);
         if !path.exists() {
@@ -357,10 +357,10 @@ fn replacements(values: &Values) -> Vec<(String, String)> {
         ("SomaConfig".into(), format!("{}Config", values.type_prefix)),
         ("SomaAction".into(), format!("{}Action", values.type_prefix)),
         (
-            "crates/soma/src/bin/soma.rs".into(),
+            "apps/soma/src/bin/soma.rs".into(),
             format!(
-                "crates/{}/src/bin/{}.rs",
-                values.crate_name_snake, values.binary_name
+                "apps/{}/src/bin/{}.rs",
+                values.crate_name, values.binary_name
             ),
         ),
         ("soma:read".into(), format!("{}:read", values.scope_prefix)),
@@ -617,13 +617,13 @@ mod tests {
     #[test]
     fn rename_paths_maps_soma_root_crate_and_support_packages() {
         let fixture = TempDir::new().unwrap();
-        fs::create_dir_all(fixture.path().join("crates/soma/src/bin")).unwrap();
-        fs::create_dir_all(fixture.path().join("crates/soma-api")).unwrap();
+        fs::create_dir_all(fixture.path().join("apps/soma/src/bin")).unwrap();
+        fs::create_dir_all(fixture.path().join("crates/soma/api")).unwrap();
         fs::create_dir_all(fixture.path().join("packages/soma-rmcp/bin")).unwrap();
         fs::create_dir_all(fixture.path().join("plugins/soma/skills/soma")).unwrap();
-        fs::write(fixture.path().join("crates/soma/Cargo.toml"), "").unwrap();
-        fs::write(fixture.path().join("crates/soma/src/bin/soma.rs"), "").unwrap();
-        fs::write(fixture.path().join("crates/soma-api/Cargo.toml"), "").unwrap();
+        fs::write(fixture.path().join("apps/soma/Cargo.toml"), "").unwrap();
+        fs::write(fixture.path().join("apps/soma/src/bin/soma.rs"), "").unwrap();
+        fs::write(fixture.path().join("crates/soma/api/Cargo.toml"), "").unwrap();
         fs::write(fixture.path().join("packages/soma-rmcp/package.json"), "").unwrap();
         fs::write(
             fixture.path().join("packages/soma-rmcp/bin/soma-rmcp.js"),
@@ -637,15 +637,15 @@ mod tests {
 
         assert!(fixture
             .path()
-            .join("crates/myservice_mcp/Cargo.toml")
+            .join("apps/myservice-mcp/Cargo.toml")
             .exists());
         assert!(fixture
             .path()
-            .join("crates/myservice_mcp/src/bin/myservice.rs")
+            .join("apps/myservice-mcp/src/bin/myservice.rs")
             .exists());
         assert!(fixture
             .path()
-            .join("crates/myservice_mcp-api/Cargo.toml")
+            .join("crates/myservice_mcp/api/Cargo.toml")
             .exists());
         assert!(fixture
             .path()

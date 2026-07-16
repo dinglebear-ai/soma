@@ -32,7 +32,7 @@ pub fn method_to_pascal(method: &str) -> String {
 }
 
 /// Known irregular method -> response-type-name mappings the naming
-/// convention can't derive (see `crates/codex-app-server-client/README.md`
+/// convention can't derive (see `crates/shared/codex-app-server-client/README.md`
 /// for how these were discovered).
 pub const RESPONSE_OVERRIDES: &[(&str, &str)] = &[
     ("account/read", "GetAccountResponse"),

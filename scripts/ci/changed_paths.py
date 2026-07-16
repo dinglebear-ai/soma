@@ -43,10 +43,10 @@ def classify(event: str, paths: list[str]) -> dict[str, bool]:
     docs = any_match(paths, lambda p: starts(p, "docs/") or p in {"README.md", "CHANGELOG.md"})
     rust = any_match(
         paths,
-        lambda p: starts(p, "crates/", "xtask/", "tests/", ".cargo/", ".config/")
+        lambda p: starts(p, "apps/soma/", "crates/", "xtask/", "tests/", ".cargo/", ".config/")
         or p in {"Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain.toml", "Justfile"},
     )
-    web = any_match(paths, lambda p: starts(p, "apps/web/", "crates/soma-web/assets/source/"))
+    web = any_match(paths, lambda p: starts(p, "apps/web/", "crates/soma/web/"))
     compose = any_match(
         paths,
         lambda p: starts(p, "config/")
@@ -57,15 +57,18 @@ def classify(event: str, paths: list[str]) -> dict[str, bool]:
         paths,
         lambda p: starts(
             p,
-            "crates/soma-mcp/",
-            "crates/soma/tests/mcporter/",
+            "crates/soma/mcp/",
+            "crates/soma/api/",
+            "crates/soma/contracts/",
+            "apps/soma/tests/mcporter/",
+            "docs/reference/mcp/",
             "docs/generated/",
             "docs/MCP",
         ),
     )
     release = rust or web or any_match(paths, lambda p: starts(p, "release/") or p in {"server.json"})
     security = rust or any_match(paths, lambda p: p in {"Cargo.lock", "deny.toml"} or starts(p, ".cargo/"))
-    soma = any_match(
+    soma = rust or mcp or docs or any_match(
         paths,
         lambda p: starts(p, "scaffold/", "plugins/", "scripts/")
         or p

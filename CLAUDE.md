@@ -26,31 +26,31 @@ subcommands select HTTP server, stdio MCP, or CLI adapter mode.
 
 | File | Role |
 |------|------|
-| `crates/soma-service/src/soma.rs` | `SomaClient` — HTTP/API transport stub; one method per remote operation |
-| `crates/soma-service/src/app.rs` | `SomaService` — business layer; all logic lives here, never in shims |
-| `crates/soma-runtime/src/server.rs` | `AppState`, `AuthPolicy`, `build_auth_layer` — HTTP server state and auth policy |
-| `crates/soma/src/routes.rs` | Axum router: `/mcp`, `/health`, `/status`, OAuth discovery routes |
-| `crates/soma-api/src/api.rs` | REST API handlers: direct `/v1/*` routes, `GET /health`, `GET /status` |
-| `crates/soma-mcp/src/lib.rs` | MCP protocol layer — re-exports from `mcp/` submodules |
-| `crates/soma-mcp/src/tools.rs` | MCP shim: parse JSON args → call service → return `Value` |
-| `crates/soma-mcp/src/schemas.rs` | Tool JSON schema derived from `ACTION_SPECS` |
-| `crates/soma-mcp/src/rmcp_server.rs` | `ServerHandler` impl: tools, resources, prompts, scope checks |
-| `crates/soma-mcp/src/prompts.rs` | MCP prompts (`quick_start`) |
-| `crates/soma-contracts/src/config.rs` | `Config`, `SomaConfig`, `McpConfig`, `AuthConfig`, env loading |
-| `crates/soma-cli/src/lib.rs` | CLI shim: parse args → call service → print |
-| `crates/soma-cli/src/doctor.rs` | Pre-flight checks: env, connectivity, config validation |
-| `crates/soma-cli/src/setup.rs` | Interactive first-run / plugin setup wizard |
-| `crates/soma-cli/src/watch.rs` | Polls `/health` and emits state-change lines for plugin monitor |
-| `crates/soma-mcp/src/transport.rs` | Streamable HTTP transport wiring and session lifecycle |
-| `crates/soma-contracts/src/token_limit.rs` | Token budget enforcement for MCP response payloads |
-| `crates/soma/src/bin/soma.rs` | Canonical binary dispatcher for `serve`, `mcp`, and CLI modes |
-| `crates/soma/src/lib.rs` | Public facade + `testing` helpers for integration tests |
-| `crates/soma/tests/cli_parse.rs` | CLI argument parsing tests |
-| `crates/soma/tests/tool_dispatch.rs` | MCP tool dispatch tests (service-layer, no real credentials) |
+| `crates/soma/service/src/soma.rs` | `SomaClient` — HTTP/API transport stub; one method per remote operation |
+| `crates/soma/service/src/app.rs` | `SomaService` — business layer; all logic lives here, never in shims |
+| `crates/soma/runtime/src/server.rs` | `AppState`, `AuthPolicy`, `build_auth_layer` — HTTP server state and auth policy |
+| `apps/soma/src/routes.rs` | Axum router: `/mcp`, `/health`, `/status`, OAuth discovery routes |
+| `crates/soma/api/src/api.rs` | REST API handlers: direct `/v1/*` routes, `GET /health`, `GET /status` |
+| `crates/soma/mcp/src/lib.rs` | MCP protocol layer — re-exports from `mcp/` submodules |
+| `crates/soma/mcp/src/tools.rs` | MCP shim: parse JSON args → call service → return `Value` |
+| `crates/soma/mcp/src/schemas.rs` | Tool JSON schema derived from `ACTION_SPECS` |
+| `crates/soma/mcp/src/rmcp_server.rs` | `ServerHandler` impl: tools, resources, prompts, scope checks |
+| `crates/soma/mcp/src/prompts.rs` | MCP prompts (`quick_start`) |
+| `crates/soma/contracts/src/config.rs` | `Config`, `SomaConfig`, `McpConfig`, `AuthConfig`, env loading |
+| `crates/soma/cli/src/lib.rs` | CLI shim: parse args → call service → print |
+| `crates/soma/cli/src/doctor.rs` | Pre-flight checks: env, connectivity, config validation |
+| `crates/soma/cli/src/setup.rs` | Interactive first-run / plugin setup wizard |
+| `crates/soma/cli/src/watch.rs` | Polls `/health` and emits state-change lines for plugin monitor |
+| `crates/soma/mcp/src/transport.rs` | Streamable HTTP transport wiring and session lifecycle |
+| `crates/soma/contracts/src/token_limit.rs` | Token budget enforcement for MCP response payloads |
+| `apps/soma/src/bin/soma.rs` | Canonical binary dispatcher for `serve`, `mcp`, and CLI modes |
+| `apps/soma/src/lib.rs` | Public facade + `testing` helpers for integration tests |
+| `apps/soma/tests/cli_parse.rs` | CLI argument parsing tests |
+| `apps/soma/tests/tool_dispatch.rs` | MCP tool dispatch tests (service-layer, no real credentials) |
 
 ## The thin-shim rule — enforce this hard
 
-`crates/soma-mcp/src/tools.rs` and `crates/soma-cli/src/lib.rs` contain **zero business logic**. They only:
+`crates/soma/mcp/src/tools.rs` and `crates/soma/cli/src/lib.rs` contain **zero business logic**. They only:
 1. Parse their input format (JSON args or CLI flags)
 2. Call the corresponding `SomaService` method
 3. Return the result
@@ -63,19 +63,19 @@ Dynamic providers load from `./providers` by default or `SOMA_PROVIDER_DIR`. Two
 
 ## How to add an action
 
-1. **`crates/soma-service/src/soma.rs`** — add `pub async fn your_action(&self, ...) -> Result<Value>` with the actual HTTP/API call (or stub).
+1. **`crates/soma/service/src/soma.rs`** — add `pub async fn your_action(&self, ...) -> Result<Value>` with the actual HTTP/API call (or stub).
 
-2. **`crates/soma-service/src/app.rs`** — add a delegating method: `pub async fn your_action(&self, ...) -> Result<Value> { self.client.your_action(...).await }`.
+2. **`crates/soma/service/src/app.rs`** — add a delegating method: `pub async fn your_action(&self, ...) -> Result<Value> { self.client.your_action(...).await }`.
 
-3. **`crates/soma-contracts/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope and transport.
+3. **`crates/soma/contracts/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope and transport.
 
-4. **`crates/soma-mcp/src/schemas.rs`** — add any new parameters to `tool_definitions()`; the action enum comes from `ACTION_SPECS`.
+4. **`crates/soma/mcp/src/schemas.rs`** — add any new parameters to `tool_definitions()`; the action enum comes from `ACTION_SPECS`.
 
-5. **`crates/soma-mcp/src/tools.rs`** — add a match arm in `dispatch_soma()`: `"your_action" => { ... state.service.your_action(...).await }`. Also add to `HELP_TEXT`.
+5. **`crates/soma/mcp/src/tools.rs`** — add a match arm in `dispatch_soma()`: `"your_action" => { ... state.service.your_action(...).await }`. Also add to `HELP_TEXT`.
 
-6. **`crates/soma-cli/src/lib.rs`** — add a `Command` variant, a parse arm in `parse_args()`, and a dispatch arm in `run()`.
+6. **`crates/soma/cli/src/lib.rs`** — add a `Command` variant, a parse arm in `parse_args()`, and a dispatch arm in `run()`.
 
-7. **`crates/soma/tests/tool_dispatch.rs`** — add a test.
+7. **`apps/soma/tests/tool_dispatch.rs`** — add a test.
 
 8. **`CHANGELOG.md`** — add an entry under `[Unreleased]` describing the new action.
 
@@ -149,7 +149,7 @@ just health               # curl http://localhost:40060/health | jq .
 
 ## Test helpers
 
-`crates/soma/src/lib.rs` exports `testing::loopback_state()` and `testing::bearer_state(token)` (behind `features = ["test-support"]` or `cfg(test)`). Use these in integration tests — they build `AppState` without real credentials.
+`apps/soma/src/lib.rs` exports `testing::loopback_state()` and `testing::bearer_state(token)` (behind `features = ["test-support"]` or `cfg(test)`). Use these in integration tests — they build `AppState` without real credentials.
 
 ## CLI ↔ MCP action parity
 
@@ -184,7 +184,7 @@ Plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `ge
 
 ## Release versioning
 
-`release/components.toml` is the source of truth for versioning. Soma currently has one shipped component, `soma`, covering the Rust crate/binaries, embedded web assets, Docker/runtime files, MCP registry metadata, and plugin package files. `crates/soma/Cargo.toml` package `soma` is canonical; `Cargo.lock`, `server.json`, `docs/generated/openapi.json`, and `CHANGELOG.md` must stay in parity through the manifest. Plugin manifests are listed as `json_no_version` and must remain versionless.
+`release/components.toml` is the source of truth for versioning. Soma currently has one shipped component, `soma`, covering the Rust crate/binaries, embedded web assets, Docker/runtime files, MCP registry metadata, and plugin package files. `apps/soma/Cargo.toml` package `soma` is canonical; `Cargo.lock`, `server.json`, `docs/generated/openapi.json`, and `CHANGELOG.md` must stay in parity through the manifest. Plugin manifests are listed as `json_no_version` and must remain versionless.
 
 Use:
 

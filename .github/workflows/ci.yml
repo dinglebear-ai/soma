@@ -522,7 +522,7 @@ jobs:
         env:
           SOMA_MCP_HOST: 127.0.0.1
           SOMA_MCP_PORT: 40123
-        run: bash crates/soma/tests/mcporter/test-mcp.sh --timeout-ms 20000
+        run: bash apps/soma/tests/mcporter/test-mcp.sh --timeout-ms 20000
 
       - name: Upload MCP smoke logs
         if: always()

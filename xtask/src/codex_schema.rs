@@ -11,7 +11,7 @@
 //!           documented for `McpServerElicitationRequestParams` in the
 //!           crate's README.
 //!
-//! See `crates/codex-app-server-client/README.md`'s "Regenerating the
+//! See `crates/shared/codex-app-server-client/README.md`'s "Regenerating the
 //! schema" section for the end-to-end workflow this drives.
 
 mod bisect;
@@ -26,13 +26,14 @@ use std::path::{Path, PathBuf};
 
 /// Workspace-relative path to the vendored combined protocol schema.
 pub(crate) const PROTOCOL_SCHEMA_PATH: &str =
-    "crates/codex-app-server-client/schema/protocol.schema.json";
+    "crates/shared/codex-app-server-client/schema/protocol.schema.json";
 /// Workspace-relative path to the vendored per-method manifest.
-pub(crate) const METHODS_JSON_PATH: &str = "crates/codex-app-server-client/schema/methods.json";
+pub(crate) const METHODS_JSON_PATH: &str =
+    "crates/shared/codex-app-server-client/schema/methods.json";
 /// Workspace-relative path to the staleness-tracking codex version stamp
 /// (see `regen::stamp_codex_version` and `build.rs`'s staleness check).
 pub(crate) const CODEX_VERSION_PATH: &str =
-    "crates/codex-app-server-client/schema/CODEX_VERSION.txt";
+    "crates/shared/codex-app-server-client/schema/CODEX_VERSION.txt";
 
 /// Filename of the master (non-v2) schema bundle emitted by
 /// `codex app-server generate-json-schema` into its output directory.

@@ -1,0 +1,30 @@
+[package]
+name = "soma-runtime"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Shared runtime state and auth policy for soma surfaces"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+auth = ["dep:soma-auth"]
+oauth = ["auth", "soma-gateway/oauth"]
+
+[dependencies]
+anyhow = "1"
+soma-auth = { path = "../../shared/auth", optional = true, features = ["http-axum"] }
+soma-contracts = { path = "../contracts" }
+soma-gateway = { path = "../../shared/mcp/gateway" }
+soma-mcp-server = { path = "../../shared/mcp/server" }
+soma-service = { path = "../service", default-features = false }
+tracing = "0.1"
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

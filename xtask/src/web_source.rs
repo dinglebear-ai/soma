@@ -6,7 +6,7 @@ use walkdir::WalkDir;
 use crate::{command_exists, run_cmd};
 
 const WEB_APP: &str = "apps/web";
-const WEB_BUNDLE: &str = "crates/soma-web/assets/source";
+const WEB_BUNDLE: &str = "crates/soma/web/assets/source";
 const AURORA_COMPONENTS: &[&str] = &[
     "https://aurora.tootie.tv/r/aurora-tokens.json",
     "@aurora/aurora-badge",

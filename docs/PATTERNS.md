@@ -39,18 +39,35 @@ Allowed exceptions:
 ## 1. Module Architecture — Strict Layering
 
 ```
+apps/
+  soma/                    ← thin binary/facade package, routes, integration tests
+
 crates/
-  soma/        ← thin binary/facade package, routes, integration tests
-  soma-service/    ← upstream client + SomaService business layer
-  soma-contracts/  ← action metadata, config, DTOs, token limits
-  soma-api/        ← REST API handlers
-  soma-mcp/        ← MCP schemas, tools, prompts, transport
-  soma-cli/        ← CLI parser, doctor/setup/watch commands
-  soma-runtime/    ← AppState, auth policy, shared runtime wiring
-  soma-web/        ← static web asset serving and source bundle helpers
+  soma/
+    api/                  ← REST API handlers
+    cli/                  ← CLI parser, doctor/setup/watch commands
+    contracts/            ← action metadata, config, DTOs, token limits
+    mcp/                  ← Soma-specific MCP schemas, tools, prompts, transport
+    runtime/              ← AppState, auth policy, shared runtime wiring
+    service/              ← upstream client + SomaService business layer
+    test-support/         ← Soma integration-test helpers
+    web/                  ← static web asset serving and source bundle helpers
+  shared/
+    auth/                 ← reusable bearer/OAuth/JWT support
+    codemode/             ← reusable Code Mode runtime
+    mcp/
+      client/             ← reusable upstream MCP client support
+      gateway/            ← neutral MCP gateway engine
+      proxy/              ← reusable MCP proxy support
+      server/             ← reusable MCP server support
+    observability/        ← reusable logging/metrics helpers
+    openapi/              ← reusable OpenAPI provider support
+    traces/               ← reusable RMCP trace capture/support
+    codex-app-server-client/
+                          ← generated reusable Codex app-server client
 
 Rule: keep business logic out of transports, but DO NOT force all logic into one giant file.
-The service layer may be split across multiple focused modules under `crates/soma-service/src/`; what matters
+The service layer may be split across multiple focused modules under `crates/soma/service/src/`; what matters
 is that transports stay thin and all domain logic lives in the service layer.
 
 **The golden rule:** If you are writing business logic in `mcp/tools.rs`,
@@ -771,7 +788,7 @@ Adding an explicit version creates drift and requires manual bumping on every re
 
 ### plugin-hook responsibilities
 
-The hook now calls `<binary> setup plugin-hook` directly (no `plugin-setup.sh` wrapper). The binary's `apply_plugin_options()` (in `crates/soma-cli/src/setup.rs`), invoked before `Config::load()`, does what the script used to:
+The hook now calls `<binary> setup plugin-hook` directly (no `plugin-setup.sh` wrapper). The binary's `apply_plugin_options()` (in `crates/soma/cli/src/setup.rs`), invoked before `Config::load()`, does what the script used to:
 
 1. Read `CLAUDE_PLUGIN_OPTION_*` env vars (set by plugin runtime from userConfig)
 2. Reject (skip) unsafe newline/CR-bearing option values
@@ -929,7 +946,7 @@ echo "  3. Or:  ${BINARY} mcp             (stdio mode for Claude Code)"
 
 ## 17. mcporter Integration Test Pattern
 
-Every server has `crates/soma/tests/mcporter/test-mcp.sh` and, when useful for named server workflows, `config/mcporter.json`. The live harness covers MCP tools and MCP resources; add prompt coverage when mcporter exposes first-class prompt testing.
+Every server has `apps/soma/tests/mcporter/test-mcp.sh` and, when useful for named server workflows, `config/mcporter.json`. The live harness covers MCP tools and MCP resources; add prompt coverage when mcporter exposes first-class prompt testing.
 
 ### Philosophy
 
@@ -992,7 +1009,7 @@ Prefer mcporter's resource command when available. Keep a JSON-RPC `resources/re
 
 ### Prompt validation
 
-When mcporter supports prompts directly, add a prompt suite beside tool/resource suites. Until then, prompt coverage should live in Rust tests for `crates/soma-mcp/src/prompts.rs` and in plugin/skill docs that demonstrate the expected prompt workflow.
+When mcporter supports prompts directly, add a prompt suite beside tool/resource suites. Until then, prompt coverage should live in Rust tests for `crates/soma/mcp/src/prompts.rs` and in plugin/skill docs that demonstrate the expected prompt workflow.
 
 ### Non-destructive actions only
 
@@ -1063,21 +1080,21 @@ curl -H "Authorization: Bearer $SOMA_API_KEY" \
 Use this when creating a new server from soma:
 
 - [ ] Replace every occurrence of `example`/`Example`/`EXAMPLE` with your service name
-- [ ] Implement API client in `crates/soma-service/src/soma.rs` (transport only)
-- [ ] Add service methods to `crates/soma-service/src/app.rs` (all logic here)
-- [ ] Add tool actions to `crates/soma-contracts/src/actions.rs`, `crates/soma-mcp/src/tools.rs`, and `crates/soma-mcp/src/schemas.rs`
-- [ ] Add CLI commands to `crates/soma-cli/src/lib.rs`
-- [ ] Update `crates/soma-contracts/src/config.rs` with service-specific config fields
+- [ ] Implement API client in `crates/soma/service/src/soma.rs` (transport only)
+- [ ] Add service methods to `crates/soma/service/src/app.rs` (all logic here)
+- [ ] Add tool actions to `crates/soma/contracts/src/actions.rs`, `crates/soma/mcp/src/tools.rs`, and `crates/soma/mcp/src/schemas.rs`
+- [ ] Add CLI commands to `crates/soma/cli/src/lib.rs`
+- [ ] Update `crates/soma/contracts/src/config.rs` with service-specific config fields
 - [ ] Set correct port in `config.toml` and `docker-compose.yml`
 - [ ] Update `EXPOSE` in `config/Dockerfile`
 - [ ] Update `plugin.json` userConfig for your service's credentials
-- [ ] Write tests in `*_tests.rs` sidecars + `crates/soma/tests/` integration tests
-- [ ] Write `crates/soma/tests/mcporter/test-mcp.sh` with semantic validation
+- [ ] Write tests in `*_tests.rs` sidecars + `apps/soma/tests/` integration tests
+- [ ] Write `apps/soma/tests/mcporter/test-mcp.sh` with semantic validation
 - [ ] Update `plugins/<service>/skills/<service>/SKILL.md` with real API details
 - [ ] Update `install.sh` with correct binary/repo name
 - [ ] Run `cargo check` — must compile clean, zero warnings
 - [ ] Run `cargo nextest run` — all tests pass
-- [ ] Run `./crates/soma/tests/mcporter/test-mcp.sh` against a live server instance
+- [ ] Run `./apps/soma/tests/mcporter/test-mcp.sh` against a live server instance
 
 ---
 
@@ -1556,11 +1573,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Updated Checklist for New Servers
 
 - [ ] Replace `example`/`EXAMPLE` with your service name throughout
-- [ ] Implement API client in `crates/soma-service/src/soma.rs` (transport only)
-- [ ] Add service methods to `crates/soma-service/src/app.rs` (ALL logic here)
-- [ ] Add actions to `crates/soma-contracts/src/actions.rs`, `crates/soma-mcp/src/tools.rs`, and `crates/soma-mcp/src/schemas.rs` (thin shim ONLY)
-- [ ] Add CLI commands to `crates/soma-cli/src/lib.rs` (thin shim ONLY)
-- [ ] Update `crates/soma-contracts/src/config.rs` with service-specific fields
+- [ ] Implement API client in `crates/soma/service/src/soma.rs` (transport only)
+- [ ] Add service methods to `crates/soma/service/src/app.rs` (ALL logic here)
+- [ ] Add actions to `crates/soma/contracts/src/actions.rs`, `crates/soma/mcp/src/tools.rs`, and `crates/soma/mcp/src/schemas.rs` (thin shim ONLY)
+- [ ] Add CLI commands to `crates/soma/cli/src/lib.rs` (thin shim ONLY)
+- [ ] Update `crates/soma/contracts/src/config.rs` with service-specific fields
 - [ ] Add elicitation to destructive actions (or confirm flag fallback)
 - [ ] Set port in `config.toml` + `docker-compose.yml` + Dockerfile
 - [ ] Implement central auth policy resolution in library code
@@ -1571,8 +1588,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Configure taplo (`taplo.toml`)
 - [ ] Configure lefthook (`lefthook.yml`) — minimal hooks only
 - [ ] Write `.github/workflows/ci.yml`, `docker-publish.yml`, `release.yml`
-- [ ] Write tests in `*_tests.rs` sidecars + `crates/soma/tests/` integration tests
-- [ ] Write `crates/soma/tests/mcporter/test-mcp.sh` with semantic validation
+- [ ] Write tests in `*_tests.rs` sidecars + `apps/soma/tests/` integration tests
+- [ ] Write `apps/soma/tests/mcporter/test-mcp.sh` with semantic validation
 - [ ] Update `plugins/<service>/skills/<service>/SKILL.md`
 - [ ] Write `install.sh` matching the GitHub release tarball names
 - [ ] Copy `.gitignore` and `.dockerignore` from cortex
@@ -1584,7 +1601,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Run `cargo check` — zero warnings
 - [ ] Run `cargo nextest run` — all pass
 - [ ] Run `taplo check` — all TOML valid
-- [ ] Run `./crates/soma/tests/mcporter/test-mcp.sh` against live server
+- [ ] Run `./apps/soma/tests/mcporter/test-mcp.sh` against live server
 
 ---
 
@@ -2405,7 +2422,7 @@ Use `<binary> setup plugin-hook` directly as the hook command (no shell wrapper)
 
 ### plugin-hook env-mapping responsibilities
 
-`apply_plugin_options()` (`crates/soma-cli/src/setup.rs`), run before `Config::load()` on the plugin-hook path, should only:
+`apply_plugin_options()` (`crates/soma/cli/src/setup.rs`), run before `Config::load()` on the plugin-hook path, should only:
 
 - reject (skip) unsafe newline/CR-bearing plugin option values
 - map `CLAUDE_PLUGIN_OPTION_*` values to runtime env vars

@@ -69,7 +69,7 @@
       "extra-files": [
         {
           "type": "toml",
-          "path": "crates/soma/Cargo.toml",
+          "path": "apps/soma/Cargo.toml",
           "jsonpath": "$.package.version"
         },
         {

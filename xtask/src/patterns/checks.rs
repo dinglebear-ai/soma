@@ -11,20 +11,20 @@ use super::{
 };
 
 const REQUIRED_PATTERN_FILES: &[&str] = &[
-    "crates/soma-service/src/soma.rs",
-    "crates/soma-service/src/app.rs",
-    "crates/soma-contracts/src/actions.rs",
-    "crates/soma-mcp/src/lib.rs",
-    "crates/soma-mcp/src/tools.rs",
-    "crates/soma-mcp/src/schemas.rs",
-    "crates/soma-mcp/src/rmcp_server.rs",
-    "crates/soma/src/routes.rs",
-    "crates/soma-mcp/src/prompts.rs",
-    "crates/soma-contracts/src/config.rs",
-    "crates/soma-cli/src/lib.rs",
-    "crates/soma/src/bin/soma.rs",
-    "crates/soma/src/lib.rs",
-    "crates/soma/tests/tool_dispatch.rs",
+    "crates/soma/service/src/soma.rs",
+    "crates/soma/service/src/app.rs",
+    "crates/soma/contracts/src/actions.rs",
+    "crates/soma/mcp/src/lib.rs",
+    "crates/soma/mcp/src/tools.rs",
+    "crates/soma/mcp/src/schemas.rs",
+    "crates/soma/mcp/src/rmcp_server.rs",
+    "apps/soma/src/routes.rs",
+    "crates/soma/mcp/src/prompts.rs",
+    "crates/soma/contracts/src/config.rs",
+    "crates/soma/cli/src/lib.rs",
+    "apps/soma/src/bin/soma.rs",
+    "apps/soma/src/lib.rs",
+    "apps/soma/tests/tool_dispatch.rs",
     "config.soma.toml",
     "taplo.toml",
     "lefthook.yml",
@@ -150,12 +150,12 @@ pub(super) fn file_sizes(reporter: &mut PatternReporter) -> Result<()> {
 pub(super) fn thin_shims(reporter: &mut PatternReporter) {
     let policies = [
         (
-            "crates/soma-mcp/src/tools.rs",
+            "crates/soma/mcp/src/tools.rs",
             &["state.service", "provider_registry"][..],
             FORBIDDEN_SHIM_TOKENS,
         ),
         (
-            "crates/soma-cli/src/lib.rs",
+            "crates/soma/cli/src/lib.rs",
             &["SomaService::new", "service."][..],
             &["reqwest::", "hyper::Client", "sqlx::", "rusqlite::"][..],
         ),
@@ -199,7 +199,7 @@ pub(super) fn thin_shims(reporter: &mut PatternReporter) {
 }
 
 pub(super) fn routes(reporter: &mut PatternReporter) {
-    let routes = read_file("crates/soma/src/routes.rs");
+    let routes = read_file("apps/soma/src/routes.rs");
     let missing = ["\"/mcp\"", "\"/health\"", "\"/status\""]
         .iter()
         .copied()
@@ -277,8 +277,8 @@ pub(super) fn config_and_auth(reporter: &mut PatternReporter) {
         reporter.fail("config", ".gitignore should ignore .env secrets");
     }
 
-    let server = read_file("crates/soma-runtime/src/server.rs");
-    let config = read_file("crates/soma-contracts/src/config.rs");
+    let server = read_file("crates/soma/runtime/src/server.rs");
+    let config = read_file("crates/soma/contracts/src/config.rs");
     if !server.contains("LoopbackDev") || !server.contains("Mounted") {
         reporter.fail(
             "auth",

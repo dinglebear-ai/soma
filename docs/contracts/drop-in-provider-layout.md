@@ -11,11 +11,11 @@ source_of_truth: true
 upstream_refs:
   - "docs/specs/drop-in-provider-layout.md"
   - "docs/contracts/provider-manifest.schema.json"
-  - "crates/soma-service/src/providers/filesystem.rs"
-  - "crates/soma-service/src/providers/resource_files.rs"
-  - "crates/soma-service/src/providers/resource_uri.rs"
-  - "crates/soma-service/src/provider_registry.rs"
-  - "crates/soma-mcp/src/rmcp_server.rs"
+  - "crates/soma/service/src/providers/filesystem.rs"
+  - "crates/soma/service/src/providers/resource_files.rs"
+  - "crates/soma/service/src/providers/resource_uri.rs"
+  - "crates/soma/service/src/provider_registry.rs"
+  - "crates/soma/mcp/src/rmcp_server.rs"
 last_reviewed: "2026-07-15"
 ---
 

@@ -56,7 +56,7 @@ The three-tier structure must be preserved:
 
 ## Updating the plugin option mapping
 
-`apply_plugin_options()` in `src/cli/setup.rs` reads `CLAUDE_PLUGIN_OPTION_*` env vars that map to the `userConfig` fields in `plugin.json`, translating them into the binary's `SOMA_*` vars before `Config::load()`. When you add or rename a `userConfig` field, update the mapping table in that function to match. (This replaces the former `plugin-setup.sh` wrapper, which has been removed.)
+`apply_plugin_options()` in `crates/soma/cli/src/setup.rs` reads `CLAUDE_PLUGIN_OPTION_*` env vars that map to the `userConfig` fields in `plugin.json`, translating them into the binary's `SOMA_*` vars before `Config::load()`. When you add or rename a `userConfig` field, update the mapping table in that function to match. (This replaces the former `plugin-setup.sh` wrapper, which has been removed.)
 
 Sensitive fields declared `"sensitive": true` in `plugin.json` are available as env vars in hooks but are **never** substituted into skill content.
 
@@ -66,5 +66,5 @@ When renaming `soma` → your service:
 
 1. Replace Soma identifiers and `SOMA_` env vars in every file in this directory.
 2. Rename `skills/soma/` to `skills/<your-service>/`.
-3. Update `apply_plugin_options()` in `src/cli/setup.rs` — its mapping table maps `CLAUDE_PLUGIN_OPTION_*` to your service's actual `SOMA_*` vars.
+3. Update `apply_plugin_options()` in `crates/soma/cli/src/setup.rs` — its mapping table maps `CLAUDE_PLUGIN_OPTION_*` to your service's actual `SOMA_*` vars.
 4. Keep the no-version rule: do not add `"version"` to any manifest.

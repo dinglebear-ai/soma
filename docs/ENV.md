@@ -9,8 +9,8 @@ audience:
 scope: "soma"
 source_of_truth: false
 upstream_refs:
-  - "crates/soma-contracts/src/env_registry.rs"
-  - "crates/soma-contracts/src/config.rs"
+  - "crates/soma/contracts/src/env_registry.rs"
+  - "crates/soma/contracts/src/config.rs"
 last_reviewed: "2026-06-19"
 ---
 
