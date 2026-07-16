@@ -30,6 +30,14 @@ fn capability_absence_matches_json_rpc_method_not_found() {
     assert!(!capability_is_absent("connection refused"));
 }
 
+fn python_command() -> &'static str {
+    if cfg!(windows) {
+        "python"
+    } else {
+        "python3"
+    }
+}
+
 #[tokio::test]
 async fn stdio_live_discovery_and_call_routes_echo() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -39,7 +47,7 @@ async fn stdio_live_discovery_and_call_routes_echo() {
     let pool = UpstreamPool::default();
     pool.register_config(UpstreamConfig {
         name: "py".to_owned(),
-        command: Some("python3".to_owned()),
+        command: Some(python_command().to_owned()),
         args: vec![script.to_string_lossy().to_string()],
         ..UpstreamConfig::default()
     })
