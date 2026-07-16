@@ -23,7 +23,6 @@ async-trait = "0.1"
 jsonschema = { version = "0.47", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-serde_with = { version = "3", default-features = false, features = ["macros"] }
 sha2 = "0.11"
 thiserror = "2"
 

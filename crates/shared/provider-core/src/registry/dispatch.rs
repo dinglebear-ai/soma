@@ -5,7 +5,23 @@ use crate::{ProviderCall, ProviderError, ProviderOutput};
 use super::{ProviderRegistry, RegisteredTool};
 
 impl ProviderRegistry {
-    pub async fn dispatch(&self, mut call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
+    pub async fn dispatch(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
+        self.dispatch_with(
+            call,
+            |provider, call| async move { provider.call(call).await },
+        )
+        .await
+    }
+
+    pub async fn dispatch_with<F, Fut>(
+        &self,
+        mut call: ProviderCall,
+        invoke: F,
+    ) -> Result<ProviderOutput, ProviderError>
+    where
+        F: FnOnce(std::sync::Arc<dyn crate::Provider>, ProviderCall) -> Fut,
+        Fut: std::future::Future<Output = Result<ProviderOutput, ProviderError>>,
+    {
         let entry = self
             .snapshot
             .tool(&call.action)
@@ -27,11 +43,28 @@ impl ProviderRegistry {
 
         call.provider = entry.provider_id().to_string();
         call.snapshot_id = self.snapshot.fingerprint().to_string();
+        validate_surface(&entry, &call)?;
         validate_input(&entry, &call)?;
-        let output = provider.call(call).await?;
+        let output = invoke(provider, call).await?;
         validate_output(&entry, &output)?;
         Ok(output)
     }
+}
+
+fn validate_surface(entry: &RegisteredTool, call: &ProviderCall) -> Result<(), ProviderError> {
+    if entry.spec().exposed_on(call.surface) {
+        return Ok(());
+    }
+    Err(ProviderError::validation(
+        entry.provider_id().to_string(),
+        &call.action,
+        "surface_not_exposed",
+        format!(
+            "action `{}` is not exposed on {}",
+            call.action,
+            call.surface.as_str()
+        ),
+    ))
 }
 
 fn validate_input(entry: &RegisteredTool, call: &ProviderCall) -> Result<(), ProviderError> {

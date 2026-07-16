@@ -9,9 +9,7 @@ use soma_contracts::providers::{
 
 use crate::{
     provider_errors::ProviderError,
-    provider_registry::{
-        CoreProvider, Provider, ProviderInvocation, ProviderOutput, ProviderRegistry,
-    },
+    provider_registry::{Provider, ProviderCall, ProviderOutput, ProviderRegistry},
 };
 
 use super::ProviderRefreshEvent;
@@ -48,17 +46,15 @@ fn snapshot(tools: Vec<ProviderTool>) -> Arc<crate::provider_registry::RegistryS
 struct CatalogProvider(ProviderCatalog);
 
 #[async_trait]
-impl CoreProvider for CatalogProvider {
+impl Provider for CatalogProvider {
     fn catalog(&self) -> ProviderCatalog {
         self.0.clone()
     }
 
-    async fn call(&self, _call: ProviderInvocation) -> Result<ProviderOutput, ProviderError> {
+    async fn call(&self, _call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
         Ok(ProviderOutput::json(json!({})))
     }
 }
-
-impl Provider for CatalogProvider {}
 
 fn catalog(tools: Vec<ProviderTool>) -> ProviderCatalog {
     ProviderManifest {
@@ -119,6 +115,7 @@ fn cli_only_tool(name: &str) -> ProviderTool {
         mcp: Some(McpOverlay {
             enabled: false,
             title: None,
+            icons: Vec::new(),
             annotations: json!({}),
         }),
         cli: Some(CliOverlay {

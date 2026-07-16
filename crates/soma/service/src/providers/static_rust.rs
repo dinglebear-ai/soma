@@ -7,12 +7,11 @@ use soma_contracts::{
         ProviderKind, ProviderManifest, ProviderPrompt, ProviderTool, RestOverlay,
     },
 };
-use soma_provider_core::{Provider as CoreProvider, ProviderCall};
 
 use crate::{
     dispatch_action,
     provider_errors::ProviderError,
-    provider_registry::{Provider, ProviderOutput},
+    provider_registry::{Provider, ProviderCall, ProviderOutput},
     SomaService,
 };
 
@@ -36,7 +35,7 @@ impl StaticRustProvider {
 }
 
 #[async_trait]
-impl CoreProvider for StaticRustProvider {
+impl Provider for StaticRustProvider {
     fn catalog(&self) -> ProviderCatalog {
         self.catalog.clone()
     }
@@ -72,8 +71,6 @@ impl CoreProvider for StaticRustProvider {
     }
 }
 
-impl Provider for StaticRustProvider {}
-
 fn static_catalog() -> ProviderCatalog {
     ProviderManifest {
         schema_version: 1,
@@ -97,6 +94,7 @@ fn static_catalog() -> ProviderCatalog {
         // for name reservation only, not to serve as the source of truth.
         prompts: vec![ProviderPrompt {
             name: "quick_start".to_owned(),
+            title: None,
             description: "Check the server status and get a personalised greeting to verify \
                 the MCP connection is working end-to-end."
                 .to_owned(),
@@ -141,6 +139,7 @@ fn static_tool(spec: &soma_contracts::actions::ActionSpec) -> ProviderTool {
         mcp: Some(McpOverlay {
             enabled: spec.transport.mcp(),
             title: None,
+            icons: Vec::new(),
             annotations: json!({}),
         }),
         rest: static_rest_overlay(spec),
@@ -370,5 +369,6 @@ fn surface_label(surface: crate::provider_registry::ProviderSurface) -> &'static
         crate::provider_registry::ProviderSurface::Rest => "rest",
         crate::provider_registry::ProviderSurface::Cli => "cli",
         crate::provider_registry::ProviderSurface::Palette => "palette",
+        crate::provider_registry::ProviderSurface::Ui => "ui",
     }
 }

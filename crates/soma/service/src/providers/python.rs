@@ -13,12 +13,11 @@ use soma_contracts::{
     provider_validation::validate_provider_manifest_value,
     providers::{ProviderCatalog, ProviderTool},
 };
-use soma_provider_core::{Provider as CoreProvider, ProviderCall};
 use tokio::time::Instant as TokioInstant;
 
 use crate::{
     provider_errors::{redact_public, ProviderError},
-    provider_registry::{Provider, ProviderOutput},
+    provider_registry::{Provider, ProviderCall, ProviderOutput},
     providers::{
         python_bridge::PYTHON_BRIDGE,
         sidecar::{
@@ -49,7 +48,7 @@ impl PythonProvider {
 }
 
 #[async_trait]
-impl CoreProvider for PythonProvider {
+impl Provider for PythonProvider {
     fn catalog(&self) -> ProviderCatalog {
         self.catalog.clone()
     }
@@ -173,8 +172,6 @@ impl CoreProvider for PythonProvider {
         Ok(ProviderOutput::json(value))
     }
 }
-
-impl Provider for PythonProvider {}
 
 fn python_execution_payload(
     path: &Path,

@@ -9,9 +9,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use soma_contracts::providers::{ProviderCatalog, ProviderKind};
-use soma_provider_core::Provider as CoreProvider;
-
 use crate::{
     provider_registry::{DynamicResourceTemplate, Provider},
     providers::{
@@ -19,6 +16,7 @@ use crate::{
         resource_uri::display_with_forward_slashes,
     },
 };
+use soma_contracts::providers::{ProviderCatalog, ProviderKind};
 
 use super::{FileProviderLoadError, ProviderFileInspection, ProviderFileInspectionStatus};
 

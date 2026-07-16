@@ -5,7 +5,6 @@ use crate::ProviderId;
 
 pub type ProviderCatalog = ProviderManifest;
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderManifest {
@@ -70,7 +69,6 @@ impl ProviderManifest {
     }
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderIdentity {
@@ -118,7 +116,6 @@ impl ProviderKind {
     }
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ToolSpec {
@@ -184,15 +181,47 @@ impl ToolSpec {
             meta: default_object(),
         }
     }
+
+    pub fn exposed_on(&self, surface: crate::ProviderSurface) -> bool {
+        match surface {
+            crate::ProviderSurface::Internal => true,
+            crate::ProviderSurface::Mcp => self
+                .mcp
+                .as_ref()
+                .map(|overlay| overlay.enabled)
+                .unwrap_or(true),
+            crate::ProviderSurface::Rest => self
+                .rest
+                .as_ref()
+                .map(|overlay| overlay.enabled)
+                .unwrap_or(true),
+            crate::ProviderSurface::Cli => self
+                .cli
+                .as_ref()
+                .map(|overlay| overlay.enabled)
+                .unwrap_or(false),
+            crate::ProviderSurface::Palette => self
+                .palette
+                .as_ref()
+                .map(|overlay| overlay.enabled)
+                .unwrap_or(true),
+            crate::ProviderSurface::Ui => self
+                .ui
+                .as_ref()
+                .map(|overlay| overlay.enabled)
+                .unwrap_or(true),
+        }
+    }
 }
 
 pub type ProviderTool = ToolSpec;
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderPrompt {
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub description: String,
     #[serde(default)]
     pub template: Option<String>,
@@ -206,7 +235,6 @@ pub struct ProviderPrompt {
     pub examples: Vec<ProviderExample>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderResource {
@@ -223,7 +251,6 @@ pub struct ProviderResource {
     pub annotations: Value,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderTask {
@@ -240,7 +267,6 @@ pub struct ProviderTask {
     pub limits: Option<ProviderLimits>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderElicitation {
@@ -253,7 +279,6 @@ pub struct ProviderElicitation {
     pub mcp: Option<McpOverlay>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct EnvRequirement {
@@ -286,7 +311,6 @@ impl EnvRequirement {
     }
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct HostCapabilities {
@@ -304,7 +328,6 @@ pub struct HostCapabilities {
     pub github: Option<GitHubCapability>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum CapabilityGrant {
@@ -331,7 +354,6 @@ pub enum CapabilityGrant {
     },
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct FilesystemCapability {
@@ -343,7 +365,6 @@ pub struct FilesystemCapability {
     pub write_roots: Vec<String>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct NetworkCapability {
@@ -353,7 +374,6 @@ pub struct NetworkCapability {
     pub allowed_hosts: Vec<String>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct EnvCapability {
@@ -363,7 +383,6 @@ pub struct EnvCapability {
     pub allowed: Vec<String>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct TerminalCapability {
@@ -395,7 +414,6 @@ pub struct GitHubCapability {
     pub read_only: bool,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct McpOverlay {
@@ -403,11 +421,22 @@ pub struct McpOverlay {
     pub enabled: bool,
     #[serde(default)]
     pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub icons: Vec<McpIcon>,
     #[serde(default = "default_object")]
     pub annotations: Value,
 }
 
-#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct McpIcon {
+    pub src: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sizes: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct RestOverlay {
@@ -433,7 +462,6 @@ pub struct RestOverlay {
     pub request_body_schema: Option<Value>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct CliOverlay {
@@ -457,7 +485,6 @@ pub struct CliOverlay {
     pub interactive: bool,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct PaletteOverlay {
@@ -477,7 +504,6 @@ pub struct PaletteOverlay {
     pub aurora_blocks: Vec<String>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct UiOverlay {
@@ -493,7 +519,6 @@ pub struct UiOverlay {
     pub meta: Value,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DocsOverlay {
@@ -505,7 +530,6 @@ pub struct DocsOverlay {
     pub troubleshooting: Vec<String>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct PluginOverlay {
@@ -523,7 +547,6 @@ pub struct PluginOverlay {
     pub mcp_registration: Option<String>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderLimits {
@@ -535,7 +558,6 @@ pub struct ProviderLimits {
     pub max_input_bytes: Option<usize>,
 }
 
-#[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderExample {

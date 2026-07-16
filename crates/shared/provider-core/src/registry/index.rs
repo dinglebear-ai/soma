@@ -175,4 +175,17 @@ impl ProviderIndexes {
     pub fn primitive_kind(&self, name: &str) -> Option<&str> {
         self.primitives.get(name).copied()
     }
+
+    pub fn rest_routes(&self) -> impl Iterator<Item = (&str, &str, &str)> {
+        self.rest
+            .iter()
+            .map(|((method, path), action)| (method.as_str(), path.as_str(), action.as_str()))
+    }
+
+    pub fn compiled_validator_count(&self) -> usize {
+        self.tools
+            .values()
+            .map(|tool| 1 + usize::from(tool.output_validator.is_some()))
+            .sum()
+    }
 }

@@ -21,7 +21,7 @@ mod registry;
 mod surface;
 mod validation;
 
-pub use call::{ProviderCall, ProviderExecutionEnvelope};
+pub use call::ProviderCall;
 pub use error::{ProviderError, redact_public};
 pub use id::{ProviderId, ProviderIdError};
 pub use manifest::*;

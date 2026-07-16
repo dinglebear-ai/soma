@@ -5,11 +5,10 @@ use soma_contracts::providers::{
     CliOverlay, EnvRequirement, McpOverlay, ProviderCatalog, ProviderIdentity, ProviderKind,
     ProviderManifest, ProviderPrompt, ProviderResource, ProviderTool, RestOverlay,
 };
-use soma_provider_core::{Provider as CoreProvider, ProviderCall};
 
 use crate::{
     provider_errors::ProviderError,
-    provider_registry::{Provider, ProviderOutput},
+    provider_registry::{Provider, ProviderCall, ProviderOutput},
     SomaService,
 };
 
@@ -26,7 +25,7 @@ impl RemoteCatalogProvider {
 }
 
 #[async_trait]
-impl CoreProvider for RemoteCatalogProvider {
+impl Provider for RemoteCatalogProvider {
     fn catalog(&self) -> ProviderCatalog {
         self.catalog.clone()
     }
@@ -39,8 +38,6 @@ impl CoreProvider for RemoteCatalogProvider {
             .map_err(|error| ProviderError::opaque_execution(&call.provider, call.action, error))
     }
 }
-
-impl Provider for RemoteCatalogProvider {}
 
 pub fn catalogs_from_inspection(report: &Value) -> Result<Vec<ProviderCatalog>> {
     let providers = report
@@ -159,6 +156,7 @@ fn tool_from_value(tool: &Value) -> Result<ProviderTool> {
 fn prompt_from_value(prompt: &Value) -> Result<ProviderPrompt> {
     Ok(ProviderPrompt {
         name: string_field(prompt, "name")?.to_owned(),
+        title: optional_string(prompt, "title"),
         description: optional_string(prompt, "description").unwrap_or_default(),
         template: optional_string(prompt, "template"),
         arguments_schema: prompt
@@ -194,6 +192,7 @@ fn mcp_overlay(value: &Value) -> Option<McpOverlay> {
     Some(McpOverlay {
         enabled,
         title: None,
+        icons: Vec::new(),
         annotations: json!({}),
     })
 }

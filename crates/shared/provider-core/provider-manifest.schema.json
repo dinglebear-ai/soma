@@ -493,9 +493,10 @@
       "additionalProperties": false,
       "required": ["name"],
       "properties": {
-        "name": { "$ref": "#/$defs/name" },
+        "name": { "type": "string", "pattern": "^--?[a-zA-Z][a-zA-Z0-9-]*$" },
         "long": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
         "short": { "type": "string", "minLength": 1, "maxLength": 1 },
+        "value_name": { "type": "string" },
         "required": { "type": "boolean", "default": false },
         "description": { "type": "string" }
       }

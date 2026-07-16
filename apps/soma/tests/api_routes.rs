@@ -16,9 +16,7 @@ use soma_contracts::actions::ACTION_SPECS;
 use soma_contracts::providers::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool, RestOverlay,
 };
-use soma_service::provider_registry::{
-    CoreProvider, Provider, ProviderInvocation, ProviderOutput, ProviderRegistry,
-};
+use soma_service::provider_registry::{Provider, ProviderCall, ProviderOutput, ProviderRegistry};
 use soma_service::ProviderError;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -53,7 +51,7 @@ fn provider_tool(name: &str, description: &str, input_schema: Value) -> Provider
 struct RestDynamicProvider;
 
 #[async_trait]
-impl CoreProvider for RestDynamicProvider {
+impl Provider for RestDynamicProvider {
     fn catalog(&self) -> ProviderCatalog {
         let weather_schema = json!({
             "type": "object",
@@ -128,7 +126,7 @@ impl CoreProvider for RestDynamicProvider {
         }
     }
 
-    async fn call(&self, call: ProviderInvocation) -> Result<ProviderOutput, ProviderError> {
+    async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
         Ok(ProviderOutput::json(json!({
             "provider": call.provider,
             "action": call.action,
@@ -136,8 +134,6 @@ impl CoreProvider for RestDynamicProvider {
         })))
     }
 }
-
-impl Provider for RestDynamicProvider {}
 
 #[tokio::test]
 async fn direct_rest_echo_accepts_typed_body() {

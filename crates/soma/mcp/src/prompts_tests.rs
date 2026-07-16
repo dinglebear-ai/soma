@@ -30,6 +30,7 @@ fn get_prompt_unknown_returns_err() {
 fn provider_prompt(name: &str, template: Option<&str>) -> ProviderPrompt {
     ProviderPrompt {
         name: name.to_owned(),
+        title: None,
         description: "Review prompt".to_owned(),
         template: template.map(ToOwned::to_owned),
         arguments_schema: None,

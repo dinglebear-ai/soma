@@ -54,4 +54,12 @@ impl RegistrySnapshot {
     pub fn primitive_kind(&self, name: &str) -> Option<&str> {
         self.indexes.primitive_kind(name)
     }
+
+    pub fn rest_routes(&self) -> impl Iterator<Item = (&str, &str, &str)> {
+        self.indexes.rest_routes()
+    }
+
+    pub fn compiled_validator_count(&self) -> usize {
+        self.indexes.compiled_validator_count()
+    }
 }

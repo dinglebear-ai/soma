@@ -55,12 +55,11 @@ impl ProviderRefreshEvent {
 
 fn surface_actions(snapshot: &RegistrySnapshot, surface: ProviderSurface) -> Vec<String> {
     let mut actions = snapshot
-        .action_index
+        .catalogs
         .iter()
-        .filter_map(|(action, entry)| {
-            let allowed = provider_tool_surface_enabled(&entry.tool, surface);
-            allowed.then(|| action.clone())
-        })
+        .flat_map(|catalog| catalog.tools.iter())
+        .filter(|tool| provider_tool_surface_enabled(tool, surface))
+        .map(|tool| tool.name.clone())
         .collect::<Vec<_>>();
     actions.sort();
     actions
@@ -68,9 +67,8 @@ fn surface_actions(snapshot: &RegistrySnapshot, surface: ProviderSurface) -> Vec
 
 fn rest_routes(snapshot: &RegistrySnapshot) -> Vec<String> {
     let mut routes = snapshot
-        .rest_index
-        .keys()
-        .map(|(method, path)| format!("{method} {path}"))
+        .rest_routes()
+        .map(|(method, path, _)| format!("{method} {path}"))
         .collect::<Vec<_>>();
     routes.sort();
     routes

@@ -14,11 +14,12 @@ use serde_json::Value;
 use soma_contracts::providers::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderResource,
 };
-use soma_provider_core::{Provider as CoreProvider, ProviderCall};
 
 use crate::{
     provider_errors::ProviderError,
-    provider_registry::{DynamicResourceTemplate, Provider, ProviderOutput, ResourceReadOutput},
+    provider_registry::{
+        DynamicResourceTemplate, Provider, ProviderCall, ProviderOutput, ResourceReadOutput,
+    },
     providers::{
         resource_uri,
         sidecar::{run_bounded_sidecar, SidecarError},
@@ -36,7 +37,7 @@ const DYNAMIC_RESOURCE_MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 enum ResourceFileKind {
     Static {
         path: PathBuf,
-        resource: ProviderResource,
+        resource: Box<ProviderResource>,
         mime_type: String,
     },
     Dynamic {
@@ -162,7 +163,7 @@ impl ResourceFileProvider {
             provider_name,
             kind: ResourceFileKind::Static {
                 path: absolute_path,
-                resource,
+                resource: Box::new(resource),
                 mime_type,
             },
             canonical_root: canonical_root.to_owned(),
@@ -278,13 +279,13 @@ fn is_text_mime(mime_type: &str) -> bool {
 }
 
 #[async_trait]
-impl CoreProvider for ResourceFileProvider {
+impl Provider for ResourceFileProvider {
     fn catalog(&self) -> ProviderCatalog {
         let (title, description, resources) = match &self.kind {
             ResourceFileKind::Static { resource, path, .. } => (
                 resource.description.clone(),
                 format!("Static resource file loaded from {}", path.display()),
-                vec![resource.clone()],
+                vec![resource.as_ref().clone()],
             ),
             ResourceFileKind::Dynamic { template, path } => (
                 template.description.clone(),
@@ -326,10 +327,7 @@ impl CoreProvider for ResourceFileProvider {
             "resource file providers do not expose any callable actions",
         ))
     }
-}
 
-#[async_trait]
-impl Provider for ResourceFileProvider {
     fn dynamic_resource_templates(&self) -> Vec<DynamicResourceTemplate> {
         match &self.kind {
             ResourceFileKind::Dynamic { template, .. } => vec![template.clone()],

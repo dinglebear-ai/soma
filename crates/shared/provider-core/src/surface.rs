@@ -9,6 +9,7 @@ pub enum ProviderSurface {
     Rest,
     Cli,
     Palette,
+    Ui,
 }
 
 impl ProviderSurface {
@@ -19,6 +20,7 @@ impl ProviderSurface {
             Self::Rest => "rest",
             Self::Cli => "cli",
             Self::Palette => "palette",
+            Self::Ui => "ui",
         }
     }
 }

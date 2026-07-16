@@ -11,9 +11,8 @@ use soma_domain::{
     AuthorizationMode, Confirmation, Principal, RequestId, ScopeSet, Surface, TraceContext,
 };
 use soma_service::{
-    provider_registry::{CoreProvider, Provider, ProviderInvocation},
-    DynamicResourceTemplate, ProviderError, ProviderOutput, ProviderRegistry, SomaClient,
-    SomaService, StaticRustProvider,
+    provider_registry::Provider, DynamicResourceTemplate, ProviderCall, ProviderError,
+    ProviderOutput, ProviderRegistry, SomaClient, SomaService, StaticRustProvider,
 };
 
 use super::{
@@ -28,26 +27,23 @@ use crate::{
 struct RecordingProvider {
     catalog: ProviderCatalog,
     output: Value,
-    calls: Mutex<Vec<ProviderInvocation>>,
+    calls: Mutex<Vec<ProviderCall>>,
 }
 
 #[async_trait]
-impl CoreProvider for RecordingProvider {
+impl Provider for RecordingProvider {
     fn catalog(&self) -> ProviderCatalog {
         self.catalog.clone()
     }
 
     async fn call(
         &self,
-        call: ProviderInvocation,
+        call: ProviderCall,
     ) -> Result<ProviderOutput, soma_service::ProviderError> {
         self.calls.lock().unwrap().push(call);
         Ok(ProviderOutput::json(self.output.clone()))
     }
-}
 
-#[async_trait]
-impl Provider for RecordingProvider {
     fn dynamic_resource_templates(&self) -> Vec<DynamicResourceTemplate> {
         let mut template = DynamicResourceTemplate::from_path_segments(
             &["recording", "[id]"],

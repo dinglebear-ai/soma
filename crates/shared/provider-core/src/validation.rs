@@ -43,13 +43,15 @@ pub fn validate_provider_manifest_value(
 }
 
 pub fn validate_manifest_schema(value: &Value) -> Result<(), ProviderValidationError> {
+    let mut normalized = value.clone();
+    remove_null_object_fields(&mut normalized);
     let schema: Value = serde_json::from_str(SCHEMA)
         .map_err(|error| ProviderValidationError::new("schema_parse_failed", error.to_string()))?;
     let compiled: Validator = jsonschema::options().build(&schema).map_err(|error| {
         ProviderValidationError::new("schema_compile_failed", error.to_string())
     })?;
     let details = compiled
-        .iter_errors(value)
+        .iter_errors(&normalized)
         .map(|error| format!("{}: {}", error.instance_path(), error))
         .collect::<Vec<_>>();
     if !details.is_empty() {
@@ -64,6 +66,11 @@ pub fn validate_manifest_schema(value: &Value) -> Result<(), ProviderValidationE
 pub fn validate_provider_manifest(
     manifest: &ProviderManifest,
 ) -> Result<(), ProviderValidationError> {
+    let value = serde_json::to_value(manifest).map_err(|error| {
+        ProviderValidationError::new("manifest_serialize_failed", error.to_string())
+    })?;
+    validate_manifest_schema(&value)?;
+
     let mut tool_names = BTreeSet::new();
     let mut rest_routes = BTreeSet::new();
     let mut cli_commands = BTreeSet::new();
@@ -171,6 +178,23 @@ pub fn validate_provider_manifest(
     }
 
     Ok(())
+}
+
+fn remove_null_object_fields(value: &mut Value) {
+    match value {
+        Value::Object(object) => {
+            object.retain(|_, value| !value.is_null());
+            for value in object.values_mut() {
+                remove_null_object_fields(value);
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                remove_null_object_fields(value);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn validate_cli_command(command: &str) -> Result<(), ProviderValidationError> {
