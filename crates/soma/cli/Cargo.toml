@@ -18,8 +18,9 @@ anyhow = "1"
 dirs = "6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 soma-application = { workspace = true }
-soma-contracts = { workspace = true }
+soma-config = { workspace = true }
 soma-domain = { workspace = true }
+soma-provider-core = { workspace = true }
 soma-runtime = { workspace = true }
 soma-service = { workspace = true }
 serde = { version = "1", features = ["derive"] }

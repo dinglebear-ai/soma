@@ -1,17 +1,17 @@
 use axum::{
     extract::State,
-    http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
 use serde_json::{json, Value};
+use soma_http_api::probe::{liveness_response, readiness_response};
 
 use crate::ApiState;
 
 /// `GET /health` — liveness probe (unauthenticated).
 pub async fn health() -> impl IntoResponse {
     tracing::debug!("health probe");
-    Json(json!({ "status": "ok" }))
+    liveness_response()
 }
 
 /// `GET /readyz` — readiness probe (unauthenticated).
@@ -20,17 +20,11 @@ pub async fn health() -> impl IntoResponse {
 /// upstream dependency and returns `503 Service Unavailable` when it is
 /// unreachable, so orchestrators only route traffic once the server can serve it.
 pub async fn readyz(State(state): State<ApiState>) -> Response {
-    match state.application().readiness().await {
-        Ok(()) => (StatusCode::OK, Json(json!({ "status": "ready" }))).into_response(),
-        Err(error) => {
-            tracing::warn!(%error, "readiness probe failed");
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({ "status": "not_ready", "reason": error.to_string() })),
-            )
-                .into_response()
-        }
+    let result = state.application().readiness().await;
+    if let Err(error) = &result {
+        tracing::warn!(%error, "readiness probe failed");
     }
+    readiness_response(result)
 }
 
 /// `GET /status` — local runtime status (unauthenticated, redacts secrets).

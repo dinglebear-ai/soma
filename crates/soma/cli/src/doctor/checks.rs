@@ -16,7 +16,7 @@ use std::net::TcpListener;
 use std::path::Path;
 use std::time::Instant;
 
-use soma_contracts::config::Config;
+use soma_config::Config;
 use soma_runtime::server::{resolve_auth_policy_kind, AuthPolicyKind};
 
 use super::DoctorCheck;

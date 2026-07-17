@@ -1,6 +1,6 @@
 # MCP Schema Contract
 
-Generated from `crates/soma/contracts/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.
+Generated from `crates/soma/domain/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.
 
 Run:
 
@@ -30,7 +30,7 @@ cargo xtask check-schema-docs --check
 
 ## Drift Rules
 
-- `ACTION_SPECS` in `crates/soma/contracts/src/actions.rs` is the canonical action and scope list.
+- `ACTION_SPECS` in `crates/soma/domain/src/actions.rs` is the canonical action and scope list.
 - Action cost is planner metadata. Use `cheap` for first-pass reads, `moderate` for bounded workflow setup, `expensive` for broad scans or long-running work, and `write` for mutating operations.
 - `crates/soma/mcp/src/schemas.rs` must derive its enum from `ACTION_SPECS`.
 - The MCP tool schema must reject unknown top-level parameters except reserved `_response_*` continuation fields, and encode action-specific requirements that fit the single-tool dispatch model.

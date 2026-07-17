@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use soma_contracts::providers::{ProviderPrompt, ProviderResource};
-use soma_domain::{AuthorizationMode, Principal, Surface};
+use soma_domain::{
+    scopes::{READ_SCOPE, WRITE_SCOPE},
+    token_limit::MAX_RESPONSE_BYTES,
+    AuthorizationMode, Principal, Surface,
+};
+use soma_provider_core::{ProviderPrompt, ProviderResource};
 use soma_service::{
     ElicitedNameOutcome, ProviderAuthMode, ProviderCall, ProviderPrincipal, ProviderRegistry,
     ProviderRequestLimits, ProviderSurface, ResourceReadOutput, ScaffoldIntent, SomaService,
@@ -438,9 +442,7 @@ fn operation_response(
     output: Value,
     context: &ExecutionContext,
 ) -> Result<OperationResponse, ApplicationError> {
-    let maximum = context
-        .response_limit
-        .unwrap_or(soma_contracts::token_limit::MAX_RESPONSE_BYTES);
+    let maximum = context.response_limit.unwrap_or(MAX_RESPONSE_BYTES);
     let actual = serde_json::to_vec(&output)
         .map_err(|error| ApplicationError::legacy("response serialization", error))?
         .len();
@@ -493,10 +495,7 @@ fn scope_visible(required: Option<&str>, context: &ExecutionContext) -> bool {
     };
     context.principal.as_ref().is_some_and(|principal| {
         principal.scopes.contains(required)
-            || (required == soma_contracts::actions::READ_SCOPE
-                && principal
-                    .scopes
-                    .contains(soma_contracts::actions::WRITE_SCOPE))
+            || (required == READ_SCOPE && principal.scopes.contains(WRITE_SCOPE))
     })
 }
 

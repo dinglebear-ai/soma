@@ -1,4 +1,4 @@
-use soma_contracts::providers::ProviderCatalog;
+use soma_provider_core::ProviderCatalog;
 
 use super::{apply_directory_wide_checks, DirectoryNamespace};
 use crate::{

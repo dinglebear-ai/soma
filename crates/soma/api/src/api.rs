@@ -26,7 +26,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use soma_application::ExecuteActionRequest;
-use soma_contracts::actions::SomaAction;
+use soma_domain::actions::SomaAction;
+use soma_http_api::json::{json_body_or_else, JsonBodyOutcome};
 
 use crate::responses::{
     application_error_response, rest_error_response, rest_json_rejection_response,
@@ -127,7 +128,7 @@ pub async fn v1_provider_tool_action(
     Path(action): Path<String>,
     body: Result<Json<Value>, JsonRejection>,
 ) -> axum::response::Response {
-    let params = match json_body_or_empty(body, true) {
+    let params = match json_body_or_else(body, true, || json!({})) {
         JsonBodyOutcome::Params(params) => params,
         JsonBodyOutcome::Response(response) => return response,
     };
@@ -167,7 +168,8 @@ pub async fn v1_dynamic_provider_route(
         }
     };
 
-    let params = match json_body_or_empty(body, method == "GET" || method == "DELETE") {
+    let params = match json_body_or_else(body, method == "GET" || method == "DELETE", || json!({}))
+    {
         JsonBodyOutcome::Params(params) => params,
         JsonBodyOutcome::Response(response) => return response,
     };
@@ -243,24 +245,6 @@ fn optional_name_params(name: Option<String>) -> Value {
     match name {
         Some(name) => json!({ "name": name }),
         None => json!({}),
-    }
-}
-
-enum JsonBodyOutcome {
-    Params(Value),
-    Response(axum::response::Response),
-}
-
-fn json_body_or_empty(
-    body: Result<Json<Value>, JsonRejection>,
-    allow_missing: bool,
-) -> JsonBodyOutcome {
-    match body {
-        Ok(Json(value)) => JsonBodyOutcome::Params(value),
-        Err(JsonRejection::MissingJsonContentType(_)) if allow_missing => {
-            JsonBodyOutcome::Params(json!({}))
-        }
-        Err(error) => JsonBodyOutcome::Response(rest_json_rejection_response(error)),
     }
 }
 

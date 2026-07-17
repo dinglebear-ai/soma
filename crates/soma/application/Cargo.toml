@@ -23,10 +23,11 @@ anyhow = "1"
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-soma-contracts = { workspace = true }
 soma-domain = { workspace = true }
+soma-provider-core = { workspace = true }
 soma-service = { workspace = true }
 
 [dev-dependencies]
 soma-client = { workspace = true }
+soma-config = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -1,6 +1,8 @@
 use soma_application::ExecutionContext;
-use soma_contracts::{actions::READ_SCOPE, scopes::ADMIN_SCOPE};
-use soma_domain::{AuthorizationMode, Principal, RequestId, ScopeSet, Surface};
+use soma_domain::{
+    actions::READ_SCOPE, scopes::ADMIN_SCOPE, AuthorizationMode, Principal, RequestId, ScopeSet,
+    Surface,
+};
 
 use super::{gateway_access, gateway_subject};
 

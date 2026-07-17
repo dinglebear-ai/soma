@@ -1,4 +1,4 @@
-use soma_contracts::providers::{
+use soma_provider_core::{
     BrowserCapability, CapabilityGrant, EnvCapability, FilesystemCapability, GitHubCapability,
     HostCapabilities, NetworkCapability, TerminalCapability,
 };

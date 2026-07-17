@@ -23,7 +23,8 @@ protected-routes = ["soma-gateway/protected-routes"]
 anyhow = "1"
 soma-auth = { workspace = true, optional = true, features = ["http-axum"] }
 soma-application = { workspace = true }
-soma-contracts = { workspace = true }
+soma-config = { workspace = true }
+soma-domain = { workspace = true }
 soma-gateway = { workspace = true }
 soma-mcp-server = { workspace = true }
 tracing = "0.1"

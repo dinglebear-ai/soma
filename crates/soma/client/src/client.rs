@@ -16,7 +16,7 @@ use anyhow::Context;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-use soma_contracts::config::{EffectiveRuntimeMode, SomaConfig};
+use soma_config::{EffectiveRuntimeMode, SomaConfig};
 
 #[cfg(feature = "client")]
 use reqwest::{header, Url};

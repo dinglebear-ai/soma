@@ -13,14 +13,18 @@ use super::{
 const REQUIRED_PATTERN_FILES: &[&str] = &[
     "crates/soma/client/src/client.rs",
     "crates/soma/service/src/app.rs",
-    "crates/soma/contracts/src/actions.rs",
+    // actions.rs/config.rs moved from crates/soma/contracts to
+    // crates/soma/domain / crates/soma/config (plan section 6.2; PR 13).
+    // crates/soma/contracts/src/{actions,config}.rs are now deprecated
+    // re-exports; check the real canonical location, not the facade.
+    "crates/soma/domain/src/actions.rs",
     "crates/soma/mcp/src/lib.rs",
     "crates/soma/mcp/src/tools.rs",
     "crates/soma/mcp/src/schemas.rs",
     "crates/soma/mcp/src/rmcp_server.rs",
     "apps/soma/src/routes.rs",
     "crates/soma/mcp/src/prompts.rs",
-    "crates/soma/contracts/src/config.rs",
+    "crates/soma/config/src/config.rs",
     "crates/soma/cli/src/lib.rs",
     "apps/soma/src/bin/soma.rs",
     "apps/soma/src/lib.rs",
@@ -283,7 +287,10 @@ pub(super) fn config_and_auth(reporter: &mut PatternReporter) {
     }
 
     let server = read_file("crates/soma/runtime/src/server.rs");
-    let config = read_file("crates/soma/contracts/src/config.rs");
+    // config.rs moved from crates/soma/contracts to crates/soma/config
+    // (plan section 3.18; PR 13). crates/soma/contracts/src/config.rs is now
+    // a deprecated re-export with no literal `no_auth`/`allowed_hosts` text.
+    let config = read_file("crates/soma/config/src/config.rs");
     if !server.contains("LoopbackDev") || !server.contains("Mounted") {
         reporter.fail(
             "auth",

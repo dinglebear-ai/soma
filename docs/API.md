@@ -81,7 +81,7 @@ All three call `state.service.greet(Some("Alice"))`.
 {"echo":"hello"}
 ```
 
-Responses are JSON values produced by `SomaService` via `crates/soma/contracts/src/actions.rs`.
+Responses are JSON values produced by `SomaService` via `crates/soma/domain/src/actions.rs`.
 If a REST result exceeds the response cap, the route returns a valid JSON
 truncation envelope instead of raw truncated JSON.
 

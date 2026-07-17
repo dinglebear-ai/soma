@@ -57,7 +57,7 @@ pub(super) fn principal(auth: Option<&AuthContext>) -> Principal {
         Some(auth) => authenticated_principal(auth),
         None => Principal::new(
             "loopback-dev",
-            ScopeSet::from([soma_contracts::actions::READ_SCOPE]),
+            ScopeSet::from([soma_domain::actions::READ_SCOPE]),
         ),
     }
 }

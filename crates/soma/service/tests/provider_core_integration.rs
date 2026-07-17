@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde_json::json;
-use soma_contracts::providers::{ProviderCatalog, ProviderManifest, ToolSpec};
 use soma_provider_core::ProviderId;
+use soma_provider_core::{ProviderCatalog, ProviderManifest, ToolSpec};
 use soma_service::provider_registry::{
     Provider, ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal, ProviderRegistry,
     ProviderRequestLimits, ProviderSurface,

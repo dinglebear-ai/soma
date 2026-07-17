@@ -34,9 +34,10 @@ rmcp = { workspace = true, features = [
 rmcp-traces = { workspace = true }
 soma-auth = { workspace = true, optional = true, features = ["http-axum"] }
 soma-application = { workspace = true }
-soma-contracts = { workspace = true }
+soma-config = { workspace = true }
 soma-domain = { workspace = true }
 soma-mcp-server = { workspace = true }
+soma-provider-core = { workspace = true }
 schemars = "1.2.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

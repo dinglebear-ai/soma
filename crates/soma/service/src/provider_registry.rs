@@ -6,13 +6,10 @@ use std::{
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use soma_contracts::{
-    provider_validation::{validate_provider_manifest, ProviderValidationError},
-    providers::{ProviderCatalog, ProviderResource},
-};
+use soma_domain::provider_validation::{validate_provider_manifest, ProviderValidationError};
 use soma_provider_core::{
-    ProviderCall as CoreProviderCall, ProviderRegistry as CoreRegistry,
-    RegistrySnapshot as CoreRegistrySnapshot,
+    ProviderCall as CoreProviderCall, ProviderCatalog, ProviderRegistry as CoreRegistry,
+    ProviderResource, RegistrySnapshot as CoreRegistrySnapshot,
 };
 
 use crate::{
@@ -123,7 +120,7 @@ impl ProviderPrincipal {
     pub fn loopback_dev() -> Self {
         Self {
             subject: "loopback-dev".to_owned(),
-            scopes: vec![soma_contracts::actions::READ_SCOPE.to_owned()],
+            scopes: vec![soma_domain::actions::READ_SCOPE.to_owned()],
         }
     }
 
@@ -145,7 +142,7 @@ impl Default for ProviderRequestLimits {
     fn default() -> Self {
         Self {
             max_input_bytes: 64 * 1024,
-            max_response_bytes: soma_contracts::token_limit::MAX_RESPONSE_BYTES,
+            max_response_bytes: soma_domain::token_limit::MAX_RESPONSE_BYTES,
         }
     }
 }

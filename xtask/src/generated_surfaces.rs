@@ -1,8 +1,8 @@
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use soma_client::SomaClient;
-use soma_contracts::config::SomaConfig;
-use soma_contracts::providers::ProviderCatalog;
+use soma_config::SomaConfig;
+use soma_provider_core::ProviderCatalog;
 use soma_service::{dynamic_provider_registry, static_provider_registry, SomaService};
 use std::{fs, path::Path};
 
@@ -881,11 +881,11 @@ fn rest_routes(catalogs: &[ProviderCatalog]) -> Vec<String> {
     routes
 }
 
-fn rest_enabled(tool: &soma_contracts::providers::ProviderTool) -> bool {
+fn rest_enabled(tool: &soma_provider_core::ProviderTool) -> bool {
     tool.rest.as_ref().map(|rest| rest.enabled).unwrap_or(true)
 }
 
-fn rest_route(tool: &soma_contracts::providers::ProviderTool) -> String {
+fn rest_route(tool: &soma_provider_core::ProviderTool) -> String {
     let Some(rest) = tool.rest.as_ref().filter(|rest| rest.enabled) else {
         return if rest_enabled(tool) {
             format!("POST /v1/tools/{}", tool.name)

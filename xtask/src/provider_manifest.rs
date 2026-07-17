@@ -41,7 +41,7 @@ pub fn check() -> Result<()> {
         let path = fixtures.join(name);
         let payload = load_json(&path)?;
         validate_schema(&compiled, &payload, &path)?;
-        soma_contracts::provider_validation::validate_provider_manifest_value(&payload)
+        soma_domain::provider_validation::validate_provider_manifest_value(&payload)
             .with_context(|| format!("semantic validation failed for {}", path.display()))?;
     }
 
@@ -49,7 +49,7 @@ pub fn check() -> Result<()> {
         let path = fixtures.join(name);
         let payload = load_json(&path)?;
         validate_schema(&compiled, &payload, &path)?;
-        let error = soma_contracts::provider_validation::validate_provider_manifest_value(&payload)
+        let error = soma_domain::provider_validation::validate_provider_manifest_value(&payload)
             .expect_err("invalid fixture should fail semantic validation");
         if error.code() != *code {
             bail!(

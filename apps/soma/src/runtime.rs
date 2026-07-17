@@ -15,7 +15,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 #[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
 use soma_client::SomaClient;
-use soma_contracts::config::Config;
+use soma_config::Config;
 #[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
 use soma_service::SomaService;
 

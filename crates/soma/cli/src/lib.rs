@@ -16,7 +16,7 @@
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 use soma_application::{ExecuteActionRequest, ExecutionContext, SomaApplication};
-use soma_contracts::actions::{ActionSpec, SomaAction};
+use soma_domain::actions::{ActionSpec, SomaAction};
 use soma_domain::{Confirmation, RequestId, Surface};
 use std::io::{BufRead, IsTerminal, Write};
 use std::sync::{atomic::AtomicU64, atomic::Ordering, Arc};
@@ -337,7 +337,7 @@ pub(crate) fn cli_execution_context(destructive_confirmed: bool) -> ExecutionCon
 }
 
 #[cfg(test)]
-fn format_cli_tool_error(error: &soma_contracts::errors::ToolError) -> String {
+fn format_cli_tool_error(error: &soma_domain::errors::ToolError) -> String {
     let mut lines = vec![
         format!("error: {}", error.message),
         format!("code: {}", error.code),
@@ -487,7 +487,7 @@ fn scalar_json(value: &str) -> serde_json::Value {
     }
 }
 
-// Must match soma_contracts::provider_validation's RESERVED_CLI_COMMANDS
+// Must match soma_domain::provider_validation's RESERVED_CLI_COMMANDS
 // exactly — that list is what soma providers validate/lint checks against,
 // so a name reserved only here passes manifest validation but is
 // unreachable once it hits this parser.

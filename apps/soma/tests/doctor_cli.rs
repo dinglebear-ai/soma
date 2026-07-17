@@ -6,7 +6,7 @@
 //! `doctor_tests.rs` / `doctor/checks_tests.rs` only unit-test individual
 //! `check_*` functions, never `run_doctor()`'s composed output, and no test
 //! spawned `soma doctor` as a subprocess. `doctor.rs` imports
-//! `soma_contracts::config::{default_data_dir, Config}` directly, so a field
+//! `soma_config::{default_data_dir, Config}` directly, so a field
 //! rename or default-value change made while extracting `soma-config` (PR 13)
 //! would silently alter both the human report and the `--json` payload with
 //! nothing failing.

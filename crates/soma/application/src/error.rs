@@ -1,5 +1,5 @@
 use serde::Serialize;
-use soma_contracts::errors::ServiceErrorKind;
+use soma_domain::errors::ServiceErrorKind;
 use soma_service::ProviderError;
 
 use crate::PortError;

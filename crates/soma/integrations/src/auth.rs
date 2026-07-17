@@ -17,9 +17,9 @@ pub fn soma_auth_config_builder() -> soma_auth::config::AuthConfigBuilder {
         .env_prefix("SOMA_MCP")
         .session_cookie_name("soma_mcp_session")
         .scopes_supported(vec![
-            soma_contracts::actions::READ_SCOPE.into(),
-            soma_contracts::actions::WRITE_SCOPE.into(),
-            soma_contracts::scopes::ADMIN_SCOPE.into(),
+            soma_domain::actions::READ_SCOPE.into(),
+            soma_domain::actions::WRITE_SCOPE.into(),
+            soma_domain::scopes::ADMIN_SCOPE.into(),
         ])
         .default_scope("soma:read")
         .resource_path("/mcp")

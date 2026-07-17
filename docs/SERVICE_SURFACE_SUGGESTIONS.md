@@ -49,7 +49,7 @@ Direct routes give better OpenAPI, clearer auth docs, easier client SDK generati
 
 ## Action Contract
 
-Use `crates/soma/contracts/src/actions.rs` as the canonical action contract:
+Use `crates/soma/domain/src/actions.rs` as the canonical action contract:
 
 - action enum
 - transport availability

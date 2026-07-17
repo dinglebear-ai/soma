@@ -1,11 +1,9 @@
 use async_trait::async_trait;
 use serde_json::{json, Map, Value};
-use soma_contracts::{
-    actions::{ActionTransport, SomaAction, ACTION_SPECS},
-    providers::{
-        CliOverlay, DocsOverlay, McpOverlay, PaletteOverlay, ProviderCatalog, ProviderIdentity,
-        ProviderKind, ProviderManifest, ProviderPrompt, ProviderTool, RestOverlay,
-    },
+use soma_domain::actions::{ActionTransport, SomaAction, ACTION_SPECS};
+use soma_provider_core::{
+    CliOverlay, DocsOverlay, McpOverlay, PaletteOverlay, ProviderCatalog, ProviderIdentity,
+    ProviderKind, ProviderManifest, ProviderPrompt, ProviderTool, RestOverlay,
 };
 
 use crate::{
@@ -122,7 +120,7 @@ fn static_catalog() -> ProviderCatalog {
     }
 }
 
-fn static_tool(spec: &soma_contracts::actions::ActionSpec) -> ProviderTool {
+fn static_tool(spec: &soma_domain::actions::ActionSpec) -> ProviderTool {
     ProviderTool {
         name: spec.name.to_owned(),
         description: spec.description.to_owned(),
@@ -189,7 +187,7 @@ fn static_tool(spec: &soma_contracts::actions::ActionSpec) -> ProviderTool {
     }
 }
 
-fn static_rest_overlay(spec: &soma_contracts::actions::ActionSpec) -> Option<RestOverlay> {
+fn static_rest_overlay(spec: &soma_domain::actions::ActionSpec) -> Option<RestOverlay> {
     match spec.rest_path {
         Some(path) => Some(RestOverlay {
             enabled: spec.transport.rest(),
@@ -219,7 +217,7 @@ fn static_rest_overlay(spec: &soma_contracts::actions::ActionSpec) -> Option<Res
     }
 }
 
-fn action_output_schema(spec: &soma_contracts::actions::ActionSpec) -> Value {
+fn action_output_schema(spec: &soma_domain::actions::ActionSpec) -> Value {
     match spec.name {
         "greet" => json!({
             "type": "object",
@@ -317,7 +315,7 @@ fn action_output_schema(spec: &soma_contracts::actions::ActionSpec) -> Value {
     }
 }
 
-fn action_input_schema(spec: &soma_contracts::actions::ActionSpec) -> Value {
+fn action_input_schema(spec: &soma_domain::actions::ActionSpec) -> Value {
     let mut properties = Map::new();
     let mut required = Vec::new();
     for param in spec.params {

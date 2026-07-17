@@ -1,15 +1,10 @@
-use serde::Serialize;
+// `RestRoute` (the generic route-metadata shape) and `CapabilitiesResponse`
+// live in `soma-http-api` (plan section 3.11) — reusable across any product
+// built on this workspace. `REST_ROUTES` below is Soma's own concrete route
+// table and stays here.
+pub use soma_http_api::route_inventory::{CapabilitiesResponse, RestRoute};
 
 pub(crate) const GATEWAY_ROUTE_PATH: &str = "/v1/gateway/{action}";
-
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
-pub struct RestRoute {
-    pub method: &'static str,
-    pub path: &'static str,
-    pub action: Option<&'static str>,
-    pub auth: &'static str,
-    pub description: &'static str,
-}
 
 pub const REST_ROUTES: &[RestRoute] = &[
     RestRoute {
@@ -107,26 +102,13 @@ pub const REST_ROUTES: &[RestRoute] = &[
     },
 ];
 
-#[derive(Debug, Serialize)]
-pub struct CapabilitiesResponse {
-    pub server: &'static str,
-    pub version: &'static str,
-    pub preferred_rest_style: &'static str,
-    pub supported_routes: Vec<String>,
-    pub routes: &'static [RestRoute],
-}
-
 pub(crate) fn capabilities_response() -> CapabilitiesResponse {
-    CapabilitiesResponse {
-        server: "soma-mcp",
-        version: env!("CARGO_PKG_VERSION"),
-        preferred_rest_style: "direct_routes",
-        supported_routes: REST_ROUTES
-            .iter()
-            .map(|route| format!("{} {}", route.method, route.path))
-            .collect(),
-        routes: REST_ROUTES,
-    }
+    soma_http_api::route_inventory::capabilities_response(
+        "soma-mcp",
+        env!("CARGO_PKG_VERSION"),
+        "direct_routes",
+        REST_ROUTES,
+    )
 }
 
 #[cfg(test)]

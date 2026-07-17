@@ -157,7 +157,7 @@ fn authenticate_protected_route_request(
         .collect::<Vec<_>>();
     let is_admin = granted
         .iter()
-        .any(|scope| scope == soma_contracts::scopes::ADMIN_SCOPE);
+        .any(|scope| scope == soma_domain::scopes::ADMIN_SCOPE);
     if !is_admin
         && !route
             .scopes

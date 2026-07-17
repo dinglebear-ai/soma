@@ -6,11 +6,9 @@ use std::{
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use soma_contracts::{
-    provider_validation::{validate_manifest_schema, validate_provider_manifest},
-    providers::{ProviderCatalog, ProviderKind},
-};
+use soma_domain::provider_validation::{validate_manifest_schema, validate_provider_manifest};
 use soma_provider_adapters::manifest_file;
+use soma_provider_core::{ProviderCatalog, ProviderKind};
 
 use crate::{
     provider_registry::{DynamicResourceTemplate, Provider, SharedAdapter},

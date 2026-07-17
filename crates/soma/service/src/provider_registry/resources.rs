@@ -7,10 +7,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use soma_contracts::{
-    actions::scopes_satisfy, provider_validation::ProviderValidationError,
-    providers::ProviderResource,
-};
+use soma_domain::{actions::scopes_satisfy, provider_validation::ProviderValidationError};
+use soma_provider_core::ProviderResource;
 
 use crate::{
     provider_errors::ProviderError,

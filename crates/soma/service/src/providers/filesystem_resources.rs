@@ -16,7 +16,7 @@ use crate::{
         resource_uri::display_with_forward_slashes,
     },
 };
-use soma_contracts::providers::{ProviderCatalog, ProviderKind};
+use soma_provider_core::{ProviderCatalog, ProviderKind};
 
 use super::{FileProviderLoadError, ProviderFileInspection, ProviderFileInspectionStatus};
 

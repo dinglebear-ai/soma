@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde_json::json;
-use soma_contracts::providers::{
+use soma_provider_core::{
     McpOverlay, ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderPrompt,
     ProviderTool,
 };

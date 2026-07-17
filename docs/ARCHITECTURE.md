@@ -78,7 +78,7 @@ client → service → shim pattern:
 - `xtask/` - repo-local build/release tooling (version-sync checks, release
   planning, schema codegen for `codex-app-server-client`). Its
   `codex-schema` subcommand has no dependency on `soma-*` crates, but `xtask`
-  itself depends on `soma-contracts` and `soma-service` (path deps) for its
+  itself depends on `soma-domain` and `soma-service` (path deps) for its
   other duties, such as version-sync and release-plan checks. See
   `docs/XTASKS.md`.
 
@@ -88,13 +88,13 @@ client → service → shim pattern:
 |---|---|
 | `crates/soma/client/src/client.rs` | Upstream/client transport stub. Replace with your service API client. |
 | `crates/soma/service/src/app.rs` | Service layer. All business rules live here. |
-| `crates/soma/contracts/src/actions.rs` | Canonical action metadata, parsing, REST dispatch helpers. |
+| `crates/soma/domain/src/actions.rs` | Canonical action metadata, parsing, REST dispatch helpers. |
 | `crates/soma/mcp/src/tools.rs` | MCP tool dispatch and elicitation-only actions. |
 | `crates/soma/mcp/src/schemas.rs` | Tool input schema generated from action metadata. |
 | `crates/soma/mcp/src/rmcp_server.rs` | `ServerHandler`, scope enforcement, tools/resources/prompts. |
 | `crates/soma/runtime/src/server.rs` | Shared auth policy resolution and app state. |
 | `apps/soma/src/routes.rs` | HTTP routes for MCP, health, status, REST API, and web assets. |
-| `crates/soma/contracts/src/config.rs` | Environment/config loading and safe defaults. |
+| `crates/soma/config/src/config.rs` | Environment/config loading and safe defaults. |
 | `apps/soma/src/bin/soma.rs` | Canonical binary mode dispatch for `serve`, `mcp`, and CLI commands. |
 
 ## AppState
@@ -266,7 +266,7 @@ Zero validation, zero defaults, zero error message crafting in shims. All of tha
 ## Invariants
 
 - Shims do not contain business logic.
-- All action metadata starts in `crates/soma/contracts/src/actions.rs`.
+- All action metadata starts in `crates/soma/domain/src/actions.rs`.
 - Read actions require `soma:read`; write actions require `soma:write`; `help` is public.
 - Stdio is local trusted transport; HTTP is protected unless in loopback or explicit trusted-gateway mode.
 - Plugin setup is binary-owned: hook scripts delegate to `soma setup plugin-hook`.

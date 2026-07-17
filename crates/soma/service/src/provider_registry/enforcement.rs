@@ -1,9 +1,7 @@
 //! Soma-specific policy layered around provider-core dispatch.
 
-use soma_contracts::{
-    actions::scopes_satisfy,
-    providers::{HostCapabilities, ProviderTool},
-};
+use soma_domain::actions::scopes_satisfy;
+use soma_provider_core::{HostCapabilities, ProviderTool};
 
 use crate::{capabilities::CapabilityBroker, provider_errors::ProviderError};
 

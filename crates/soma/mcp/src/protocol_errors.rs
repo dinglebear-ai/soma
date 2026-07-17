@@ -5,7 +5,7 @@ use rmcp::{
 use serde_json::{json, Value};
 
 use soma_application::{ApplicationError, ApplicationErrorDetails};
-use soma_contracts::token_limit::MAX_RESPONSE_BYTES;
+use soma_domain::token_limit::MAX_RESPONSE_BYTES;
 
 pub(super) fn tool_error_result(value: Value) -> Result<CallToolResult, ErrorData> {
     let text = serde_json::to_string(&value)
@@ -107,7 +107,7 @@ pub(super) fn application_error_payload(
             }),
         };
     }
-    soma_contracts::errors::ToolError::execution(error).to_mcp_payload(tool, action)
+    soma_domain::errors::ToolError::execution(error).to_mcp_payload(tool, action)
 }
 
 fn add_optional_error_field(payload: &mut Value, field: &str, value: Option<&str>) {

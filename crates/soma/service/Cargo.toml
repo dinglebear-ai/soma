@@ -26,7 +26,7 @@ base64 = "0.22"
 jsonschema = "0.47"
 metrics = { version = "0.24", optional = true }
 soma-client = { workspace = true }
-soma-contracts = { workspace = true }
+soma-domain = { workspace = true }
 soma-provider-adapters = { workspace = true, features = [
   "ai-sdk",
   "gateway",
@@ -47,4 +47,5 @@ url = "2"
 
 [dev-dependencies]
 axum = "0.8"
+soma-config = { workspace = true }
 tokio = { version = "1", features = ["macros", "net", "process", "rt-multi-thread", "time"] }

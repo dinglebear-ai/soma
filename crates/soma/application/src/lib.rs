@@ -16,4 +16,4 @@ pub use types::{
     ReadResourceRequest, ResourceContent, ResourceTemplateSpec, ScaffoldIntentRequest,
 };
 
-pub use soma_contracts::providers::{ProviderPrompt, ProviderResource};
+pub use soma_provider_core::{ProviderPrompt, ProviderResource};

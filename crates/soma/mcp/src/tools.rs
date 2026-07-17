@@ -21,7 +21,7 @@ use soma_application::{
     ElicitedName, ExecuteActionRequest, ExecutionContext, ScaffoldIntentRequest, SomaApplication,
 };
 #[cfg(test)]
-use soma_contracts::actions::{ActionTransport, ACTION_SPECS};
+use soma_domain::actions::{ActionTransport, ACTION_SPECS};
 
 use crate::McpState;
 

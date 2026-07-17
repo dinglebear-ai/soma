@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use soma_contracts::provider_validation::validate_provider_manifest_value;
+use soma_domain::provider_validation::validate_provider_manifest_value;
 
 fn fixture(name: &str) -> serde_json::Value {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))

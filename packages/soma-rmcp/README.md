@@ -398,7 +398,7 @@ Transport shims
   apps/soma/src/routes.rs     Axum router, auth, MCP, API, web fallback.
 
 Built-in action metadata
-  crates/soma/contracts/src/actions.rs
+  crates/soma/domain/src/actions.rs
   Native action metadata, validation, cached catalog/help, and native dispatch.
 ```
 
@@ -731,7 +731,7 @@ action metadata, MCP dispatch, CLI variants, service stubs, and test coverage.
 3. Register native provider/action metadata so MCP, CLI, REST, docs, and plugins stay registry-driven.
 4. Regenerate MCP schema docs, provider surface docs, and OpenAPI so generated surfaces reflect the provider registry.
 5. Add REST handlers only for infrastructure routes; business actions should stay registry-backed direct routes.
-6. Update config fields and env prefixes in `crates/soma/contracts/src/config.rs`.
+6. Update config fields and env prefixes in `crates/soma/config/src/config.rs`.
 7. Update `.env.example`, `config.soma.toml`, plugin options, and setup mappings.
 8. Update `server.json`, plugin metadata, repository URLs, Docker labels, and release metadata.
 9. Add tests for MCP dispatch, CLI parsing, REST routes, provider loading, and service behavior.

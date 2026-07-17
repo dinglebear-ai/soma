@@ -17,11 +17,11 @@ use soma_application::{
     ExecutionContext, GatewayExecuteRequest, GatewayPort, GatewayPromptRoute, GatewayReloadRequest,
     GatewayResourceRoute, GatewayRouteScope, GatewayToolRoute, PortError,
 };
-use soma_contracts::{
+use soma_domain::{
     actions::{scopes_satisfy, READ_SCOPE},
     scopes::has_admin_scope,
+    AuthorizationMode,
 };
-use soma_domain::AuthorizationMode;
 use soma_gateway::gateway::dispatch::{
     dispatch_gateway_action, GatewayAccess, GatewayDispatchError,
 };

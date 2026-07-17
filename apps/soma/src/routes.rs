@@ -185,7 +185,7 @@ async fn metrics_handler() -> axum::response::Response {
     }
 }
 
-fn cors_layer(config: &soma_contracts::config::McpConfig) -> CorsLayer {
+fn cors_layer(config: &soma_config::McpConfig) -> CorsLayer {
     let origins: Vec<HeaderValue> = allowed_origins(config)
         .into_iter()
         .filter_map(|o| match o.parse::<HeaderValue>() {

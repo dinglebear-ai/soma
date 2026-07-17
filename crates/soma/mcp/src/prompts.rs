@@ -14,7 +14,7 @@
 use rmcp::model::{
     GetPromptRequestParams, GetPromptResult, ListPromptsResult, Prompt, PromptMessage, Role,
 };
-use soma_contracts::providers::ProviderPrompt;
+use soma_provider_core::ProviderPrompt;
 
 pub(super) fn list_prompts() -> ListPromptsResult {
     ListPromptsResult {

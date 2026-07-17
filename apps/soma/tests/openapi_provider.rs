@@ -1,11 +1,11 @@
 use std::{fs, path::Path};
 
 use serde_json::json;
-use soma_contracts::{
-    provider_validation::validate_provider_manifest_value, providers::CapabilityGrant,
-};
+use soma_domain::provider_validation::validate_provider_manifest_value;
 use soma_provider_adapters::openapi::OpenApiProvider;
-use soma_provider_core::{Provider as CoreProvider, ProviderCall as CoreProviderCall};
+use soma_provider_core::{
+    CapabilityGrant, Provider as CoreProvider, ProviderCall as CoreProviderCall,
+};
 use soma_service::{
     capabilities::CapabilityBroker,
     provider_registry::{
@@ -18,7 +18,7 @@ use tokio::{
     net::TcpListener,
 };
 
-fn openapi_catalog() -> soma_contracts::providers::ProviderCatalog {
+fn openapi_catalog() -> soma_provider_core::ProviderCatalog {
     let path =
         workspace_root().join("docs/contracts/examples/provider-manifests/openapi.valid.json");
     let value: serde_json::Value =

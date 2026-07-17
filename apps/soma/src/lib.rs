@@ -18,9 +18,9 @@ pub use soma_api::gateway as gateway_api;
 #[cfg(feature = "cli")]
 pub use soma_cli as cli;
 pub use soma_client as soma;
-pub use soma_contracts::actions;
-pub use soma_contracts::config;
-pub use soma_contracts::env_registry;
+pub use soma_config::config;
+pub use soma_config::env_registry;
+pub use soma_domain::actions;
 #[cfg(feature = "mcp")]
 pub use soma_mcp as mcp;
 #[cfg(feature = "observability")]
@@ -30,7 +30,7 @@ pub use soma_observability::logging;
 pub use soma_service::app;
 #[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
 pub mod runtime;
-pub use soma_contracts::token_limit;
+pub use soma_domain::token_limit;
 #[cfg(feature = "web")]
 pub use soma_web as web;
 
@@ -177,7 +177,7 @@ pub mod testing {
             soma_service::static_provider_registry(service.clone()).expect("static registry");
         state(
             McpConfig {
-                auth: soma_contracts::config::AuthConfig {
+                auth: soma_config::AuthConfig {
                     public_url: Some("https://example.example.com".to_string()),
                     ..Default::default()
                 },
@@ -223,9 +223,9 @@ pub mod testing {
             .env_prefix("SOMA_MCP")
             .session_cookie_name("soma_mcp_session")
             .scopes_supported(vec![
-                soma_contracts::actions::READ_SCOPE.into(),
-                soma_contracts::actions::WRITE_SCOPE.into(),
-                soma_contracts::scopes::ADMIN_SCOPE.into(),
+                soma_domain::actions::READ_SCOPE.into(),
+                soma_domain::actions::WRITE_SCOPE.into(),
+                soma_domain::scopes::ADMIN_SCOPE.into(),
             ])
             .default_scope("soma:read")
             .resource_path("/mcp")

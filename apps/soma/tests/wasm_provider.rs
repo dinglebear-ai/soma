@@ -2,7 +2,7 @@ use std::fs;
 
 use serde_json::{json, Value};
 use soma_client::SomaClient;
-use soma_contracts::config::SomaConfig;
+use soma_config::SomaConfig;
 use soma_service::{
     dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
     provider_registry::ProviderCall, provider_registry::ProviderPrincipal,

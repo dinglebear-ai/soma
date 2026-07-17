@@ -141,5 +141,5 @@ Public endpoints (`/health`, `/status`) are never gated by auth, regardless of p
 ## CUSTOMIZE
 
 When you adapt Soma, replace all `SOMA_` prefixes with your service's prefix
-throughout `crates/soma/contracts/src/config.rs`,
+throughout `crates/soma/config/src/config.rs`,
 `apps/soma/src/bin/soma.rs`, and this document.

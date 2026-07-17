@@ -11,7 +11,7 @@
 //! synchronous and need no network access.
 
 use super::*;
-use soma_contracts::config::{AuthConfig, McpConfig};
+use soma_config::{AuthConfig, McpConfig};
 
 fn config(host: &str, port: u16) -> McpConfig {
     McpConfig {

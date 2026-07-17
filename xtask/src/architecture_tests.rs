@@ -118,6 +118,38 @@ fn soma_mcp_cannot_depend_directly_on_legacy_or_gateway_engines() {
 }
 
 #[test]
+fn any_layer_depending_on_deprecated_contracts_facade_fails() {
+    for (name, path, layer) in [
+        ("soma-mcp", "crates/soma/mcp", "product-surface"),
+        (
+            "soma-integrations",
+            "crates/soma/integrations",
+            "product-integration",
+        ),
+        ("soma-runtime", "crates/soma/runtime", "product-runtime"),
+        ("soma", "apps/soma", "app"),
+        ("soma-service", "crates/soma/service", "legacy"),
+    ] {
+        let failures = failures(vec![
+            pkg(
+                name,
+                path,
+                layer,
+                vec![dep("soma-contracts", "crates/soma/contracts")],
+            ),
+            pkg("soma-contracts", "crates/soma/contracts", "legacy", vec![]),
+        ]);
+
+        assert!(
+            failures
+                .join("\n")
+                .contains("depends on the deprecated soma-contracts facade"),
+            "expected edge from {name} to soma-contracts to fail: {failures:#?}"
+        );
+    }
+}
+
+#[test]
 fn dev_and_build_dependencies_do_not_create_production_edges() {
     let failures = failures(vec![
         pkg(

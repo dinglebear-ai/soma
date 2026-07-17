@@ -8,7 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use serde_json::json;
-use soma_contracts::providers::{
+use soma_provider_core::{
     CapabilityGrant, HostCapabilities, McpOverlay, NetworkCapability, ProviderCatalog,
     ProviderIdentity, ProviderKind, ProviderManifest, ProviderPrompt, ProviderResource,
     ProviderTool, RestOverlay,

@@ -7,7 +7,7 @@ use soma::{
     server,
     testing::{bearer_state, loopback_state},
 };
-use soma_contracts::scopes::ADMIN_SCOPE;
+use soma_domain::scopes::ADMIN_SCOPE;
 
 mod support;
 use support::request_json;

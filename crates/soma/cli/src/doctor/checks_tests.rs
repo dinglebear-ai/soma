@@ -12,7 +12,7 @@
 //! scaffolding.
 
 use super::*;
-use soma_contracts::config::{McpConfig, SomaConfig};
+use soma_config::{McpConfig, SomaConfig};
 
 // ── check_required_var ────────────────────────────────────────────────────────
 

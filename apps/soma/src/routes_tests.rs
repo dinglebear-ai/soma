@@ -152,7 +152,7 @@ async fn oauth_admin_gateway_add_is_visible_to_protected_route_proxy() {
     let admin_token = protected_route_token(
         &state,
         "https://example.example.com/mcp",
-        soma_contracts::scopes::ADMIN_SCOPE,
+        soma_domain::scopes::ADMIN_SCOPE,
     );
     let route_token = protected_route_token(&state, "https://mcp.example.com/media", "soma:read");
     let app = router(state);
@@ -223,7 +223,7 @@ async fn upstream_oauth_state_is_shared_by_gateway_actions_and_protected_proxy()
     let admin_token = protected_route_token(
         &state,
         "https://example.example.com/mcp",
-        soma_contracts::scopes::ADMIN_SCOPE,
+        soma_domain::scopes::ADMIN_SCOPE,
     );
     let route_token = protected_route_token(&state, "https://mcp.example.com/media", "soma:read");
     let app = router(state);

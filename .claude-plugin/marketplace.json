@@ -1,28 +1,28 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-  "description": "Generated marketplace catalog for Soma plugins.",
-  "homepage": "https://soma.dinglebear.ai",
-  "license": "MIT",
   "name": "soma",
+  "description": "Generated marketplace catalog for Soma plugins.",
   "owner": {
     "name": "dinglebear.ai",
     "url": "https://dinglebear.ai"
   },
+  "homepage": "https://soma.dinglebear.ai",
+  "repository": "https://github.com/jmagar/soma",
+  "support": "https://github.com/jmagar/soma/issues",
+  "security_policy": "https://github.com/jmagar/soma/security/policy",
+  "license": "MIT",
   "plugins": [
     {
-      "category": "infrastructure",
+      "name": "soma",
       "description": "Soma RMCP runtime plugin for drop-in provider-backed tools, prompts, and resources.",
+      "source": "./plugins/soma",
+      "category": "infrastructure",
       "metadata": {
-        "binary": "soma",
         "mcpServer": "server.json",
         "nodePackage": "soma-rmcp",
-        "ociImage": "ghcr.io/jmagar/soma"
-      },
-      "name": "soma",
-      "source": "./plugins/soma"
+        "ociImage": "ghcr.io/jmagar/soma",
+        "binary": "soma"
+      }
     }
-  ],
-  "repository": "https://github.com/jmagar/soma",
-  "security_policy": "https://github.com/jmagar/soma/security/policy",
-  "support": "https://github.com/jmagar/soma/issues"
+  ]
 }

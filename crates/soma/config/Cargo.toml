@@ -1,0 +1,27 @@
+[package]
+name = "soma-config"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Product configuration, environment loading, and env-var registry for soma"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "product-support"
+
+[dependencies]
+anyhow = "1"
+dirs = "6"
+dotenvy = "0.15.7"
+serde = { version = "1", features = ["derive"] }
+toml = "1.1"
+
+[dev-dependencies]
+# Serializes tests that mutate process-global env so `cargo test` (shared
+# process; unlike nextest's process-per-test) cannot race on env state.
+serial_test = "3"
+serde_json = "1"

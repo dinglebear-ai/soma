@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use soma_contracts::providers::{
+use soma_provider_core::{
     CliOverlay, EnvRequirement, McpOverlay, ProviderCatalog, ProviderIdentity, ProviderKind,
     ProviderManifest, ProviderPrompt, ProviderResource, ProviderTool, RestOverlay,
 };

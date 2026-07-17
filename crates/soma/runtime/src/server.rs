@@ -8,7 +8,7 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use soma_application::SomaApplication;
-use soma_contracts::config::{AuthMode, Config, McpConfig};
+use soma_config::{AuthMode, Config, McpConfig};
 #[cfg(feature = "protected-routes")]
 use soma_gateway::config::ProtectedMcpRouteConfig;
 use soma_gateway::{
@@ -335,7 +335,7 @@ pub fn build_auth_layer(
                 soma_auth::AuthLayer::new()
                     .with_static_token(static_token)
                     .with_auth_state(auth_state.clone())
-                    .with_static_token_scopes(vec![soma_contracts::actions::READ_SCOPE.into()])
+                    .with_static_token_scopes(vec![soma_domain::actions::READ_SCOPE.into()])
                     .with_resource_url(resource_url)
                     .with_allow_session_cookie(false),
             )

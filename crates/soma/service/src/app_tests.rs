@@ -16,7 +16,7 @@
 
 use super::*;
 use soma_client::SomaClient;
-use soma_contracts::config::SomaConfig;
+use soma_config::SomaConfig;
 
 /// Build a stub SomaService for testing without real credentials.
 fn stub_service() -> SomaService {

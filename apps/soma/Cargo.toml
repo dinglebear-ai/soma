@@ -45,7 +45,7 @@ soma-application = { workspace = true }
 soma-auth = { workspace = true, optional = true, features = ["http-axum"] }
 soma-cli = { workspace = true, optional = true }
 soma-client = { workspace = true }
-soma-contracts = { workspace = true }
+soma-config = { workspace = true }
 soma-domain = { workspace = true }
 soma-gateway = { workspace = true }
 soma-integrations = { workspace = true, optional = true }
@@ -129,7 +129,6 @@ test-support = ["dep:soma-integrations", "soma-mcp?/test-support"]
 [dev-dependencies]
 axum = "0.8"
 soma = { path = ".", package = "soma", default-features = false, features = ["test-support"] }
-soma-contracts = { workspace = true }
 soma-provider-adapters = { workspace = true, features = [
   "ai-sdk",
   "gateway",

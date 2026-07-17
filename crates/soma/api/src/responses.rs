@@ -6,6 +6,7 @@ use axum::{
 };
 use serde_json::json;
 use soma_application::ApplicationError;
+use soma_http_api::response::json_rejection_response;
 
 pub(crate) fn rest_error_response(error: anyhow::Error, action: &str) -> Response {
     tracing::warn!(error = %error, action, "REST action rejected invalid params");
@@ -20,13 +21,10 @@ pub(crate) fn rest_error_response(error: anyhow::Error, action: &str) -> Respons
         .into_response()
 }
 
+/// Delegates to `soma-http-api`'s generic body-rejection renderer — every
+/// Soma REST handler in this crate shares the exact same 413/400 mapping.
 pub(crate) fn rest_json_rejection_response(error: JsonRejection) -> Response {
-    let status = if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
-        StatusCode::PAYLOAD_TOO_LARGE
-    } else {
-        StatusCode::BAD_REQUEST
-    };
-    (status, Json(json!({"error": error.to_string()}))).into_response()
+    json_rejection_response(error)
 }
 
 pub(crate) fn application_error_response(error: ApplicationError) -> Response {

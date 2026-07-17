@@ -12,8 +12,8 @@ use soma::{
     server::{self, AuthPolicy},
     testing::{bearer_state, loopback_state, loopback_state_with_registry},
 };
-use soma_contracts::actions::ACTION_SPECS;
-use soma_contracts::providers::{
+use soma_domain::actions::ACTION_SPECS;
+use soma_provider_core::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool, RestOverlay,
 };
 use soma_service::provider_registry::{Provider, ProviderCall, ProviderOutput, ProviderRegistry};

@@ -1,6 +1,5 @@
 use axum::{
     extract::{rejection::JsonRejection, Extension, Path, State},
-    http::StatusCode,
     response::{IntoResponse, Json},
 };
 #[cfg(feature = "auth")]
@@ -12,6 +11,7 @@ pub struct AuthContext {
 }
 use serde_json::{json, Value};
 use soma_application::{ApplicationError, GatewayExecuteRequest};
+use soma_http_api::json::{json_body_or_else, JsonBodyOutcome};
 
 use crate::{responses::application_error_status, ApiState};
 
@@ -21,10 +21,9 @@ pub async fn v1_gateway_action(
     Path(action): Path<String>,
     body: Result<Json<Value>, JsonRejection>,
 ) -> axum::response::Response {
-    let params = match body {
-        Ok(Json(value)) => value,
-        Err(JsonRejection::MissingJsonContentType(_)) => json!({}),
-        Err(error) => return json_rejection_response(error),
+    let params = match json_body_or_else(body, true, || json!({})) {
+        JsonBodyOutcome::Params(value) => value,
+        JsonBodyOutcome::Response(response) => return response,
     };
     let auth = auth.as_ref().map(|Extension(auth)| auth);
     let scopes = auth.map(|auth| auth.scopes.as_slice()).unwrap_or_default();
@@ -75,15 +74,6 @@ fn gateway_error_response(action: &str, error: ApplicationError) -> axum::respon
         })),
     )
         .into_response()
-}
-
-fn json_rejection_response(error: JsonRejection) -> axum::response::Response {
-    let status = if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
-        StatusCode::PAYLOAD_TOO_LARGE
-    } else {
-        StatusCode::BAD_REQUEST
-    };
-    (status, Json(json!({"error": error.to_string()}))).into_response()
 }
 
 #[cfg(test)]

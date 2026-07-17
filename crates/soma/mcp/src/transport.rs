@@ -14,7 +14,7 @@ use rmcp::transport::streamable_http_server::{
     session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
 };
 
-use soma_contracts::config::McpConfig;
+use soma_config::McpConfig;
 
 use super::rmcp_server::{rmcp_server as make_server, SomaRmcpServer};
 

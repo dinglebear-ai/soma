@@ -24,12 +24,12 @@ use rmcp_traces::{TraceSummary, TraceTrust};
 use serde_json::{Map, Value};
 
 use soma_application::{ApplicationError, ExecutionContext, ReadResourceRequest, ResourceContent};
-use soma_contracts::{providers::ProviderResource, token_limit::MAX_RESPONSE_BYTES};
-use soma_domain::TraceContext;
+use soma_domain::{token_limit::MAX_RESPONSE_BYTES, TraceContext};
 use soma_mcp_server::response_paging::{
     response_page_request, strip_response_page_params, tool_result_from_cached_page,
     tool_result_from_json, ResponsePagingOptions,
 };
+use soma_provider_core::ProviderResource;
 
 use super::{
     conformance, gateway_proxy, prompts,

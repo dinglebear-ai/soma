@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use super::{optional_name_params, rest_params};
-use soma_contracts::actions::SomaAction;
+use soma_domain::actions::SomaAction;
 
 #[test]
 fn rest_dto_translation_stays_in_the_http_adapter() {

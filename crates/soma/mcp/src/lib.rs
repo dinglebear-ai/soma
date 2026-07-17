@@ -41,7 +41,7 @@ mod testing {
     use std::sync::Arc;
 
     use soma_application::{ApplicationPorts, GatewayPort};
-    use soma_contracts::config::McpConfig;
+    use soma_config::McpConfig;
     use soma_domain::AuthorizationMode;
 
     pub fn loopback_state() -> super::McpState {

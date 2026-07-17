@@ -118,7 +118,7 @@ Agents may use:
 3. **Direct REST routes** when MCP tooling is unavailable (`POST /v1/greet {"name":"Alice"}`)
 4. **Plugin skills** as human/agent guidance
 
-The action metadata in `crates/soma/contracts/src/actions.rs` keeps these surfaces aligned. Every non-MCP-only action that the MCP tool exposes must also be reachable from the CLI and direct REST routes when its transport metadata allows those surfaces.
+The action metadata in `crates/soma/domain/src/actions.rs` keeps these surfaces aligned. Every non-MCP-only action that the MCP tool exposes must also be reachable from the CLI and direct REST routes when its transport metadata allows those surfaces.
 
 ## Summarize by default, expand on request
 
@@ -138,7 +138,7 @@ $ soma thing 42 --json
 
 When adding an action, update:
 
-- `crates/soma/contracts/src/actions.rs` for metadata, validation, and native dispatch
+- `crates/soma/domain/src/actions.rs` for metadata, validation, and native dispatch
 - `crates/soma/service/src/app.rs` for business behavior
 - Generated MCP schema docs and OpenAPI after the registry changes
 - `apps/soma/tests/tool_dispatch.rs`, CLI tests, and REST route tests

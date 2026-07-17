@@ -3,14 +3,12 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use soma_client::SomaClient;
-use soma_contracts::{
-    actions::{READ_SCOPE, WRITE_SCOPE},
-    config::SomaConfig,
-    providers::{ProviderCatalog, ProviderResource},
-};
+use soma_config::SomaConfig;
 use soma_domain::{
+    scopes::{READ_SCOPE, WRITE_SCOPE},
     AuthorizationMode, Confirmation, Principal, RequestId, ScopeSet, Surface, TraceContext,
 };
+use soma_provider_core::{ProviderCatalog, ProviderResource};
 use soma_service::{
     provider_registry::Provider, DynamicResourceTemplate, ProviderCall, ProviderError,
     ProviderOutput, ProviderRegistry, SomaService, StaticRustProvider,

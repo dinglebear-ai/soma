@@ -23,8 +23,8 @@ anyhow = "1"
 axum = "0.8"
 soma-auth = { workspace = true, optional = true, features = ["http-axum"] }
 soma-application = { workspace = true }
-soma-contracts = { workspace = true }
 soma-domain = { workspace = true }
+soma-http-api = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"

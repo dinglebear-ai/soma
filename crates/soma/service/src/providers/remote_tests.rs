@@ -1,5 +1,5 @@
 use serde_json::json;
-use soma_contracts::providers::ProviderKind;
+use soma_provider_core::ProviderKind;
 
 use super::catalogs_from_inspection;
 

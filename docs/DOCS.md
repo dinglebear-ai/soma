@@ -121,7 +121,7 @@ audience:
 scope: "soma"          # soma | service | family
 source_of_truth: false     # true only when this file IS the canonical record
 upstream_refs:             # optional: where authoritative info lives
-  - "crates/soma/contracts/src/config.rs"
+  - "crates/soma/config/src/config.rs"
 last_reviewed: "2026-05-15"
 ---
 ```
@@ -194,7 +194,7 @@ just schema-docs
 just schema-docs-check
 ```
 
-The checker treats `crates/soma/contracts/src/actions.rs::ACTION_SPECS` as canonical. `docs/MCP_SCHEMA.md` and `docs/generated/openapi.json` must stay in sync with it.
+The checker treats `crates/soma/domain/src/actions.rs::ACTION_SPECS` as canonical. `docs/MCP_SCHEMA.md` and `docs/generated/openapi.json` must stay in sync with it.
 
 ### OpenAPI docs
 

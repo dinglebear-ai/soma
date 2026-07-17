@@ -14,9 +14,9 @@ fn applies_somas_product_auth_defaults() {
     assert_eq!(
         config.scopes_supported,
         vec![
-            soma_contracts::actions::READ_SCOPE.to_owned(),
-            soma_contracts::actions::WRITE_SCOPE.to_owned(),
-            soma_contracts::scopes::ADMIN_SCOPE.to_owned(),
+            soma_domain::actions::READ_SCOPE.to_owned(),
+            soma_domain::actions::WRITE_SCOPE.to_owned(),
+            soma_domain::scopes::ADMIN_SCOPE.to_owned(),
         ]
     );
 }

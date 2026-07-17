@@ -321,7 +321,7 @@ The coding agent may mutate files only after the user approves the plan produced
 
 | Concern | File |
 |---|---|
-| Action metadata and parser | `crates/soma/contracts/src/actions.rs` |
+| Action metadata and parser | `crates/soma/domain/src/actions.rs` |
 | Elicitation implementation | `crates/soma/mcp/src/tools.rs` |
 | MCP schema/action enum | `crates/soma/mcp/src/schemas.rs` via `action_names()` |
 | Generated schema docs | `docs/MCP_SCHEMA.md` |

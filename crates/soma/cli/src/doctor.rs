@@ -35,7 +35,7 @@ use checks::{
 use anyhow::{bail, Result};
 use serde::Serialize;
 
-use soma_contracts::config::{default_data_dir, Config};
+use soma_config::{default_data_dir, Config};
 
 // ── Public entry point ────────────────────────────────────────────────────────
 

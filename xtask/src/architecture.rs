@@ -19,6 +19,17 @@ const MCP_FORBIDDEN_DIRECT_DEPENDENCIES: &[&str] = &[
     "crates/shared/mcp/gateway",
 ];
 
+// `crates/soma/contracts` is a deprecated compatibility facade (plan section
+// 6.2, PR 13): it re-exports soma-domain/soma-config/soma-provider-core for
+// one migration window and PR 19 deletes it. It shares the broad `Legacy`
+// layer with `crates/soma/service` (still a legitimate strangler-pattern
+// dependency for several surfaces), so the general layer-edge checks below
+// cannot forbid `Legacy` outright without also forbidding soma-service.
+// Name the facade explicitly instead: no package may depend on it going
+// forward. See soma-architecture-refactor-plan-v3.md PR 13 acceptance:
+// "No production crate depends on soma-contracts."
+const DEPRECATED_CONTRACTS_FACADE_PATH: &str = "crates/soma/contracts";
+
 const TEMPORARY_EXCEPTIONS: &[ArchitectureException] = &[
     ArchitectureException {
         from_path: "crates/soma/application",
@@ -28,14 +39,11 @@ const TEMPORARY_EXCEPTIONS: &[ArchitectureException] = &[
         removal_pr: "PR 12",
         expiration_milestone: "legacy service decomposition",
     },
-    ArchitectureException {
-        from_path: "crates/soma/application",
-        to_path: "crates/soma/contracts",
-        owner: "architecture-refactor",
-        reason: "the application facade exposes legacy provider catalog values during migration",
-        removal_pr: "PR 13",
-        expiration_milestone: "legacy contracts decomposition",
-    },
+    // The "application -> contracts" exception (legacy provider catalog
+    // values) is removed as of PR 13: soma-application now depends directly
+    // on soma-provider-core and soma-domain instead of routing through the
+    // soma-contracts facade, so soma-contracts has no incoming edge from
+    // soma-application to except.
     ArchitectureException {
         from_path: "crates/soma/runtime",
         to_path: "crates/shared/mcp/gateway",
@@ -148,6 +156,14 @@ fn check_direct_edges(graph: &Graph, exceptions: &[ArchitectureException]) -> Ve
         {
             failures.push(format!(
                 "soma-mcp must depend on SomaApplication ports, not service/runtime/gateway engines\n  edge: {}",
+                graph.edge_label(edge)
+            ));
+        }
+        if to.rel_path == DEPRECATED_CONTRACTS_FACADE_PATH {
+            failures.push(format!(
+                "{} ({}) depends on the deprecated soma-contracts facade; depend on soma-domain/soma-config/soma-provider-core directly (plan section 6.2, PR 13 acceptance)\n  edge: {}",
+                from.name,
+                from.rel_path,
                 graph.edge_label(edge)
             ));
         }

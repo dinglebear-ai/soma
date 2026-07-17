@@ -31,7 +31,6 @@ serde_json = "1"
 soma-application = { workspace = true }
 soma-auth = { workspace = true, optional = true }
 soma-codemode = { workspace = true }
-soma-contracts = { workspace = true }
 soma-domain = { workspace = true }
 soma-gateway = { workspace = true, features = ["protected-routes"] }
 mcp-client = { workspace = true, optional = true, features = ["oauth"] }

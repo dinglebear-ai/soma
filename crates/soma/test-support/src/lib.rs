@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 use soma_application::{ApplicationPorts, SomaApplication};
 use soma_client::SomaClient;
-use soma_contracts::{config::SomaConfig, providers::ProviderCatalog};
+use soma_config::SomaConfig;
+use soma_provider_core::ProviderCatalog;
 use soma_service::{
     provider_registry::Provider, ProviderCall, ProviderError, ProviderOutput, ProviderRegistry,
     SomaService,

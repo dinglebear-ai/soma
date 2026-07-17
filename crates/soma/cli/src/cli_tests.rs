@@ -1,10 +1,10 @@
-use soma_contracts::errors::ToolError;
-use soma_contracts::{
+use soma_domain::{
     actions::{ActionCost, ActionSpec, ActionTransport, SomaAction, ACTION_SPECS},
-    providers::{
-        CliOverlay, HostCapabilities, ProviderCatalog, ProviderIdentity, ProviderKind,
-        ProviderManifest, ProviderTool,
-    },
+    errors::ToolError,
+};
+use soma_provider_core::{
+    CliOverlay, HostCapabilities, ProviderCatalog, ProviderIdentity, ProviderKind,
+    ProviderManifest, ProviderTool,
 };
 use soma_test_support::{application_with_provider, default_application};
 

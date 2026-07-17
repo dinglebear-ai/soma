@@ -6,7 +6,7 @@ pub mod providers;
 
 use anyhow::{anyhow, Result};
 use serde_json::Value;
-use soma_contracts::{
+use soma_domain::{
     actions::{action_validation_error, rest_help, SomaAction},
     errors::{ServiceError, ToolError},
 };
@@ -137,7 +137,7 @@ pub async fn execute_service_action(service: &SomaService, action: &SomaAction) 
 }
 
 pub fn is_validation_error(error: &anyhow::Error) -> bool {
-    classify_service_error(error).kind == soma_contracts::errors::ServiceErrorKind::Validation
+    classify_service_error(error).kind == soma_domain::errors::ServiceErrorKind::Validation
 }
 
 pub fn classify_service_error(error: &anyhow::Error) -> ServiceError {

@@ -1,7 +1,7 @@
 //! Unit tests for MCP-specific prompt conversion.
 
 use super::*;
-use soma_contracts::providers::ProviderPrompt;
+use soma_provider_core::ProviderPrompt;
 
 #[test]
 fn list_prompts_returns_quick_start() {

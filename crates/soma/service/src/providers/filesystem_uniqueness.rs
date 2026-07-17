@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use soma_contracts::providers::ProviderCatalog;
+use soma_provider_core::ProviderCatalog;
 
 use crate::{
     provider_registry::DynamicResourceTemplate,
@@ -280,10 +280,7 @@ fn conflict_message(kind: &str, name: &str, owner: &str) -> String {
     format!("duplicate {kind} `{name}` (already claimed by {owner})")
 }
 
-fn rest_route_key(
-    tool_name: &str,
-    rest: &soma_contracts::providers::RestOverlay,
-) -> (String, String) {
+fn rest_route_key(tool_name: &str, rest: &soma_provider_core::RestOverlay) -> (String, String) {
     let method = rest.method.clone().unwrap_or_else(|| "POST".to_owned());
     let path = rest
         .path
@@ -292,7 +289,7 @@ fn rest_route_key(
     (method, path)
 }
 
-fn cli_command(tool_name: &str, cli: &soma_contracts::providers::CliOverlay) -> String {
+fn cli_command(tool_name: &str, cli: &soma_provider_core::CliOverlay) -> String {
     cli.command.clone().unwrap_or_else(|| tool_name.to_owned())
 }
 

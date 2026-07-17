@@ -1,8 +1,6 @@
 use serde_json::json;
-use soma_contracts::{
-    actions::{action_names, action_spec},
-    providers::{ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool},
-};
+use soma_domain::actions::{action_names, action_spec};
+use soma_provider_core::{ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool};
 
 use super::{tool_definitions, tool_definitions_for_catalogs};
 

@@ -36,13 +36,13 @@ subcommands select HTTP server, stdio MCP, or CLI adapter mode.
 | `crates/soma/mcp/src/schemas.rs` | Tool JSON schema derived from `ACTION_SPECS` |
 | `crates/soma/mcp/src/rmcp_server.rs` | `ServerHandler` impl: tools, resources, prompts, scope checks |
 | `crates/soma/mcp/src/prompts.rs` | MCP prompts (`quick_start`) |
-| `crates/soma/contracts/src/config.rs` | `Config`, `SomaConfig`, `McpConfig`, `AuthConfig`, env loading |
+| `crates/soma/config/src/config.rs` | `Config`, `SomaConfig`, `McpConfig`, `AuthConfig`, env loading |
 | `crates/soma/cli/src/lib.rs` | CLI shim: parse args → call service → print |
 | `crates/soma/cli/src/doctor.rs` | Pre-flight checks: env, connectivity, config validation |
 | `crates/soma/cli/src/setup.rs` | Interactive first-run / plugin setup wizard |
 | `crates/soma/cli/src/watch.rs` | Polls `/health` and emits state-change lines for plugin monitor |
 | `crates/soma/mcp/src/transport.rs` | Streamable HTTP transport wiring and session lifecycle |
-| `crates/soma/contracts/src/token_limit.rs` | Token budget enforcement for MCP response payloads |
+| `crates/soma/domain/src/token_limit.rs` | Token budget enforcement for MCP response payloads |
 | `apps/soma/src/bin/soma.rs` | Canonical binary dispatcher for `serve`, `mcp`, and CLI modes |
 | `apps/soma/src/lib.rs` | Public facade + `testing` helpers for integration tests |
 | `apps/soma/tests/cli_parse.rs` | CLI argument parsing tests |
@@ -68,7 +68,7 @@ Dynamic providers load from `./providers` by default or `SOMA_PROVIDER_DIR`. Two
 
 2. **`crates/soma/service/src/app.rs`** — add a delegating method: `pub async fn your_action(&self, ...) -> Result<Value> { self.client.your_action(...).await }`.
 
-3. **`crates/soma/contracts/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope and transport.
+3. **`crates/soma/domain/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope and transport.
 
 4. **`crates/soma/mcp/src/schemas.rs`** — add any new parameters to `tool_definitions()`; the action enum comes from `ACTION_SPECS`.
 

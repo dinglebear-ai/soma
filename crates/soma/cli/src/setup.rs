@@ -9,10 +9,7 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
-use soma_contracts::{
-    config::{default_data_dir, AuthMode, Config},
-    env_registry,
-};
+use soma_config::{default_data_dir, env_registry, AuthMode, Config};
 use soma_runtime::server::resolve_auth_policy_kind;
 
 // ── public surface ────────────────────────────────────────────────────────────

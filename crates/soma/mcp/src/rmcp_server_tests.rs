@@ -8,7 +8,8 @@ use serde_json::json;
 use soma_test_support::{tracing_test_lock, SharedBuf};
 
 use soma_application::{ApplicationError, ApplicationErrorDetails, ResourceContent};
-use soma_contracts::{providers::ProviderResource, token_limit::MAX_RESPONSE_BYTES};
+use soma_domain::token_limit::MAX_RESPONSE_BYTES;
+use soma_provider_core::ProviderResource;
 
 use crate::assert_result_has_no_meta;
 
