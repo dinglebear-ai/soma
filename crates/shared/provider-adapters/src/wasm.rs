@@ -1,15 +1,18 @@
+//! The generic WASM provider kind: runs a drop-in `.wasm` module's exported
+//! `soma_call` ABI in a fuel-bounded wasmtime sandbox. Ported unchanged
+//! (beyond product-type swaps) from `soma-service::providers::wasm`.
+
 use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use serde_json::Value;
-use soma_contracts::providers::{ProviderCatalog, ProviderTool};
+use soma_provider_core::{
+    Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
+};
 use tokio::time::timeout;
 use wasmtime::{Config, Engine, Instance, Memory, Module, Store, TypedFunc};
 
-use crate::{
-    provider_errors::ProviderError,
-    provider_registry::{Provider, ProviderCall, ProviderOutput},
-};
+use crate::sidecar::execution_payload;
 
 #[derive(Clone)]
 pub struct WasmProvider {
@@ -39,7 +42,7 @@ impl Provider for WasmProvider {
         let action = call.action.clone();
         let source = self.path.display().to_string();
         let path = self.path.clone();
-        let input = call.execution_payload().map_err(|error| {
+        let input = execution_payload(&call).map_err(|error| {
             ProviderError::execution(&provider, call.action.clone(), error)
                 .with_provider_kind("wasm")
                 .with_source(source.clone())
@@ -251,3 +254,7 @@ fn read_memory(
         .map_err(|error| error.to_string())?;
     Ok(bytes)
 }
+
+#[cfg(test)]
+#[path = "wasm_tests.rs"]
+mod tests;

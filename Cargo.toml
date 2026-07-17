@@ -17,6 +17,7 @@ members = [
   "crates/shared/mcp/server",
   "crates/shared/observability",
   "crates/shared/openapi",
+  "crates/shared/provider-adapters",
   "crates/shared/provider-core",
   "crates/shared/traces",
   "crates/soma/api",
@@ -73,6 +74,7 @@ soma-mcp-proxy = { path = "crates/shared/mcp/proxy", default-features = false }
 soma-mcp-server = { path = "crates/shared/mcp/server" }
 soma-observability = { path = "crates/shared/observability" }
 soma-openapi = { path = "crates/shared/openapi", default-features = false }
+soma-provider-adapters = { path = "crates/shared/provider-adapters" }
 soma-provider-core = { path = "crates/shared/provider-core", default-features = false }
 
 # Soma product crates

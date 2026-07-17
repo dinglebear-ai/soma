@@ -1,15 +1,21 @@
+//! The generic AI-SDK / sandboxed-TypeScript-handler provider kind: runs a
+//! drop-in `.ts` provider's `call(input)` export in a bounded Node sidecar.
+//! Ported from `soma-service::providers::ai_sdk` with product types swapped
+//! for their `soma-provider-core` equivalents.
+
 use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use serde_json::Value;
-use soma_contracts::providers::{ProviderCatalog, ProviderTool};
+use soma_provider_core::{
+    Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
+};
 use tokio::time::Instant;
 
 use crate::{
-    provider_errors::{redact_public, ProviderError},
-    provider_registry::{Provider, ProviderCall, ProviderOutput},
-    providers::sidecar::{
-        collect_provider_env, output_exceeded_message, run_bounded_sidecar, SidecarError,
+    error::{redact_public, SidecarError},
+    sidecar::{
+        collect_provider_env, execution_payload, output_exceeded_message, run_bounded_sidecar,
     },
 };
 
@@ -17,15 +23,27 @@ use crate::{
 pub struct AiSdkProvider {
     path: PathBuf,
     catalog: ProviderCatalog,
+    /// Product env-namespace prefix (e.g. `"SOMA"`) applied to
+    /// `tool.env`/`provider.env` requirements — this crate has no product
+    /// identity, so the host supplies it.
+    env_prefix: String,
 }
 
 impl AiSdkProvider {
-    pub fn new(path: PathBuf, catalog: ProviderCatalog) -> Self {
-        Self { path, catalog }
+    pub fn new(path: PathBuf, catalog: ProviderCatalog, env_prefix: impl Into<String>) -> Self {
+        Self {
+            path,
+            catalog,
+            env_prefix: env_prefix.into(),
+        }
     }
 
-    pub fn arc(path: PathBuf, catalog: ProviderCatalog) -> Arc<Self> {
-        Arc::new(Self::new(path, catalog))
+    pub fn arc(
+        path: PathBuf,
+        catalog: ProviderCatalog,
+        env_prefix: impl Into<String>,
+    ) -> Arc<Self> {
+        Arc::new(Self::new(path, catalog, env_prefix))
     }
 }
 
@@ -37,9 +55,9 @@ impl Provider for AiSdkProvider {
 
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
         let tool = self.tool(&call)?;
-        let runtime = SidecarRuntime::from_tool(&self.catalog, tool, &call)?;
+        let runtime = SidecarRuntime::from_tool(&self.catalog, tool, &call, &self.env_prefix)?;
         let source = self.path.display().to_string();
-        let input = call.execution_payload().map_err(|error| {
+        let input = execution_payload(&call).map_err(|error| {
             ProviderError::execution(&self.catalog.provider.name, "", error)
                 .with_provider_kind("ai-sdk")
                 .with_source(source.clone())
@@ -183,6 +201,7 @@ impl SidecarRuntime {
         catalog: &ProviderCatalog,
         tool: &ProviderTool,
         call: &ProviderCall,
+        env_prefix: &str,
     ) -> Result<Self, ProviderError> {
         let meta = tool.meta.get("ai_sdk").or_else(|| tool.meta.get("sidecar"));
         let command = meta
@@ -211,7 +230,13 @@ impl SidecarRuntime {
             .unwrap_or(256 * 1024);
         Ok(Self {
             command,
-            env: collect_provider_env(&catalog.env, &tool.env, call)?,
+            env: collect_provider_env(
+                &catalog.env,
+                &tool.env,
+                env_prefix,
+                &call.provider,
+                &call.action,
+            )?,
             timeout_ms,
             max_input_bytes,
             max_output_bytes,
@@ -289,3 +314,7 @@ function removeDefaultManifest(source) {{
         &self.source
     }
 }
+
+#[cfg(test)]
+#[path = "ai_sdk_tests.rs"]
+mod tests;

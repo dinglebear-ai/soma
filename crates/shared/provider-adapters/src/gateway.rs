@@ -1,3 +1,49 @@
+//! Thin, product-neutral projections onto `soma-gateway`, the canonical
+//! upstream-MCP connection/routing engine (plan section "Upstream MCP
+//! decision").
+//!
+//! Two independent pieces live here:
+//!
+//! - [`UpstreamMcpProvider`]: a per-manifest ad-hoc "connect to one upstream
+//!   MCP server and proxy a tool call" provider, migrated from the
+//!   soma-service `mcp` provider kind that predated `soma-gateway`.
+//! - [`project_gateway_action_catalog`]: a pure function that projects
+//!   `soma-gateway`'s own admin action catalog
+//!   (`soma_gateway::gateway::catalog::GatewayActionCatalog`) into a
+//!   `soma_provider_core::ProviderCatalog`, so a host can expose gateway
+//!   administration as a drop-in-shaped provider surface.
+//!
+//! ## Deviation: transport is not yet pooled through `soma-mcp-client`
+//!
+//! `UpstreamMcpProvider` still opens its own per-call `rmcp` session with
+//! the raw `TokioChildProcess` / `StreamableHttpClientTransport` transports
+//! rather than routing through `soma-mcp-client`'s pooled `UpstreamPool`.
+//! That would be the fuller reconciliation the plan calls for (acceptance:
+//! "no second upstream MCP transport stack"), but it is a genuinely
+//! cross-cutting change, not a mechanical swap:
+//!
+//! - `UpstreamPool`/`UpstreamConfig` (`crates/shared/mcp/client/src/config.rs`)
+//!   currently support only a single `bearer_token_env` for HTTP auth, while
+//!   this provider's manifest contract (`provider.meta.mcp.http.headers`)
+//!   supports arbitrary, `${VAR}`-interpolated custom headers with no test
+//!   coverage proving that capability is unused. Narrowing it silently to
+//!   single-bearer-token auth risks a real, undetectable behavior regression.
+//! - `UpstreamConfig::validate()` runs `SpawnGuard` command validation and a
+//!   restricted `name` character set that this provider's manifest-driven
+//!   stdio commands have never been checked against; migrating without
+//!   reconciling those rules risks rejecting previously-working manifests.
+//! - `UpstreamConfig` has no per-upstream timeout field equivalent to
+//!   `provider.meta.mcp.timeout_ms`.
+//! - `UpstreamPool` is a registered, stateful pool (`register_config` then
+//!   `ensure_connected`/`call_tool`); this provider is stateless per
+//!   `ProviderCall` today and has no "register once" phase to hook into.
+//!
+//! Tracked as its own scoped follow-up: bead `rmcp-template-fnz0`. This
+//! adapter is still a real improvement over the pre-PR10 state: it is
+//! physically consolidated into the shared, product-neutral adapters crate
+//! (no soma-service dependency), and it is the only upstream-MCP transport
+//! implementation outside `soma-mcp-client`/`soma-gateway` in the workspace.
+
 use std::{collections::HashMap, process::Stdio, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -11,20 +57,17 @@ use rmcp::{
     ServiceExt,
 };
 use serde_json::{json, Map, Value};
-use soma_contracts::providers::{ProviderCatalog, ProviderTool};
-use tokio::process::Command;
-
-use crate::{
-    provider_errors::ProviderError,
-    provider_registry::{Provider, ProviderCall, ProviderOutput},
+use soma_provider_core::{
+    Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
 };
+use tokio::{io::AsyncReadExt, process::Command};
 
 #[derive(Clone)]
-pub struct McpProvider {
+pub struct UpstreamMcpProvider {
     catalog: ProviderCatalog,
 }
 
-impl McpProvider {
+impl UpstreamMcpProvider {
     pub fn new(catalog: ProviderCatalog) -> Self {
         Self { catalog }
     }
@@ -35,7 +78,7 @@ impl McpProvider {
 }
 
 #[async_trait]
-impl Provider for McpProvider {
+impl Provider for UpstreamMcpProvider {
     fn catalog(&self) -> ProviderCatalog {
         self.catalog.clone()
     }
@@ -76,7 +119,7 @@ impl Provider for McpProvider {
     }
 }
 
-impl McpProvider {
+impl UpstreamMcpProvider {
     fn tool(&self, call: &ProviderCall) -> Result<&ProviderTool, ProviderError> {
         self.catalog
             .tools
@@ -100,12 +143,14 @@ async fn call_stdio(
     upstream: &UpstreamTool,
     params: Map<String, Value>,
 ) -> Result<rmcp::model::CallToolResult, ProviderError> {
-    let (transport, _stderr) =
+    // Keep stderr piped (rather than the previous `Stdio::null()`) so a
+    // failed spawn/handshake/call can be diagnosed — see `attach_stderr`.
+    let (transport, stderr) =
         TokioChildProcess::builder(Command::new(&runtime.command).configure(|cmd| {
             cmd.args(&runtime.args)
                 .env_clear()
                 .envs(runtime.env.iter().map(|(key, value)| (key, value)))
-                .stderr(Stdio::null());
+                .stderr(Stdio::piped());
             if let Some(cwd) = &runtime.cwd {
                 cmd.current_dir(cwd);
             }
@@ -114,17 +159,65 @@ async fn call_stdio(
         .map_err(|error| {
             ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
         })?;
-    let service = ().serve(transport).await.map_err(|error| {
-        ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
-    })?;
+    let service = match ().serve(transport).await {
+        Ok(service) => service,
+        Err(error) => {
+            let provider_error =
+                ProviderError::execution(&catalog.provider.name, call.action.clone(), error);
+            return Err(attach_stderr(provider_error, stderr).await);
+        }
+    };
     let result = service
         .call_tool(CallToolRequestParams::new(upstream.name.clone()).with_arguments(params))
-        .await
-        .map_err(|error| {
-            ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
-        });
-    let _ = service.cancel().await;
+        .await;
+    let result = match result {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            let provider_error =
+                ProviderError::execution(&catalog.provider.name, call.action.clone(), error);
+            Err(attach_stderr(provider_error, stderr).await)
+        }
+    };
+    if let Err(error) = service.cancel().await {
+        tracing::debug!(
+            provider = %catalog.provider.name,
+            action = %call.action,
+            error = %error,
+            "failed to cancel upstream MCP stdio session cleanly"
+        );
+    }
     result
+}
+
+/// Best-effort attaches whatever the child has written to stderr as private
+/// (server-log-only, never returned to the MCP client — see
+/// `ProviderError::private_diagnostics`) diagnostics on an already-built
+/// error. Bounded in both time (the child may still be alive with an idle,
+/// non-EOF stderr pipe) and size, so a chatty or hung upstream can't stall or
+/// balloon a single failed call.
+async fn attach_stderr(
+    error: ProviderError,
+    stderr: Option<impl tokio::io::AsyncRead + Unpin>,
+) -> ProviderError {
+    const MAX_STDERR_BYTES: usize = 8 * 1024;
+    const READ_BUDGET: Duration = Duration::from_millis(200);
+
+    let Some(mut stderr) = stderr else {
+        return error;
+    };
+    let mut buffer = Vec::new();
+    let _ = tokio::time::timeout(
+        READ_BUDGET,
+        tokio::io::AsyncReadExt::take(&mut stderr, MAX_STDERR_BYTES as u64)
+            .read_to_end(&mut buffer),
+    )
+    .await;
+    let text = String::from_utf8_lossy(&buffer).trim().to_owned();
+    if text.is_empty() {
+        error
+    } else {
+        error.with_private_diagnostics(format!("upstream stderr: {text}"))
+    }
 }
 
 /// rmcp's streamable HTTP transport (reqwest 0.13) panics when the process has
@@ -159,7 +252,14 @@ async fn call_http(
         .map_err(|error| {
             ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
         });
-    let _ = service.cancel().await;
+    if let Err(error) = service.cancel().await {
+        tracing::debug!(
+            provider = %catalog.provider.name,
+            action = %call.action,
+            error = %error,
+            "failed to cancel upstream MCP http session cleanly"
+        );
+    }
     result
 }
 
@@ -405,11 +505,20 @@ impl UpstreamTool {
         Self { name, static_args }
     }
 
+    /// Merges the caller's params with this tool's manifest-declared
+    /// `static_args`. `static_args` are a pin, not a default: they are
+    /// applied *after* the caller's params so a manifest can restrict which
+    /// upstream action/argument a drop-in tool reaches (e.g. pinning
+    /// `action: "echo"` on a generic upstream tool) without a caller being
+    /// able to override it by supplying the same key. Any previous version
+    /// of this method that applied `static_args` first and let caller params
+    /// win on key collision inverted this contract.
     fn params(&self, call_params: Value) -> Map<String, Value> {
-        let mut params = self.static_args.clone();
-        if let Value::Object(map) = call_params {
-            params.extend(map);
-        }
+        let mut params = match call_params {
+            Value::Object(map) => map,
+            _ => Map::new(),
+        };
+        params.extend(self.static_args.clone());
         params
     }
 }
@@ -495,3 +604,68 @@ fn expand_env_templates(value: &str) -> Result<String, String> {
     output.push_str(rest);
     Ok(output)
 }
+
+/// Projects `soma-gateway`'s own admin action catalog into a
+/// `soma_provider_core::ProviderCatalog`, so a host can advertise gateway
+/// administration (list/add/remove/reload upstreams, OAuth lifecycle, ...)
+/// through the same drop-in-provider-shaped surface as every other adapter
+/// in this crate.
+///
+/// This is a pure catalog *projection*, not a wired dispatcher: no
+/// `soma-service` deployment currently constructs a live `soma_gateway`
+/// manager instance, so there is nothing for a `call()` implementation to
+/// dispatch through yet. Wiring a live dispatcher is deferred to whichever
+/// product integration crate first constructs a running gateway (tracked as
+/// a PR10 follow-up) — see the module-level deviation notes.
+///
+/// Returns `Err` if `provider_id` is not a valid `ProviderId` (lowercase,
+/// `[a-z0-9-_]`, no leading/trailing/doubled separators) rather than
+/// panicking — this is a `pub fn` in a shared library crate and `provider_id`
+/// may come from caller-supplied configuration, not only compile-time
+/// literals.
+pub fn project_gateway_action_catalog(
+    provider_id: impl Into<String>,
+    title: impl Into<String>,
+    actions: &soma_gateway::gateway::catalog::GatewayActionCatalog,
+) -> Result<ProviderCatalog, soma_provider_core::ProviderIdError> {
+    let tools = actions
+        .list()
+        .into_iter()
+        .map(|action| {
+            let mut tool = ProviderTool::new(
+                action.name,
+                format!(
+                    "Gateway administration action `{}`{}.",
+                    action.name,
+                    if action.admin_required {
+                        " (admin only)"
+                    } else {
+                        ""
+                    }
+                ),
+                json!({"type": "object", "additionalProperties": true}),
+            );
+            tool.destructive = action.destructive;
+            tool.requires_admin = action.admin_required;
+            tool.meta = json!({
+                "gateway": {
+                    "discovery": action.discovery,
+                    "spawn_validation_required": action.spawn_validation_required,
+                }
+            });
+            tool
+        })
+        .collect();
+
+    let mut manifest = soma_provider_core::ProviderManifest::new(
+        soma_provider_core::ProviderId::new(provider_id.into())?,
+        title,
+        soma_gateway::VERSION,
+    );
+    manifest.tools = tools;
+    Ok(manifest)
+}
+
+#[cfg(test)]
+#[path = "gateway_tests.rs"]
+mod tests;

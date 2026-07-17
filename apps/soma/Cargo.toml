@@ -124,6 +124,15 @@ test-support = ["soma-mcp?/test-support"]
 axum = "0.8"
 soma = { path = ".", package = "soma", default-features = false, features = ["test-support"] }
 soma-contracts = { workspace = true }
+soma-provider-adapters = { workspace = true, features = [
+  "ai-sdk",
+  "gateway",
+  "openapi",
+  "python",
+  "static-echo",
+  "wasm",
+] }
+soma-provider-core = { workspace = true }
 soma-service = { workspace = true }
 soma-test-support = { workspace = true }
 serde_json = "1"

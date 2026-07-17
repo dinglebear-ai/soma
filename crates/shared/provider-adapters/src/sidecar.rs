@@ -1,48 +1,68 @@
+//! Bounded child-process sidecar execution shared by the ai-sdk and python
+//! adapters (and any other adapter that shells out to a runtime process for
+//! one bounded, stdin-in/stdout-out call). Ported from
+//! `soma-service::providers::sidecar` with the env-var prefix generalized to
+//! a caller-supplied parameter — see the crate-level docs on why generic
+//! shared crates must not hard-code a product's env prefix.
+
 use std::{
     ffi::OsString,
     io,
     path::{Path, PathBuf},
-    process::Output,
-    process::Stdio,
+    process::{Output, Stdio},
     time::Duration,
 };
 
-use soma_contracts::providers::EnvRequirement;
+use serde::Serialize;
+use soma_provider_core::{EnvRequirement, ProviderCall, ProviderError, ProviderSurface};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
     process::Command,
-    task::JoinError,
     time::timeout,
 };
 
-use crate::{provider_errors::ProviderError, provider_registry::ProviderCall};
+use crate::error::SidecarError;
 
-pub(crate) struct BoundedOutput {
+/// The stdin wire envelope sent to every sidecar-executing adapter (ai-sdk,
+/// python). Field names and shape are load-bearing: they match the
+/// pre-extraction `ProviderExecutionEnvelope` byte-for-byte so drop-in
+/// TypeScript/Python provider handlers written against the documented input
+/// shape keep working unchanged.
+#[derive(Debug, Serialize)]
+pub struct ExecutionEnvelope<'a> {
+    pub schema_version: u32,
+    pub provider: &'a str,
+    pub action: &'a str,
+    pub params: &'a serde_json::Value,
+    pub surface: ProviderSurface,
+    pub snapshot_id: &'a str,
+}
+
+impl<'a> ExecutionEnvelope<'a> {
+    pub fn new(call: &'a ProviderCall) -> Self {
+        Self {
+            schema_version: 1,
+            provider: &call.provider,
+            action: &call.action,
+            params: &call.params,
+            surface: call.surface,
+            snapshot_id: &call.snapshot_id,
+        }
+    }
+}
+
+/// Serializes `call` into the sidecar stdin wire envelope.
+pub fn execution_payload(call: &ProviderCall) -> Result<Vec<u8>, serde_json::Error> {
+    serde_json::to_vec(&ExecutionEnvelope::new(call))
+}
+
+pub struct BoundedOutput {
     pub output: Output,
     pub stdout_exceeded: bool,
     pub stderr_exceeded: bool,
 }
 
-#[derive(Debug)]
-pub(crate) enum SidecarError {
-    Io(io::Error),
-    Join(JoinError),
-    Timeout,
-}
-
-impl std::fmt::Display for SidecarError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(error) => write!(f, "{error}"),
-            Self::Join(error) => write!(f, "{error}"),
-            Self::Timeout => write!(f, "sidecar process timed out"),
-        }
-    }
-}
-
-impl std::error::Error for SidecarError {}
-
-pub(crate) async fn run_bounded_sidecar(
+pub async fn run_bounded_sidecar(
     command: &str,
     args: &[&str],
     env: Vec<(String, String)>,
@@ -119,7 +139,7 @@ fn apply_sidecar_base_env(command: &mut Command) {
 }
 
 #[cfg(windows)]
-pub(crate) fn sidecar_base_env() -> Vec<(OsString, OsString)> {
+pub fn sidecar_base_env() -> Vec<(OsString, OsString)> {
     let mut env = Vec::new();
     for key in ["SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP"] {
         if let Some(value) = std::env::var_os(key) {
@@ -130,7 +150,7 @@ pub(crate) fn sidecar_base_env() -> Vec<(OsString, OsString)> {
 }
 
 #[cfg(not(windows))]
-pub(crate) fn sidecar_base_env() -> Vec<(OsString, OsString)> {
+pub fn sidecar_base_env() -> Vec<(OsString, OsString)> {
     let mut env = Vec::new();
     for key in ["HOME", "TMPDIR", "TEMP", "TMP"] {
         if let Some(value) = std::env::var_os(key) {
@@ -140,7 +160,7 @@ pub(crate) fn sidecar_base_env() -> Vec<(OsString, OsString)> {
     env
 }
 
-pub(crate) fn resolve_sidecar_command(command: &str) -> PathBuf {
+pub fn resolve_sidecar_command(command: &str) -> PathBuf {
     resolve_sidecar_command_with_env(
         command,
         std::env::var_os("PATH"),
@@ -223,18 +243,24 @@ fn windows_path_extensions(pathext_env: Option<&OsString>) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn output_exceeded_message(stream: &str, max_output_bytes: usize) -> String {
+pub fn output_exceeded_message(stream: &str, max_output_bytes: usize) -> String {
     format!("sidecar {stream} output exceeds {max_output_bytes} bytes")
 }
 
-pub(crate) fn collect_provider_env(
+/// Resolves a provider/tool's declared env requirements against the process
+/// environment. `prefix` is the caller's product env-namespace (e.g.
+/// `"SOMA"`) — this crate has no product identity of its own, so callers
+/// must supply it explicitly rather than this module hard-coding one.
+pub fn collect_provider_env(
     provider_requirements: &[EnvRequirement],
     tool_requirements: &[EnvRequirement],
-    call: &ProviderCall,
+    prefix: &str,
+    provider: &str,
+    action: &str,
 ) -> Result<Vec<(String, String)>, ProviderError> {
     let mut env = Vec::new();
     for requirement in provider_requirements.iter().chain(tool_requirements) {
-        let name = requirement.runtime_name("SOMA");
+        let name = requirement.runtime_name(prefix);
         let value = std::env::var(&name)
             .ok()
             .or_else(|| {
@@ -254,8 +280,8 @@ pub(crate) fn collect_provider_env(
             Some(value) => env.push((name, value)),
             None if requirement.required => {
                 return Err(ProviderError::validation(
-                    &call.provider,
-                    &call.action,
+                    provider,
+                    action,
                     "missing_provider_env",
                     format!("missing required provider env `{name}`"),
                 ));

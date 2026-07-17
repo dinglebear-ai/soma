@@ -3604,6 +3604,8 @@ dependencies = [
  "soma-mcp",
  "soma-mcp-client",
  "soma-observability",
+ "soma-provider-adapters",
+ "soma-provider-core",
  "soma-runtime",
  "soma-service",
  "soma-test-support",
@@ -3876,6 +3878,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "soma-provider-adapters"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "reqwest 0.13.4",
+ "rmcp",
+ "rustls",
+ "serde",
+ "serde_json",
+ "soma-codemode",
+ "soma-gateway",
+ "soma-openapi",
+ "soma-provider-core",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "url",
+ "wasmtime",
+]
+
+[[package]]
 name = "soma-provider-core"
 version = "0.4.1"
 dependencies = [
@@ -3915,19 +3939,17 @@ dependencies = [
  "jsonschema",
  "metrics",
  "reqwest 0.12.28",
- "rmcp",
- "rustls",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "soma-contracts",
  "soma-observability",
+ "soma-provider-adapters",
  "soma-provider-core",
  "tempfile",
  "tokio",
  "tracing",
  "url",
- "wasmtime",
 ]
 
 [[package]]

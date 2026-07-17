@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `crates/shared/provider-adapters` (`soma-provider-adapters`), a
+  feature-gated, product-neutral crate of reusable provider implementations
+  (static-echo, ai-sdk, python, wasm, openapi, and a thin upstream-MCP/gateway
+  projection adapter), plus a generic `manifest_file::build_provider` kind
+  dispatcher. `soma-service`'s drop-in provider loader now builds these kinds
+  through the shared crate (wrapped by a new `provider_registry::SharedAdapter`)
+  instead of implementing them itself. Product-specific providers (Soma's
+  built-in actions provider, the remote-catalog provider that calls
+  `SomaService`) and the directory-scanning/Soma-CLI-policy orchestrator
+  around the dispatcher stay in `soma-service` pending `crates/soma/integrations`
+  (PR11). See the PR10 deviation notes for why the OpenAPI and upstream-MCP
+  adapters were not fully delegated to `soma-openapi`/`soma-mcp-client`.
 - Add `soma-domain` product values and a transport-neutral `soma-application`
   facade over the legacy service/provider registry, with abstract gateway,
   Code Mode, and OpenAPI ports for incremental surface migration.
@@ -116,6 +128,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the inherited `~/.lab`.
 
 ### Fixed
+
+- `soma-provider-adapters` PR10 second review pass: `UpstreamMcpProvider`'s
+  `static_args` (a per-manifest pin, e.g. restricting a generic upstream
+  tool's `action`) were applied *before* caller-supplied params and so could
+  be silently overridden by a colliding caller key; merge order is now
+  reversed so the pin always wins. `openapi.rs`'s `validate_base_url` now
+  fails closed when a provider's `capabilities.network` grant is absent or
+  disabled — previously that silently skipped the allowlist check the
+  adapter's own docs describe as its SSRF defense — and its dispatch client
+  now disables HTTP redirects so an allowlisted host can't hand a request off
+  to a non-allowlisted address via a 3xx response. `soma-openapi`'s internal
+  `execute_operation_inner` now takes a `DispatchTrust` enum instead of two
+  independent booleans, making the untested/unneeded
+  `enforce_ssrf && lenient_body` combination unrepresentable. The `wasm`
+  feature was missing its `sidecar` feature dependency (compiled only by
+  accident whenever another sidecar-owning feature was also enabled);
+  `manifest_file::build_provider` returning `None` for an unbuilt provider
+  kind is now a per-manifest `FileProviderLoadError` instead of an
+  `unreachable!()` that would have crashed the whole server; and
+  `project_gateway_action_catalog` returns `Result` instead of panicking on
+  an invalid provider id. Also: capture bounded upstream stderr as private
+  diagnostics on MCP stdio provider failures (previously piped to
+  `Stdio::null()` and discarded), log (rather than silently swallow) upstream
+  MCP session-cancel errors and invalid provider catalog timeout env values,
+  and add unit coverage for `expand_env_templates`, the `static_args` pin,
+  and the fail-closed network-capability/params-must-be-object/path-parameter
+  behaviors that shipped undocumented-but-untested in the first PR10 pass.
+
+- `soma-provider-adapters::openapi` review fix: `OpenApiProvider` now
+  delegates HTTP dispatch to `soma-openapi` (`http::execute_operation_for_allowlisted_host`,
+  a new entry point for callers that have already restricted the target host
+  through their own allowlist) instead of hand-rolling a second reqwest
+  GET/POST/PUT/PATCH/DELETE executor, satisfying PR10's "no duplicate OpenAPI
+  HTTP executor" acceptance criterion while preserving the tested loopback
+  allowlist behavior and the absolute-operation-URL rejection. `manifest_file::build_provider`'s
+  doc comment was also corrected — every `ProviderKind` (including
+  `StaticRust`) is dispatched through it when its owning feature is enabled;
+  none are constructed by call sites directly. `provider-adapters::gateway`'s
+  duplicate upstream-MCP transport stack (`UpstreamMcpProvider` vs.
+  `soma-mcp-client`'s pooled `UpstreamPool`) was assessed and intentionally
+  left as a documented deviation — full migration needs `UpstreamConfig` to
+  grow arbitrary-header support and reconciled `SpawnGuard`/timeout/response-shape
+  semantics; tracked as its own follow-up (bead `rmcp-template-fnz0`) rather
+  than folded into this fixup.
 
 - `soma-auth` module size: `authorize.rs` (869 effective lines) and
   `upstream/manager.rs` (1080 effective lines) exceeded the repo's

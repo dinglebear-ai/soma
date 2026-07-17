@@ -4,26 +4,24 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use soma_contracts::{
     provider_validation::{validate_manifest_schema, validate_provider_manifest},
     providers::{ProviderCatalog, ProviderKind},
 };
+use soma_provider_adapters::manifest_file;
 
 use crate::{
-    provider_errors::ProviderError,
-    provider_registry::{DynamicResourceTemplate, Provider, ProviderCall, ProviderOutput},
-    providers::{
-        ai_sdk::AiSdkProvider,
-        mcp::McpProvider,
-        openapi::OpenApiProvider,
-        python::{load_python_catalog, PythonProvider},
-        resource_files::{ResourceFileError, ResourceFileProvider},
-        wasm::WasmProvider,
-    },
+    provider_registry::{DynamicResourceTemplate, Provider, SharedAdapter},
+    providers::resource_files::{ResourceFileError, ResourceFileProvider},
 };
+
+/// Product env-namespace forwarded to shared adapters that resolve
+/// `EnvRequirement`s (ai-sdk, python) — see `soma_provider_adapters::sidecar
+/// ::collect_provider_env`'s docs for why this crate has no hard-coded
+/// product prefix of its own.
+const PROVIDER_ENV_PREFIX: &str = "SOMA";
 
 #[path = "filesystem_prompts.rs"]
 mod filesystem_prompts;
@@ -260,7 +258,7 @@ impl FileProviderSource {
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
-            providers.push(provider_for_catalog(path, catalog));
+            providers.push(provider_for_catalog(path, catalog)?);
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
             let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
@@ -477,63 +475,38 @@ impl std::fmt::Display for FileProviderLoadError {
 
 impl std::error::Error for FileProviderLoadError {}
 
-#[derive(Clone)]
-struct FileProvider {
+/// Builds the concrete provider for `catalog`'s declared kind. Every kind's
+/// actual implementation lives in the product-neutral `soma-provider-adapters`
+/// crate (feature-gated per kind); this just dispatches to it and wraps the
+/// result to satisfy soma-service's own `Provider` trait — see
+/// `provider_registry::SharedAdapter` and the PR10 deviation notes on why
+/// this dispatch step, and the directory-scanning/Soma-policy orchestration
+/// around it, stayed in soma-service rather than moving wholesale.
+///
+/// `soma-service` currently enables every `soma-provider-adapters` kind
+/// feature (see its `Cargo.toml`), so `manifest_file::build_provider`
+/// returning `None` — meaning this binary was built without the feature that
+/// owns `catalog`'s kind — should never happen today. It is nonetheless
+/// treated as an ordinary, per-manifest `FileProviderLoadError` rather than a
+/// process-crashing `unreachable!()`: that invariant depends on two files (a
+/// `Cargo.toml` feature list and this crate's `ProviderKind` coverage)
+/// staying in sync by convention, with nothing enforcing it at compile time.
+/// If they ever drift, one misconfigured/unsupported provider manifest
+/// should fail to load, not take down every other already-working provider.
+fn provider_for_catalog(
     path: PathBuf,
     catalog: ProviderCatalog,
-}
-
-fn provider_for_catalog(path: PathBuf, catalog: ProviderCatalog) -> std::sync::Arc<dyn Provider> {
-    match catalog.provider.kind {
-        ProviderKind::Openapi => OpenApiProvider::arc(catalog),
-        ProviderKind::Mcp => McpProvider::arc(catalog),
-        ProviderKind::AiSdk => AiSdkProvider::arc(path, catalog),
-        ProviderKind::Wasm => WasmProvider::arc(path, catalog),
-        ProviderKind::Python | ProviderKind::Langchain | ProviderKind::Llamaindex => {
-            PythonProvider::arc(path, catalog)
-        }
-        ProviderKind::StaticRust => std::sync::Arc::new(FileProvider { path, catalog }),
-    }
-}
-
-#[async_trait]
-impl Provider for FileProvider {
-    fn catalog(&self) -> ProviderCatalog {
-        self.catalog.clone()
-    }
-
-    async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
-        let tool = self
-            .catalog
-            .tools
-            .iter()
-            .find(|tool| tool.name == call.action)
-            .ok_or_else(|| {
-                ProviderError::validation(
-                    &self.catalog.provider.name,
-                    &call.action,
-                    "unknown_file_provider_action",
-                    format!(
-                        "provider file `{}` does not expose this action",
-                        self.path.display()
-                    ),
-                )
-            })?;
-
-        if let Some(result) = tool.meta.get("result").cloned() {
-            return Ok(ProviderOutput::json(result));
-        }
-
-        Ok(ProviderOutput::json(json!({
-            "kind": "file_provider_result",
-            "schema_version": 1,
-            "provider": self.catalog.provider.name,
-            "provider_kind": self.catalog.provider.kind.as_str(),
-            "action": call.action,
-            "params": call.params,
-            "source": self.path.display().to_string(),
-        })))
-    }
+) -> Result<std::sync::Arc<dyn Provider>, FileProviderLoadError> {
+    let kind = catalog.provider.kind;
+    manifest_file::build_provider(path.clone(), catalog, PROVIDER_ENV_PREFIX)
+        .map(SharedAdapter::wrap)
+        .ok_or_else(|| FileProviderLoadError {
+            path,
+            message: format!(
+                "provider kind `{}` is not enabled in this build (soma-provider-adapters feature missing)",
+                kind.as_str()
+            ),
+        })
 }
 
 fn is_provider_file(path: &Path) -> bool {
@@ -624,10 +597,21 @@ fn load_catalog(path: &Path) -> Result<ProviderCatalog, FileProviderLoadError> {
                 message: format!("invalid provider manifest JSON: {source}"),
             })?
         }
-        Some("py") => load_python_catalog(path).map_err(|source| FileProviderLoadError {
-            path: path.to_path_buf(),
-            message: format!("invalid Python provider: {source}"),
-        })?,
+        Some("py") => {
+            // Only generic (soma-provider-core) manifest validation runs
+            // here — Soma's own CLI reserved-command / env-prefix policy is
+            // enforced uniformly for every provider kind by
+            // `provider_registry::build_registry`'s
+            // `validate_provider_manifest(&provider.catalog())` call, so
+            // this does not skip that policy, just defers it to the same
+            // place every other kind already goes through.
+            soma_provider_adapters::python::load_python_catalog(path, PROVIDER_ENV_PREFIX).map_err(
+                |source| FileProviderLoadError {
+                    path: path.to_path_buf(),
+                    message: format!("invalid Python provider: {source}"),
+                },
+            )?
+        }
         _ => {
             return Err(FileProviderLoadError {
                 path: path.to_path_buf(),

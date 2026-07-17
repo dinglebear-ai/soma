@@ -1,8 +1,5 @@
 use serde_json::json;
-
-use crate::provider_registry::{
-    ProviderAuthMode, ProviderCall, ProviderPrincipal, ProviderRequestLimits, ProviderSurface,
-};
+use soma_provider_core::{ProviderCall, ProviderSurface};
 
 use super::python_execution_payload;
 
@@ -17,17 +14,10 @@ fn default_python_command_matches_platform_launcher() {
 
 #[test]
 fn python_sidecar_payload_preserves_execution_envelope_fields() {
-    let call = ProviderCall {
-        provider: "demo-python".to_owned(),
-        action: "lookup".to_owned(),
-        params: json!({"query": "status"}),
-        principal: ProviderPrincipal::loopback_dev(),
-        auth_mode: ProviderAuthMode::LoopbackDev,
-        surface: ProviderSurface::Cli,
-        destructive_confirmed: false,
-        limits: ProviderRequestLimits::default(),
-        snapshot_id: "sha256:test-snapshot".to_owned(),
-    };
+    let mut call =
+        ProviderCall::new("lookup", json!({"query": "status"})).with_surface(ProviderSurface::Cli);
+    call.provider = "demo-python".to_owned();
+    call.snapshot_id = "sha256:test-snapshot".to_owned();
 
     let env = vec![("SOMA_DEMO_SECRET".to_owned(), "redacted".to_owned())];
     let bytes = python_execution_payload(std::path::Path::new("/tmp/demo.py"), &call, &env)

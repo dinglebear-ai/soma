@@ -1,3 +1,15 @@
+//! The generic Python (/ LangChain / LlamaIndex) provider kind: introspects
+//! and executes a drop-in `.py` provider through a bounded Python sidecar
+//! running `python_bridge::PYTHON_BRIDGE`. Ported from
+//! `soma-service::providers::python`.
+//!
+//! `load_python_catalog` here applies only *generic* manifest validation
+//! (`soma_provider_core::validate_provider_manifest_value`) — Soma's own CLI
+//! reserved-command / env-prefix policy layer is applied downstream by the
+//! host's provider registry when it builds every provider's catalog
+//! (regardless of kind), so dropping the redundant Soma-specific pre-check
+//! here does not weaken overall enforcement — see the PR10 deviation notes.
+
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -9,21 +21,18 @@ use std::{
 
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use soma_contracts::{
-    provider_validation::validate_provider_manifest_value,
-    providers::{ProviderCatalog, ProviderTool},
+use soma_provider_core::{
+    validate_provider_manifest_value, Provider, ProviderCall, ProviderCatalog, ProviderError,
+    ProviderOutput, ProviderTool,
 };
 use tokio::time::Instant as TokioInstant;
 
 use crate::{
-    provider_errors::{redact_public, ProviderError},
-    provider_registry::{Provider, ProviderCall, ProviderOutput},
-    providers::{
-        python_bridge::PYTHON_BRIDGE,
-        sidecar::{
-            collect_provider_env, output_exceeded_message, resolve_sidecar_command,
-            run_bounded_sidecar, sidecar_base_env, SidecarError,
-        },
+    error::{redact_public, SidecarError},
+    python_bridge::PYTHON_BRIDGE,
+    sidecar::{
+        collect_provider_env, output_exceeded_message, resolve_sidecar_command,
+        run_bounded_sidecar, sidecar_base_env,
     },
 };
 
@@ -35,15 +44,24 @@ const DEFAULT_MAX_OUTPUT_BYTES: usize = 256 * 1024;
 pub struct PythonProvider {
     path: PathBuf,
     catalog: ProviderCatalog,
+    env_prefix: String,
 }
 
 impl PythonProvider {
-    pub fn new(path: PathBuf, catalog: ProviderCatalog) -> Self {
-        Self { path, catalog }
+    pub fn new(path: PathBuf, catalog: ProviderCatalog, env_prefix: impl Into<String>) -> Self {
+        Self {
+            path,
+            catalog,
+            env_prefix: env_prefix.into(),
+        }
     }
 
-    pub fn arc(path: PathBuf, catalog: ProviderCatalog) -> Arc<Self> {
-        Arc::new(Self::new(path, catalog))
+    pub fn arc(
+        path: PathBuf,
+        catalog: ProviderCatalog,
+        env_prefix: impl Into<String>,
+    ) -> Arc<Self> {
+        Arc::new(Self::new(path, catalog, env_prefix))
     }
 }
 
@@ -55,7 +73,7 @@ impl Provider for PythonProvider {
 
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
         let tool = self.tool(&call)?;
-        let runtime = PythonRuntime::from_tool(&self.catalog, tool, &call)?;
+        let runtime = PythonRuntime::from_tool(&self.catalog, tool, &call, &self.env_prefix)?;
         let source = self.path.display().to_string();
         let input = python_execution_payload(&self.path, &call, &runtime.env).map_err(|error| {
             ProviderError::execution(&self.catalog.provider.name, "", error)
@@ -178,7 +196,7 @@ fn python_execution_payload(
     call: &ProviderCall,
     env: &[(String, String)],
 ) -> Result<Vec<u8>, serde_json::Error> {
-    let mut payload = serde_json::to_value(call.execution_envelope())?;
+    let mut payload = serde_json::to_value(crate::sidecar::ExecutionEnvelope::new(call))?;
     if let Some(object) = payload.as_object_mut() {
         let env_keys: Vec<&str> = env.iter().map(|(key, _)| key.as_str()).collect();
         object.insert("mode".to_owned(), json!("call"));
@@ -205,8 +223,14 @@ impl PythonProvider {
     }
 }
 
-pub fn load_python_catalog(path: &Path) -> Result<ProviderCatalog, String> {
-    let runtime = PythonRuntime::for_catalog();
+/// Introspects a `.py` provider file by importing it (in "catalog" mode) in
+/// a bounded sidecar and validating the resulting manifest against the
+/// generic provider-core contract. Callers that layer additional product
+/// policy on top of every provider's catalog (e.g. Soma's reserved
+/// CLI-command / env-prefix checks) apply it to the returned catalog
+/// themselves — see the module docs above.
+pub fn load_python_catalog(path: &Path, env_prefix: &str) -> Result<ProviderCatalog, String> {
+    let runtime = PythonRuntime::for_catalog(env_prefix);
     let input = serde_json::to_vec(&json!({
         "mode": "catalog",
         "path": path,
@@ -226,15 +250,26 @@ struct PythonRuntime {
 }
 
 impl PythonRuntime {
-    fn for_catalog() -> Self {
+    fn for_catalog(env_prefix: &str) -> Self {
+        let prefix = env_prefix.trim_matches('_').to_ascii_uppercase();
+        let timeout_var = format!("{prefix}_PYTHON_CATALOG_TIMEOUT_MS");
+        let timeout_ms = match std::env::var(&timeout_var) {
+            Ok(value) => value.parse().unwrap_or_else(|error| {
+                tracing::warn!(
+                    variable = %timeout_var,
+                    value,
+                    error = %error,
+                    "invalid provider catalog timeout env var; falling back to the default"
+                );
+                DEFAULT_TIMEOUT_MS
+            }),
+            Err(_) => DEFAULT_TIMEOUT_MS,
+        };
         Self {
-            command: std::env::var("SOMA_PYTHON_COMMAND")
+            command: std::env::var(format!("{prefix}_PYTHON_COMMAND"))
                 .unwrap_or_else(|_| default_python_command().to_owned()),
             env: Vec::new(),
-            timeout_ms: std::env::var("SOMA_PYTHON_CATALOG_TIMEOUT_MS")
-                .ok()
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(DEFAULT_TIMEOUT_MS),
+            timeout_ms,
             max_input_bytes: DEFAULT_MAX_INPUT_BYTES,
             max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
         }
@@ -244,6 +279,7 @@ impl PythonRuntime {
         catalog: &ProviderCatalog,
         tool: &ProviderTool,
         call: &ProviderCall,
+        env_prefix: &str,
     ) -> Result<Self, ProviderError> {
         let provider_meta = catalog.meta.get("python");
         let tool_meta = tool.meta.get("python");
@@ -255,7 +291,13 @@ impl PythonRuntime {
         let command = meta_field("command")
             .and_then(Value::as_str)
             .map(str::to_owned)
-            .or_else(|| std::env::var("SOMA_PYTHON_COMMAND").ok())
+            .or_else(|| {
+                std::env::var(format!(
+                    "{}_PYTHON_COMMAND",
+                    env_prefix.trim_matches('_').to_ascii_uppercase()
+                ))
+                .ok()
+            })
             .unwrap_or_else(|| default_python_command().to_owned());
         let timeout_ms = tool
             .limits
@@ -275,7 +317,13 @@ impl PythonRuntime {
             .unwrap_or(DEFAULT_MAX_OUTPUT_BYTES);
         Ok(Self {
             command,
-            env: collect_provider_env(&catalog.env, &tool.env, call)?,
+            env: collect_provider_env(
+                &catalog.env,
+                &tool.env,
+                env_prefix,
+                &call.provider,
+                &call.action,
+            )?,
             timeout_ms,
             max_input_bytes,
             max_output_bytes,

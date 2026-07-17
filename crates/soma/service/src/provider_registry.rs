@@ -528,6 +528,33 @@ fn provider_map(
     Ok(map)
 }
 
+/// Wraps a product-neutral `soma_provider_core::Provider` (as implemented by
+/// every adapter in `soma-provider-adapters`) so it satisfies soma-service's
+/// own `Provider` trait, which carries additional auth/scope fields
+/// (`principal`, `auth_mode`, `destructive_confirmed`, `limits`) that no
+/// shared adapter reads — see `ProviderCall::provider_invocation()`, which
+/// this reuses to build the generic call. This is the mirror image of
+/// `CoreProviderAdapter` below, which wraps the other direction.
+#[derive(Clone)]
+pub struct SharedAdapter(Arc<dyn soma_provider_core::Provider>);
+
+impl SharedAdapter {
+    pub fn wrap(inner: Arc<dyn soma_provider_core::Provider>) -> Arc<dyn Provider> {
+        Arc::new(Self(inner))
+    }
+}
+
+#[async_trait]
+impl Provider for SharedAdapter {
+    fn catalog(&self) -> ProviderCatalog {
+        self.0.catalog()
+    }
+
+    async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
+        self.0.call(call.provider_invocation()).await
+    }
+}
+
 #[derive(Clone)]
 struct CoreProviderAdapter(Arc<dyn Provider>);
 

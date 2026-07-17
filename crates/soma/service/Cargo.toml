@@ -26,11 +26,15 @@ base64 = "0.22"
 jsonschema = "0.47"
 metrics = { version = "0.24", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-rmcp = { workspace = true, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
-# rmcp >= 2.2 builds its HTTP transport on reqwest 0.13, which requires the
-# process to install a rustls crypto provider before any TLS client is built.
-rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 soma-contracts = { workspace = true }
+soma-provider-adapters = { workspace = true, features = [
+  "ai-sdk",
+  "gateway",
+  "openapi",
+  "python",
+  "static-echo",
+  "wasm",
+] }
 soma-provider-core = { workspace = true }
 soma-observability = { workspace = true, optional = true }
 serde = { version = "1", features = ["derive"] }
@@ -40,7 +44,6 @@ tempfile = "3"
 tokio = { version = "1", features = ["io-util", "process", "rt", "time"] }
 tracing = "0.1"
 url = "2"
-wasmtime = { version = "46.0.1", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"] }
 
 [dev-dependencies]
 axum = "0.8"

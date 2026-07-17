@@ -15,15 +15,14 @@ use soma_contracts::providers::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderResource,
 };
 
+use soma_provider_adapters::{error::SidecarError, sidecar::run_bounded_sidecar};
+
 use crate::{
     provider_errors::ProviderError,
     provider_registry::{
         DynamicResourceTemplate, Provider, ProviderCall, ProviderOutput, ResourceReadOutput,
     },
-    providers::{
-        resource_uri,
-        sidecar::{run_bounded_sidecar, SidecarError},
-    },
+    providers::resource_uri,
 };
 
 /// Static resource files larger than this are rejected at discovery time —
