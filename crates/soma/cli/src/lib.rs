@@ -283,7 +283,7 @@ pub async fn run(
         let result =
             run_provider_management_command(command, application.as_ref(), destructive_confirmed)
                 .await?;
-        io.stdout(&serde_json::to_string_pretty(&result)?)?;
+        io.stdout(&soma_cli_core::json::to_pretty_string(&result)?)?;
         return Ok(std::process::ExitCode::SUCCESS);
     }
 
@@ -309,12 +309,12 @@ pub async fn run(
     {
         Ok(output) => output.output,
         Err(error) => {
-            io.stderr(&serde_json::to_string_pretty(&error)?)?;
+            io.stderr(&soma_cli_core::json::to_pretty_string(&error)?)?;
             return Err(anyhow!(error.message));
         }
     };
 
-    io.stdout(&serde_json::to_string_pretty(&result)?)?;
+    io.stdout(&soma_cli_core::json::to_pretty_string(&result)?)?;
     Ok(std::process::ExitCode::SUCCESS)
 }
 

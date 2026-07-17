@@ -235,11 +235,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `crates/shared/codex-app-server-client/README.md`.
 - Added `soma-cli-core`, a reusable CLI plumbing crate extracted from
   `soma-cli`: common flag-scanning primitives, output-format selection,
-  JSON/table rendering, confirmation I/O, terminal/color capability policy
-  (including the Aurora CLI token palette as reusable shared defaults),
-  shell-completion script generation, and progress helpers. `soma-cli`'s
-  argument-scanning helpers, destructive-confirmation prompt, and `doctor`
-  color output now delegate to it with no output change. See
+  JSON rendering, confirmation I/O, and terminal/color capability policy
+  (including the Aurora CLI token palette as reusable shared defaults).
+  `soma-cli`'s argument-scanning helpers, destructive-confirmation prompt,
+  JSON output rendering (`lib.rs` and `doctor.rs`), and `doctor` color
+  output now delegate to it with no output change. See
   `crates/shared/cli-core/README.md`.
 
 ### Changed

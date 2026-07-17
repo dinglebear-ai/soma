@@ -1,9 +1,8 @@
 # soma-cli-core
 
 Reusable command-line plumbing extracted from the Soma CLI: output-format
-selection, table and JSON rendering, confirmation I/O primitives,
-terminal/color capability policy, shell-completion script generation, and
-progress helpers.
+selection, JSON rendering, confirmation I/O primitives, and terminal/color
+capability policy.
 
 The crate owns generic terminal mechanics only. It does not depend on any
 Soma product crate and knows nothing about Soma commands, action names,
@@ -22,14 +21,16 @@ println!("{}  {}", green("ok", enabled), red("failed", false));
 - common CLI flag-scanning primitives (`common_args`)
 - output-format selection between human and JSON rendering (`output`)
 - JSON pretty-printing helpers (`json`)
-- a minimal fixed-width table renderer (`table`)
 - confirmation I/O primitives — "type the name to confirm" prompts (`confirmation`)
 - terminal capability detection and `NO_COLOR` / `--color` policy (`terminal`)
 - ANSI color/style helpers, plus the Aurora CLI token palette as reusable
   defaults (`color`)
-- minimal progress-line helpers for long-running commands (`progress`)
-- static shell-completion script generation for bash and zsh (`completion`)
-- reusable human/JSON CLI error presentation (`error`)
+
+Table rendering, progress reporting, shell-completion generation, and
+structured CLI error presentation are candidate future modules (see plan
+§3.13) but are intentionally not included here yet — `soma-cli` has no
+current caller for them, and this crate only carries mechanics an actual
+consumer exercises. Add a module here alongside the PR that wires it up.
 
 ## What this crate does not own
 

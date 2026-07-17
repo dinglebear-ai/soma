@@ -4,12 +4,12 @@ version = "0.4.1"
 edition = "2021"
 rust-version = "1.96"
 authors.workspace = true
-description = "Reusable CLI plumbing: output formats, table/JSON rendering, confirmation I/O, terminal/color capability policy, shell completions, and progress helpers"
+description = "Reusable CLI plumbing: output formats, JSON rendering, confirmation I/O, and terminal/color capability policy"
 homepage.workspace = true
 license = "MIT"
 repository.workspace = true
 readme = "README.md"
-keywords = ["cli", "terminal", "table", "color", "completion"]
+keywords = ["cli", "terminal", "color", "json"]
 categories = ["command-line-interface"]
 publish = false
 

@@ -103,8 +103,9 @@ pub async fn run_doctor(config: &Config, json: bool) -> Result<()> {
 
     let issues = checks.iter().filter(|c| !c.ok).count();
 
-    if json {
-        println!("{}", serde_json::to_string_pretty(&checks)?);
+    let format = soma_cli_core::output::OutputFormat::from_json_flag(json);
+    if format.is_json() {
+        println!("{}", soma_cli_core::json::to_pretty_string(&checks)?);
     } else {
         print_doctor_report(&checks);
     }
