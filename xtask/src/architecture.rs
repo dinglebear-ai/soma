@@ -28,14 +28,11 @@ const TEMPORARY_EXCEPTIONS: &[ArchitectureException] = &[
         removal_pr: "PR 12",
         expiration_milestone: "legacy service decomposition",
     },
-    ArchitectureException {
-        from_path: "crates/soma/application",
-        to_path: "crates/soma/contracts",
-        owner: "architecture-refactor",
-        reason: "the application facade exposes legacy provider catalog values during migration",
-        removal_pr: "PR 13",
-        expiration_milestone: "legacy contracts decomposition",
-    },
+    // The "application -> contracts" exception (legacy provider catalog
+    // values) is removed as of PR 13: soma-application now depends directly
+    // on soma-provider-core and soma-domain instead of routing through the
+    // soma-contracts facade, so soma-contracts has no incoming edge from
+    // soma-application to except.
     ArchitectureException {
         from_path: "crates/soma/runtime",
         to_path: "crates/shared/mcp/gateway",

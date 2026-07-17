@@ -179,7 +179,9 @@ impl Layer {
             | "crates/soma/mcp"
             | "crates/soma/web"
             | "crates/soma/palette" => Some(Self::ProductSurface),
-            "crates/soma/test-support" | "crates/soma/client" => Some(Self::ProductSupport),
+            "crates/soma/test-support" | "crates/soma/client" | "crates/soma/config" => {
+                Some(Self::ProductSupport)
+            }
             "crates/soma/contracts" | "crates/soma/service" | "xtask" => Some(Self::Legacy),
             path if path.starts_with("crates/shared/") => Some(Self::Shared),
             path if path.starts_with("crates/soma/") => Some(Self::Legacy),

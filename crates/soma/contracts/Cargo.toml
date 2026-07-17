@@ -4,7 +4,7 @@ version = "0.4.1"
 edition = "2021"
 rust-version = "1.96"
 authors.workspace = true
-description = "Shared contracts, config, action metadata, and schemas for soma"
+description = "Deprecated compatibility facade over soma-config/soma-domain/soma-provider-core (plan section 6.2); do not add new types"
 homepage.workspace = true
 license = "MIT"
 repository.workspace = true
@@ -14,17 +14,9 @@ publish = false
 layer = "legacy"
 
 [dependencies]
-anyhow = "1"
-dirs = "6"
-dotenvy = "0.15.7"
-schemars = "1.2.1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
-toml = "1.1"
+soma-config = { workspace = true }
+soma-domain = { workspace = true }
 soma-provider-core = { workspace = true }
 
 [dev-dependencies]
-# Serializes tests that mutate process-global env so `cargo test` (shared
-# process; unlike nextest's process-per-test) cannot race on env state.
-serial_test = "3"
+serde_json = "1"

@@ -283,7 +283,10 @@ pub(super) fn config_and_auth(reporter: &mut PatternReporter) {
     }
 
     let server = read_file("crates/soma/runtime/src/server.rs");
-    let config = read_file("crates/soma/contracts/src/config.rs");
+    // config.rs moved from crates/soma/contracts to crates/soma/config
+    // (plan section 3.18; PR 13). crates/soma/contracts/src/config.rs is now
+    // a deprecated re-export with no literal `no_auth`/`allowed_hosts` text.
+    let config = read_file("crates/soma/config/src/config.rs");
     if !server.contains("LoopbackDev") || !server.contains("Mounted") {
         reporter.fail(
             "auth",
