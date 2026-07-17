@@ -1,23 +1,18 @@
 {
-  "binaries": {
-    "cli": "soma",
-    "server": "soma"
-  },
-  "claude": {
-    "marketplace": ".claude-plugin/marketplace.json",
-    "plugin_json": "plugins/soma/.claude-plugin/plugin.json"
-  },
-  "codex": {
-    "marketplace": ".agents/plugins/marketplace.json",
-    "plugin_json": "plugins/soma/.codex-plugin/plugin.json"
-  },
+  "schema_version": 1,
+  "name": "soma",
+  "title": "Soma",
   "description": "Generated distributable plugin surface for Soma.",
-  "docs": "docs/generated/provider-surfaces.md",
-  "homepage": "https://soma.dinglebear.ai",
-  "icons": {
-    "png": "plugins/soma/assets/icon.png",
-    "svg": "plugins/soma/assets/logo.svg"
+  "publisher": {
+    "name": "dinglebear.ai",
+    "url": "https://dinglebear.ai"
   },
+  "repository": "https://github.com/jmagar/soma",
+  "homepage": "https://soma.dinglebear.ai",
+  "website": "https://soma.dinglebear.ai",
+  "support": "https://github.com/jmagar/soma/issues",
+  "security_policy": "https://github.com/jmagar/soma/security/policy",
+  "license": "MIT",
   "keywords": [
     "mcp",
     "mcp-server",
@@ -36,569 +31,68 @@
     "server-runtime",
     "soma"
   ],
-  "license": "MIT",
-  "mcp_server": {
-    "manifest": "server.json",
-    "name": "dinglebear.ai/soma",
-    "registry_schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json"
+  "provider_fingerprint": "sha256:3b6be9f1d729594eaee5e3fb9fed48ddb10f0ea95c3d938a9632f6663f586e6d",
+  "plugin_root": "plugins/soma",
+  "icons": {
+    "png": "plugins/soma/assets/icon.png",
+    "svg": "plugins/soma/assets/logo.svg"
   },
-  "name": "soma",
-  "node_package": "packages/soma-rmcp/package.json",
+  "binaries": {
+    "cli": "soma",
+    "server": "soma"
+  },
   "packages": {
     "npm": "soma-rmcp",
     "oci": "ghcr.io/jmagar/soma"
   },
-  "plugin_root": "plugins/soma",
-  "provider_files": [
-    "providers/ai-sdk-brief.ts",
-    "providers/python-runtime-check.py"
-  ],
-  "provider_fingerprint": "sha256:ce1be4dd0185d4fd8989f796b521d57e6ec2da5316cceab44d9d5960792e5a22",
-  "providers": [
-    {
-      "description": "Self-contained AI SDK sidecar tools for Soma provider smoke tests.",
-      "elicitation": [],
-      "kind": "ai-sdk",
-      "name": "local-ai-sdk-tools",
-      "prompts": [],
-      "resources": [],
-      "tasks": [],
-      "title": "Local AI SDK Tools",
-      "tools": [
-        {
-          "cli": true,
-          "cli_aliases": [],
-          "cli_command": "ai-sdk-brief",
-          "cli_default_output": null,
-          "cli_flags": [],
-          "cli_usage": null,
-          "cost": null,
-          "description": "Create a compact brief from text through Soma's AI SDK sidecar runtime.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "max_words": {
-                "default": 18,
-                "description": "Maximum words in the generated brief.",
-                "maximum": 40,
-                "minimum": 4,
-                "type": "integer"
-              },
-              "text": {
-                "description": "Text to condense.",
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "text"
-            ],
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": null,
-          "name": "ai_sdk_brief",
-          "output_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "brief": {
-                "type": "string"
-              },
-              "input_chars": {
-                "type": "integer"
-              },
-              "runtime": {
-                "type": "string"
-              },
-              "word_count": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "brief",
-              "word_count",
-              "input_chars",
-              "runtime"
-            ],
-            "type": "object"
-          },
-          "requires_admin": false,
-          "rest": true,
-          "rest_route": "POST /v1/providers/ai-sdk-brief",
-          "scope": null
-        }
-      ],
-      "when_to_use": null
-    },
-    {
-      "description": "Self-contained Python sidecar tools for Soma provider smoke tests.",
-      "elicitation": [],
-      "kind": "python",
-      "name": "local-python-tools",
-      "prompts": [],
-      "resources": [],
-      "tasks": [],
-      "title": "Local Python Tools",
-      "tools": [
-        {
-          "cli": true,
-          "cli_aliases": [],
-          "cli_command": "python_runtime_check",
-          "cli_default_output": null,
-          "cli_flags": [],
-          "cli_usage": null,
-          "cost": null,
-          "description": "Return a compact proof that the Python sidecar executed the provider.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "message": {
-                "type": "string"
-              },
-              "repeat": {
-                "type": "integer"
-              }
-            },
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": {
-            "python": {
-              "adapter": "python"
-            }
-          },
-          "name": "python_runtime_check",
-          "output_schema": null,
-          "requires_admin": false,
-          "rest": true,
-          "rest_route": "POST /v1/tools/python_runtime_check",
-          "scope": null
-        }
-      ],
-      "when_to_use": null
-    },
-    {
-      "description": "Native service actions compiled into Soma.",
-      "elicitation": [],
-      "kind": "static-rust",
-      "name": "static-rust",
-      "prompts": [
-        {
-          "arguments_schema": null,
-          "description": "Check the server status and get a personalised greeting to verify the MCP connection is working end-to-end.",
-          "name": "quick_start"
-        }
-      ],
-      "resources": [],
-      "tasks": [],
-      "title": "Built-in Rust actions",
-      "tools": [
-        {
-          "cli": true,
-          "cli_aliases": [],
-          "cli_command": "greet",
-          "cli_default_output": null,
-          "cli_flags": [
-            {
-              "description": "Name to greet. Omit to greet the world.",
-              "name": "--name",
-              "required": false,
-              "value_name": "NAME"
-            }
-          ],
-          "cli_usage": "soma greet [--name NAME]",
-          "cost": "cheap",
-          "description": "Return a greeting.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "name": {
-                "description": "Name to greet. Omit to greet the world.",
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": {
-            "cli_usage": "soma greet [--name NAME]",
-            "returns": "Greeting",
-            "scaffold_fallback": null
-          },
-          "name": "greet",
-          "output_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "greeting": {
-                "type": "string"
-              },
-              "server": {
-                "type": "string"
-              },
-              "target": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "greeting",
-              "target",
-              "server"
-            ],
-            "type": "object"
-          },
-          "requires_admin": false,
-          "rest": true,
-          "rest_route": "POST /v1/greet",
-          "scope": "soma:read"
-        },
-        {
-          "cli": true,
-          "cli_aliases": [],
-          "cli_command": "echo",
-          "cli_default_output": null,
-          "cli_flags": [
-            {
-              "description": "Message to echo back. Must not be empty.",
-              "name": "--message",
-              "required": true,
-              "value_name": "MSG"
-            }
-          ],
-          "cli_usage": "soma echo --message MSG",
-          "cost": "cheap",
-          "description": "Echo a message back unchanged.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "message": {
-                "description": "Message to echo back. Must not be empty.",
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "message"
-            ],
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": {
-            "cli_usage": "soma echo --message MSG",
-            "returns": "EchoResult",
-            "scaffold_fallback": null
-          },
-          "name": "echo",
-          "output_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "echo": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "echo"
-            ],
-            "type": "object"
-          },
-          "requires_admin": false,
-          "rest": true,
-          "rest_route": "POST /v1/echo",
-          "scope": "soma:read"
-        },
-        {
-          "cli": true,
-          "cli_aliases": [],
-          "cli_command": "status",
-          "cli_default_output": null,
-          "cli_flags": [],
-          "cli_usage": "soma status",
-          "cost": "cheap",
-          "description": "Return server status and configuration info.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {},
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": {
-            "cli_usage": "soma status",
-            "returns": "Status",
-            "scaffold_fallback": null
-          },
-          "name": "status",
-          "output_schema": {
-            "additionalProperties": true,
-            "properties": {
-              "note": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              },
-              "warnings": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            },
-            "required": [
-              "status"
-            ],
-            "type": "object"
-          },
-          "requires_admin": false,
-          "rest": true,
-          "rest_route": "GET /v1/status",
-          "scope": "soma:read"
-        },
-        {
-          "cli": false,
-          "cli_aliases": [],
-          "cli_command": "N/A",
-          "cli_default_output": null,
-          "cli_flags": [],
-          "cli_usage": null,
-          "cost": "cheap",
-          "description": "Ask the MCP client to collect a name, then return a personalised greeting.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {},
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": {
-            "cli_usage": null,
-            "returns": "Greeting",
-            "scaffold_fallback": null
-          },
-          "name": "elicit_name",
-          "output_schema": {
-            "additionalProperties": true,
-            "properties": {
-              "fallback_greeting": {
-                "type": "string"
-              },
-              "greeting": {
-                "type": "string"
-              },
-              "hint": {
-                "type": "string"
-              },
-              "message": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "note": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "requires_admin": false,
-          "rest": false,
-          "rest_route": "N/A",
-          "scope": "soma:read"
-        },
-        {
-          "cli": false,
-          "cli_aliases": [],
-          "cli_command": "N/A",
-          "cli_default_output": null,
-          "cli_flags": [],
-          "cli_usage": null,
-          "cost": "moderate",
-          "description": "Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {},
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": {
-            "cli_usage": null,
-            "returns": "ScaffoldIntentReport",
-            "scaffold_fallback": {
-              "instructions": "Ask the user for the scaffold fields manually, then create the same JSON shape documented by the scaffold-project skill. Do not mutate files until the user approves the plan.",
-              "recommended_skill": "scaffold-project"
-            }
-          },
-          "name": "scaffold_intent",
-          "output_schema": {
-            "additionalProperties": true,
-            "properties": {
-              "handoff": {
-                "type": "object"
-              },
-              "kind": {
-                "type": "string"
-              },
-              "mcp_primitives": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "policy": {
-                "type": "object"
-              },
-              "project": {
-                "type": "object"
-              },
-              "required_surfaces": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "runtime": {
-                "type": "object"
-              },
-              "schema_version": {
-                "type": "integer"
-              },
-              "server_category": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              },
-              "upstream": {
-                "type": "object"
-              }
-            },
-            "type": "object"
-          },
-          "requires_admin": false,
-          "rest": false,
-          "rest_route": "N/A",
-          "scope": "soma:read"
-        },
-        {
-          "cli": true,
-          "cli_aliases": [],
-          "cli_command": "help",
-          "cli_default_output": null,
-          "cli_flags": [],
-          "cli_usage": "soma help",
-          "cost": "cheap",
-          "description": "Show the action reference.",
-          "destructive": false,
-          "env": [],
-          "examples": [],
-          "input_schema": {
-            "additionalProperties": false,
-            "properties": {},
-            "type": "object"
-          },
-          "mcp": true,
-          "meta": {
-            "cli_usage": "soma help",
-            "returns": "HelpPayload",
-            "scaffold_fallback": null
-          },
-          "name": "help",
-          "output_schema": {
-            "additionalProperties": false,
-            "properties": {
-              "actions": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "catalog": {
-                "items": {
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "examples": {
-                "type": "object"
-              },
-              "mcp_only_actions": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "preferred_rest_style": {
-                "type": "string"
-              },
-              "usage": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "actions",
-              "mcp_only_actions",
-              "catalog",
-              "preferred_rest_style",
-              "usage",
-              "examples"
-            ],
-            "type": "object"
-          },
-          "requires_admin": false,
-          "rest": true,
-          "rest_route": "GET /v1/help",
-          "scope": null
-        }
-      ],
-      "when_to_use": "Use for Soma built-in Rust actions, scaffold intent collection, MCP elicitation flows, and CLI/REST action reference."
-    }
-  ],
-  "publisher": {
-    "name": "dinglebear.ai",
-    "url": "https://dinglebear.ai"
-  },
-  "repository": "https://github.com/jmagar/soma",
   "runtime": {
+    "config_home": "~/.soma",
+    "container_data_dir": "/data",
+    "provider_dir_env": "SOMA_PROVIDER_DIR",
+    "default_provider_dir": "providers",
+    "default_http_endpoint": "http://127.0.0.1:40060/mcp",
+    "transports": [
+      "stdio",
+      "streamable-http"
+    ],
     "auth_modes": [
       "loopback-dev",
       "bearer",
       "oauth",
       "trusted-gateway"
-    ],
-    "config_home": "~/.soma",
-    "container_data_dir": "/data",
-    "default_http_endpoint": "http://127.0.0.1:40060/mcp",
-    "default_provider_dir": "providers",
-    "provider_dir_env": "SOMA_PROVIDER_DIR",
-    "transports": [
-      "stdio",
-      "streamable-http"
     ]
   },
-  "schema_version": 1,
-  "security_policy": "https://github.com/jmagar/soma/security/policy",
+  "codex": {
+    "plugin_json": "plugins/soma/.codex-plugin/plugin.json",
+    "marketplace": ".agents/plugins/marketplace.json"
+  },
+  "claude": {
+    "plugin_json": "plugins/soma/.claude-plugin/plugin.json",
+    "marketplace": ".claude-plugin/marketplace.json"
+  },
   "skills": "plugins/soma/skills",
-  "support": "https://github.com/jmagar/soma/issues",
+  "node_package": "packages/soma-rmcp/package.json",
+  "docs": "docs/generated/provider-surfaces.md",
+  "mcp_server": {
+    "manifest": "server.json",
+    "name": "dinglebear.ai/soma",
+    "registry_schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json"
+  },
+  "provider_files": [
+    "providers/ai-sdk-brief.ts",
+    "providers/python-runtime-check.py"
+  ],
   "surfaces": {
-    "claude_marketplace": ".claude-plugin/marketplace.json",
+    "mcp_actions": [
+      "ai_sdk_brief",
+      "echo",
+      "elicit_name",
+      "greet",
+      "help",
+      "python_runtime_check",
+      "scaffold_intent",
+      "status"
+    ],
     "cli_actions": [
       "ai_sdk_brief",
       "echo",
@@ -615,31 +109,6 @@
       "python_runtime_check",
       "status"
     ],
-    "codex_marketplace": ".agents/plugins/marketplace.json",
-    "docs": "docs/generated/provider-surfaces.md",
-    "generated_skills": [
-      "docs/generated/skills/local-ai-sdk-tools/SKILL.md",
-      "docs/generated/skills/local-python-tools/SKILL.md",
-      "docs/generated/skills/static-rust/SKILL.md"
-    ],
-    "mcp_actions": [
-      "ai_sdk_brief",
-      "echo",
-      "elicit_name",
-      "greet",
-      "help",
-      "python_runtime_check",
-      "scaffold_intent",
-      "status"
-    ],
-    "node_package": "packages/soma-rmcp/package.json",
-    "palette": "deferred until Axon tauri-palette port lands",
-    "plugin": "docs/generated/plugin.json",
-    "provider_dir": "providers",
-    "provider_files": [
-      "providers/ai-sdk-brief.ts",
-      "providers/python-runtime-check.py"
-    ],
     "rest_routes": [
       "GET /v1/help",
       "GET /v1/status",
@@ -647,8 +116,539 @@
       "POST /v1/greet",
       "POST /v1/providers/ai-sdk-brief",
       "POST /v1/tools/python_runtime_check"
-    ]
+    ],
+    "docs": "docs/generated/provider-surfaces.md",
+    "plugin": "docs/generated/plugin.json",
+    "codex_marketplace": ".agents/plugins/marketplace.json",
+    "claude_marketplace": ".claude-plugin/marketplace.json",
+    "node_package": "packages/soma-rmcp/package.json",
+    "provider_dir": "providers",
+    "provider_files": [
+      "providers/ai-sdk-brief.ts",
+      "providers/python-runtime-check.py"
+    ],
+    "generated_skills": [
+      "docs/generated/skills/local-ai-sdk-tools/SKILL.md",
+      "docs/generated/skills/local-python-tools/SKILL.md",
+      "docs/generated/skills/static-rust/SKILL.md"
+    ],
+    "palette": "deferred until Axon tauri-palette port lands"
   },
-  "title": "Soma",
-  "website": "https://soma.dinglebear.ai"
+  "providers": [
+    {
+      "name": "local-ai-sdk-tools",
+      "kind": "ai-sdk",
+      "title": "Local AI SDK Tools",
+      "description": "Self-contained AI SDK sidecar tools for Soma provider smoke tests.",
+      "when_to_use": null,
+      "tools": [
+        {
+          "name": "ai_sdk_brief",
+          "description": "Create a compact brief from text through Soma's AI SDK sidecar runtime.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Text to condense."
+              },
+              "max_words": {
+                "type": "integer",
+                "minimum": 4,
+                "maximum": 40,
+                "default": 18,
+                "description": "Maximum words in the generated brief."
+              }
+            }
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "brief",
+              "word_count",
+              "input_chars",
+              "runtime"
+            ],
+            "properties": {
+              "brief": {
+                "type": "string"
+              },
+              "word_count": {
+                "type": "integer"
+              },
+              "input_chars": {
+                "type": "integer"
+              },
+              "runtime": {
+                "type": "string"
+              }
+            }
+          },
+          "scope": null,
+          "destructive": false,
+          "requires_admin": false,
+          "cost": null,
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "ai-sdk-brief",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": null,
+          "rest": true,
+          "rest_route": "POST /v1/providers/ai-sdk-brief",
+          "examples": [],
+          "meta": null
+        }
+      ],
+      "prompts": [],
+      "resources": [],
+      "tasks": [],
+      "elicitation": []
+    },
+    {
+      "name": "local-python-tools",
+      "kind": "python",
+      "title": "Local Python Tools",
+      "description": "Self-contained Python sidecar tools for Soma provider smoke tests.",
+      "when_to_use": null,
+      "tools": [
+        {
+          "name": "python_runtime_check",
+          "description": "Return a compact proof that the Python sidecar executed the provider.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "repeat": {
+                "type": "integer"
+              }
+            }
+          },
+          "output_schema": null,
+          "scope": null,
+          "destructive": false,
+          "requires_admin": false,
+          "cost": null,
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_runtime_check",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": null,
+          "rest": true,
+          "rest_route": "POST /v1/tools/python_runtime_check",
+          "examples": [],
+          "meta": {
+            "python": {
+              "adapter": "python"
+            }
+          }
+        }
+      ],
+      "prompts": [],
+      "resources": [],
+      "tasks": [],
+      "elicitation": []
+    },
+    {
+      "name": "static-rust",
+      "kind": "static-rust",
+      "title": "Built-in Rust actions",
+      "description": "Native service actions compiled into Soma.",
+      "when_to_use": "Use for Soma built-in Rust actions, scaffold intent collection, MCP elicitation flows, and CLI/REST action reference.",
+      "tools": [
+        {
+          "name": "greet",
+          "description": "Return a greeting.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name to greet. Omit to greet the world."
+              }
+            }
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "greeting",
+              "target",
+              "server"
+            ],
+            "properties": {
+              "greeting": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "server": {
+                "type": "string"
+              }
+            }
+          },
+          "scope": "soma:read",
+          "destructive": false,
+          "requires_admin": false,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "greet",
+          "cli_aliases": [],
+          "cli_flags": [
+            {
+              "name": "--name",
+              "value_name": "NAME",
+              "required": false,
+              "description": "Name to greet. Omit to greet the world."
+            }
+          ],
+          "cli_default_output": null,
+          "cli_usage": "soma greet [--name NAME]",
+          "rest": true,
+          "rest_route": "POST /v1/greet",
+          "examples": [],
+          "meta": {
+            "returns": "Greeting",
+            "cli_usage": "soma greet [--name NAME]",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "echo",
+          "description": "Echo a message back unchanged.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "Message to echo back. Must not be empty.",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "message"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "echo"
+            ],
+            "properties": {
+              "echo": {
+                "type": "string"
+              }
+            }
+          },
+          "scope": "soma:read",
+          "destructive": false,
+          "requires_admin": false,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "echo",
+          "cli_aliases": [],
+          "cli_flags": [
+            {
+              "name": "--message",
+              "value_name": "MSG",
+              "required": true,
+              "description": "Message to echo back. Must not be empty."
+            }
+          ],
+          "cli_default_output": null,
+          "cli_usage": "soma echo --message MSG",
+          "rest": true,
+          "rest_route": "POST /v1/echo",
+          "examples": [],
+          "meta": {
+            "returns": "EchoResult",
+            "cli_usage": "soma echo --message MSG",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "status",
+          "description": "Return server status and configuration info.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "scope": "soma:read",
+          "destructive": false,
+          "requires_admin": false,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "status",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma status",
+          "rest": true,
+          "rest_route": "GET /v1/status",
+          "examples": [],
+          "meta": {
+            "returns": "Status",
+            "cli_usage": "soma status",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "elicit_name",
+          "description": "Ask the MCP client to collect a name, then return a personalised greeting.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "greeting": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "hint": {
+                "type": "string"
+              },
+              "fallback_greeting": {
+                "type": "string"
+              }
+            }
+          },
+          "scope": "soma:read",
+          "destructive": false,
+          "requires_admin": false,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": false,
+          "cli_command": "N/A",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": null,
+          "rest": false,
+          "rest_route": "N/A",
+          "examples": [],
+          "meta": {
+            "returns": "Greeting",
+            "cli_usage": null,
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "scaffold_intent",
+          "description": "Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "server_category": {
+                "type": "string"
+              },
+              "required_surfaces": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "project": {
+                "type": "object"
+              },
+              "upstream": {
+                "type": "object"
+              },
+              "runtime": {
+                "type": "object"
+              },
+              "mcp_primitives": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "handoff": {
+                "type": "object"
+              },
+              "policy": {
+                "type": "object"
+              }
+            }
+          },
+          "scope": "soma:read",
+          "destructive": false,
+          "requires_admin": false,
+          "cost": "moderate",
+          "env": [],
+          "mcp": true,
+          "cli": false,
+          "cli_command": "N/A",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": null,
+          "rest": false,
+          "rest_route": "N/A",
+          "examples": [],
+          "meta": {
+            "returns": "ScaffoldIntentReport",
+            "cli_usage": null,
+            "scaffold_fallback": {
+              "recommended_skill": "scaffold-project",
+              "instructions": "Ask the user for the scaffold fields manually, then create the same JSON shape documented by the scaffold-project skill. Do not mutate files until the user approves the plan."
+            }
+          }
+        },
+        {
+          "name": "help",
+          "description": "Show the action reference.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "actions",
+              "mcp_only_actions",
+              "catalog",
+              "preferred_rest_style",
+              "usage",
+              "examples"
+            ],
+            "properties": {
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "mcp_only_actions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "catalog": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "preferred_rest_style": {
+                "type": "string"
+              },
+              "usage": {
+                "type": "string"
+              },
+              "examples": {
+                "type": "object"
+              }
+            }
+          },
+          "scope": null,
+          "destructive": false,
+          "requires_admin": false,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "help",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma help",
+          "rest": true,
+          "rest_route": "GET /v1/help",
+          "examples": [],
+          "meta": {
+            "returns": "HelpPayload",
+            "cli_usage": "soma help",
+            "scaffold_fallback": null
+          }
+        }
+      ],
+      "prompts": [
+        {
+          "name": "quick_start",
+          "description": "Check the server status and get a personalised greeting to verify the MCP connection is working end-to-end.",
+          "arguments_schema": null
+        }
+      ],
+      "resources": [],
+      "tasks": [],
+      "elicitation": []
+    }
+  ]
 }

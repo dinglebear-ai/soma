@@ -1,6 +1,6 @@
 # Plugin Settings
 
-Generated from `crates/soma/contracts/src/env_registry.rs`.
+Generated from `crates/soma/config/src/env_registry.rs`.
 
 | Plugin option env | Runtime env | Secret | TOML destination |
 |---|---|---:|---|

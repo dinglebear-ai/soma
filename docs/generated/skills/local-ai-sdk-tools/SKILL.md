@@ -38,7 +38,7 @@ Create a compact brief from text through Soma's AI SDK sidecar runtime.
 - Requires admin: `false`
 - Required args: `text: string`
 - Optional args: `max_words: integer`
-- Output: `brief: string, input_chars: integer, runtime: string, word_count: integer`
+- Output: `brief: string, word_count: integer, input_chars: integer, runtime: string`
 - MCP: `soma(action="ai_sdk_brief")`
 - CLI: `soma ai-sdk-brief`
 - REST: `POST /v1/providers/ai-sdk-brief`

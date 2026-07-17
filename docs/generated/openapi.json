@@ -476,7 +476,7 @@
           "status",
           "help"
         ],
-        "description": "REST-capable action names from crates/soma/contracts/src/actions.rs."
+        "description": "REST-capable action names from crates/soma/domain/src/actions.rs."
       },
       "GreetRequest": {
         "type": "object",
@@ -795,7 +795,7 @@
       "server-runtime"
     ],
     "source": "scripts/check-openapi.py",
-    "action_metadata": "crates/soma/contracts/src/actions.rs",
+    "action_metadata": "crates/soma/domain/src/actions.rs",
     "preferred_rest_style": "direct_routes",
     "binary": "soma",
     "server_binary": "soma",
