@@ -322,6 +322,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `soma-auth`'s default auth-database directory is now `~/.soma` instead of
   the inherited `~/.lab`.
 
+### Removed
+
+- Deleted `crates/soma/service` and `crates/soma/contracts` (plan PR 19,
+  "Delete legacy facades and update ecosystem artifacts"), the two legacy
+  strangler-pattern crates every prior slice (PR 4-13) migrated surfaces off
+  of. `crates/soma/contracts` was already a pure deprecated re-export facade
+  (PR 13 had moved its real content to `soma-domain`, `soma-config`, and
+  `soma-provider-core`), so deleting it needed no consumer changes.
+  `crates/soma/service` still owned unmigrated business logic — `SomaService`,
+  the product-policy `ProviderRegistry`, `CapabilityBroker`, and the
+  filesystem/remote/static-Rust drop-in providers — left over from an
+  unfinished PR 12; that code moved into `soma-application`
+  (`crates/soma/application/src/{service,provider_registry,capabilities,provider_errors,providers}.rs`)
+  before the crate was deleted. `apps/soma`'s public `app` module keeps
+  re-exporting `SomaService` from `soma-application` so the documented
+  `soma::app::SomaService` path is unaffected.
+- Removed both entries from `xtask/src/architecture.rs`'s
+  `TEMPORARY_EXCEPTIONS` (the `soma-application -> soma-service` strangler
+  edge and the `soma-runtime -> crates/shared/mcp/gateway` edge, both
+  self-documented as removable once their underlying crates/composition
+  settled). `cargo xtask check-architecture` now runs with zero exceptions —
+  the architecture checker's rules were updated alongside the deletion:
+  `soma-application` may depend on `soma-client` (a `product-support` crate;
+  previously blanket-forbidden, but this is PR 12's intended permanent
+  destination for the remote Soma HTTP client, not a migration artifact), and
+  `soma-runtime` (`product-runtime`) joins `app` and `product-integration` as
+  a legitimate application-port/concrete-engine bridge layer, since it
+  intentionally bundles the initialized `SomaApplication` handle with
+  `GatewayProductState` for every surface's `AppState`.
+
 ### Fixed
 
 - PR18 review fix: `protected_routes.rs` and `protected_routes_proxy.rs`
