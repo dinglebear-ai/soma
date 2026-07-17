@@ -3601,6 +3601,7 @@ dependencies = [
  "soma-contracts",
  "soma-domain",
  "soma-gateway",
+ "soma-integrations",
  "soma-mcp",
  "soma-mcp-client",
  "soma-observability",
@@ -3777,6 +3778,24 @@ dependencies = [
  "toml",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "soma-integrations"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "serde_json",
+ "soma-application",
+ "soma-auth",
+ "soma-codemode",
+ "soma-contracts",
+ "soma-domain",
+ "soma-gateway",
+ "soma-mcp-client",
+ "tokio",
 ]
 
 [[package]]

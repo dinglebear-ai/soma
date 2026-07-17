@@ -1,0 +1,40 @@
+[package]
+name = "soma-integrations"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Product adapters wiring soma-application ports to Soma's shared engines (gateway, Code Mode, OpenAPI, upstream OAuth)"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "product-integration"
+
+[features]
+default = []
+# Product auth default mapping (env prefix, scopes, cookie name) with no
+# outbound-OAuth transport stack.
+auth = ["dep:soma-auth"]
+# Gateway-to-auth bridge: translates soma-auth's upstream OAuth runtime into
+# soma-gateway's generic `UpstreamOAuthRuntime`/`UpstreamOAuthProvider`/
+# `UpstreamOAuthManager` traits.
+oauth = ["auth", "dep:mcp-client", "dep:futures", "soma-auth/upstream-oauth-rmcp"]
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+futures = { version = "0.3", optional = true }
+serde_json = "1"
+soma-application = { workspace = true }
+soma-auth = { workspace = true, optional = true }
+soma-codemode = { workspace = true }
+soma-contracts = { workspace = true }
+soma-domain = { workspace = true }
+soma-gateway = { workspace = true, features = ["protected-routes"] }
+mcp-client = { workspace = true, optional = true, features = ["oauth"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
