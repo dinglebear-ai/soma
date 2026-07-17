@@ -305,6 +305,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- PR17 review fix: `soma-palette` duplicated `soma-api`'s
+  `ApplicationError.code` → `StatusCode` mapping verbatim instead of sharing
+  it through `soma-http-api` (both crates are `product-surface` and must not
+  depend on one another); moved the mapping to
+  `soma_http_api::response::application_error_status` and had both surfaces
+  delegate to it. `apps/palette/src-tauri/src/labby_bridge.rs` now
+  path-depends on `soma-palette` and consumes its `dto::LauncherExecuteRequest`
+  and `openapi::{CATALOG_PATH, SCHEMA_PATH, EXECUTE_PATH}` instead of
+  redefining the request shape and hardcoding the `/v1/palette/*` path
+  strings, per plan section 6.2's move instruction for that file. Removed
+  `RegistrySnapshot::cached_palette_manifest` from `soma-service`'s provider
+  registry — a pre-Palette-overlay placeholder manifest that PR 17's real
+  `soma_palette::catalog::catalog_response()` (backed by `ToolSpec` Palette
+  overlays) superseded; it was constructed on every registry build but read
+  nowhere in the workspace.
 - PR13 review fix: 9 of the 11 crates touched by the `soma-contracts` split
   (`soma-api`, `soma-cli`, `soma-mcp`, `soma-integrations`, `soma-runtime`,
   `soma-service`, `soma-test-support`, `apps/soma`, `xtask`) still declared

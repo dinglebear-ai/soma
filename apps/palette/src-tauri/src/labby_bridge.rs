@@ -6,6 +6,8 @@
 //! back to the static bearer token from settings.
 
 use serde::{Deserialize, Serialize};
+use soma_palette::dto::LauncherExecuteRequest;
+use soma_palette::openapi::{CATALOG_PATH, EXECUTE_PATH, SCHEMA_PATH};
 use tauri::AppHandle;
 
 use crate::{merged_settings, validate_saved_server_url};
@@ -162,7 +164,7 @@ pub(crate) async fn fetch_launcher_catalog(
 ) -> Result<LabbyHttpResult, String> {
     let settings = merged_settings(&app)?;
     let base_url = validate_saved_server_url(&settings.server_url)?;
-    let url = format!("{}/v1/palette/catalog", base_url.trim_end_matches('/'));
+    let url = format!("{}{CATALOG_PATH}", base_url.trim_end_matches('/'));
     let client = (*bridge).client();
     let static_token = settings
         .static_token
@@ -189,7 +191,7 @@ pub(crate) async fn fetch_launcher_catalog(
         Ok(result) => Ok(result),
         Err(err) if err == WRONG_API_HOST_HINT => {
             let discovered = discover_api_base_url(client, &base_url).await?;
-            let url = format!("{}/v1/palette/catalog", discovered.trim_end_matches('/'));
+            let url = format!("{}{CATALOG_PATH}", discovered.trim_end_matches('/'));
             let make = |token: Option<&str>| {
                 let mut b = client
                     .get(&url)
@@ -232,7 +234,7 @@ pub(crate) async fn fetch_launcher_schema(
     let settings = merged_settings(&app)?;
     let base_url = validate_saved_server_url(&settings.server_url)?;
     let mut url = reqwest::Url::parse(&format!(
-        "{}/v1/palette/schema",
+        "{}{SCHEMA_PATH}",
         base_url.trim_end_matches('/')
     ))
     .map_err(|err| err.to_string())?;
@@ -259,14 +261,6 @@ pub(crate) async fn fetch_launcher_schema(
     response_to_result(response).await
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LauncherExecuteRequest {
-    id: String,
-    params: serde_json::Value,
-    confirm_destructive: Option<bool>,
-}
-
 #[tauri::command]
 pub(crate) async fn execute_launcher_entry(
     app: AppHandle,
@@ -277,7 +271,7 @@ pub(crate) async fn execute_launcher_entry(
     validate_launcher_request(&request)?;
     let settings = merged_settings(&app)?;
     let base_url = validate_saved_server_url(&settings.server_url)?;
-    let url = format!("{}/v1/palette/execute", base_url.trim_end_matches('/'));
+    let url = format!("{}{EXECUTE_PATH}", base_url.trim_end_matches('/'));
     let client = (*bridge).client();
     let static_token = settings
         .static_token
@@ -287,7 +281,7 @@ pub(crate) async fn execute_launcher_entry(
     let body = serde_json::json!({
         "id": request.id,
         "params": request.params,
-        "confirmDestructive": request.confirm_destructive.unwrap_or(false),
+        "confirmDestructive": request.confirm_destructive,
     });
 
     let make = |token: Option<&str>| {
@@ -307,7 +301,7 @@ pub(crate) async fn execute_launcher_entry(
         Ok(result) => Ok(result),
         Err(err) if err == WRONG_API_HOST_HINT => {
             let discovered = discover_api_base_url(client, &base_url).await?;
-            let url = format!("{}/v1/palette/execute", discovered.trim_end_matches('/'));
+            let url = format!("{}{EXECUTE_PATH}", discovered.trim_end_matches('/'));
             let make = |token: Option<&str>| {
                 let mut b = client
                     .post(&url)
@@ -480,7 +474,7 @@ mod tests {
         validate_launcher_request(&LauncherExecuteRequest {
             id: "mcp:alpha::ping".to_string(),
             params: json!({ "q": "hello" }),
-            confirm_destructive: Some(false),
+            confirm_destructive: false,
         })
         .expect("valid request");
     }
@@ -491,7 +485,7 @@ mod tests {
             validate_launcher_request(&LauncherExecuteRequest {
                 id: "../escape".to_string(),
                 params: json!({}),
-                confirm_destructive: None,
+                confirm_destructive: false,
             })
             .is_err()
         );
@@ -499,7 +493,7 @@ mod tests {
             validate_launcher_request(&LauncherExecuteRequest {
                 id: "mcp:alpha::ping".to_string(),
                 params: json!("not-object"),
-                confirm_destructive: None,
+                confirm_destructive: false,
             })
             .is_err()
         );

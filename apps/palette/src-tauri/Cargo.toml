@@ -31,6 +31,10 @@ reqwest = { version = "0.12", default-features = false, features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+# Palette product DTOs, `/v1/palette/*` path constants, and error shapes
+# shared with the Soma HTTP server — not a root workspace member (this
+# package isn't either; see the `[workspace]` table above), consumed by path.
+soma-palette = { path = "../../../crates/soma/palette" }
 # Reusable, product-neutral Tauri window/tray/shortcut/blur/persistence and
 # command-result mechanics — not a root workspace member (this package isn't
 # either; see the `[workspace]` table above), consumed by path.

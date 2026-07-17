@@ -208,7 +208,6 @@ pub struct RegistrySnapshot {
     pub compiled_validator_count: usize,
     pub cached_openapi_bytes: Arc<Vec<u8>>,
     pub cached_catalog_summary: Arc<Value>,
-    pub cached_palette_manifest: Arc<Value>,
 }
 
 impl RegistrySnapshot {
@@ -631,18 +630,7 @@ fn build_snapshot(
     let cached_catalog_summary = Arc::new(json!({
         "schema_version": 1,
         "provider_fingerprint": fingerprint,
-        "actions": action_names.clone(),
-    }));
-    let cached_palette_manifest = Arc::new(json!({
-        "schema_version": 1,
-        "provider_fingerprint": fingerprint,
-        "commands": action_names,
-        "builtins": {
-            "file_explorer": false,
-            "github": false,
-            "browser": false,
-            "terminal": false
-        }
+        "actions": action_names,
     }));
     let cached_openapi_bytes = Arc::new(
         serde_json::to_vec_pretty(&json!({
@@ -667,7 +655,6 @@ fn build_snapshot(
         compiled_validator_count: core.compiled_validator_count(),
         cached_openapi_bytes,
         cached_catalog_summary,
-        cached_palette_manifest,
     })
 }
 

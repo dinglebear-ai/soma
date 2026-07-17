@@ -2,9 +2,11 @@
 //!
 //! The Palette frontend renders `code`/`message`/`remediation` directly, so
 //! the JSON body is `ApplicationError` itself (already `Serialize`); this
-//! module only owns the HTTP status mapping, which mirrors `soma-api`'s but
-//! lives here independently — `product-surface` packages must not depend on
-//! one another (see `xtask check-architecture`).
+//! module only owns the HTTP status mapping. It delegates to
+//! `soma-http-api`'s shared classification rather than duplicating
+//! `soma-api`'s table — `product-surface` packages must not depend on one
+//! another (see `xtask check-architecture`), so both surfaces depend on the
+//! same `shared/*` crate instead.
 
 use axum::{
     http::StatusCode,
@@ -20,30 +22,7 @@ pub fn palette_error_response(error: ApplicationError) -> Response {
 }
 
 pub fn palette_error_status(error: &ApplicationError) -> StatusCode {
-    match error.code.as_str() {
-        "unknown_action" | "surface_not_exposed" | "upstream_missing" | "unknown_upstream" => {
-            StatusCode::NOT_FOUND
-        }
-        "insufficient_scope" | "capability_denied" | "admin_required" | "not_exposed" => {
-            StatusCode::FORBIDDEN
-        }
-        "input_too_large" | "response_too_large" => StatusCode::PAYLOAD_TOO_LARGE,
-        "input_schema_failed"
-        | "confirmation_required"
-        | "invalid_param"
-        | "spawn_validation_failed"
-        | "upstream_exists"
-        | "invalid_config" => StatusCode::BAD_REQUEST,
-        "unsupported_transport" => StatusCode::NOT_IMPLEMENTED,
-        "gateway_reloading"
-        | "store_not_mounted"
-        | "oauth_runtime_error"
-        | "not_routable"
-        | "upstream_connect_failed"
-        | "upstream_call_failed"
-        | "engine_unavailable" => StatusCode::SERVICE_UNAVAILABLE,
-        _ => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    soma_http_api::response::application_error_status(&error.code)
 }
 
 /// `404` body for a launcher id that doesn't resolve to any palette-exposed

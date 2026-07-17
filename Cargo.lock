@@ -5577,6 +5577,7 @@ dependencies = [
  "soma-application",
  "soma-auth",
  "soma-domain",
+ "soma-http-api",
  "soma-provider-core",
  "tokio",
  "tracing",
