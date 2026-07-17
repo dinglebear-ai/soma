@@ -252,14 +252,24 @@ struct PythonRuntime {
 impl PythonRuntime {
     fn for_catalog(env_prefix: &str) -> Self {
         let prefix = env_prefix.trim_matches('_').to_ascii_uppercase();
+        let timeout_var = format!("{prefix}_PYTHON_CATALOG_TIMEOUT_MS");
+        let timeout_ms = match std::env::var(&timeout_var) {
+            Ok(value) => value.parse().unwrap_or_else(|error| {
+                tracing::warn!(
+                    variable = %timeout_var,
+                    value,
+                    error = %error,
+                    "invalid provider catalog timeout env var; falling back to the default"
+                );
+                DEFAULT_TIMEOUT_MS
+            }),
+            Err(_) => DEFAULT_TIMEOUT_MS,
+        };
         Self {
             command: std::env::var(format!("{prefix}_PYTHON_COMMAND"))
                 .unwrap_or_else(|_| default_python_command().to_owned()),
             env: Vec::new(),
-            timeout_ms: std::env::var(format!("{prefix}_PYTHON_CATALOG_TIMEOUT_MS"))
-                .ok()
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(DEFAULT_TIMEOUT_MS),
+            timeout_ms,
             max_input_bytes: DEFAULT_MAX_INPUT_BYTES,
             max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
         }

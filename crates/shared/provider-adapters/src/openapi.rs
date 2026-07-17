@@ -22,7 +22,13 @@
 //! `apps/soma/tests/openapi_provider.rs`, which calls a plain-HTTP
 //! `127.0.0.1` server and would be rejected by the DNS-pinned guard. The
 //! allowlist check below (`validate_base_url`) is this adapter's own SSRF
-//! defense and runs before any request is dispatched.
+//! defense and runs before any request is dispatched. For that defense to
+//! hold, two things it does NOT rely on `soma-openapi` for are handled here:
+//! `validate_base_url` fails closed (denies dispatch) when a provider's
+//! `capabilities.network` grant is absent or disabled, rather than treating
+//! that as "no restriction needed"; and [`dispatch_client`] disables HTTP
+//! redirects, so an allowlisted host can't hand a request off to a
+//! non-allowlisted address via a 3xx response.
 //!
 //! A small amount of behavior differs from the pre-delegation implementation,
 //! documented here rather than hidden:
@@ -38,7 +44,7 @@
 //!   the error message (the `openapi_upstream_error` error `code` is
 //!   unchanged).
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use serde_json::Value;
@@ -47,14 +53,32 @@ use soma_provider_core::{
 };
 use url::Url;
 
-/// rmcp/reqwest 0.13's streamable HTTP transport panics without an
-/// installed rustls crypto provider; install ring once, tolerating a
-/// provider some embedder installed earlier.
+/// reqwest 0.13's rustls backend panics without an installed crypto
+/// provider; install ring once, tolerating a provider some embedder
+/// installed earlier. (Not rmcp-specific despite the historical wording of
+/// this helper elsewhere in the workspace — this module dispatches over
+/// plain reqwest via `soma-openapi`, never through an rmcp transport.)
 fn ensure_rustls_crypto_provider() {
     static INSTALL: std::sync::Once = std::sync::Once::new();
     INSTALL.call_once(|| {
         let _ = rustls::crypto::ring::default_provider().install_default();
     });
+}
+
+/// A per-call HTTP client hardened for dispatch against an
+/// operator-allowlisted host (see `validate_base_url`): redirects are
+/// disabled so an allowlisted host cannot silently hand off the request to
+/// an arbitrary, non-allowlisted address via a 3xx response — the allowlist
+/// check in `validate_base_url` only inspects the *configured* `base_url`,
+/// so an unchecked redirect would otherwise bypass it entirely. A bounded
+/// connect/request timeout also prevents a hung upstream from blocking a
+/// call indefinitely.
+fn dispatch_client() -> Result<reqwest::Client, reqwest::Error> {
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
 }
 
 #[derive(Clone)]
@@ -91,7 +115,9 @@ impl Provider for OpenApiProvider {
             ));
         }
 
-        let client = reqwest::Client::new();
+        let client = dispatch_client().map_err(|error| {
+            ProviderError::opaque_execution(&self.catalog.provider.name, &call.action, error)
+        })?;
         let handle = soma_openapi::registry::OperationHandle {
             operation_id: call.action.clone(),
             method: operation.method,
@@ -168,12 +194,7 @@ impl OpenApiOperation {
             .and_then(|value| value.get("path"))
             .and_then(Value::as_str)
             .or_else(|| tool.rest.as_ref().and_then(|rest| rest.path.as_deref()))
-            .unwrap_or_else(|| {
-                tool.rest
-                    .as_ref()
-                    .and_then(|rest| rest.path.as_deref())
-                    .unwrap_or("")
-            });
+            .unwrap_or("");
         validate_relative_path(catalog, &call.action, path)?;
 
         let method_str = operation_meta
@@ -233,18 +254,37 @@ fn validate_base_url(
             "OpenAPI provider base_url must include a host",
         ));
     }
-    if let Some(network) = &catalog.capabilities.network {
-        if network.enabled {
-            let host = url.host_str().unwrap_or_default();
-            if !network.allowed_hosts.iter().any(|allowed| allowed == host) {
-                return Err(ProviderError::validation(
-                    &catalog.provider.name,
-                    action,
-                    "openapi_host_not_allowed",
-                    format!("OpenAPI provider host `{host}` is not declared in allowed_hosts"),
-                ));
-            }
-        }
+    // Fail closed: an OpenAPI provider always makes a network call, so an
+    // absent or disabled `capabilities.network` block must deny dispatch
+    // rather than silently skip the allowlist check. This adapter bypasses
+    // `soma-openapi`'s own DNS-pinned SSRF guard specifically because it
+    // trusts this allowlist as its replacement defense (see the module doc)
+    // — that trust model only holds if the allowlist is mandatory, not
+    // opt-in per manifest.
+    let host = url.host_str().unwrap_or_default();
+    let network = catalog.capabilities.network.as_ref().ok_or_else(|| {
+        ProviderError::validation(
+            &catalog.provider.name,
+            action,
+            "openapi_network_capability_required",
+            "OpenAPI provider requires an enabled capabilities.network.allowed_hosts grant",
+        )
+    })?;
+    if !network.enabled {
+        return Err(ProviderError::validation(
+            &catalog.provider.name,
+            action,
+            "openapi_network_capability_required",
+            "OpenAPI provider requires an enabled capabilities.network.allowed_hosts grant",
+        ));
+    }
+    if !network.allowed_hosts.iter().any(|allowed| allowed == host) {
+        return Err(ProviderError::validation(
+            &catalog.provider.name,
+            action,
+            "openapi_host_not_allowed",
+            format!("OpenAPI provider host `{host}` is not declared in allowed_hosts"),
+        ));
     }
     Ok(())
 }
