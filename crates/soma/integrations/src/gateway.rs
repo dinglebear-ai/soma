@@ -31,8 +31,7 @@ use soma_gateway::gateway::{
 
 /// `soma-gateway`'s `GatewayProductState` is `Arc<GatewayManager>` — this
 /// adapter takes the manager directly rather than depending on `soma-runtime`
-/// for the type alias, keeping this crate's dependency shape limited to
-/// `soma-application`, `soma-domain`, `soma-contracts`, and `soma-gateway`.
+/// just for that type alias.
 pub struct GatewayApplicationPort {
     gateway: Arc<GatewayManager>,
 }
@@ -245,21 +244,35 @@ fn gateway_access(context: &ExecutionContext) -> GatewayAccess {
 }
 
 fn gateway_port_error(action: &str, error: GatewayDispatchError) -> PortError {
-    let structured = error.structured(action);
-    PortError {
-        code: structured.code.to_owned(),
-        message: error.to_string(),
-        retryable: matches!(structured.kind, "runtime"),
-        remediation: structured.remediation.to_owned(),
-    }
+    let message = error.to_string();
+    port_error_from_structured(error.structured(action), message)
 }
 
+/// `soma-gateway`'s own `GatewayDispatchError::structured()` already gives an
+/// exhaustive, per-variant `code`/`kind`/`remediation` mapping for every
+/// `GatewayManagerError` (including every `UpstreamError` case) via its
+/// `Manager` variant — reuse it here instead of collapsing every MCP
+/// tools/resources/prompts proxy failure into one `gateway_proxy_failed` code
+/// with a blanket `retryable: true`, which previously made permanent
+/// failures (e.g. an unknown/misconfigured upstream) look identical to
+/// transient ones (e.g. a live connect/call failure).
 fn gateway_manager_port_error(operation: &str, error: GatewayManagerError) -> PortError {
+    let message = format!("{operation} failed: {error}");
+    port_error_from_structured(
+        GatewayDispatchError::from(error).structured(operation),
+        message,
+    )
+}
+
+fn port_error_from_structured(
+    structured: soma_gateway::dispatch_helpers::GatewayStructuredError,
+    message: String,
+) -> PortError {
     PortError {
-        code: "gateway_proxy_failed".to_owned(),
-        message: format!("{operation} failed: {error}"),
-        retryable: true,
-        remediation: "Check the gateway upstream configuration and retry.".to_owned(),
+        code: structured.code.to_owned(),
+        message,
+        retryable: matches!(structured.kind, "runtime"),
+        remediation: structured.remediation.to_owned(),
     }
 }
 

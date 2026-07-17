@@ -39,12 +39,45 @@ pub async fn fetch_url_capped(
     body::collect_spec_capped(response, cap, label).await
 }
 
+/// Which trust boundary `execute_operation_inner` should enforce for a given
+/// call. Kept as an enum rather than two independent booleans (`enforce_ssrf`,
+/// `lenient_body`) so illegal combinations — like enforcing DNS-pinned SSRF
+/// protection while also being lenient about non-JSON bodies, a combination
+/// nothing in this crate has ever needed or tested — are unrepresentable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DispatchTrust {
+    /// Registry/spec-driven dispatch against arbitrary, potentially
+    /// public-internet hosts: enforce the DNS-pinned SSRF guard and require a
+    /// valid JSON success body.
+    Pinned,
+    /// The caller has already restricted the target host through its own
+    /// allowlist (e.g. a drop-in provider manifest's declared
+    /// `capabilities.network.allowed_hosts`): skip the SSRF guard and
+    /// tolerate a non-JSON success body.
+    AllowlistedHost,
+    /// Test-only: skip the SSRF guard but keep the strict JSON-body
+    /// requirement, isolating SSRF-guard behavior from body-parsing
+    /// behavior in unit tests.
+    #[cfg(test)]
+    UnpinnedStrictBody,
+}
+
+impl DispatchTrust {
+    fn enforce_ssrf(self) -> bool {
+        matches!(self, Self::Pinned)
+    }
+
+    fn lenient_body(self) -> bool {
+        matches!(self, Self::AllowlistedHost)
+    }
+}
+
 pub async fn execute_operation(
     client: &reqwest::Client,
     op: &OperationHandle,
     params: serde_json::Value,
 ) -> Result<serde_json::Value, OpenApiError> {
-    execute_operation_inner(client, op, params, true, false).await
+    execute_operation_inner(client, op, params, DispatchTrust::Pinned).await
 }
 
 /// Dispatches an operation while skipping this crate's DNS-pinned SSRF guard
@@ -65,7 +98,7 @@ pub async fn execute_operation_for_allowlisted_host(
     op: &OperationHandle,
     params: serde_json::Value,
 ) -> Result<serde_json::Value, OpenApiError> {
-    execute_operation_inner(client, op, params, false, true).await
+    execute_operation_inner(client, op, params, DispatchTrust::AllowlistedHost).await
 }
 
 #[cfg(test)]
@@ -74,18 +107,17 @@ pub(crate) async fn execute_operation_no_ssrf(
     op: &OperationHandle,
     params: serde_json::Value,
 ) -> Result<serde_json::Value, OpenApiError> {
-    execute_operation_inner(client, op, params, false, false).await
+    execute_operation_inner(client, op, params, DispatchTrust::UnpinnedStrictBody).await
 }
 
 async fn execute_operation_inner(
     client: &reqwest::Client,
     op: &OperationHandle,
     params: serde_json::Value,
-    enforce_ssrf: bool,
-    lenient_body: bool,
+    trust: DispatchTrust,
 ) -> Result<serde_json::Value, OpenApiError> {
     let (used_path_params, url) = params::build_url_with_params(op, &params)?;
-    let (send_client, pinned_ip) = if enforce_ssrf {
+    let (send_client, pinned_ip) = if trust.enforce_ssrf() {
         let (client, ip) = resolve::pinned_client_for(&url, &op.operation_id).await?;
         (client, Some(ip))
     } else {
@@ -112,7 +144,7 @@ async fn execute_operation_inner(
     }
     let body =
         body::collect_response_capped(response, MAX_RESPONSE_BYTES, &op.operation_id).await?;
-    if lenient_body {
+    if trust.lenient_body() {
         let parsed = serde_json::from_str::<serde_json::Value>(&body)
             .unwrap_or_else(|_| serde_json::json!({ "text": body }));
         return Ok(parsed);

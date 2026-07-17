@@ -60,7 +60,7 @@ use serde_json::{json, Map, Value};
 use soma_provider_core::{
     Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
 };
-use tokio::process::Command;
+use tokio::{io::AsyncReadExt, process::Command};
 
 #[derive(Clone)]
 pub struct UpstreamMcpProvider {
@@ -143,12 +143,14 @@ async fn call_stdio(
     upstream: &UpstreamTool,
     params: Map<String, Value>,
 ) -> Result<rmcp::model::CallToolResult, ProviderError> {
-    let (transport, _stderr) =
+    // Keep stderr piped (rather than the previous `Stdio::null()`) so a
+    // failed spawn/handshake/call can be diagnosed — see `attach_stderr`.
+    let (transport, stderr) =
         TokioChildProcess::builder(Command::new(&runtime.command).configure(|cmd| {
             cmd.args(&runtime.args)
                 .env_clear()
                 .envs(runtime.env.iter().map(|(key, value)| (key, value)))
-                .stderr(Stdio::null());
+                .stderr(Stdio::piped());
             if let Some(cwd) = &runtime.cwd {
                 cmd.current_dir(cwd);
             }
@@ -157,17 +159,65 @@ async fn call_stdio(
         .map_err(|error| {
             ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
         })?;
-    let service = ().serve(transport).await.map_err(|error| {
-        ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
-    })?;
+    let service = match ().serve(transport).await {
+        Ok(service) => service,
+        Err(error) => {
+            let provider_error =
+                ProviderError::execution(&catalog.provider.name, call.action.clone(), error);
+            return Err(attach_stderr(provider_error, stderr).await);
+        }
+    };
     let result = service
         .call_tool(CallToolRequestParams::new(upstream.name.clone()).with_arguments(params))
-        .await
-        .map_err(|error| {
-            ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
-        });
-    let _ = service.cancel().await;
+        .await;
+    let result = match result {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            let provider_error =
+                ProviderError::execution(&catalog.provider.name, call.action.clone(), error);
+            Err(attach_stderr(provider_error, stderr).await)
+        }
+    };
+    if let Err(error) = service.cancel().await {
+        tracing::debug!(
+            provider = %catalog.provider.name,
+            action = %call.action,
+            error = %error,
+            "failed to cancel upstream MCP stdio session cleanly"
+        );
+    }
     result
+}
+
+/// Best-effort attaches whatever the child has written to stderr as private
+/// (server-log-only, never returned to the MCP client — see
+/// `ProviderError::private_diagnostics`) diagnostics on an already-built
+/// error. Bounded in both time (the child may still be alive with an idle,
+/// non-EOF stderr pipe) and size, so a chatty or hung upstream can't stall or
+/// balloon a single failed call.
+async fn attach_stderr(
+    error: ProviderError,
+    stderr: Option<impl tokio::io::AsyncRead + Unpin>,
+) -> ProviderError {
+    const MAX_STDERR_BYTES: usize = 8 * 1024;
+    const READ_BUDGET: Duration = Duration::from_millis(200);
+
+    let Some(mut stderr) = stderr else {
+        return error;
+    };
+    let mut buffer = Vec::new();
+    let _ = tokio::time::timeout(
+        READ_BUDGET,
+        tokio::io::AsyncReadExt::take(&mut stderr, MAX_STDERR_BYTES as u64)
+            .read_to_end(&mut buffer),
+    )
+    .await;
+    let text = String::from_utf8_lossy(&buffer).trim().to_owned();
+    if text.is_empty() {
+        error
+    } else {
+        error.with_private_diagnostics(format!("upstream stderr: {text}"))
+    }
 }
 
 /// rmcp's streamable HTTP transport (reqwest 0.13) panics when the process has
@@ -202,7 +252,14 @@ async fn call_http(
         .map_err(|error| {
             ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
         });
-    let _ = service.cancel().await;
+    if let Err(error) = service.cancel().await {
+        tracing::debug!(
+            provider = %catalog.provider.name,
+            action = %call.action,
+            error = %error,
+            "failed to cancel upstream MCP http session cleanly"
+        );
+    }
     result
 }
 
@@ -448,11 +505,20 @@ impl UpstreamTool {
         Self { name, static_args }
     }
 
+    /// Merges the caller's params with this tool's manifest-declared
+    /// `static_args`. `static_args` are a pin, not a default: they are
+    /// applied *after* the caller's params so a manifest can restrict which
+    /// upstream action/argument a drop-in tool reaches (e.g. pinning
+    /// `action: "echo"` on a generic upstream tool) without a caller being
+    /// able to override it by supplying the same key. Any previous version
+    /// of this method that applied `static_args` first and let caller params
+    /// win on key collision inverted this contract.
     fn params(&self, call_params: Value) -> Map<String, Value> {
-        let mut params = self.static_args.clone();
-        if let Value::Object(map) = call_params {
-            params.extend(map);
-        }
+        let mut params = match call_params {
+            Value::Object(map) => map,
+            _ => Map::new(),
+        };
+        params.extend(self.static_args.clone());
         params
     }
 }
@@ -551,11 +617,17 @@ fn expand_env_templates(value: &str) -> Result<String, String> {
 /// dispatch through yet. Wiring a live dispatcher is deferred to whichever
 /// product integration crate first constructs a running gateway (tracked as
 /// a PR10 follow-up) — see the module-level deviation notes.
+///
+/// Returns `Err` if `provider_id` is not a valid `ProviderId` (lowercase,
+/// `[a-z0-9-_]`, no leading/trailing/doubled separators) rather than
+/// panicking — this is a `pub fn` in a shared library crate and `provider_id`
+/// may come from caller-supplied configuration, not only compile-time
+/// literals.
 pub fn project_gateway_action_catalog(
     provider_id: impl Into<String>,
     title: impl Into<String>,
     actions: &soma_gateway::gateway::catalog::GatewayActionCatalog,
-) -> ProviderCatalog {
+) -> Result<ProviderCatalog, soma_provider_core::ProviderIdError> {
     let tools = actions
         .list()
         .into_iter()
@@ -586,13 +658,12 @@ pub fn project_gateway_action_catalog(
         .collect();
 
     let mut manifest = soma_provider_core::ProviderManifest::new(
-        soma_provider_core::ProviderId::new(provider_id.into())
-            .expect("gateway provider id must be a valid lowercase provider id"),
+        soma_provider_core::ProviderId::new(provider_id.into())?,
         title,
         soma_gateway::VERSION,
     );
     manifest.tools = tools;
-    manifest
+    Ok(manifest)
 }
 
 #[cfg(test)]

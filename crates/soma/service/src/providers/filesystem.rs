@@ -258,7 +258,7 @@ impl FileProviderSource {
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
-            providers.push(provider_for_catalog(path, catalog));
+            providers.push(provider_for_catalog(path, catalog)?);
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
             let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
@@ -482,16 +482,31 @@ impl std::error::Error for FileProviderLoadError {}
 /// `provider_registry::SharedAdapter` and the PR10 deviation notes on why
 /// this dispatch step, and the directory-scanning/Soma-policy orchestration
 /// around it, stayed in soma-service rather than moving wholesale.
-fn provider_for_catalog(path: PathBuf, catalog: ProviderCatalog) -> std::sync::Arc<dyn Provider> {
+///
+/// `soma-service` currently enables every `soma-provider-adapters` kind
+/// feature (see its `Cargo.toml`), so `manifest_file::build_provider`
+/// returning `None` — meaning this binary was built without the feature that
+/// owns `catalog`'s kind — should never happen today. It is nonetheless
+/// treated as an ordinary, per-manifest `FileProviderLoadError` rather than a
+/// process-crashing `unreachable!()`: that invariant depends on two files (a
+/// `Cargo.toml` feature list and this crate's `ProviderKind` coverage)
+/// staying in sync by convention, with nothing enforcing it at compile time.
+/// If they ever drift, one misconfigured/unsupported provider manifest
+/// should fail to load, not take down every other already-working provider.
+fn provider_for_catalog(
+    path: PathBuf,
+    catalog: ProviderCatalog,
+) -> Result<std::sync::Arc<dyn Provider>, FileProviderLoadError> {
     let kind = catalog.provider.kind;
-    match manifest_file::build_provider(path, catalog, PROVIDER_ENV_PREFIX) {
-        Some(provider) => SharedAdapter::wrap(provider),
-        None => unreachable!(
-            "soma-service enables every soma-provider-adapters kind feature; \
-             manifest_file::build_provider returned None for kind `{}`",
-            kind.as_str()
-        ),
-    }
+    manifest_file::build_provider(path.clone(), catalog, PROVIDER_ENV_PREFIX)
+        .map(SharedAdapter::wrap)
+        .ok_or_else(|| FileProviderLoadError {
+            path,
+            message: format!(
+                "provider kind `{}` is not enabled in this build (soma-provider-adapters feature missing)",
+                kind.as_str()
+            ),
+        })
 }
 
 fn is_provider_file(path: &Path) -> bool {

@@ -210,16 +210,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - PR11 review fix: `soma-integrations::CodeModeApplicationPort` was
   implemented and unit-tested but never constructed anywhere outside its own
-  tests, so `soma(action="code_mode")`-style callers still silently fell back
-  to `UnavailableEnginePort` in production. `ApplicationPorts` gained
+  tests, so any future caller of `SomaApplication::codemode_execute` (no
+  MCP action, CLI command, or REST route dispatches to it yet — that wiring
+  is a separate follow-up) would have silently hit `UnavailableEnginePort` in
+  production instead of a real adapter. `ApplicationPorts` gained
   `with_codemode()`/`with_openapi()` builders alongside the existing
   `with_gateway()`, and `apps/soma`'s `runtime_for_components` now wires
-  `CodeModeApplicationPort::default()` into every runtime it builds.
+  `CodeModeApplicationPort::default()` into every runtime it builds — proven
+  by a new `apps/soma` test that calls `codemode_execute` through the real
+  composition and asserts the error is no longer `engine_unavailable`.
   `apps/soma`'s `soma-integrations` dependency is also now optional and
   feature-gated (`mcp-stdio`, `mcp-http`, `test-support`) instead of
   unconditional, so `soma-gateway`'s `protected-routes` feature is no longer
   pulled into builds — e.g. a `cli`-only, `default-features = false` build of
   the lib crate — that never construct `ApplicationPorts` from it.
+  `CodeModeApplicationPort::execute` also now checks `CodeModeConfig::enabled`
+  before running a snippet (the wired default is disabled) and maps
+  `soma-codemode`'s `ToolError` variants to distinct `PortError` codes
+  instead of one generic `codemode_execution_failed`; `soma-integrations`'s
+  gateway MCP-proxy error mapping now reuses `soma-gateway`'s own exhaustive
+  `GatewayManagerError` → `GatewayStructuredError` classification instead of
+  marking every proxy failure `retryable: true`.
+
+- `soma-provider-adapters` PR10 second review pass: `UpstreamMcpProvider`'s
+  `static_args` (a per-manifest pin, e.g. restricting a generic upstream
+  tool's `action`) were applied *before* caller-supplied params and so could
+  be silently overridden by a colliding caller key; merge order is now
+  reversed so the pin always wins. `openapi.rs`'s `validate_base_url` now
+  fails closed when a provider's `capabilities.network` grant is absent or
+  disabled — previously that silently skipped the allowlist check the
+  adapter's own docs describe as its SSRF defense — and its dispatch client
+  now disables HTTP redirects so an allowlisted host can't hand a request off
+  to a non-allowlisted address via a 3xx response. `soma-openapi`'s internal
+  `execute_operation_inner` now takes a `DispatchTrust` enum instead of two
+  independent booleans, making the untested/unneeded
+  `enforce_ssrf && lenient_body` combination unrepresentable. The `wasm`
+  feature was missing its `sidecar` feature dependency (compiled only by
+  accident whenever another sidecar-owning feature was also enabled);
+  `manifest_file::build_provider` returning `None` for an unbuilt provider
+  kind is now a per-manifest `FileProviderLoadError` instead of an
+  `unreachable!()` that would have crashed the whole server; and
+  `project_gateway_action_catalog` returns `Result` instead of panicking on
+  an invalid provider id. Also: capture bounded upstream stderr as private
+  diagnostics on MCP stdio provider failures (previously piped to
+  `Stdio::null()` and discarded), log (rather than silently swallow) upstream
+  MCP session-cancel errors and invalid provider catalog timeout env values,
+  and add unit coverage for `expand_env_templates`, the `static_args` pin,
+  and the fail-closed network-capability/params-must-be-object/path-parameter
+  behaviors that shipped undocumented-but-untested in the first PR10 pass.
 
 - `soma-provider-adapters::openapi` review fix: `OpenApiProvider` now
   delegates HTTP dispatch to `soma-openapi` (`http::execute_operation_for_allowlisted_host`,
