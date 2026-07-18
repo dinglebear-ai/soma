@@ -74,8 +74,10 @@ syncs a durable marker with explicit `prepared`, `installed`, `rolling_back`,
 and `rolled_back` phases. Marker replacement uses one deterministic
 lock-protected `<state>.tmp` sibling; startup recovery validates and reclaims an
 effective-user-owned regular-file leftover before reading transaction state.
-Serialized state is capped at the same 64 KiB limit on both writes and reads,
-before backup creation or executable replacement. Generated rollback paths are
+Serialized state is capped at the same 64 KiB limit on both writes and reads.
+Before backup creation or executable replacement, installation preflights the
+largest reachable phase and attempt-count representation so later recovery
+writes cannot outgrow that cap. Generated rollback paths are
 checked against executable, state, lock, marker-temporary, and staged identities
 before the backup is created.
 The transaction retains a unique rollback backup, syncs the backup and its

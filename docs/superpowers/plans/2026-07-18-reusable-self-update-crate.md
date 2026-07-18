@@ -7,7 +7,7 @@
 > failed-install cleanup; process-group/Windows-Job validator termination;
 > explicit executable-leaf symlink rejection; updater-scoped crash failpoints;
 > and deterministic lock-protected marker-temporary recovery.
-> Final security hardening also caps marker writes before mutation, rejects
+> Final security hardening also preflights the largest reachable marker before mutation, rejects
 > generated backup collisions, kills validator trees on future cancellation,
 > and requires redirect/final-response URL validation by transport adapters.
 
