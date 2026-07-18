@@ -1,14 +1,12 @@
 use soma_self_update::{ArtifactTransportPolicy, UpdateDirective, UpdateError};
 use url::Url;
 
-const EMPTY_SHA256: &str =
-    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const EMPTY_SHA256: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 #[test]
 fn resolves_root_and_sibling_references_without_endpoint_nesting() {
     let base = Url::parse("https://example.test/v1/heartbeats").unwrap();
-    let root = UpdateDirective::new("2.0.0", "/v1/agent/binary?os=linux", EMPTY_SHA256)
-        .unwrap();
+    let root = UpdateDirective::new("2.0.0", "/v1/agent/binary?os=linux", EMPTY_SHA256).unwrap();
     assert_eq!(
         root.resolve_artifact_url(&base, ArtifactTransportPolicy::HttpsOnly)
             .unwrap()
@@ -51,10 +49,7 @@ fn enforces_same_origin_and_transport_policy() {
     let remote = Url::parse("http://example.test/v1/heartbeats").unwrap();
     let directive = UpdateDirective::new("2", "/binary", EMPTY_SHA256).unwrap();
     assert!(matches!(
-        directive.resolve_artifact_url(
-            &remote,
-            ArtifactTransportPolicy::HttpsOrLoopbackHttp
-        ),
+        directive.resolve_artifact_url(&remote, ArtifactTransportPolicy::HttpsOrLoopbackHttp),
         Err(UpdateError::InsecureTransport(_))
     ));
 }

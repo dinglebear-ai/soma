@@ -3,10 +3,7 @@ use std::path::Path;
 use std::process::Command;
 
 /// Builds a restart command without consulting global process arguments.
-pub fn restart_command(
-    executable: &Path,
-    args: impl IntoIterator<Item = OsString>,
-) -> Command {
+pub fn restart_command(executable: &Path, args: impl IntoIterator<Item = OsString>) -> Command {
     let mut command = Command::new(executable);
     command.args(args);
     command

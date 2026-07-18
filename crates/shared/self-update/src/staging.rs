@@ -38,16 +38,31 @@ impl Drop for StagedArtifact {
     }
 }
 
-struct PartialArtifact(PathBuf);
+struct PartialArtifact {
+    path: PathBuf,
+    armed: bool,
+}
+
+impl PartialArtifact {
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
 
 impl Drop for PartialArtifact {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
+        if self.armed {
+            let _ = std::fs::remove_file(&self.path);
+        }
     }
 }
 
 impl Updater {
-    pub async fn stage<R>(&self, mut reader: R, directive: &UpdateDirective) -> Result<StagedArtifact>
+    pub async fn stage<R>(
+        &self,
+        mut reader: R,
+        directive: &UpdateDirective,
+    ) -> Result<StagedArtifact>
     where
         R: AsyncRead + Unpin,
     {
@@ -55,7 +70,9 @@ impl Updater {
             .layout()
             .executable()
             .parent()
-            .ok_or_else(|| UpdateError::InvalidPolicy("executable must have a parent directory"))?;
+            .ok_or(UpdateError::InvalidPolicy(
+                "executable must have a parent directory",
+            ))?;
         let name = self
             .layout()
             .executable()
@@ -67,7 +84,10 @@ impl Updater {
             std::process::id(),
             STAGING_COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
-        let cleanup = PartialArtifact(path.clone());
+        let mut cleanup = PartialArtifact {
+            path: path.clone(),
+            armed: true,
+        };
         let mut file = tokio::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
@@ -110,10 +130,14 @@ impl Updater {
             tokio::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
                 .await
                 .map_err(|error| UpdateError::io(&path, error))?;
+            file.sync_all()
+                .await
+                .map_err(|error| UpdateError::io(&path, error))?;
         }
-        // Close the writable descriptor before callers attempt to execute the
-        // staged path. Linux rejects executing a file still open for writing.
-        drop(file);
+        // Wait for Tokio's blocking file operations to relinquish ownership,
+        // then synchronously close the writable descriptor before callers
+        // execute the path. Linux rejects an executable still open for writing.
+        drop(file.into_std().await);
         let actual = encode_hex(&hasher.finalize());
         if actual != directive.sha256() {
             return Err(UpdateError::DigestMismatch {
@@ -121,7 +145,7 @@ impl Updater {
                 actual,
             });
         }
-        std::mem::forget(cleanup);
+        cleanup.disarm();
         Ok(StagedArtifact {
             path,
             target_version: directive.version().to_owned(),

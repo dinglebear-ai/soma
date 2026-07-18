@@ -29,14 +29,7 @@ impl Updater {
     /// Executes `--version` and consumes the staged artifact on success.
     pub async fn validate(&self, staged: StagedArtifact) -> Result<ValidatedArtifact> {
         let path = staged.path().to_path_buf();
-        let mut child = Command::new(&path)
-            .arg("--version")
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|error| UpdateError::io(&path, error))?;
+        let mut child = spawn_validator(&path).await?;
         let stdout = child.stdout.take().expect("piped stdout is configured");
         let stderr = child.stderr.take().expect("piped stderr is configured");
         let stdout_task = tokio::spawn(read_bounded(stdout));
@@ -79,13 +72,11 @@ impl Updater {
                 stderr: stderr_text,
             });
         }
-        let output = String::from_utf8(stdout.bytes)
-            .map_err(|_| UpdateError::InvalidVersionOutput)?;
+        let output =
+            String::from_utf8(stdout.bytes).map_err(|_| UpdateError::InvalidVersionOutput)?;
         let expected = staged.target_version();
         let matches = output.split_ascii_whitespace().any(|token| {
-            token.trim_matches(|character: char| {
-                character.is_ascii_punctuation() && !matches!(character, '.' | '-' | '+' | '_')
-            }) == expected
+            token.trim_matches(|character: char| character.is_ascii_punctuation()) == expected
         });
         if !matches {
             return Err(UpdateError::VersionMismatch {
@@ -95,6 +86,37 @@ impl Updater {
         }
         Ok(ValidatedArtifact { staged })
     }
+}
+
+async fn spawn_validator(path: &std::path::Path) -> Result<tokio::process::Child> {
+    // Tokio's asynchronous file close can briefly race exec on Linux and
+    // surface ETXTBSY even after the staged writer has been flushed and
+    // converted back to a closed std file. Retry only that transient kernel
+    // condition; every other spawn error remains immediate and typed.
+    for _ in 0..10 {
+        let result = Command::new(path)
+            .arg("--version")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn();
+        match result {
+            Ok(child) => return Ok(child),
+            Err(error) if error.raw_os_error() == Some(26) => {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            Err(error) => return Err(UpdateError::io(path, error)),
+        }
+    }
+    Command::new(path)
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| UpdateError::io(path, error))
 }
 
 struct BoundedOutput {

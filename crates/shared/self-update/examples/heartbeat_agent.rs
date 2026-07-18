@@ -61,7 +61,10 @@ async fn lifecycle() -> soma_self_update::Result<()> {
     return Err(soma_self_update::UpdateError::UnsupportedPlatform);
 }
 
-async fn first_successful_health_report(updater: &Updater, version: &str) -> soma_self_update::Result<()> {
+async fn first_successful_health_report(
+    updater: &Updater,
+    version: &str,
+) -> soma_self_update::Result<()> {
     send_authenticated_health_report().await;
     updater.confirm_success(version).await?;
     Ok(())

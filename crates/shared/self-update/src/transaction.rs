@@ -176,6 +176,7 @@ impl Updater {
         let lock_path = suffix_path(&state, ".lock");
         let file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .read(true)
             .write(true)
             .open(&lock_path)
@@ -224,8 +225,8 @@ fn create_backup(executable: &Path, backup: &Path) -> Result<()> {
     match std::fs::hard_link(executable, backup) {
         Ok(()) => {}
         Err(_) => {
-            let mut source = File::open(executable)
-                .map_err(|error| UpdateError::io(executable, error))?;
+            let mut source =
+                File::open(executable).map_err(|error| UpdateError::io(executable, error))?;
             let mut destination = OpenOptions::new()
                 .create_new(true)
                 .write(true)
@@ -282,10 +283,11 @@ fn read_marker(path: &Path, expected_executable: &Path) -> Result<Option<Marker>
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(UpdateError::io(path, error)),
     };
-    let marker: Marker = serde_json::from_slice(&bytes).map_err(|error| UpdateError::InvalidMarker {
-        path: path.to_path_buf(),
-        message: error.to_string(),
-    })?;
+    let marker: Marker =
+        serde_json::from_slice(&bytes).map_err(|error| UpdateError::InvalidMarker {
+            path: path.to_path_buf(),
+            message: error.to_string(),
+        })?;
     let executable = absolute(expected_executable)?;
     let valid_backup = marker.backup.is_absolute()
         && marker.backup.parent() == executable.parent()
@@ -308,9 +310,9 @@ fn remove_file(path: &Path) -> Result<()> {
 }
 
 fn sync_parent(path: &Path) -> Result<()> {
-    let parent = path
-        .parent()
-        .ok_or(UpdateError::InvalidPolicy("transaction path must have a parent"))?;
+    let parent = path.parent().ok_or(UpdateError::InvalidPolicy(
+        "transaction path must have a parent",
+    ))?;
     File::open(parent)
         .and_then(|directory| directory.sync_all())
         .map_err(|error| UpdateError::io(parent, error))

@@ -210,7 +210,7 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
     ),
     (
         "crates/shared/self-update/src",
-        "tests exclusively through the public API from tests/ so portability and \ 
+        "tests exclusively through the public API from tests/ so portability and \
          dependency boundaries are exercised exactly as an adopter sees them.",
     ),
     (

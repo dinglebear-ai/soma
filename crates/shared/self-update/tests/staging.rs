@@ -36,13 +36,15 @@ async fn rejects_oversize_and_digest_mismatch_without_partial_files() {
         UpdateLayout::new(&executable, temp.path().join("state.json")),
         small,
     );
-    let directive = UpdateDirective::new("server-version-data", "/secret-url-data", digest(b"abcd")).unwrap();
+    let directive =
+        UpdateDirective::new("server-version-data", "/secret-url-data", digest(b"abcd")).unwrap();
     assert!(matches!(
         updater.stage(&b"abcd"[..], &directive).await,
         Err(UpdateError::ArtifactTooLarge { .. })
     ));
 
-    let wrong = UpdateDirective::new("server-version-data", "/secret-url-data", digest(b"other")).unwrap();
+    let wrong =
+        UpdateDirective::new("server-version-data", "/secret-url-data", digest(b"other")).unwrap();
     assert!(matches!(
         Updater::new(
             UpdateLayout::new(&executable, temp.path().join("state.json")),
@@ -56,7 +58,11 @@ async fn rejects_oversize_and_digest_mismatch_without_partial_files() {
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
-    assert!(names.iter().all(|name| !name.contains("server-version-data") && !name.contains("secret-url-data")));
+    assert!(
+        names
+            .iter()
+            .all(|name| !name.contains("server-version-data") && !name.contains("secret-url-data"))
+    );
     assert!(names.is_empty(), "partial artifacts remain: {names:?}");
 }
 

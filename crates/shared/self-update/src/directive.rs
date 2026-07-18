@@ -33,11 +33,9 @@ impl UpdateDirective {
             });
         }
         let secure = artifact.scheme() == "https";
-        let loopback_http = artifact.scheme() == "http"
-            && is_loopback(artifact.host_str().unwrap_or_default());
-        if !secure
-            && !(policy == ArtifactTransportPolicy::HttpsOrLoopbackHttp && loopback_http)
-        {
+        let loopback_http =
+            artifact.scheme() == "http" && is_loopback(artifact.host_str().unwrap_or_default());
+        if !(secure || policy == ArtifactTransportPolicy::HttpsOrLoopbackHttp && loopback_http) {
             return Err(UpdateError::InsecureTransport(artifact.to_string()));
         }
         Ok(artifact)

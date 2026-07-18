@@ -6,23 +6,23 @@
 
 #![forbid(unsafe_code)]
 
-mod error;
 mod directive;
+mod error;
 mod staging;
-mod validation;
 mod transaction;
 mod unix;
+mod validation;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub use error::{Result, UpdateError};
 pub use staging::StagedArtifact;
-pub use validation::ValidatedArtifact;
 pub use transaction::{ConfirmationOutcome, InstallOutcome};
-pub use unix::restart_command;
 #[cfg(unix)]
 pub use unix::reexec;
+pub use unix::restart_command;
+pub use validation::ValidatedArtifact;
 
 /// Network transports permitted for an artifact URL.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

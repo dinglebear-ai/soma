@@ -4,10 +4,7 @@ use soma_self_update::{
 
 #[test]
 fn public_contract_is_constructible_without_product_types() {
-    let layout = UpdateLayout::new(
-        "/opt/example/bin/example",
-        "/opt/example/state/update.json",
-    );
+    let layout = UpdateLayout::new("/opt/example/bin/example", "/opt/example/state/update.json");
     let updater = Updater::new(layout, UpdatePolicy::default());
     let directive = UpdateDirective::new(
         "1.2.3",

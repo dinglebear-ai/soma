@@ -36,7 +36,7 @@
 - Modify: `apps/soma/tests/architecture_boundaries.rs`
 - Modify: `xtask/src/test_siblings.rs`
 
-- [ ] **Step 1: Write the failing workspace-boundary and public API tests**
+- [x] **Step 1: Write the failing workspace-boundary and public API tests**
 
   Add `soma-self-update` to the workspace members, but do not create its manifest yet. In `apps/soma/tests/architecture_boundaries.rs`, add a focused test that locates the `soma-self-update` package in Cargo metadata and fails if any dependency has a non-null `path` or if `cargo tree -p soma-self-update --edges normal` contains a package whose manifest is under this workspace. In `crates/shared/self-update/tests/public_api.rs`, import the intended root types:
 
@@ -62,7 +62,7 @@
   }
   ```
 
-- [ ] **Step 2: Run the tests to verify they fail for the missing crate**
+- [x] **Step 2: Run the tests to verify they fail for the missing crate**
 
   Run: `cargo test -p soma --test architecture_boundaries self_update_crate_has_no_workspace_dependencies -- --exact`
 
@@ -72,7 +72,7 @@
 
   Expected: FAIL because package `soma-self-update` does not exist yet.
 
-- [ ] **Step 3: Add the minimal standalone manifest, root types, and errors**
+- [x] **Step 3: Add the minimal standalone manifest, root types, and errors**
 
   Create a package named `soma-self-update`, version `0.1.0`, edition `2024`, `rust-version = "1.96"`, `publish = false`, MIT license, `readme = "README.md"`, and `[package.metadata.soma-architecture] layer = "shared"`. Declare only exact crates.io dependencies (no workspace inheritance):
 
@@ -93,11 +93,11 @@
 
   Define `UpdateError`/`Result<T>`, `ArtifactTransportPolicy`, validated `UpdateDirective`, `UpdatePolicy`, `UpdateLayout`, `Updater`, and the complete `RecoveryAction` enum in the named modules, re-exported from `lib.rs`. `UpdatePolicy::default()` must be HTTPS-only, limit artifacts to 128 MiB, time validation out after 10 seconds, and allow three unconfirmed restarts. Reject empty versions, non-64-character/non-hex hashes, zero size limits, zero timeouts, and zero restart limits with typed configuration/directive errors.
 
-- [ ] **Step 4: Document portability and classify the test layout**
+- [x] **Step 4: Document portability and classify the test layout**
 
   The README must open with: “`soma-self-update` is a standalone binary self-update transaction for Rust services. It has zero path-dependencies on the Soma workspace and can be copied into another repository wholesale.” Add concise Scope, Non-goals, Safety boundary, Platform support, and API lifecycle sections. Copy the repository MIT license into the crate. Add `crates/shared/self-update/src` to `UNCHECKED_SRC_ROOTS` with the reason that all behavior is tested through the public API in `tests/`.
 
-- [ ] **Step 5: Run the focused tests and commit**
+- [x] **Step 5: Run the focused tests and commit**
 
   Run: `cargo test -p soma-self-update --test public_api`
 
@@ -123,7 +123,7 @@
 - Modify: `crates/shared/self-update/src/lib.rs`
 - Modify: `crates/shared/self-update/src/error.rs`
 
-- [ ] **Step 1: Write failing directive and URL-policy tests**
+- [x] **Step 1: Write failing directive and URL-policy tests**
 
   Cover all of these cases through public APIs:
 
@@ -140,17 +140,17 @@
 
   Also assert that a relative `agent/binary` reference resolves as a URL sibling rather than under `/v1/heartbeats/`, cross-origin absolute URLs are rejected, plain remote HTTP is rejected by both policies, and `http://127.0.0.1`, `http://[::1]`, and `http://localhost` are accepted only by `HttpsOrLoopbackHttp`.
 
-- [ ] **Step 2: Run the directive tests to verify the endpoint-base regression fails**
+- [x] **Step 2: Run the directive tests to verify the endpoint-base regression fails**
 
   Run: `cargo test -p soma-self-update --test directive`
 
   Expected: FAIL because `resolve_artifact_url` is not implemented.
 
-- [ ] **Step 3: Implement URL resolution and policy enforcement**
+- [x] **Step 3: Implement URL resolution and policy enforcement**
 
   Parse the caller's endpoint as `url::Url`, normalize it to an origin-root base before resolving server paths, use `Url::join`, require the resolved URL to retain the base scheme/host/effective port, then enforce `ArtifactTransportPolicy`. Do not concatenate strings. Return typed `InvalidBaseUrl`, `InvalidArtifactUrl`, `CrossOriginArtifact`, and `InsecureTransport` errors.
 
-- [ ] **Step 4: Write failing bounded-stream staging tests**
+- [x] **Step 4: Write failing bounded-stream staging tests**
 
   Use `tokio::io::duplex` or a cursor-backed reader to test:
 
@@ -161,13 +161,13 @@
   - two staging attempts use distinct `create_new` paths that contain no directive version or URL data;
   - staging happens in the executable directory so the later rename remains same-filesystem.
 
-- [ ] **Step 5: Run staging tests to verify they fail**
+- [x] **Step 5: Run staging tests to verify they fail**
 
   Run: `cargo test -p soma-self-update --test staging`
 
   Expected: FAIL because `Updater::stage` and `StagedArtifact` do not exist.
 
-- [ ] **Step 6: Implement incremental bounded staging**
+- [x] **Step 6: Implement incremental bounded staging**
 
   Implement:
 
@@ -185,7 +185,7 @@
 
   Read fixed-size chunks, check the running byte count before each write, update `Sha256` incrementally, `flush` and `sync_all` before returning, and set mode `0o755` on Unix. Use an RAII cleanup guard so every early return removes the partial artifact. `StagedArtifact` exposes read-only `path()`, `target_version()`, `sha256()`, and `bytes_written()` accessors and is consumed by installation.
 
-- [ ] **Step 7: Run focused tests and commit**
+- [x] **Step 7: Run focused tests and commit**
 
   Run: `cargo test -p soma-self-update --test directive --test staging`
 
@@ -201,7 +201,7 @@
 - Modify: `crates/shared/self-update/src/lib.rs`
 - Modify: `crates/shared/self-update/src/error.rs`
 
-- [ ] **Step 1: Write failing Unix validation tests**
+- [x] **Step 1: Write failing Unix validation tests**
 
   Under `#[cfg(unix)]`, generate executable shell fixtures and assert:
 
@@ -212,13 +212,13 @@
   - a script that sleeps longer than policy returns `ValidationTimedOut` within a two-second outer test timeout and is killed rather than orphaned;
   - output larger than 16 KiB is rejected or truncated without unbounded allocation.
 
-- [ ] **Step 2: Run validation tests to verify they fail**
+- [x] **Step 2: Run validation tests to verify they fail**
 
   Run: `cargo test -p soma-self-update --test validation`
 
   Expected: FAIL because `Updater::validate` is not implemented.
 
-- [ ] **Step 3: Implement the validator**
+- [x] **Step 3: Implement the validator**
 
   Add:
 
@@ -230,7 +230,7 @@
 
   Consume the staged artifact, spawn its path with `--version`, pipe stdout/stderr, set `kill_on_drop(true)`, enforce `policy.validation_timeout()` with `tokio::time::timeout`, and explicitly kill/wait on timeout. Drain each output stream while retaining at most 16 KiB. Treat the advertised version as a whole ASCII-whitespace-delimited token after trimming surrounding ASCII punctuation, never as a substring. `ValidatedArtifact` privately retains the staged artifact so installation cannot accept unvalidated bytes.
 
-- [ ] **Step 4: Run focused tests and commit**
+- [x] **Step 4: Run focused tests and commit**
 
   Run: `cargo test -p soma-self-update --test validation`
 
@@ -246,7 +246,7 @@
 - Modify: `crates/shared/self-update/src/lib.rs`
 - Modify: `crates/shared/self-update/src/error.rs`
 
-- [ ] **Step 1: Write failing install and recovery transaction tests**
+- [x] **Step 1: Write failing install and recovery transaction tests**
 
   Exercise only public APIs with temporary paths. Under `#[cfg(unix)]`, cover:
 
@@ -260,13 +260,13 @@
   - a missing rollback backup is an error and does not clear the marker;
   - `confirm_success("2.0.0")` removes both marker and backup and returns `Confirmed`, while a mismatched running version returns an error without deleting recovery state.
 
-- [ ] **Step 2: Run transaction tests to verify they fail**
+- [x] **Step 2: Run transaction tests to verify they fail**
 
   Run: `cargo test -p soma-self-update --test transaction`
 
   Expected: FAIL because installation/recovery APIs do not exist.
 
-- [ ] **Step 3: Implement the durable transaction**
+- [x] **Step 3: Implement the durable transaction**
 
   Use these public result shapes:
 
@@ -290,7 +290,7 @@
 
   Marker JSON contains `schema_version: 1`, target/previous versions, absolute executable/backup paths, attempts, and the verified digest. Write it to a same-directory temporary file, `sync_all`, rename it over the state file, and sync the parent directory on Unix. Acquire an advisory exclusive lock on `<state_file>.lock` for every install/recover/confirm operation. Back up by hard link with copy fallback, never overwrite an existing backup, and sync copied bytes. On any pre-swap failure, clean up only artifacts created by that call; after a successful swap, preserve marker and backup until explicit confirmation.
 
-- [ ] **Step 4: Add end-to-end state-machine tests**
+- [x] **Step 4: Add end-to-end state-machine tests**
 
   In the same integration test, run both complete paths:
 
@@ -299,7 +299,7 @@
 
   These are the transaction tests missing from Cortex; do not replace them with helper-only unit tests.
 
-- [ ] **Step 5: Run focused tests and commit**
+- [x] **Step 5: Run focused tests and commit**
 
   Run: `cargo test -p soma-self-update --test transaction`
 
@@ -320,21 +320,21 @@
 - Modify: `crates/shared/self-update/src/lib.rs`
 - Modify: `crates/shared/self-update/README.md`
 
-- [ ] **Step 1: Write failing platform-contract tests**
+- [x] **Step 1: Write failing platform-contract tests**
 
   On Unix, assert `restart_command(executable, args)` preserves all caller arguments and targets the installed executable. On non-Unix, assert the provided installer/restart entry points return `UnsupportedPlatform` rather than pretending replacement is atomic.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
   Run: `cargo test -p soma-self-update --test unix`
 
   Expected: FAIL because the platform adapter does not exist.
 
-- [ ] **Step 3: Implement restart construction and Unix re-exec**
+- [x] **Step 3: Implement restart construction and Unix re-exec**
 
   Export a testable `restart_command(&Path, impl IntoIterator<Item = OsString>) -> Command` and a Unix-only `reexec(&Path, impl IntoIterator<Item = OsString>) -> Result<Infallible>` using `std::os::unix::process::CommandExt::exec`. Do not read global process arguments inside the library; the caller must pass the arguments it wants preserved. Keep process supervision/systemd restart as an explicit adopter alternative in rustdoc.
 
-- [ ] **Step 4: Add a compile-checked adopter example and finish the README**
+- [x] **Step 4: Add a compile-checked adopter example and finish the README**
 
   `examples/heartbeat_agent.rs` must demonstrate the real lifecycle without making an HTTP choice for the library: deserialize/authenticate a directive in caller code, resolve its URL, obtain an `AsyncRead` from a compile-checked in-memory caller function, call `stage` → `validate` → `install`, re-exec on `RestartRequired`, call `recover_on_startup` before entering the service loop, and call `confirm_success` only after the first successful health report. Gate the runnable body so `cargo test --doc` and `cargo check --example heartbeat_agent` require no network or live binary replacement.
 
@@ -348,7 +348,7 @@
   - Unix support and the explicit non-Unix limitation;
   - non-goals: release discovery, HTTP/auth, signature format/key management, service orchestration, server artifact hosting, and automatic Cortex/Soma integration.
 
-- [ ] **Step 5: Run example/docs tests and commit**
+- [x] **Step 5: Run example/docs tests and commit**
 
   Run: `cargo test -p soma-self-update --test unix && cargo test -p soma-self-update --doc`
 
@@ -368,11 +368,11 @@
 - Modify: `docs/superpowers/plans/2026-07-18-reusable-self-update-crate.md`
 - Modify if required by generated checks: repository-owned generated metadata only
 
-- [ ] **Step 1: Add the changelog entry**
+- [x] **Step 1: Add the changelog entry**
 
   Under `[Unreleased] / Added`, describe `crates/shared/self-update` as a standalone, transport-neutral update transaction with bounded streaming SHA-256 verification, timed exact-version validation, Unix atomic replacement, durable health confirmation/rollback, and no internal crate dependencies. State that no Soma runtime or Cortex integration is enabled by this PR.
 
-- [ ] **Step 2: Format and stage new files before repository guards**
+- [x] **Step 2: Format and stage new files before repository guards**
 
   Run: `cargo fmt --all -- --check`
 
@@ -380,7 +380,7 @@
 
   Stage the new crate files before `cargo xtask check-test-siblings`, because that guard uses tracked workspace state. Do not stage unrelated files.
 
-- [ ] **Step 3: Run crate and architecture gates**
+- [x] **Step 3: Run crate and architecture gates**
 
   Run each command separately and require PASS:
 
@@ -397,7 +397,7 @@
 
   Inspect the cargo tree output and verify every normal dependency is registry-sourced; a green command alone is insufficient.
 
-- [ ] **Step 4: Run the full workspace gates**
+- [x] **Step 4: Run the full workspace gates**
 
   Run:
 
@@ -410,13 +410,13 @@
 
   Expected: all PASS. The serialized test invocation is intentional because the baseline showed `soma-codemode` environment/budget tests can interfere under parallel workspace execution. If the normal parallel command fails, reproduce the named test alone and under its package; fix any failure that reproduces in this worktree.
 
-- [ ] **Step 5: Self-review plan completion and code scope**
+- [x] **Step 5: Self-review plan completion and code scope**
 
   Check every box only after its evidence exists. Search the implementation and README for unfinished-work markers, panic-only macro bodies, Cortex-specific env keys, `reqwest`, and internal path dependencies. Expected: no unfinished code or product coupling; mentions of Cortex/reqwest are allowed only in the extraction/non-goal documentation.
 
   Review `git diff $(git merge-base origin/main HEAD) HEAD` for accidental changes, generated artifacts, secrets, absolute developer paths, version-manifest edits, and plugin manifest `version` fields. Expected: only the crate, workspace registration/lockfile, architecture/test-layout guards, changelog, and this plan.
 
-- [ ] **Step 6: Commit the integration, push, and update the PR**
+- [x] **Step 6: Commit the integration, push, and update the PR**
 
   Commit: `chore(self-update): integrate crate with workspace checks`
 
