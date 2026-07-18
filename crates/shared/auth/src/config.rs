@@ -18,6 +18,24 @@ const DEFAULT_REGISTER_REQUESTS_PER_MINUTE: u32 = 20;
 const DEFAULT_AUTHORIZE_REQUESTS_PER_MINUTE: u32 = 60;
 const DEFAULT_MAX_PENDING_OAUTH_STATES: usize = 1024;
 
+/// This crate's own fixed, non-configurable routes (see `routes.rs::router`).
+/// A configured provider `callback_path` colliding with any of these would
+/// make axum's route-registration hit its duplicate-route panic at startup
+/// — the same failure mode the pairwise provider-vs-provider collision check
+/// above guards against, just for a different pair of colliding paths.
+const FIXED_ROUTE_PATHS: &[&str] = &[
+    "/authorize",
+    "/token",
+    "/jwks",
+    "/auth/login",
+    "/native/callback",
+    "/native/poll",
+    "/register",
+];
+/// Prefix covering every `/.well-known/oauth-*` metadata route, including
+/// the `{*route}` wildcard variant.
+const WELL_KNOWN_PREFIX: &str = "/.well-known/";
+
 /// Default env-var prefix used when consumers do not specify one.
 /// Backward-compatible with the original `LAB_*` env scheme.
 pub const DEFAULT_ENV_PREFIX: &str = "LAB";
@@ -397,6 +415,17 @@ impl AuthConfig {
                                 path = configured_paths[i].1,
                             )));
                         }
+                    }
+                }
+                // Same failure mode as above, but against this crate's own
+                // fixed routes rather than another provider's callback_path.
+                for (provider, path) in &configured_paths {
+                    if FIXED_ROUTE_PATHS.contains(path) || path.starts_with(WELL_KNOWN_PREFIX) {
+                        return Err(AuthError::Config(format!(
+                            "{prefix}_{provider_upper}_CALLBACK_PATH must not be `{path}` — \
+                             that path is reserved for this crate's own `{path}` route",
+                            provider_upper = provider.to_ascii_uppercase(),
+                        )));
                     }
                 }
             }
@@ -946,6 +975,44 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("must not both be `/auth/google/callback`")
+        );
+    }
+
+    #[test]
+    fn oauth_mode_rejects_a_callback_path_colliding_with_a_fixed_crate_route() {
+        let err = AuthConfig::from_sources(fake_env_with_many([
+            ("LAB_AUTH_MODE", "oauth"),
+            ("LAB_PUBLIC_URL", "https://lab.example.com"),
+            ("LAB_GOOGLE_CLIENT_ID", "id"),
+            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
+            ("LAB_GOOGLE_CALLBACK_PATH", "/authorize"),
+            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+        ]))
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("must not be `/authorize`"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn oauth_mode_rejects_a_callback_path_under_the_well_known_prefix() {
+        let err = AuthConfig::from_sources(fake_env_with_many([
+            ("LAB_AUTH_MODE", "oauth"),
+            ("LAB_PUBLIC_URL", "https://lab.example.com"),
+            ("LAB_GOOGLE_CLIENT_ID", "id"),
+            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
+            (
+                "LAB_GOOGLE_CALLBACK_PATH",
+                "/.well-known/oauth-authorization-server",
+            ),
+            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+        ]))
+        .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("must not be `/.well-known/oauth-authorization-server`"),
+            "unexpected error: {err}"
         );
     }
 
