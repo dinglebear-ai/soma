@@ -365,6 +365,12 @@ jobs:
           RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }} -D warnings
         run: cargo check -p soma-self-update --lib --locked
 
+      - name: Test Windows self-update surface and validator job cleanup
+        shell: pwsh
+        env:
+          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }} -D warnings
+        run: cargo test -p soma-self-update --locked -- --test-threads=1
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:

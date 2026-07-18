@@ -1,11 +1,12 @@
 //! Compile-checked lifecycle sketch for a heartbeat-driven adopter.
 
+#[cfg(unix)]
 use std::ffi::OsString;
 
 use serde::Deserialize;
-use soma_self_update::{
-    InstallOutcome, RecoveryAction, UpdateDirective, UpdateLayout, UpdatePolicy, Updater,
-};
+#[cfg(unix)]
+use soma_self_update::InstallOutcome;
+use soma_self_update::{RecoveryAction, UpdateDirective, UpdateLayout, UpdatePolicy, Updater};
 use url::Url;
 
 #[derive(Deserialize)]
@@ -46,17 +47,20 @@ async fn lifecycle() -> soma_self_update::Result<()> {
     let reader = fetch_artifact(&artifact_url).await;
     let staged = updater.stage(reader, &directive).await?;
     let validated = updater.validate(staged).await?;
-    let InstallOutcome::RestartRequired { executable, .. } =
-        updater.install(validated, "1.0.0").await?;
+    let outcome = updater.install(validated, "1.0.0").await?;
 
     #[cfg(unix)]
     {
+        let InstallOutcome::RestartRequired { executable, .. } = outcome;
         let args: Vec<OsString> = std::env::args_os().skip(1).collect();
         let never = soma_self_update::reexec(&executable, args)?;
         match never {}
     }
     #[cfg(not(unix))]
-    return Err(soma_self_update::UpdateError::UnsupportedPlatform);
+    {
+        let _ = outcome;
+        Err(soma_self_update::UpdateError::UnsupportedPlatform)
+    }
 }
 
 async fn first_successful_health_report(

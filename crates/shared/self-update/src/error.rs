@@ -47,6 +47,14 @@ pub enum UpdateError {
     PendingUpdateExists { path: PathBuf, target: String },
     #[error("staged artifact is not a regular file: {path}")]
     InvalidStagedArtifact { path: PathBuf },
+    #[error("staged artifact identity changed after validation: {path}")]
+    ArtifactIdentityChanged { path: PathBuf },
+    #[error("staging failed for {path}: {operation}; cleanup also failed: {cleanup}")]
+    ArtifactCleanupFailed {
+        path: PathBuf,
+        operation: Box<UpdateError>,
+        cleanup: std::io::Error,
+    },
     #[error("I/O operation failed for {path}: {source}")]
     Io {
         path: PathBuf,

@@ -1,6 +1,8 @@
 use sha2::{Digest, Sha256};
 use soma_self_update::{UpdateDirective, UpdateError, UpdateLayout, UpdatePolicy, Updater};
 use tempfile::tempdir;
+#[cfg(unix)]
+use tokio::io::{AsyncRead, ReadBuf};
 
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -123,4 +125,58 @@ async fn explicit_staged_cleanup_reports_the_affected_path() {
         UpdateError::Io { path: failed, .. } => assert_eq!(failed, path),
         error => panic!("unexpected cleanup error: {error}"),
     }
+}
+
+#[cfg(unix)]
+struct CleanupSabotageReader {
+    directory: std::path::PathBuf,
+    sabotaged: bool,
+}
+
+#[cfg(unix)]
+impl AsyncRead for CleanupSabotageReader {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+        _buf: &mut ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        if !self.sabotaged {
+            let partial = std::fs::read_dir(&self.directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .find(|path| path.to_string_lossy().ends_with(".part"))
+                .unwrap();
+            std::fs::remove_file(&partial).unwrap();
+            std::fs::create_dir(&partial).unwrap();
+            std::fs::write(partial.join("child"), b"prevent directory removal").unwrap();
+            self.sabotaged = true;
+        }
+        std::task::Poll::Ready(Err(std::io::Error::other("download failed")))
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn failed_staging_reports_both_operation_and_cleanup_errors() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, temp.path().join("state.json")),
+        UpdatePolicy::default(),
+    );
+    let directive = UpdateDirective::new("2", "/binary", digest(b"new")).unwrap();
+    let error = updater
+        .stage(
+            CleanupSabotageReader {
+                directory: temp.path().to_path_buf(),
+                sabotaged: false,
+            },
+            &directive,
+        )
+        .await
+        .unwrap_err();
+    let message = error.to_string();
+
+    assert!(message.contains("download failed"), "{message}");
+    assert!(message.contains("cleanup"), "{message}");
 }

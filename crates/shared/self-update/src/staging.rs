@@ -60,6 +60,19 @@ impl PartialArtifact {
     fn disarm(&mut self) {
         self.armed = false;
     }
+
+    fn report_error(mut self, operation: UpdateError) -> UpdateError {
+        self.armed = false;
+        match std::fs::remove_file(&self.path) {
+            Ok(()) => operation,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => operation,
+            Err(cleanup) => UpdateError::ArtifactCleanupFailed {
+                path: self.path.clone(),
+                operation: Box::new(operation),
+                cleanup,
+            },
+        }
+    }
 }
 
 impl Drop for PartialArtifact {
@@ -79,13 +92,16 @@ impl Updater {
     where
         R: AsyncRead + Unpin,
     {
-        let directory = self
-            .layout()
-            .executable()
-            .parent()
-            .ok_or(UpdateError::InvalidPolicy(
-                "executable must have a parent directory",
-            ))?;
+        let configured_directory =
+            self.layout()
+                .executable()
+                .parent()
+                .ok_or(UpdateError::InvalidPolicy(
+                    "executable must have a parent directory",
+                ))?;
+        let directory = tokio::fs::canonicalize(configured_directory)
+            .await
+            .map_err(|error| UpdateError::io(configured_directory, error))?;
         let name = self
             .layout()
             .executable()
@@ -107,62 +123,71 @@ impl Updater {
             .open(&path)
             .await
             .map_err(|error| UpdateError::io(&path, error))?;
-        let mut buffer = [0_u8; 64 * 1024];
-        let mut total = 0_u64;
-        let mut hasher = Sha256::new();
-        loop {
-            let read = reader
-                .read(&mut buffer)
-                .await
-                .map_err(|error| UpdateError::io(&path, error))?;
-            if read == 0 {
-                break;
+        let result: Result<(u64, String)> = async {
+            let mut buffer = [0_u8; 64 * 1024];
+            let mut total = 0_u64;
+            let mut hasher = Sha256::new();
+            loop {
+                let read = reader
+                    .read(&mut buffer)
+                    .await
+                    .map_err(|error| UpdateError::io(&path, error))?;
+                if read == 0 {
+                    break;
+                }
+                let next = total.saturating_add(read as u64);
+                if next > self.policy().max_artifact_bytes() {
+                    return Err(UpdateError::ArtifactTooLarge {
+                        limit: self.policy().max_artifact_bytes(),
+                        actual: next,
+                    });
+                }
+                file.write_all(&buffer[..read])
+                    .await
+                    .map_err(|error| UpdateError::io(&path, error))?;
+                hasher.update(&buffer[..read]);
+                total = next;
             }
-            let next = total.saturating_add(read as u64);
-            if next > self.policy().max_artifact_bytes() {
-                return Err(UpdateError::ArtifactTooLarge {
-                    limit: self.policy().max_artifact_bytes(),
-                    actual: next,
-                });
-            }
-            file.write_all(&buffer[..read])
-                .await
-                .map_err(|error| UpdateError::io(&path, error))?;
-            hasher.update(&buffer[..read]);
-            total = next;
-        }
-        file.flush()
-            .await
-            .map_err(|error| UpdateError::io(&path, error))?;
-        file.sync_all()
-            .await
-            .map_err(|error| UpdateError::io(&path, error))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = match tokio::fs::metadata(self.layout().executable()).await {
-                Ok(metadata) => metadata.permissions().mode(),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0o700,
-                Err(error) => return Err(UpdateError::io(self.layout().executable(), error)),
-            };
-            tokio::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
+            file.flush()
                 .await
                 .map_err(|error| UpdateError::io(&path, error))?;
             file.sync_all()
                 .await
                 .map_err(|error| UpdateError::io(&path, error))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = match tokio::fs::metadata(self.layout().executable()).await {
+                    Ok(metadata) => metadata.permissions().mode(),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0o700,
+                    Err(error) => {
+                        return Err(UpdateError::io(self.layout().executable(), error));
+                    }
+                };
+                tokio::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
+                    .await
+                    .map_err(|error| UpdateError::io(&path, error))?;
+                file.sync_all()
+                    .await
+                    .map_err(|error| UpdateError::io(&path, error))?;
+            }
+            let actual = encode_hex(&hasher.finalize());
+            if actual != directive.sha256() {
+                return Err(UpdateError::DigestMismatch {
+                    expected: directive.sha256().to_owned(),
+                    actual,
+                });
+            }
+            Ok((total, actual))
         }
-        // Wait for Tokio's blocking file operations to relinquish ownership,
-        // then synchronously close the writable descriptor before callers
-        // execute the path. Linux rejects an executable still open for writing.
+        .await;
+        // Close the writable descriptor before explicit error cleanup or
+        // before callers execute the successful artifact.
         drop(file.into_std().await);
-        let actual = encode_hex(&hasher.finalize());
-        if actual != directive.sha256() {
-            return Err(UpdateError::DigestMismatch {
-                expected: directive.sha256().to_owned(),
-                actual,
-            });
-        }
+        let (total, actual) = match result {
+            Ok(result) => result,
+            Err(operation) => return Err(cleanup.report_error(operation)),
+        };
         cleanup.disarm();
         Ok(StagedArtifact {
             path,

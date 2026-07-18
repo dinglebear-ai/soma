@@ -1,7 +1,11 @@
 use std::process::Stdio;
 
+#[cfg(windows)]
+use process_wrap::tokio::JobObject;
+#[cfg(unix)]
+use process_wrap::tokio::ProcessGroup;
+use process_wrap::tokio::{ChildWrapper, CommandWrap, KillOnDrop};
 use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::process::Command;
 
 use crate::{Result, StagedArtifact, UpdateError, Updater};
 
@@ -11,6 +15,26 @@ const OUTPUT_LIMIT: usize = 16 * 1024;
 #[derive(Debug)]
 pub struct ValidatedArtifact {
     pub(crate) staged: StagedArtifact,
+    #[cfg(unix)]
+    pub(crate) identity: ArtifactIdentity,
+}
+
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ArtifactIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(unix)]
+impl ArtifactIdentity {
+    pub(crate) fn from_metadata(metadata: &std::fs::Metadata) -> Self {
+        use std::os::unix::fs::MetadataExt;
+        Self {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        }
+    }
 }
 
 impl ValidatedArtifact {
@@ -29,16 +53,16 @@ impl Updater {
     /// Executes `--version` and consumes the staged artifact on success.
     pub async fn validate(&self, staged: StagedArtifact) -> Result<ValidatedArtifact> {
         let path = staged.path().to_path_buf();
+        #[cfg(unix)]
+        let identity = validated_path_identity(&path)?;
         let timeout = self.policy().validation_timeout();
         let deadline = tokio::time::Instant::now() + timeout;
         let mut child = match tokio::time::timeout_at(deadline, spawn_validator(&path)).await {
             Ok(result) => result?,
             Err(_) => return Err(UpdateError::ValidationTimedOut { timeout }),
         };
-        #[cfg(unix)]
-        let process_group = child.id().map(|id| id as i32);
-        let stdout = child.stdout.take().expect("piped stdout is configured");
-        let stderr = child.stderr.take().expect("piped stderr is configured");
+        let stdout = child.stdout().take().expect("piped stdout is configured");
+        let stderr = child.stderr().take().expect("piped stderr is configured");
         let completed = tokio::time::timeout_at(deadline, async {
             let (status, stdout, stderr) =
                 tokio::join!(child.wait(), read_bounded(stdout), read_bounded(stderr));
@@ -52,14 +76,7 @@ impl Updater {
                 stderr.map_err(|error| UpdateError::io(&path, error))?,
             ),
             Err(_) => {
-                #[cfg(unix)]
-                if let Some(process_group) = process_group {
-                    use nix::sys::signal::{Signal, killpg};
-                    use nix::unistd::Pid;
-                    let _ = killpg(Pid::from_raw(process_group), Signal::SIGKILL);
-                }
-                let _ = child.kill().await;
-                let _ = child.wait().await;
+                let _ = Box::into_pin(child.kill()).await;
                 return Err(UpdateError::ValidationTimedOut { timeout });
             }
         };
@@ -94,11 +111,30 @@ impl Updater {
                 output: output.trim().to_owned(),
             });
         }
-        Ok(ValidatedArtifact { staged })
+        #[cfg(unix)]
+        if validated_path_identity(&path)? != identity {
+            return Err(UpdateError::ArtifactIdentityChanged { path });
+        }
+        Ok(ValidatedArtifact {
+            staged,
+            #[cfg(unix)]
+            identity,
+        })
     }
 }
 
-async fn spawn_validator(path: &std::path::Path) -> Result<tokio::process::Child> {
+#[cfg(unix)]
+fn validated_path_identity(path: &std::path::Path) -> Result<ArtifactIdentity> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| UpdateError::io(path, error))?;
+    if !metadata.file_type().is_file() {
+        return Err(UpdateError::InvalidStagedArtifact {
+            path: path.to_path_buf(),
+        });
+    }
+    Ok(ArtifactIdentity::from_metadata(&metadata))
+}
+
+async fn spawn_validator(path: &std::path::Path) -> Result<Box<dyn ChildWrapper>> {
     // Tokio's asynchronous file close can briefly race exec on Linux and
     // surface ETXTBSY even after the staged writer has been flushed and
     // converted back to a closed std file. Retry only that transient kernel
@@ -118,16 +154,19 @@ async fn spawn_validator(path: &std::path::Path) -> Result<tokio::process::Child
         .map_err(|error| UpdateError::io(path, error))
 }
 
-fn validator_command(path: &std::path::Path) -> Command {
-    let mut command = Command::new(path);
-    command
-        .arg("--version")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
+fn validator_command(path: &std::path::Path) -> CommandWrap {
+    let mut command = CommandWrap::with_new(path, |command| {
+        command
+            .arg("--version")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+    });
+    command.wrap(KillOnDrop);
     #[cfg(unix)]
-    command.process_group(0);
+    command.wrap(ProcessGroup::leader());
+    #[cfg(windows)]
+    command.wrap(JobObject);
     command
 }
 

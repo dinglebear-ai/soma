@@ -107,23 +107,47 @@ async fn deadline_covers_pipe_inheriting_descendants_and_kills_the_group() {
     let script = b"#!/bin/sh\nsleep 30 &\necho $! > \"$0.child\"\necho 'example 1'\nexit 0\n";
     let (_temp, updater, artifact) = staged(script, "1", Duration::from_millis(150)).await;
     let child_file = artifact.path().with_extension("part.child");
-    let result = tokio::time::timeout(Duration::from_secs(2), updater.validate(artifact))
-        .await
-        .unwrap();
-    assert!(matches!(
-        result,
-        Err(UpdateError::ValidationTimedOut { .. })
-    ));
+    let validation = tokio::spawn(async move { updater.validate(artifact).await });
+    for _ in 0..100 {
+        if child_file.exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     let pid: u32 = std::fs::read_to_string(&child_file)
         .unwrap()
         .trim()
         .parse()
         .unwrap();
+    assert!(
+        process_is_alive(pid),
+        "validator child was never observed alive"
+    );
+    let result = tokio::time::timeout(Duration::from_secs(2), validation)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        result,
+        Err(UpdateError::ValidationTimedOut { .. })
+    ));
     for _ in 0..100 {
-        if !std::path::Path::new(&format!("/proc/{pid}")).exists() {
+        if !process_is_alive(pid) {
             return;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     panic!("validator descendant {pid} survived process-group termination");
+}
+
+fn process_is_alive(pid: u32) -> bool {
+    use nix::errno::Errno;
+    use nix::sys::signal::kill;
+    use nix::unistd::Pid;
+
+    match kill(Pid::from_raw(pid.try_into().unwrap()), None) {
+        Ok(()) | Err(Errno::EPERM) => true,
+        Err(Errno::ESRCH) => false,
+        Err(error) => panic!("unexpected process liveness error: {error}"),
+    }
 }

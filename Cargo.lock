@@ -5673,6 +5673,7 @@ version = "0.1.0"
 dependencies = [
  "fs2",
  "nix 0.31.3",
+ "process-wrap",
  "serde",
  "serde_json",
  "sha2 0.11.0",

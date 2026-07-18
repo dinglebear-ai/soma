@@ -66,6 +66,31 @@ async fn install_rejects_a_validated_path_replaced_by_a_symlink() {
 }
 
 #[tokio::test]
+async fn install_rejects_same_bytes_from_a_replaced_regular_inode() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let old = b"#!/bin/sh\necho 'example 1.0.0'\n";
+    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    std::fs::write(&executable, old).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    let artifact = validated(&updater, new, "2.0.0").await;
+    let staged_path = artifact.path().to_path_buf();
+    std::fs::remove_file(&staged_path).unwrap();
+    std::fs::write(&staged_path, new).unwrap();
+
+    assert!(
+        updater.install(artifact, "1.0.0").await.is_err(),
+        "a replacement inode with identical bytes was installed"
+    );
+    assert_eq!(std::fs::read(&executable).unwrap(), old);
+    assert!(!state.exists());
+}
+
+#[tokio::test]
 async fn copy_backup_and_rollback_preserve_restrictive_unix_modes() {
     use std::os::unix::fs::PermissionsExt;
 
@@ -147,14 +172,27 @@ async fn startup_reclaims_only_owned_crash_leftovers() {
     let executable = temp.path().join("example");
     let state = temp.path().join("update.json");
     std::fs::write(&executable, b"old").unwrap();
-    let owned_stage = temp.path().join(".example.update-123-1.part");
-    let owned_backup = temp.path().join(".example.rollback-123-1");
+    let mut exited = std::process::Command::new("sh")
+        .arg("-c")
+        .arg("exit 0")
+        .spawn()
+        .unwrap();
+    let dead_pid = exited.id();
+    exited.wait().unwrap();
+    let owned_stage = temp
+        .path()
+        .join(format!(".example.update-{dead_pid}-1.part"));
+    let owned_backup = temp.path().join(format!(".example.rollback-{dead_pid}-1"));
     let unrelated = temp.path().join(".other.update-123-1.part");
     let matching_directory = temp.path().join(".example.rollback-directory");
+    let loose_backup = temp
+        .path()
+        .join(format!(".example.rollback-{dead_pid}-1-extra"));
     std::fs::write(&owned_stage, b"leftover").unwrap();
     std::fs::write(&owned_backup, b"leftover").unwrap();
     std::fs::write(&unrelated, b"keep").unwrap();
     std::fs::create_dir(&matching_directory).unwrap();
+    std::fs::write(&loose_backup, b"keep").unwrap();
     let updater = Updater::new(
         UpdateLayout::new(&executable, &state),
         UpdatePolicy::default(),
@@ -167,6 +205,58 @@ async fn startup_reclaims_only_owned_crash_leftovers() {
     assert!(!owned_backup.exists());
     assert!(unrelated.exists());
     assert!(matching_directory.exists());
+    assert!(loose_backup.exists());
+}
+
+#[tokio::test]
+async fn install_and_recovery_do_not_delete_live_concurrent_stages() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let old = b"#!/bin/sh\necho 'example 1.0.0'\n";
+    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    std::fs::write(&executable, old).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    let install = validated(&updater, new, "2.0.0").await;
+    let other = validated(&updater, new, "2.0.0").await;
+    let other_path = other.path().to_path_buf();
+
+    updater.install(install, "1.0.0").await.unwrap();
+    assert!(
+        other_path.exists(),
+        "install deleted a concurrent live stage"
+    );
+    updater.recover_on_startup("2.0.0").await.unwrap();
+    assert!(
+        other_path.exists(),
+        "recovery deleted a concurrent live stage"
+    );
+    drop(other);
+}
+
+#[tokio::test]
+async fn symlinked_executable_parent_does_not_hide_the_protected_stage() {
+    let temp = tempdir().unwrap();
+    let real = temp.path().join("real");
+    let alias = temp.path().join("alias");
+    std::fs::create_dir(&real).unwrap();
+    std::os::unix::fs::symlink(&real, &alias).unwrap();
+    let executable = alias.join("example");
+    let state = temp.path().join("update.json");
+    let old = b"#!/bin/sh\necho 'example 1.0.0'\n";
+    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    std::fs::write(&executable, old).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    let artifact = validated(&updater, new, "2.0.0").await;
+
+    updater.install(artifact, "1.0.0").await.unwrap();
+    assert_eq!(std::fs::read(real.join("example")).unwrap(), new);
 }
 
 #[tokio::test]
@@ -310,6 +400,34 @@ async fn lock_and_corrupt_recovery_state_fail_closed() {
 }
 
 #[tokio::test]
+async fn symlink_state_aliases_share_the_canonical_transaction_lock() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let state_alias = temp.path().join("update-alias.json");
+    std::fs::write(&executable, b"old").unwrap();
+    std::os::unix::fs::symlink(&state, &state_alias).unwrap();
+    let lock_path = temp.path().join("update.json.lock");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .unwrap();
+    lock.try_lock_exclusive().unwrap();
+    let aliased = Updater::new(
+        UpdateLayout::new(&executable, &state_alias),
+        UpdatePolicy::default(),
+    );
+
+    assert!(matches!(
+        aliased.recover_on_startup("1").await,
+        Err(UpdateError::UpdateInProgress { path }) if path == lock_path
+    ));
+}
+
+#[tokio::test]
 async fn running_version_mismatch_retains_recovery_state() {
     let temp = tempdir().unwrap();
     let executable = temp.path().join("example");
@@ -394,10 +512,6 @@ async fn missing_backup_is_diagnostic_and_preserves_marker() {
     let marker: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&state).unwrap()).unwrap();
     std::fs::remove_file(marker["backup"].as_str().unwrap()).unwrap();
-    assert!(matches!(
-        updater.recover_on_startup("2.0.0").await.unwrap(),
-        RecoveryAction::PendingUpdate { .. }
-    ));
     assert!(matches!(
         updater.recover_on_startup("2.0.0").await,
         Err(UpdateError::MissingRollback { .. })
