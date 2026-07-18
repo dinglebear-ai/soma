@@ -122,6 +122,17 @@ pub fn check_binary_in_path(binary: &str) -> DoctorCheck {
                 candidate.display().to_string(),
             );
         }
+        #[cfg(windows)]
+        if std::path::Path::new(binary).extension().is_none() {
+            let candidate = dir.join(format!("{binary}{}", std::env::consts::EXE_SUFFIX));
+            if candidate.is_file() {
+                return DoctorCheck::pass(
+                    "config",
+                    format!("Binary in PATH: {binary}"),
+                    candidate.display().to_string(),
+                );
+            }
+        }
     }
 
     DoctorCheck::fail(

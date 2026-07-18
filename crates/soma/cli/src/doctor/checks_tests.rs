@@ -71,9 +71,20 @@ fn binary_in_path_passes_for_posix_sh() {
 #[cfg(windows)]
 #[test]
 fn binary_in_path_passes_for_windows_cmd() {
-    let check = check_binary_in_path("cmd.exe");
-    assert!(check.ok, "cmd.exe should be found in PATH");
+    let check = check_binary_in_path("cmd");
+    assert!(
+        check.ok,
+        "cmd.exe should be found from the bare name in PATH"
+    );
     assert_eq!(check.category, "config");
+    assert!(
+        check
+            .value
+            .unwrap()
+            .to_ascii_lowercase()
+            .ends_with("cmd.exe"),
+        "resolved path should include the platform executable suffix"
+    );
 }
 
 #[test]
