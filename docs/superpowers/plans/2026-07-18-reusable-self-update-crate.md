@@ -7,6 +7,9 @@
 > failed-install cleanup; process-group/Windows-Job validator termination;
 > explicit executable-leaf symlink rejection; updater-scoped crash failpoints;
 > and deterministic lock-protected marker-temporary recovery.
+> Final security hardening also caps marker writes before mutation, rejects
+> generated backup collisions, kills validator trees on future cancellation,
+> and requires redirect/final-response URL validation by transport adapters.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

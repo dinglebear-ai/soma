@@ -29,13 +29,17 @@ Artifacts are same-origin by default and HTTPS-only. Loopback HTTP is available
 only through explicit `HttpsOrLoopbackHttp` policy. URL references use URL
 semantics, so endpoint `https://host/v1/heartbeats` plus
 `/v1/agent/binary` resolves to `https://host/v1/agent/binary`, not a path under
-the heartbeat endpoint.
+the heartbeat endpoint. Transport adapters must disable automatic redirects or
+call `validate_artifact_response_url` for every redirect target and the final
+response URL; validating only the initial URL does not constrain a client's
+redirect behavior.
 
 ## Platform support
 
 Transport-neutral directive, staging, and validation APIs compile everywhere.
 Validator timeouts terminate the full Unix process group or Windows Job Object,
-including descendants that inherit the output pipes.
+including descendants that inherit the output pipes. Cancelling or dropping a
+validation future triggers the same process-tree termination guard.
 The included atomic installer and re-exec adapter support Unix only.
 Non-Unix adopters can use directive, staging, and validation but the provided
 installer reports `UnsupportedPlatform`; supply a platform-specific deployment
@@ -70,6 +74,10 @@ syncs a durable marker with explicit `prepared`, `installed`, `rolling_back`,
 and `rolled_back` phases. Marker replacement uses one deterministic
 lock-protected `<state>.tmp` sibling; startup recovery validates and reclaims an
 effective-user-owned regular-file leftover before reading transaction state.
+Serialized state is capped at the same 64 KiB limit on both writes and reads,
+before backup creation or executable replacement. Generated rollback paths are
+checked against executable, state, lock, marker-temporary, and staged identities
+before the backup is created.
 The transaction retains a unique rollback backup, syncs the backup and its
 directory before the marker may reference it, then atomically renames the
 verified artifact. Unix
