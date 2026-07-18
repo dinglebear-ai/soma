@@ -1,7 +1,10 @@
 # soma-mcp-server
 
-`soma-mcp-server` is the reusable inbound MCP server helper crate. It owns
+`soma-mcp-server` is the reusable inbound MCP server helper crate. Its core is
 transport-neutral protocol helpers such as response paging and result shaping.
+It also owns an optional Streamable HTTP transport module (`http.rs`, behind
+the `http` feature) with the deterministic allowed-host/allowed-origin
+computation and RMCP transport wiring for inbound HTTP MCP servers.
 
 Boundary rules:
 

@@ -4,7 +4,7 @@ version = "0.4.1"
 edition = "2021"
 rust-version = "1.96"
 authors.workspace = true
-description = "Reusable inbound MCP server helpers for response paging and protocol shaping"
+description = "Reusable inbound MCP server helpers: response paging, protocol conversion, conformance fixtures, trace extraction, and optional Streamable HTTP transport wiring"
 homepage.workspace = true
 license = "MIT"
 repository.workspace = true
@@ -15,10 +15,14 @@ layer = "shared"
 
 [features]
 default = []
+http = ["dep:url", "rmcp/transport-streamable-http-server"]
 
 [dependencies]
-rmcp = { version = "=2.2.0", default-features = false, features = ["server"] }
+rmcp = { workspace = true, features = ["server"] }
+rmcp-traces = { workspace = true }
 serde_json = "1"
+tracing = "0.1"
+url = { version = "2", optional = true }
 
 [dev-dependencies]
 serde_json = "1"

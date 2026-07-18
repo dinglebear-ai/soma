@@ -8,18 +8,18 @@ use std::{
 
 use async_trait::async_trait;
 use serde_json::json;
-use soma_contracts::providers::{
-    CapabilityGrant, HostCapabilities, McpOverlay, NetworkCapability, ProviderCatalog,
-    ProviderIdentity, ProviderKind, ProviderManifest, ProviderPrompt, ProviderResource,
-    ProviderTool, RestOverlay,
-};
-use soma_service::capabilities::CapabilityBroker;
-use soma_service::provider_registry::{
+use soma_application::capabilities::CapabilityBroker;
+use soma_application::provider_registry::{
     DynamicResourceTemplate, Provider, ProviderAuthMode, ProviderCall, ProviderOutput,
     ProviderPrincipal, ProviderRegistry, ProviderRequestLimits, ProviderSurface,
     ResourceReadOutput,
 };
-use soma_service::ProviderError;
+use soma_application::ProviderError;
+use soma_provider_core::{
+    CapabilityGrant, HostCapabilities, McpOverlay, NetworkCapability, ProviderCatalog,
+    ProviderIdentity, ProviderKind, ProviderManifest, ProviderPrompt, ProviderResource,
+    ProviderTool, RestOverlay,
+};
 use tokio::sync::Notify;
 
 fn tool(name: &str) -> ProviderTool {

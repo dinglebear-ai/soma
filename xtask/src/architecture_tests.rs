@@ -94,7 +94,6 @@ fn shared_optional_dependency_on_product_fails() {
 #[test]
 fn soma_mcp_cannot_depend_directly_on_legacy_or_gateway_engines() {
     for (name, path, layer) in [
-        ("soma-service", "crates/soma/service", "legacy"),
         ("soma-runtime", "crates/soma/runtime", "product-runtime"),
         ("soma-gateway", "crates/shared/mcp/gateway", "shared"),
     ] {
@@ -205,6 +204,31 @@ fn all_product_surfaces_are_isolated_by_layer_not_name_list() {
     assert!(failures
         .join("\n")
         .contains("product-surface packages must not depend on one another"));
+}
+
+#[test]
+fn product_integration_cannot_depend_on_runtime_or_surface_crates() {
+    for (name, path, layer) in [
+        ("soma-runtime", "crates/soma/runtime", "product-runtime"),
+        ("soma-mcp", "crates/soma/mcp", "product-surface"),
+    ] {
+        let failures = failures(vec![
+            pkg(
+                "soma-integrations",
+                "crates/soma/integrations",
+                "product-integration",
+                vec![dep(name, path)],
+            ),
+            pkg(name, path, layer, vec![]),
+        ]);
+
+        assert!(
+            failures.join("\n").contains(
+                "product-integration packages must not depend on product-runtime or product-surface crates"
+            ),
+            "expected direct edge to {name} to fail: {failures:#?}"
+        );
+    }
 }
 
 #[test]
@@ -319,11 +343,16 @@ fn only_app_or_integration_may_bridge_application_ports_to_engines() {
             "crates/soma/api",
             "product-surface",
             vec![
-                dep("soma-service", "crates/soma/service"),
+                dep("soma-application", "crates/soma/application"),
                 dep("soma-gateway", "crates/shared/mcp/gateway"),
             ],
         ),
-        pkg("soma-service", "crates/soma/service", "legacy", vec![]),
+        pkg(
+            "soma-application",
+            "crates/soma/application",
+            "product-application",
+            vec![],
+        ),
         pkg(
             "soma-gateway",
             "crates/shared/mcp/gateway",
@@ -345,12 +374,17 @@ fn mixed_application_engine_check_honors_only_the_named_exception_edge() {
             "crates/soma/api",
             "product-surface",
             vec![
-                dep("soma-service", "crates/soma/service"),
+                dep("soma-application", "crates/soma/application"),
                 dep("soma-gateway", "crates/shared/mcp/gateway"),
                 dep("soma-openapi", "crates/shared/openapi"),
             ],
         ),
-        pkg("soma-service", "crates/soma/service", "legacy", vec![]),
+        pkg(
+            "soma-application",
+            "crates/soma/application",
+            "product-application",
+            vec![],
+        ),
         pkg(
             "soma-gateway",
             "crates/shared/mcp/gateway",
@@ -383,11 +417,16 @@ fn mixed_application_engine_check_allows_a_named_temporary_bridge() {
             "crates/soma/api",
             "product-surface",
             vec![
-                dep("soma-service", "crates/soma/service"),
+                dep("soma-application", "crates/soma/application"),
                 dep("soma-gateway", "crates/shared/mcp/gateway"),
             ],
         ),
-        pkg("soma-service", "crates/soma/service", "legacy", vec![]),
+        pkg(
+            "soma-application",
+            "crates/soma/application",
+            "product-application",
+            vec![],
+        ),
         pkg(
             "soma-gateway",
             "crates/shared/mcp/gateway",

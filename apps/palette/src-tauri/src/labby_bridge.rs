@@ -6,6 +6,8 @@
 //! back to the static bearer token from settings.
 
 use serde::{Deserialize, Serialize};
+use soma_palette::dto::LauncherExecuteRequest;
+use soma_palette::openapi::{CATALOG_PATH, EXECUTE_PATH, SCHEMA_PATH};
 use tauri::AppHandle;
 
 use crate::{merged_settings, validate_saved_server_url};
@@ -162,7 +164,7 @@ pub(crate) async fn fetch_launcher_catalog(
 ) -> Result<LabbyHttpResult, String> {
     let settings = merged_settings(&app)?;
     let base_url = validate_saved_server_url(&settings.server_url)?;
-    let url = format!("{}/v1/palette/catalog", base_url.trim_end_matches('/'));
+    let url = format!("{}{CATALOG_PATH}", base_url.trim_end_matches('/'));
     let client = (*bridge).client();
     let static_token = settings
         .static_token
@@ -189,7 +191,7 @@ pub(crate) async fn fetch_launcher_catalog(
         Ok(result) => Ok(result),
         Err(err) if err == WRONG_API_HOST_HINT => {
             let discovered = discover_api_base_url(client, &base_url).await?;
-            let url = format!("{}/v1/palette/catalog", discovered.trim_end_matches('/'));
+            let url = format!("{}{CATALOG_PATH}", discovered.trim_end_matches('/'));
             let make = |token: Option<&str>| {
                 let mut b = client
                     .get(&url)
@@ -232,7 +234,7 @@ pub(crate) async fn fetch_launcher_schema(
     let settings = merged_settings(&app)?;
     let base_url = validate_saved_server_url(&settings.server_url)?;
     let mut url = reqwest::Url::parse(&format!(
-        "{}/v1/palette/schema",
+        "{}{SCHEMA_PATH}",
         base_url.trim_end_matches('/')
     ))
     .map_err(|err| err.to_string())?;
@@ -256,15 +258,45 @@ pub(crate) async fn fetch_launcher_schema(
     let response =
         crate::oauth::send_with_reauth(&app, client, &base_url, static_token, &oauth_state, make)
             .await?;
-    response_to_result(response).await
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LauncherExecuteRequest {
-    id: String,
-    params: serde_json::Value,
-    confirm_destructive: Option<bool>,
+    match response_to_result(response).await {
+        Ok(result) => Ok(result),
+        // Mirror fetch_launcher_catalog/execute_launcher_entry's discovery
+        // retry: when the saved server URL points at the web UI origin, the
+        // catalog and execute calls recover by discovering the real API
+        // base and retrying, but this schema fetch used to return the HTML
+        // error straight through. That left schema-driven params broken
+        // for any catalog entry even though the catalog itself had already
+        // loaded (via the same recovery on fetch_launcher_catalog).
+        Err(err) if err == WRONG_API_HOST_HINT => {
+            let discovered = discover_api_base_url(client, &base_url).await?;
+            let mut url = reqwest::Url::parse(&format!(
+                "{}{SCHEMA_PATH}",
+                discovered.trim_end_matches('/')
+            ))
+            .map_err(|err| err.to_string())?;
+            url.query_pairs_mut().append_pair("id", &id);
+            let make = |token: Option<&str>| {
+                let mut b = client
+                    .get(url.clone())
+                    .header(reqwest::header::ACCEPT, "application/json");
+                if let Some(t) = token {
+                    b = b.bearer_auth(t);
+                }
+                b
+            };
+            let response = crate::oauth::send_with_reauth(
+                &app,
+                client,
+                &discovered,
+                static_token,
+                &oauth_state,
+                make,
+            )
+            .await?;
+            response_to_result(response).await
+        }
+        Err(err) => Err(err),
+    }
 }
 
 #[tauri::command]
@@ -277,7 +309,7 @@ pub(crate) async fn execute_launcher_entry(
     validate_launcher_request(&request)?;
     let settings = merged_settings(&app)?;
     let base_url = validate_saved_server_url(&settings.server_url)?;
-    let url = format!("{}/v1/palette/execute", base_url.trim_end_matches('/'));
+    let url = format!("{}{EXECUTE_PATH}", base_url.trim_end_matches('/'));
     let client = (*bridge).client();
     let static_token = settings
         .static_token
@@ -287,7 +319,7 @@ pub(crate) async fn execute_launcher_entry(
     let body = serde_json::json!({
         "id": request.id,
         "params": request.params,
-        "confirmDestructive": request.confirm_destructive.unwrap_or(false),
+        "confirmDestructive": request.confirm_destructive,
     });
 
     let make = |token: Option<&str>| {
@@ -307,7 +339,7 @@ pub(crate) async fn execute_launcher_entry(
         Ok(result) => Ok(result),
         Err(err) if err == WRONG_API_HOST_HINT => {
             let discovered = discover_api_base_url(client, &base_url).await?;
-            let url = format!("{}/v1/palette/execute", discovered.trim_end_matches('/'));
+            let url = format!("{}{EXECUTE_PATH}", discovered.trim_end_matches('/'));
             let make = |token: Option<&str>| {
                 let mut b = client
                     .post(&url)
@@ -480,7 +512,7 @@ mod tests {
         validate_launcher_request(&LauncherExecuteRequest {
             id: "mcp:alpha::ping".to_string(),
             params: json!({ "q": "hello" }),
-            confirm_destructive: Some(false),
+            confirm_destructive: false,
         })
         .expect("valid request");
     }
@@ -491,7 +523,7 @@ mod tests {
             validate_launcher_request(&LauncherExecuteRequest {
                 id: "../escape".to_string(),
                 params: json!({}),
-                confirm_destructive: None,
+                confirm_destructive: false,
             })
             .is_err()
         );
@@ -499,7 +531,7 @@ mod tests {
             validate_launcher_request(&LauncherExecuteRequest {
                 id: "mcp:alpha::ping".to_string(),
                 params: json!("not-object"),
-                confirm_destructive: None,
+                confirm_destructive: false,
             })
             .is_err()
         );
@@ -523,5 +555,39 @@ mod tests {
             "https://api.example.com"
         );
         assert!(validate_discovered_api_base_url("file:///tmp/labby").is_err());
+    }
+
+    /// `execute_launcher_entry`'s outbound body is built by hand from the
+    /// shared `soma_palette::dto::LauncherExecuteRequest` (see the
+    /// `body = serde_json::json!({...})` construction above `send_with_reauth`
+    /// in `execute_launcher_entry`); this pins the exact `confirmDestructive`
+    /// wire value for both flag states so the field-type change from the old
+    /// app-local `Option<bool>` to the shared DTO's plain `bool` can't
+    /// silently regress the JSON sent to the server.
+    #[test]
+    fn confirm_destructive_serializes_to_expected_json_for_both_states() {
+        let confirmed = LauncherExecuteRequest {
+            id: "mcp:alpha::ping".to_string(),
+            params: json!({}),
+            confirm_destructive: true,
+        };
+        let body = json!({
+            "id": confirmed.id,
+            "params": confirmed.params,
+            "confirmDestructive": confirmed.confirm_destructive,
+        });
+        assert_eq!(body["confirmDestructive"], json!(true));
+
+        let not_confirmed = LauncherExecuteRequest {
+            id: "mcp:alpha::ping".to_string(),
+            params: json!({}),
+            confirm_destructive: false,
+        };
+        let body = json!({
+            "id": not_confirmed.id,
+            "params": not_confirmed.params,
+            "confirmDestructive": not_confirmed.confirm_destructive,
+        });
+        assert_eq!(body["confirmDestructive"], json!(false));
     }
 }

@@ -1,13 +1,13 @@
 use std::fs;
 
 use serde_json::{json, Value};
-use soma_contracts::config::SomaConfig;
-use soma_service::{
+use soma_application::{
     dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
     provider_registry::ProviderCall, provider_registry::ProviderPrincipal,
-    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface, SomaClient,
-    SomaService,
+    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface, SomaService,
 };
+use soma_client::SomaClient;
+use soma_config::SomaConfig;
 
 #[tokio::test]
 async fn wasm_provider_executes_hot_dropped_module() -> anyhow::Result<()> {

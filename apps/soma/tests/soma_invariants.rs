@@ -122,7 +122,9 @@ fn plugin_manifests_do_not_have_version_fields() {
 #[test]
 fn schema_contract_doc_tracks_known_actions() {
     let doc = read("docs/MCP_SCHEMA.md");
-    let actions = read("crates/soma/contracts/src/actions.rs");
+    // ACTION_SPECS moved from crates/soma/contracts/src/actions.rs to
+    // crates/soma/domain/src/actions.rs (plan section 6.2; PR 13).
+    let actions = read("crates/soma/domain/src/actions.rs");
     let schemas = read("crates/soma/mcp/src/schemas.rs");
     for action in ["greet", "echo", "status", "elicit_name", "help"] {
         assert!(actions.contains(action), "actions.rs missing {action}");

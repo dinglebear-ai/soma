@@ -380,18 +380,18 @@ OpenAPI, plugin, or docs code.
 
 ```text
 ProviderRegistry
-  crates/soma/service/src/provider_registry.rs
+  crates/soma/application/src/provider_registry.rs
   Validates provider manifests, computes snapshots/fingerprints, indexes tools,
   prompts, resources, CLI commands, REST routes, and MCP primitives.
 
 Provider sources
-  crates/soma/service/src/providers/
+  crates/soma/application/src/providers/
   Static Rust, file-backed JSON manifests, TypeScript AI SDK sidecars, Python
   LangChain/LlamaIndex sidecars, WASM, OpenAPI-backed providers, and upstream
   MCP providers.
 
 SomaService
-  crates/soma/service/src/app.rs
+  crates/soma/application/src/service.rs
   Built-in product/service logic used by the static Rust provider.
 
 Transport shims
@@ -401,7 +401,7 @@ Transport shims
   apps/soma/src/routes.rs     Axum router, auth, MCP, API, web fallback.
 
 Built-in action metadata
-  crates/soma/contracts/src/actions.rs
+  crates/soma/domain/src/actions.rs
   Native action metadata, validation, cached catalog/help, and native dispatch.
 ```
 
@@ -732,12 +732,12 @@ cargo xtask scaffold \
 This writes `docs/action-starters/` in the generated project with snippets for
 action metadata, MCP dispatch, CLI variants, service stubs, and test coverage.
 
-1. Replace the stub client in `crates/soma/service/src/soma.rs` only when the provider file path is not enough.
-2. Put domain logic in `crates/soma/service/src/app.rs` or focused service modules.
+1. Replace the stub client in `crates/soma/client/src/client.rs` only when the provider file path is not enough.
+2. Put domain logic in `crates/soma/application/src/service.rs` or focused service modules.
 3. Register native provider/action metadata so MCP, CLI, REST, docs, and plugins stay registry-driven.
 4. Regenerate MCP schema docs, provider surface docs, and OpenAPI so generated surfaces reflect the provider registry.
 5. Add REST handlers only for infrastructure routes; business actions should stay registry-backed direct routes.
-6. Update config fields and env prefixes in `crates/soma/contracts/src/config.rs`.
+6. Update config fields and env prefixes in `crates/soma/config/src/config.rs`.
 7. Update `.env.example`, `config.soma.toml`, plugin options, and setup mappings.
 8. Update `server.json`, plugin metadata, repository URLs, Docker labels, and release metadata.
 9. Add tests for MCP dispatch, CLI parsing, REST routes, provider loading, and service behavior.

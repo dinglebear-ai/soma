@@ -26,7 +26,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use soma_application::ExecuteActionRequest;
-use soma_contracts::actions::SomaAction;
+use soma_domain::actions::SomaAction;
+use soma_http_api::json::{json_body_or_else, JsonBodyOutcome};
 
 use crate::responses::{
     application_error_response, rest_error_response, rest_json_rejection_response,
@@ -127,7 +128,7 @@ pub async fn v1_provider_tool_action(
     Path(action): Path<String>,
     body: Result<Json<Value>, JsonRejection>,
 ) -> axum::response::Response {
-    let params = match json_body_or_empty(body, true) {
+    let params = match json_body_or_else(body, true, || json!({})) {
         JsonBodyOutcome::Params(params) => params,
         JsonBodyOutcome::Response(response) => return response,
     };
@@ -167,7 +168,8 @@ pub async fn v1_dynamic_provider_route(
         }
     };
 
-    let params = match json_body_or_empty(body, method == "GET" || method == "DELETE") {
+    let params = match json_body_or_else(body, method == "GET" || method == "DELETE", || json!({}))
+    {
         JsonBodyOutcome::Params(params) => params,
         JsonBodyOutcome::Response(response) => return response,
     };
@@ -246,35 +248,29 @@ fn optional_name_params(name: Option<String>) -> Value {
     }
 }
 
-enum JsonBodyOutcome {
-    Params(Value),
-    Response(axum::response::Response),
-}
-
-fn json_body_or_empty(
-    body: Result<Json<Value>, JsonRejection>,
-    allow_missing: bool,
-) -> JsonBodyOutcome {
-    match body {
-        Ok(Json(value)) => JsonBodyOutcome::Params(value),
-        Err(JsonRejection::MissingJsonContentType(_)) if allow_missing => {
-            JsonBodyOutcome::Params(json!({}))
-        }
-        Err(error) => JsonBodyOutcome::Response(rest_json_rejection_response(error)),
+/// `GET /openapi.json` — generated OpenAPI schema for the REST surface.
+pub async fn openapi_json(State(state): State<ApiState>) -> axum::response::Response {
+    match build_openapi_document(&state).await {
+        Ok(value) => Json(value).into_response(),
+        Err(response) => response,
     }
 }
 
-/// `GET /openapi.json` — generated OpenAPI schema for the REST surface.
-pub async fn openapi_json(State(state): State<ApiState>) -> axum::response::Response {
-    if let Some(response) = refresh_file_providers(&state) {
-        return response;
+/// Refresh, build, and gateway-augment the OpenAPI document, returning the
+/// raw `Value` rather than a `Response`. `openapi_json` wraps this directly;
+/// the composition root (`apps/soma`) also calls it so it can layer its own
+/// route augmentation (e.g. Palette's `/v1/palette/*`) on top without
+/// `soma-api` depending on a peer product-surface crate.
+pub async fn build_openapi_document(state: &ApiState) -> Result<Value, axum::response::Response> {
+    if let Some(response) = refresh_file_providers(state) {
+        return Err(response);
     }
     match state.application().openapi_document() {
         Ok(mut value) => {
             openapi::augment_with_gateway_route(&mut value);
-            Json(value).into_response()
+            Ok(value)
         }
-        Err(error) => application_error_response(error),
+        Err(error) => Err(application_error_response(error)),
     }
 }
 

@@ -10,6 +10,7 @@ use crate::upstream::{UpstreamError, UpstreamSnapshot};
 use crate::usage::{NoopUsageSink, UsageEvent, UsageSink};
 
 pub mod core;
+pub mod mcp_projection;
 pub mod mcp_routes;
 #[cfg(feature = "protected-routes")]
 pub mod mcp_scoped_routes;

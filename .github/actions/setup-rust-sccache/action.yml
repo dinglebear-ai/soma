@@ -21,16 +21,33 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        if command -v cc >/dev/null 2>&1; then
+        need_install=false
+        command -v cc >/dev/null 2>&1 || need_install=true
+        command -v pkg-config >/dev/null 2>&1 || need_install=true
+        pkg-config --exists openssl 2>/dev/null || need_install=true
+        pkg-config --exists dbus-1 2>/dev/null || need_install=true
+        # soma-tauri-shell (crates/shared/tauri-shell) pulls in Tauri's Linux
+        # desktop stack: GTK3 (tray icon/windowing), WebKitGTK (webview),
+        # ayatana-appindicator (tray icon), rsvg (icon rendering), and xdotool
+        # (global shortcuts).
+        pkg-config --exists gtk+-3.0 2>/dev/null || need_install=true
+        pkg-config --exists webkit2gtk-4.1 2>/dev/null || need_install=true
+        pkg-config --exists ayatana-appindicator3-0.1 2>/dev/null || need_install=true
+        pkg-config --exists librsvg-2.0 2>/dev/null || need_install=true
+        pkg-config --exists xdo 2>/dev/null || need_install=true
+        if [ "$need_install" = false ]; then
           exit 0
         fi
+        packages="build-essential pkg-config libssl-dev libdbus-1-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev"
         if command -v apt-get >/dev/null 2>&1; then
           if [ "$(id -u)" = "0" ]; then
             apt-get update
-            apt-get install -y build-essential pkg-config libssl-dev
+            # shellcheck disable=SC2086
+            apt-get install -y $packages
           elif command -v sudo >/dev/null 2>&1; then
             sudo apt-get update
-            sudo apt-get install -y build-essential pkg-config libssl-dev
+            # shellcheck disable=SC2086
+            sudo apt-get install -y $packages
           else
             echo "::error::apt-get is available but the runner is not root and sudo is missing."
             exit 1

@@ -1,5 +1,5 @@
 use super::*;
-use soma_contracts::config::{AuthConfig, SomaConfig};
+use soma_config::{AuthConfig, SomaConfig};
 use soma_gateway::config::{GatewayConfig, GatewayPaths, UpstreamConfig};
 use soma_gateway::gateway::config_store::FsGatewayConfigStore;
 

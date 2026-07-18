@@ -1,10 +1,9 @@
-use std::{borrow::Cow, sync::Arc};
-
-use rmcp::model::{
-    CallToolResult, GetPromptResult, Prompt, ReadResourceResult, Resource, Tool, ToolAnnotations,
-};
+use rmcp::model::{CallToolResult, GetPromptResult, Prompt, ReadResourceResult, Resource, Tool};
 use serde_json::{json, Map, Value};
 use soma_application::{ApplicationError, ExecutionContext, GatewayRouteScope, SomaApplication};
+use soma_mcp_server::protocol::{
+    prompt_from_descriptor, resource_from_descriptor, tool_from_descriptor,
+};
 
 pub async fn list_tools_for_subject_and_scope(
     application: &SomaApplication,
@@ -18,15 +17,13 @@ pub async fn list_tools_for_subject_and_scope(
     Ok(routes
         .into_iter()
         .map(|route| {
-            let mut tool = Tool::new_with_raw(
+            tool_from_descriptor(
                 route.name,
-                route.description.map(Cow::Owned),
-                schema_object(route.input_schema),
-            );
-            if let Some(output_schema) = schema_object_opt(route.output_schema) {
-                tool = tool.with_raw_output_schema(output_schema);
-            }
-            tool.with_annotations(ToolAnnotations::new().destructive(route.destructive))
+                route.description,
+                route.input_schema,
+                route.output_schema,
+                route.destructive,
+            )
         })
         .collect())
 }
@@ -65,10 +62,8 @@ pub async fn list_resources_for_subject_and_scope(
     Ok(routes
         .into_iter()
         .map(|route| {
-            Resource::new(
-                route.uri,
-                route.name.unwrap_or_else(|| route.native_uri.clone()),
-            )
+            let name = route.name.unwrap_or_else(|| route.native_uri.clone());
+            resource_from_descriptor(route.uri, name)
         })
         .collect())
 }
@@ -102,7 +97,7 @@ pub async fn list_prompts_for_subject_and_scope(
         .map_err(protocol_error)?;
     Ok(routes
         .into_iter()
-        .map(|route| Prompt::new(route.name, route.description.as_deref(), None))
+        .map(|route| prompt_from_descriptor(route.name, route.description.as_deref()))
         .collect())
 }
 
@@ -122,22 +117,6 @@ pub async fn get_prompt_for_subject_and_scope(
             .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None)),
         Ok(None) => Ok(None),
         Err(error) => Err(protocol_error(error)),
-    }
-}
-
-fn schema_object(value: Option<Value>) -> Arc<Map<String, Value>> {
-    schema_object_opt(value).unwrap_or_else(|| {
-        Arc::new(Map::from_iter([(
-            "type".to_owned(),
-            Value::String("object".to_owned()),
-        )]))
-    })
-}
-
-fn schema_object_opt(value: Option<Value>) -> Option<Arc<Map<String, Value>>> {
-    match value {
-        Some(Value::Object(map)) => Some(Arc::new(map)),
-        _ => None,
     }
 }
 

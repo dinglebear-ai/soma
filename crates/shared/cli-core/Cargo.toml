@@ -1,0 +1,21 @@
+[package]
+name = "soma-cli-core"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Reusable CLI plumbing: output formats, JSON rendering, confirmation I/O, and terminal/color capability policy"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+readme = "README.md"
+keywords = ["cli", "terminal", "color", "json"]
+categories = ["command-line-interface"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

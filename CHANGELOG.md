@@ -13,6 +13,185 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Restructured `apps/soma` (plan section 3.1, PR 18) into a composition-only
+  layout: `bootstrap.rs` builds the concrete dependency graph (config, the
+  transport client, provider registries, gateway/Code Mode adapters,
+  `SomaApplication`, `SomaRuntime`); `invocation.rs` classifies `argv` into an
+  execution `Mode` (help/version/serve/stdio/cli); `local.rs` runs one-shot
+  CLI commands against `Arc<SomaApplication>`; `http.rs` merges the MCP
+  Streamable HTTP transport, REST API, Palette product API, OAuth discovery,
+  Prometheus metrics, and the web UI fallback into one router and serves it;
+  `stdio.rs` starts the product MCP adapter over stdio; `shutdown.rs` owns the
+  process shutdown signal. `bin/soma.rs` is now a two-line process entry point
+  that forwards `argv` to the new `soma::run` library entrypoint — mode
+  selection, engine construction, and router/lifecycle composition all moved
+  out of the binary and into the library crate. `http.rs` also wires
+  `soma-palette`'s `/v1/palette/*` router into the composed HTTP router for
+  the first time (previously built but unmounted). Replaces `runtime.rs`,
+  `routes.rs`, and `application_ports.rs`. Behavior is
+  unchanged: the full pre-existing `apps/soma` test suite (unit, integration,
+  and architecture-boundary tests) passes unmodified in substance, with only
+  file-path references updated to match the new module names.
+- Add `crates/shared/http-server` (`soma-http-server`, layer `shared`), plan
+  section 3.12's crate for reusable Axum server plumbing: listener binding
+  and the `axum::serve` run loop (`server.rs`), a graceful-shutdown signal
+  future (`shutdown.rs`), request-ID/tracing/timeout/body-limit/CORS
+  middleware constructors (`middleware/`), generic liveness/readiness route
+  wiring on top of `soma-http-api`'s probe DTOs (`health.rs`), and a generic
+  not-found/method-not-allowed rejection envelope (`rejection.rs`). `apps/soma`
+  now delegates its `serve_http_mcp` bind/serve/shutdown loop, its request
+  tracing and body-limit layers, and its `/*` fallback to this crate instead
+  of hand-rolling them, and its CORS builder wraps the crate's generic
+  `cors_layer` with Soma's own origin/header policy; `apps/soma` no longer
+  depends on `tower-http` directly. Acceptance: a fake Axum router with no
+  Soma types anywhere in it is bound, served, and gracefully shut down
+  end-to-end through the crate's `bind`/`serve`/`serve_with_shutdown`
+  (`server_tests.rs`).
+- Add `crates/soma/config` (`soma-config`, layer `product-support`), plan
+  section 3.18's dedicated crate for Soma's own configuration/environment
+  loading. Moves `Config`/`SomaConfig`/`McpConfig`/`AuthConfig`/`RuntimeMode`/
+  `AuthMode`/`default_data_dir`/`load_dotenv` (`config.rs`) and the canonical
+  env-var registry (`env_registry.rs`) out of `soma-contracts` verbatim,
+  including their test suites.
+- Add `crates/shared/http-api` (`soma-http-api`, layer `shared`), plan
+  section 3.11's crate for reusable HTTP API surface mechanics: a generic
+  JSON error envelope (`response.rs`, `problem.rs`), a generic
+  "parse-JSON-body-or-default" helper (`json.rs`), liveness/readiness probe
+  DTOs and response builders (`probe.rs`), a generic route-inventory shape
+  and capabilities-response builder (`route_inventory.rs`), and pagination
+  query/response DTOs (`pagination.rs`, not yet consumed — no current Soma
+  route needs pagination, declared per the plan's suggested layout for the
+  first one that does). `soma-api` now delegates to these helpers instead of
+  keeping duplicate copies (`responses.rs`, `gateway.rs`'s formerly
+  hand-rolled JSON-rejection handling, `probes.rs`, `route_inventory.rs`,
+  `api.rs`'s `json_body_or_empty`). `cargo tree -p soma-http-api
+  --all-features` resolves to external crates only (axum/serde/serde_json) —
+  no `soma-*` dependency — matching the plan's shared-layer contract.
+- Split `crates/soma/contracts` by ownership (plan section 6.2 "From
+  soma-contracts", PR 13 "Split soma-contracts"): `actions.rs`
+  (`SomaAction`, `ACTION_SPECS`, `ActionSpec`/`ParamSpec`/`CliSpec`, scope
+  constants, `ActionError`/`ActionValidationError`), `errors.rs`
+  (`ToolError`/`ServiceErrorKind`), `scopes.rs` (`ADMIN_SCOPE`), and
+  `provider_validation.rs`'s Soma-specific CLI-reserved-command policy move
+  into `soma-domain`, together with their test suites — placed in
+  `soma-domain` rather than `soma-application` because `soma-service` (a
+  dependency of `soma-application` during the PR 12 strangler migration)
+  also builds its static-Rust provider catalog directly from these types;
+  putting them in `soma-application` would create an
+  `application` ↔ `service` dependency cycle, while every consumer
+  (application, service, api, cli, mcp, integrations, runtime, apps/soma)
+  can already depend on `soma-domain` without one. `token_limit.rs`
+  (`MAX_RESPONSE_BYTES`, `truncate_if_needed`) moves into `soma-domain` for
+  the same reason, deviating from the plan's literal "product response
+  policy → soma-application" assignment (`soma-service`'s provider registry
+  and `soma-mcp`'s response paging both read `MAX_RESPONSE_BYTES` and
+  neither can depend on `soma-application`). `config.rs`/`env_registry.rs`
+  move into the new `soma-config` crate. `soma-contracts` becomes a
+  deprecated re-export facade for one migration window (every module still
+  resolves at its old `soma_contracts::*` path via `pub use`) with a small
+  smoke test per module confirming the re-export still resolves; PR 19
+  deletes the crate. `soma-application` drops its `soma-contracts`
+  dependency entirely — it now imports `soma_provider_core::{ProviderPrompt,
+  ProviderResource}`, `soma_domain::scopes::{READ_SCOPE, WRITE_SCOPE}`, and
+  `soma_domain::token_limit::MAX_RESPONSE_BYTES` directly — retiring the
+  `application → contracts` `TEMPORARY_EXCEPTIONS` entry in
+  `xtask/src/architecture.rs`. `soma-client` similarly drops `soma-contracts`
+  in favor of a direct `soma-config` dependency (its only use of the facade
+  was `SomaConfig`). `xtask/src/architecture_graph.rs` maps
+  `crates/soma/config` to the `product-support` layer alongside
+  `soma-client`. Fixed several xtask/doc-generation checks that text-scanned
+  the old hardcoded `crates/soma/contracts/src/actions.rs` /
+  `crates/soma/contracts/src/config.rs` paths (`xtask/src/patterns/actions.rs`,
+  `xtask/src/patterns/checks.rs`, `xtask/src/scripts_lane_d.rs`,
+  `scripts/generate-docs.py`, `apps/soma/tests/soma_invariants.rs`) to point
+  at the new canonical locations, and regenerated the derived docs
+  (`docs/ENV.md`, `docs/MCP_SCHEMA.md`, `docs/generated/openapi.json`,
+  `docs/generated/plugin-settings.md`) — presentation/citation-only diffs,
+  no action/schema/route content changed. While validating the
+  `contract-audit` gate, also regenerated `docs/generated/palette-manifest.json`
+  and `docs/generated/provider-surfaces.json` (plus their downstream
+  `plugin.json`/marketplace/skill artifacts). This is a real, substantive
+  schema change to the committed JSON — new top-level fields
+  (`schema_version`, `title`, `publisher`, `security_policy`, `website`,
+  `provider_fingerprint`, a restructured `mcp_server` block, a new
+  `surfaces` block) — not mere key-ordering. It is still unrelated to this
+  split, though: `xtask/src/generated_surfaces.rs`'s emitted schema already
+  gained every one of these fields back in `df11915` ("chore: harden soma
+  metadata validation"), a commit already on `main` well before this
+  branch existed. `docs/generated/plugin.json` and
+  `docs/generated/provider-surfaces.json` were simply never regenerated and
+  committed against that schema afterward, so `main`'s checked-in copies
+  have been stale relative to `main`'s own generator this whole time.
+  Bringing them current is unrelated to the contracts split, but it is not
+  presentation-only either — flagged here in case a schema consumer expects
+  the old shape. Included as a minimal drive-by fix since the stale files
+  otherwise fail the `contract-audit` gate this PR must pass.
+- Add `crates/soma/client` (`soma-client`, layer `product-support`), plan
+  section 3.19's dedicated crate for the concrete outbound HTTP transport to
+  a deployed `soma serve` REST API. Moves `SomaClient` (`soma.rs` →
+  `client.rs`, plus its sidecar tests) out of `soma-service`; `soma-service`
+  now re-exports `SomaClient` from `soma-client` behind
+  `#[deprecated(note = "use soma_client::SomaClient")]` for one migration
+  window (plan PR 12's compatibility stage). All non-test production
+  consumers (`apps/soma`, `xtask`) and every in-repo test import
+  `soma_client::SomaClient` directly rather than the deprecated path, so
+  `cargo clippy -D warnings` stays clean. `soma-service`'s own `client` and
+  `observability` Cargo features now forward to `soma-client`'s identically
+  named features so the existing bare-MCP-profile feature-unification
+  contract (`soma-service` pulls in neither `client` nor `observability`,
+  and `soma-observability` never appears in that graph) is unchanged. This
+  is a partial slice of plan PR 12 ("split `soma-service`"): the remaining
+  moves — business workflows into `soma-application`, invariant rules into
+  `soma-domain`, the provider registry/capabilities/concrete providers into
+  `soma-provider-core`/`soma-provider-adapters`/`soma-integrations`, and
+  retiring the `soma-application` → `soma-service` architecture exception —
+  are deferred to a follow-up slice; see the PR body for the itemized
+  rationale (the provider registry still depends on `soma-contracts`, which
+  the shared-layer rule blocks from moving into `crates/shared/*` until
+  PR 13 splits `soma-contracts`).
+- Add `crates/soma/integrations` (`soma-integrations`, layer
+  `product-integration`), the product-adapter crate connecting
+  `soma-application`'s transport-neutral ports to Soma's shared engines (plan
+  section 3.20). Moves `apps/soma`'s temporary `GatewayPort` implementation
+  (`gateway.rs`), gateway-to-auth OAuth bridge (`gateway_auth.rs`, `oauth`
+  feature), and Soma's product auth default mapping (`auth.rs`, `auth`
+  feature) out of `apps/soma`, which now only constructs these adapters. Adds
+  a new `CodeModePort` adapter (`codemode.rs`) delegating to
+  `soma_codemode::execute::execute_inline` — the port existed but had no
+  product implementation before this crate. `OpenApiPort` still has no
+  adapter: `OpenApiExecuteRequest` has no spec/label field and no
+  `soma_openapi::registry::OpenApiRegistry` is constructed anywhere in the
+  runtime, so a real adapter would invent an unspecified wire shape rather
+  than move existing, tested behavior — left for a focused follow-up. The
+  product-specific providers PR10 left in `soma-service` (`static_rust.rs`,
+  `remote.rs`, `resource_files.rs`/`resource_uri.rs`) still depend on
+  `SomaService` and `soma-service`'s local `Provider`/`ProviderCall` traits,
+  neither of which are in `soma-integrations`'s declared dependency shape;
+  moving them stays PR12's job (`soma-service` split), as PR10's own
+  changelog entry already noted.
+- Add `crates/shared/provider-adapters` (`soma-provider-adapters`), a
+  feature-gated, product-neutral crate of reusable provider implementations
+  (static-echo, ai-sdk, python, wasm, openapi, and a thin upstream-MCP/gateway
+  projection adapter), plus a generic `manifest_file::build_provider` kind
+  dispatcher. `soma-service`'s drop-in provider loader now builds these kinds
+  through the shared crate (wrapped by a new `provider_registry::SharedAdapter`)
+  instead of implementing them itself. Product-specific providers (Soma's
+  built-in actions provider, the remote-catalog provider that calls
+  `SomaService`) and the directory-scanning/Soma-CLI-policy orchestrator
+  around the dispatcher stay in `soma-service` pending `crates/soma/integrations`
+  (PR11). See the PR10 deviation notes for why the OpenAPI and upstream-MCP
+  adapters were not fully delegated to `soma-openapi`/`soma-mcp-client`.
+- Add `soma-tauri-shell`, a reusable, product-neutral Tauri desktop shell
+  crate (window show/hide/resize/center, tray setup, global shortcut parse
+  and rebind, blur-dismiss state and window-lifecycle helpers, atomic
+  app-data JSON persistence, and Tauri command result/error helpers), and
+  `soma-palette`, Soma's Palette product surface crate owning
+  `/v1/palette/{catalog,search,schema,execute}` routes, Palette DTOs shared
+  by the HTTP server and desktop app, the `ToolSpec` Palette-overlay to
+  launcher-action mapping, launcher execution/auth policy, and Palette route
+  OpenAPI metadata. `apps/palette/src-tauri` stays an app-local Tauri
+  package (not a root workspace member) and now path-depends on
+  `soma-tauri-shell` for its window/tray/shortcut/persistence mechanics.
 - `codex-app-server-client`'s optional `rest` feature became liftable and
   operable end-to-end, without breaking the crate's zero-workspace-path-dependency
   rule (no new crates entered the dependency graph — `futures-core`,
@@ -146,6 +325,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ServerNotification::method_name()` for logging a notification's kind
   without its full (potentially sensitive) payload. See
   `crates/shared/codex-app-server-client/README.md`.
+- Added `soma-cli-core`, a reusable CLI plumbing crate extracted from
+  `soma-cli`: common flag-scanning primitives, output-format selection,
+  JSON rendering, confirmation I/O, and terminal/color capability policy
+  (including the Aurora CLI token palette as reusable shared defaults).
+  `soma-cli`'s argument-scanning helpers, destructive-confirmation prompt,
+  JSON output rendering (`lib.rs` and `doctor.rs`), and `doctor` color
+  output now delegate to it with no output change. See
+  `crates/shared/cli-core/README.md`.
 - `codex-app-server-client` REST operational hardening:
   - The `codex-app-server-rest` binary now shuts down gracefully on `SIGTERM`
     (unix) and `ctrl-c`, draining in-flight requests instead of dropping active
@@ -160,6 +347,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Centralize all internal crate paths and the exact `rmcp = "=2.2.0"` pin in a
+  root `[workspace.dependencies]` table; member manifests now inherit them via
+  `workspace = true` instead of duplicating relative paths and the rmcp pin
+  across manifests. Behavior-preserving: dependency resolution and feature
+  unification are unchanged.
 - Store one `SomaApplication` facade in the process-wide `SomaRuntime` and keep
   legacy service, provider-registry, and gateway engines private behind narrow
   application/runtime interfaces shared by CLI, stdio, and HTTP surfaces.
@@ -175,6 +367,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer depends directly on runtime, service, or gateway engines, while
   preserving structured error, discovery, scope, and remote-error privacy
   contracts.
+- Finished the MCP role-crate split (PR 14): moved the remaining generic
+  inbound mechanics out of `soma-mcp` into `soma-mcp-server` — response-page
+  store (already there), MCP conformance-suite fixtures, `rmcp::model::Tool`
+  JSON/descriptor conversion, tool-error result shaping and the generic
+  "unknown tool" protocol error, trace metadata extraction integrating
+  `rmcp-traces`, and the Streamable HTTP allowed-host/origin computation and
+  transport builders (new `http` feature). `soma-mcp` now only supplies Soma
+  tool schemas, prompts/resources, scope mapping, and application-request
+  translation; `crates/soma/mcp/src/{rmcp_server,transport,protocol_errors,gateway_proxy}.rs`
+  delegate to the role crate instead of duplicating it. `soma-mcp-proxy`
+  gained `rmcp_tool_from_route`/`rmcp_resource_from_route`/
+  `rmcp_prompt_from_route` (built on `soma-mcp-server`, closing the
+  `soma-mcp-proxy -> soma-mcp-server` edge from section 3.7 of the refactor
+  plan), and `soma-gateway` gained `GatewayManager::rmcp_{tool,resource,prompt}_routes[_for_subject]`
+  built the same way, closing the `soma-gateway -> soma-mcp-server` edge and
+  replacing gateway's unused direct `rmcp` "server" feature request. A fake
+  unrelated `ServerHandler` and a fake unrelated gateway now exercise these
+  role crates end to end with no Soma product crate on their dependency
+  graph (`crates/shared/mcp/server/tests/fake_server.rs`,
+  `crates/shared/mcp/proxy/tests/fake_gateway.rs`).
 
 - `soma-auth` no longer forces a Google re-consent screen on every dynamic
   client registration attempt — `force_consent` is now only set the first
@@ -190,7 +402,385 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `rt-multi-thread` and `signal` tokio features are pulled in only by the
   `rest` feature, so a library-only consumer does not pay for them.
 
+### Removed
+
+- Deleted `crates/soma/service` and `crates/soma/contracts` (plan PR 19,
+  "Delete legacy facades and update ecosystem artifacts"), the two legacy
+  strangler-pattern crates every prior slice (PR 4-13) migrated surfaces off
+  of. `crates/soma/contracts` was already a pure deprecated re-export facade
+  (PR 13 had moved its real content to `soma-domain`, `soma-config`, and
+  `soma-provider-core`), so deleting it needed no consumer changes.
+  `crates/soma/service` still owned unmigrated business logic — `SomaService`,
+  the product-policy `ProviderRegistry`, `CapabilityBroker`, and the
+  filesystem/remote/static-Rust drop-in providers — left over from an
+  unfinished PR 12; that code moved into `soma-application`
+  (`crates/soma/application/src/{service,provider_registry,capabilities,provider_errors,providers}.rs`)
+  before the crate was deleted. `apps/soma`'s public `app` module keeps
+  re-exporting `SomaService` from `soma-application` so the documented
+  `soma::app::SomaService` path is unaffected.
+- Removed both entries from `xtask/src/architecture.rs`'s
+  `TEMPORARY_EXCEPTIONS` (the `soma-application -> soma-service` strangler
+  edge and the `soma-runtime -> crates/shared/mcp/gateway` edge, both
+  self-documented as removable once their underlying crates/composition
+  settled). `cargo xtask check-architecture` now runs with zero exceptions —
+  the architecture checker's rules were updated alongside the deletion:
+  `soma-application` may depend on `soma-client` (a `product-support` crate;
+  previously blanket-forbidden, but this is PR 12's intended permanent
+  destination for the remote Soma HTTP client, not a migration artifact), and
+  `soma-runtime` (`product-runtime`) joins `app` and `product-integration` as
+  a legitimate application-port/concrete-engine bridge layer, since it
+  intentionally bundles the initialized `SomaApplication` handle with
+  `GatewayProductState` for every surface's `AppState`.
+
 ### Fixed
+
+- PR19 review fix (second pass): fixed a stale sidecar-test comment in
+  `crates/soma/application/src/service.rs` that still pointed at the deleted
+  `app_tests.rs` name instead of `service_tests.rs`; corrected an
+  `apps/soma/src/lib.rs` doc comment that attributed `SomaService`'s move
+  into `soma-application` to PR 12 (PR 12 only extracted provider-catalog
+  contracts into `soma-provider-core`; `SomaService`/`ProviderRegistry`
+  itself moved in PR 19, per the plan's own execution ledger); corrected the
+  plan's PR 12 ledger row to match; synced `docs/ARCHITECTURE.md` and
+  `docs/PATTERNS.md`'s module-layout trees (missing `soma-provider-core` in
+  `xtask`'s dependency list, missing `palette`/`cli-core`/`http-api`/
+  `http-server`/`provider-adapters`/`provider-core`/`tauri-shell` rows,
+  misaligned arrows, stale `last_reviewed` date). Also regenerated
+  `apps/palette/src-tauri/Cargo.lock` (a separate Cargo workspace this PR's
+  ecosystem-artifact sweep missed): it still resolved `soma-service` as a
+  dependency of `soma-application` from before the crate was deleted.
+- PR19 review fix: `protected_routes.rs` and `protected_routes_proxy.rs`
+  (moved to `crates/soma/integrations` as a PR 18 review fix behind a
+  `protected-http` feature) made `soma-integrations` optionally depend on
+  `soma-runtime` and `soma-mcp`, inverting plan section 3.20's target
+  dependency shape (`soma-integrations` depends on application ports and
+  concrete shared engines only — auth, observability, client,
+  provider-adapters, gateway, codemode, openapi — never the runtime or
+  surface layers built on top of it) and contradicting this crate's own
+  `gateway.rs`, whose comment explicitly limits the crate's dependency
+  shape to `soma-application`, `soma-domain`, and `soma-gateway` for exactly
+  this reason. Moved both modules again, this time to `crates/soma/runtime`
+  behind that crate's existing `protected-routes` feature (previously used
+  only to forward `soma-gateway/protected-routes`; `AppState` already
+  exposed `resolve_protected_route`/`resolve_protected_route_metadata`/
+  `protected_route_list` under it, and `soma-runtime` already owned
+  `AuthPolicy`/`build_auth_layer`). `soma-runtime` now additionally depends
+  on `soma-mcp` (a `product-surface` crate) under `protected-routes` alone,
+  for `McpState` and the Streamable HTTP router the gateway-subset dispatch
+  path nests. `soma-integrations`'s `protected-http` feature and its
+  exclusive `axum`/`reqwest`/`soma-mcp`/`soma-runtime`/`tower` dependencies
+  are removed entirely. `apps/soma/src/http.rs` now wires
+  `soma_runtime::protected_routes::*` instead of `soma_integrations::
+  protected_routes::*`; no behavior change (bodies are unmodified, only
+  import paths). Also hardened `xtask/src/architecture.rs`'s
+  `check_layer_edge` to fail any `product-integration -> product-runtime`
+  or `product-integration -> product-surface` edge, since neither
+  `check_layer_edge` nor `check_mixed_application_and_engine_edges`
+  previously caught this class of inversion; added
+  `product_integration_cannot_depend_on_runtime_or_surface_crates` to
+  `xtask/src/architecture_tests.rs` covering both target layers.
+- PR18 review fix (second pass): `apps/soma/src/invocation.rs`'s `Mode` enum
+  split into `Mode::Exit(ExitAction)` / `Mode::Dispatch(DispatchMode)` so
+  `lib.rs::run()` no longer needs an `unreachable!()` backstop for the
+  already-handled help/version arms — illegal dispatch-of-an-exit-action is
+  now unrepresentable instead of a runtime invariant. `mod invocation` (and
+  `bootstrap::init_logging`/its `tracing_subscriber` import) are now gated to
+  `cli` + `mcp-stdio`, their only real caller (`run()`), fixing `dead_code`
+  warnings under an `mcp-http`-only *library* build (the profile the prior
+  PR18 fix restored `soma::server::serve_http_mcp` for) without risking a
+  double-`tracing_subscriber::init()` panic by calling `init_logging` from
+  `http::serve()` instead. Added axum-harness test coverage for
+  `crates/soma/integrations/src/protected_routes.rs`'s
+  `authenticate_protected_route_request`/`protected_mcp_intercept` (missing
+  token, malformed token, insufficient scope, admin-scope bypass, missing
+  OAuth auth state, unmatched route) and
+  `protected_routes_proxy.rs`'s `protected_route_upstream_target` resolver
+  (backend_url vs. upstream vs. neither, upstream-not-found,
+  upstream-missing-url, unsupported-transport, bearer-token-env resolution) —
+  this security-critical path had zero test coverage before. Added an
+  `apps/soma` architecture-boundary test
+  (`apps_soma_does_not_reintroduce_protected_route_business_logic`) so the
+  protected-route logic the prior fix moved out of `apps/soma` cannot silently
+  reappear there. Fixed a stale `example --help` binary name in
+  `apps/soma/src/local.rs`'s unknown-command message and stale
+  `apps/soma::runtime::run_cli` references in `crates/soma/cli/src/lib.rs`
+  comments/panic messages (both predate this PR's `runtime.rs` ->
+  `bootstrap.rs`/`local.rs` split). Minor comment-accuracy fixes in
+  `local_tests.rs`/`stdio_tests.rs`/`mcp_http_roundtrip.rs`, and a doc comment
+  on `ProtectedMcpState`.
+- PR18 review fix: `protected_routes.rs` and `protected_routes_proxy.rs`
+  (bearer-token authentication, OAuth-scope authorization, gateway-subset
+  dispatch, and inbound-to-upstream proxy forwarding for protected MCP
+  routes — 560 of `apps/soma`'s ~1578 `src/` lines, ~35%) implemented real
+  authorization rules and gateway business workflows in the composition-root
+  binary crate, contradicting PR 18's own acceptance criterion (`apps/soma`
+  "contains no business rules"; plan section 3.1 lists both explicitly under
+  "Does not own"). Moved both modules verbatim to
+  `crates/soma/integrations` (`soma-integrations`, `product-integration`
+  layer — plan section 11.1's own architecture-check example names this
+  crate as the destination for exactly this kind of adapter) behind a new
+  `protected-http` feature, following the same "moved out of `apps/soma`,
+  permanent home here" precedent as PR 11's `gateway.rs`/`gateway_auth.rs`.
+  `apps/soma/src/http.rs` now wires `soma_integrations::protected_routes::*`
+  instead of constructing the logic itself; no behavior change (bodies are
+  unmodified, only import paths and one `pub(super)` → `pub(crate)`
+  visibility changed). Also restored a public HTTP-server bootstrap entry
+  point for the `mcp-http`-only build profile: pre-PR18,
+  `soma::runtime::serve_http_mcp()` was reachable under the `mcp-http`
+  feature alone; PR 18 made `mod http` private with its only caller
+  (`soma::run`) gated on `all(feature = "cli", feature = "mcp-stdio")`,
+  silently breaking a downstream fork that embeds only the HTTP server.
+  `apps/soma/src/http.rs`'s `serve()` is now `pub` and re-exported as
+  `soma::server::serve_http_mcp` under `mcp-http` alone, independent of
+  `cli`/`mcp-stdio`.
+- PR17 review fix: `soma-palette` duplicated `soma-api`'s
+  `ApplicationError.code` → `StatusCode` mapping verbatim instead of sharing
+  it through `soma-http-api` (both crates are `product-surface` and must not
+  depend on one another); moved the mapping to
+  `soma_http_api::response::application_error_status` and had both surfaces
+  delegate to it. `apps/palette/src-tauri/src/labby_bridge.rs` now
+  path-depends on `soma-palette` and consumes its `dto::LauncherExecuteRequest`
+  and `openapi::{CATALOG_PATH, SCHEMA_PATH, EXECUTE_PATH}` instead of
+  redefining the request shape and hardcoding the `/v1/palette/*` path
+  strings, per plan section 6.2's move instruction for that file. Removed
+  `RegistrySnapshot::cached_palette_manifest` from `soma-service`'s provider
+  registry — a pre-Palette-overlay placeholder manifest that PR 17's real
+  `soma_palette::catalog::catalog_response()` (backed by `ToolSpec` Palette
+  overlays) superseded; it was constructed on every registry build but read
+  nowhere in the workspace.
+- PR17 review fix (round 2): `crates/soma/palette/src/router.rs`'s
+  `post_execute` hand-rolled a `400`-only `JsonRejection` handler with its
+  own `{"error": ...}` body instead of delegating to
+  `soma_http_api::response::json_rejection_response` (the same helper
+  `soma-api` uses), losing the `413 Payload Too Large` distinction and the
+  shared `ErrorBody` shape; now delegates. `soma-palette`'s
+  `launcher_not_found` 404 body is now built as an `ApplicationError` value
+  instead of a hand-rolled `json!` literal, so every `/v1/palette/*` error
+  response shares one wire shape. Logged (previously silent) the
+  `soma-tauri-shell` poisoned-shortcut-mutex fallback and the discarded
+  `unmaximize`/`set_shadow`/`is_visible` window-mechanics errors. Fixed a
+  stale doc comment in `soma-palette`'s `search.rs` that described ranking
+  by match position instead of by which field matched. Added missing
+  behavioral test coverage: `execute_launcher`'s three outcomes, all four
+  `/v1/palette/*` HTTP handlers (via `tower::ServiceExt::oneshot`),
+  `palette_execution_context`'s auth/scope translation, DTO wire-format
+  contracts, and edge cases in `search`/`catalog`.
+- PR16 review fix: `soma-cli-core`'s `terminal` module doc comment linked to
+  `crate::progress`, a module removed by the prior PR 16 reconciliation
+  commit (`0e0d2b3`) for having zero call sites — `cargo doc -p
+  soma-cli-core` emitted an unresolved intra-doc-link warning. Dropped the
+  dangling reference. Also wired `soma-cli`'s local `parse_required_value_flag`
+  to delegate to `soma_cli_core::common_args::parse_required_value_flag`
+  (matching the existing delegation pattern for `reject_args`/
+  `parse_bool_flag`/`parse_optional_value_flag`), giving that cli-core
+  function a real call site instead of only its own unit tests; made
+  `ArgParseError`'s message field private with a `message()` accessor so
+  every instance is built through the crate's consistent error-wording
+  helper; and added `terminal`/`confirmation` regression tests for the
+  `NO_COLOR`-on-a-tty and closed-stdin confirmation paths that were
+  previously untested.
+- PR13 review fix (second pass): the multi-agent PR review toolkit surfaced
+  further issues in the `soma-http-api`/`soma-domain` split beyond the
+  dependency-migration fix above. `crates/shared/http-api/src/probe.rs`'s
+  `LivenessBody`/`ReadinessBody.status` fields were bare `&'static str`
+  (stringly-typed, unenforced) even though each has an exhaustively known
+  set of valid values; replaced with `LivenessStatus`/`ReadinessStatus`
+  enums (`#[serde(rename_all = "snake_case")]`, wire-compatible — same
+  `"ok"`/`"ready"`/`"not_ready"` JSON). `crates/shared/http-api/src/
+  pagination.rs`'s `PageParams::clamped()` doc comment overclaimed a
+  "guarantee" the type does not actually enforce (`clamped()` is opt-in;
+  nothing stops an unclamped `PageParams` reaching `Page::new`); reworded to
+  state the gap explicitly instead. `crates/shared/http-api/src/problem.rs`'s
+  `ErrorBody` doc claimed `error` is always "a short machine-readable code,"
+  but `response.rs`'s own `json_rejection_response` (pre-existing behavior,
+  unchanged by this PR) puts the framework's full rejection text there
+  instead; reworded the doc to describe both real usages rather than change
+  the wire response shape. Added a `crates/soma/domain/src/lib.rs` crate-doc
+  comment — it was the only one of the three crates this PR adds/touches
+  (`soma-config`, `soma-http-api`, `soma-domain`) missing the orientation
+  doc its siblings have. Added missing test coverage: `json_rejection_response`'s
+  `413 Payload Too Large` branch had no dedicated unit test in the crate
+  that owns it (only covered indirectly by an unrelated `apps/soma`
+  integration test); added `json_rejection_response_maps_oversized_body_to_413`
+  and `_maps_malformed_json_to_400` (driving real Axum extraction failures
+  through a minimal router + `DefaultBodyLimit`, new `tower` dev-dependency
+  on `soma-http-api`, matching the existing pattern in `json.rs`'s tests),
+  plus `page_omits_total_when_unknown` for `Page`'s `total: None`
+  serialization case. Fixed three stale `crates/soma/contracts/src/*.rs`
+  path references in this repo's own `CLAUDE.md` module map / "how to add
+  an action" instructions (now point at `crates/soma/config/src/config.rs`,
+  `crates/soma/domain/src/token_limit.rs`, `crates/soma/domain/src/actions.rs`)
+  — following those instructions as written would have pointed a future
+  session at the deprecated re-export facade instead of the real crate. The
+  same stale `crates/soma/contracts/src/{actions,config}.rs` path pointers
+  were also live (not just historical/narrative) in fourteen more stable
+  docs this PR's split made incorrect: `docs/ARCHITECTURE.md` (module table plus
+  its "all action metadata starts in..." invariant and its `xtask` dependency
+  list), `docs/CLAUDE.md`'s "env var names are authoritative in..." rule,
+  `docs/AGENTS-FIRST.md`, `docs/API.md`, `docs/CONFIG.md`, `docs/AUTH.md`,
+  `docs/DOCS.md`, `docs/PATTERNS.md`, `docs/SERVICE_SURFACE_SUGGESTIONS.md`,
+  `docs/QUICKSTART.md`, `docs/specs/scaffold-intent-handoff.md`, `README.md`,
+  `scripts/README.md`, and its duplicate `packages/soma-rmcp/README.md` —
+  repointed all of them at `crates/soma/domain/src/actions.rs` /
+  `crates/soma/config/src/config.rs`. (`docs/sessions/**`,
+  `docs/superpowers/plans/**`, and `soma-architecture-refactor-plan-v3.md`
+  are historical/ledger records per `docs/CLAUDE.md` and intentionally left
+  alone.) Two functional (non-doc) staleness bugs of the same shape: `xtask/
+  src/patterns/checks.rs`'s `REQUIRED_PATTERN_FILES` — the file-existence
+  list backing `cargo xtask patterns`'s `docs/PATTERNS.md` conformance check
+  — still listed `crates/soma/contracts/src/{actions,config}.rs`; since the
+  deprecated facade files still physically exist, the check keeps passing
+  today but is asserting the wrong path is canonical, and would break for
+  an unrelated reason (files genuinely missing) once PR 19 deletes the
+  facade unless someone remembered to fix this list first. Repointed it now,
+  consistent with `action_surfaces()`'s and `config_and_auth()`'s
+  already-repointed reads in the same module. `xtask/src/scaffold.rs`'s
+  `cargo xtask scaffold --adapt-plan`/action-snippet generators (the same
+  adapt-plan output a PR12 review fix already repointed off a deleted
+  `soma.rs` path) still told new-service authors to add actions/config to
+  `crates/soma/contracts/src/*.rs`; repointed to `soma-domain`/`soma-config`.
+
+- PR13 review fix: 9 of the 11 crates touched by the `soma-contracts` split
+  (`soma-api`, `soma-cli`, `soma-mcp`, `soma-integrations`, `soma-runtime`,
+  `soma-service`, `soma-test-support`, `apps/soma`, `xtask`) still declared
+  `soma-contracts = { workspace = true }` and imported `soma_contracts::*`
+  throughout `src/`/`tests/`, so PR 13's stated acceptance criterion ("No
+  production crate depends on `soma-contracts`") was unmet even though
+  `soma-application` and `soma-client` had already migrated. Repointed every
+  remaining `soma_contracts::actions`/`config`/`env_registry`/`errors`/
+  `provider_validation`/`providers`/`scopes`/`token_limit` import to its real
+  home (`soma_domain`, `soma_config`, or `soma_provider_core`) across ~50
+  files, and swapped each crate's `soma-contracts` `Cargo.toml` dependency
+  for the specific `soma-domain`/`soma-config`/`soma-provider-core` entries
+  its code actually uses. Only `crates/soma/contracts` itself (the facade,
+  self-contained) still depends on the split crates going forward.
+  `xtask/src/architecture.rs`'s `check_layer_edge()` only forbade
+  `ProductDomain`/`ProductApplication` from depending outward to `Legacy`,
+  so `cargo xtask check-architecture` kept reporting a clean pass throughout
+  — it never actually enforced this PR's acceptance bar, and couldn't
+  simply forbid the whole `Legacy` layer either, since `soma-service`
+  shares that layer and is still a legitimate strangler-pattern dependency
+  for several surfaces. Added a dedicated `DEPRECATED_CONTRACTS_FACADE_PATH`
+  check that names `crates/soma/contracts` explicitly: any edge into it now
+  fails the gate, with a new `any_layer_depending_on_deprecated_contracts_facade_fails`
+  regression test covering surface/integration/runtime/app/legacy callers.
+  Also fixed a stale `crates/soma/cli/src/lib.rs` comment referencing
+  `soma_contracts::provider_validation` (moved to `soma_domain::provider_validation`
+  by this same split) and corrected a `CHANGELOG.md` entry that
+  mischaracterized the regenerated `docs/generated/plugin.json`/
+  `provider-surfaces.json` diff as "key-ordering/fingerprint
+  non-determinism" — it is a real schema change (new `schema_version`,
+  `publisher`, `security_policy`, `website`, `provider_fingerprint`,
+  restructured `mcp_server`/`surfaces` blocks), just one whose generator
+  code (`xtask/src/generated_surfaces.rs`) already landed on `main` via
+  `df11915` ("chore: harden soma metadata validation") well before this
+  branch existed — the committed JSON was simply never regenerated against
+  it until this PR's `contract-audit` gate forced the catch-up, so the
+  drift is real but still unrelated to the contracts split itself.
+
+- PR12 review fix (round 2): `crates/soma/client/src/client.rs`'s module doc
+  still said `` `SomaService` (in `soma-application`) wraps this `` — stale
+  from before the extraction; `SomaService` lives in `soma-service`, not
+  `soma-application`. The `client`-feature-disabled error path also still
+  said `"soma-service was built without the `client` feature"`, misnaming
+  the crate that actually owns the feature. Both now say `soma-client`. The
+  crate-root doc in `lib.rs` overclaimed "no ... validation logic of its
+  own" when `resolve_remote_rest_call`/`remote_provider_route` do resolve
+  REST method/path from the provider catalog and `validate_action_path_segment`
+  does validate the action segment; the doc now describes that as
+  transport-shape routing rather than denying it exists. Added missing
+  `soma-client` unit coverage for `ready()` (stub always-ready, upstream
+  `/health` success and non-2xx failure), `call_deployed_api_method`'s
+  non-success-status and invalid-JSON-body error branches,
+  `remote_provider_route`'s `surfaces.rest == false` bail branch, and
+  `validate_action_path_segment` (empty/`/`-containing actions, plus
+  `call_rest_action` short-circuiting before any network call). Fixed a
+  discarded `axum::serve` `Result` in the new
+  `apps/soma/tests/mcp_http_roundtrip.rs` test harness that would have
+  silently swallowed a server-task failure instead of surfacing it. Fixed
+  an unrestored `SOMA_SUPPRESS_STALE_BINARY_WARNING` env var in
+  `crates/soma/cli/src/cli_tests.rs`'s `run_status_command_prints_status_json`
+  that could leak into other tests sharing the same test binary.
+
+- PR12 review fix: the `soma-client` extraction (`soma.rs` → `client.rs`)
+  left several docs and the `cargo xtask scaffold --adapt-plan` generator
+  still pointing new-service authors at the deleted
+  `crates/soma/service/src/soma.rs` path. Updated `docs/ARCHITECTURE.md`
+  (diagram, module layout, file-map table), `docs/QUICKSTART.md`'s
+  adaptation checklist, `docs/contracts/plugin-stdio-adapter.md`'s
+  `upstream_refs`, `README.md`, and its duplicate in
+  `packages/soma-rmcp/README.md` to point at `crates/soma/client/src/client.rs`.
+  Updated `xtask/src/scaffold.rs`'s adapt-plan output string and its
+  `adapt_plan_is_profile_aware_and_path_specific` test assertion to match, so
+  the test no longer locks in the stale path as expected output.
+
+- PR11 review fix: `soma-integrations::CodeModeApplicationPort` was
+  implemented and unit-tested but never constructed anywhere outside its own
+  tests, so any future caller of `SomaApplication::codemode_execute` (no
+  MCP action, CLI command, or REST route dispatches to it yet — that wiring
+  is a separate follow-up) would have silently hit `UnavailableEnginePort` in
+  production instead of a real adapter. `ApplicationPorts` gained
+  `with_codemode()`/`with_openapi()` builders alongside the existing
+  `with_gateway()`, and `apps/soma`'s `runtime_for_components` now wires
+  `CodeModeApplicationPort::default()` into every runtime it builds — proven
+  by a new `apps/soma` test that calls `codemode_execute` through the real
+  composition and asserts the error is no longer `engine_unavailable`.
+  `apps/soma`'s `soma-integrations` dependency is also now optional and
+  feature-gated (`mcp-stdio`, `mcp-http`, `test-support`) instead of
+  unconditional, so `soma-gateway`'s `protected-routes` feature is no longer
+  pulled into builds — e.g. a `cli`-only, `default-features = false` build of
+  the lib crate — that never construct `ApplicationPorts` from it.
+  `CodeModeApplicationPort::execute` also now checks `CodeModeConfig::enabled`
+  before running a snippet (the wired default is disabled) and maps
+  `soma-codemode`'s `ToolError` variants to distinct `PortError` codes
+  instead of one generic `codemode_execution_failed`; `soma-integrations`'s
+  gateway MCP-proxy error mapping now reuses `soma-gateway`'s own exhaustive
+  `GatewayManagerError` → `GatewayStructuredError` classification instead of
+  marking every proxy failure `retryable: true`.
+
+- `soma-provider-adapters` PR10 second review pass: `UpstreamMcpProvider`'s
+  `static_args` (a per-manifest pin, e.g. restricting a generic upstream
+  tool's `action`) were applied *before* caller-supplied params and so could
+  be silently overridden by a colliding caller key; merge order is now
+  reversed so the pin always wins. `openapi.rs`'s `validate_base_url` now
+  fails closed when a provider's `capabilities.network` grant is absent or
+  disabled — previously that silently skipped the allowlist check the
+  adapter's own docs describe as its SSRF defense — and its dispatch client
+  now disables HTTP redirects so an allowlisted host can't hand a request off
+  to a non-allowlisted address via a 3xx response. `soma-openapi`'s internal
+  `execute_operation_inner` now takes a `DispatchTrust` enum instead of two
+  independent booleans, making the untested/unneeded
+  `enforce_ssrf && lenient_body` combination unrepresentable. The `wasm`
+  feature was missing its `sidecar` feature dependency (compiled only by
+  accident whenever another sidecar-owning feature was also enabled);
+  `manifest_file::build_provider` returning `None` for an unbuilt provider
+  kind is now a per-manifest `FileProviderLoadError` instead of an
+  `unreachable!()` that would have crashed the whole server; and
+  `project_gateway_action_catalog` returns `Result` instead of panicking on
+  an invalid provider id. Also: capture bounded upstream stderr as private
+  diagnostics on MCP stdio provider failures (previously piped to
+  `Stdio::null()` and discarded), log (rather than silently swallow) upstream
+  MCP session-cancel errors and invalid provider catalog timeout env values,
+  and add unit coverage for `expand_env_templates`, the `static_args` pin,
+  and the fail-closed network-capability/params-must-be-object/path-parameter
+  behaviors that shipped undocumented-but-untested in the first PR10 pass.
+
+- `soma-provider-adapters::openapi` review fix: `OpenApiProvider` now
+  delegates HTTP dispatch to `soma-openapi` (`http::execute_operation_for_allowlisted_host`,
+  a new entry point for callers that have already restricted the target host
+  through their own allowlist) instead of hand-rolling a second reqwest
+  GET/POST/PUT/PATCH/DELETE executor, satisfying PR10's "no duplicate OpenAPI
+  HTTP executor" acceptance criterion while preserving the tested loopback
+  allowlist behavior and the absolute-operation-URL rejection. `manifest_file::build_provider`'s
+  doc comment was also corrected — every `ProviderKind` (including
+  `StaticRust`) is dispatched through it when its owning feature is enabled;
+  none are constructed by call sites directly. `provider-adapters::gateway`'s
+  duplicate upstream-MCP transport stack (`UpstreamMcpProvider` vs.
+  `soma-mcp-client`'s pooled `UpstreamPool`) was assessed and intentionally
+  left as a documented deviation — full migration needs `UpstreamConfig` to
+  grow arbitrary-header support and reconciled `SpawnGuard`/timeout/response-shape
+  semantics; tracked as its own follow-up (bead `rmcp-template-fnz0`) rather
+  than folded into this fixup.
 
 - `codex-app-server-client`'s REST backend swept idle sessions on every single
   `session()` call — i.e. on every event poll and session call — and each sweep
@@ -314,6 +904,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `/` its sibling `uri_template` field always uses, so a resource
   under a subdirectory reported a `file_name` that looked nothing like
   its own URI on Windows.
+- PR15 review fix: `soma-http-server`'s `Cargo.toml` carried an unused
+  `serde` dependency and a `serde_json` dependency that was only ever used
+  by `#[cfg(test)]` code (moved to `[dev-dependencies]`); `ServerError` is
+  now `#[non_exhaustive]` since it's a shared-crate error type multiple
+  product surfaces will consume; `apps/soma`'s CORS origin-parsing now logs
+  an aggregate `error` (not just per-origin `warn`s) when every configured
+  origin fails to parse, since that specific outcome silently converts an
+  intended allow-list into "no browser origin permitted"; corrected several
+  doc comments in the new crate that overclaimed adoption in present tense
+  (`request_id`/`method_not_allowed`/`health` router helpers have no
+  consumer yet; the `request_id.rs` doc example contradicted `tracing.rs`'s
+  own doc about what the default trace layer captures, and was excluded
+  from compilation via `` ```ignore ``, so the mismatch went unnoticed);
+  documented `shutdown.rs`'s known limitation where a failed signal-handler
+  registration silently degrades or disables graceful shutdown; and added
+  missing test coverage: a disallowed-CORS-origin case, an exact-body-size
+  boundary case, a test proving an in-flight request actually drains across
+  graceful shutdown rather than merely not hanging, and a regression test
+  for the `apps/soma` unmatched-route 404 envelope.
 
 ## [0.4.7]
 

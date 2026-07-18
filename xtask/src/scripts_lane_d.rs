@@ -541,7 +541,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
                 "server-runtime"
             ],
             "source": "scripts/check-openapi.py",
-            "action_metadata": "crates/soma/contracts/src/actions.rs",
+            "action_metadata": "crates/soma/domain/src/actions.rs",
             "preferred_rest_style": "direct_routes",
             "binary": "soma",
             "server_binary": "soma",
@@ -568,7 +568,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
 
 fn openapi_schemas(action_names: Vec<String>) -> Value {
     json!({
-        "ActionName":{"type":"string","enum":action_names,"description":"REST-capable action names from crates/soma/contracts/src/actions.rs."},
+        "ActionName":{"type":"string","enum":action_names,"description":"REST-capable action names from crates/soma/domain/src/actions.rs."},
         "GreetRequest":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","description":"Name to greet. Omit to greet the world."}}},
         "EchoRequest":{"type":"object","additionalProperties":false,"required":["message"],"properties":{"message":{"type":"string","minLength":1,"description":"Message to echo back. Must not be empty."}}},
         "ActionResponse":{"oneOf":[schema_ref("GreetResponse"),schema_ref("EchoResponse"),schema_ref("StatusResponse"),schema_ref("HelpResponse"),schema_ref("RestTruncationResponse")]},
@@ -719,7 +719,7 @@ fn render_schema_docs(root: &Path) -> Result<String> {
     let mut lines = vec![
         "# MCP Schema Contract".to_owned(),
         "".to_owned(),
-        "Generated from `crates/soma/contracts/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.".to_owned(),
+        "Generated from `crates/soma/domain/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.".to_owned(),
         "".to_owned(),
         "Run:".to_owned(),
         "".to_owned(),
@@ -755,7 +755,7 @@ const SCHEMA_DOC_TAIL: &[&str] = &[
     "",
     "## Drift Rules",
     "",
-    "- `ACTION_SPECS` in `crates/soma/contracts/src/actions.rs` is the canonical action and scope list.",
+    "- `ACTION_SPECS` in `crates/soma/domain/src/actions.rs` is the canonical action and scope list.",
     "- Action cost is planner metadata. Use `cheap` for first-pass reads, `moderate` for bounded workflow setup, `expensive` for broad scans or long-running work, and `write` for mutating operations.",
     "- `crates/soma/mcp/src/schemas.rs` must derive its enum from `ACTION_SPECS`.",
     "- The MCP tool schema must reject unknown top-level parameters except reserved `_response_*` continuation fields, and encode action-specific requirements that fit the single-tool dispatch model.",
@@ -1290,7 +1290,7 @@ fn validate_policy(value: &Value, source: &Path) -> Result<()> {
 }
 
 fn action_entries(root: &Path) -> Result<Vec<ActionEntry>> {
-    let text = read(root.join("crates/soma/contracts/src/actions.rs"))?;
+    let text = read(root.join("crates/soma/domain/src/actions.rs"))?;
     Ok(parse_action_entries(&text))
 }
 
@@ -1330,7 +1330,7 @@ fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
 }
 
 fn action_spec_count(root: &Path) -> Result<usize> {
-    let text = read(root.join("crates/soma/contracts/src/actions.rs"))?;
+    let text = read(root.join("crates/soma/domain/src/actions.rs"))?;
     Ok(action_blocks(&text)
         .into_iter()
         .filter(|block| block.trim_start().starts_with("name:"))
@@ -1399,7 +1399,7 @@ fn package_version(root: &Path) -> Result<String> {
 }
 
 fn default_mcp_port(root: &Path) -> Result<u16> {
-    let text = read(root.join("crates/soma/contracts/src/config.rs"))?;
+    let text = read(root.join("crates/soma/config/src/config.rs"))?;
     let Some(start) = text.find("fn default_mcp_port()") else {
         bail!("could not find default_mcp_port in config.rs");
     };

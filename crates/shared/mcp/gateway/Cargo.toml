@@ -28,14 +28,15 @@ futures = "0.3"
 http = "1"
 process-wrap = { version = "9.1.0", default-features = false, features = ["tokio1", "process-group"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls-no-provider", "stream"] }
-rmcp = { version = "=2.2.0", default-features = false, features = ["client", "server", "transport-child-process", "transport-streamable-http-client-reqwest"] }
+rmcp = { workspace = true, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-soma-mcp-client = { path = "../client", default-features = false }
-soma-mcp-proxy = { path = "../proxy", default-features = false }
-soma-codemode = { path = "../../codemode", optional = true, default-features = false }
-soma-openapi = { path = "../../openapi", optional = true, default-features = false }
+soma-mcp-client = { workspace = true }
+soma-mcp-proxy = { workspace = true }
+soma-mcp-server = { workspace = true }
+soma-codemode = { workspace = true, optional = true }
+soma-openapi = { workspace = true, optional = true }
 sse-stream = "0.2"
 thiserror = "2"
 tokio = { version = "1", features = ["io-util", "macros", "process", "rt-multi-thread", "sync", "time"] }
@@ -46,5 +47,4 @@ url = "2"
 
 [dev-dependencies]
 axum = "0.8"
-rmcp = { version = "=2.2.0", default-features = false, features = ["transport-streamable-http-server"] }
 tempfile = "3"

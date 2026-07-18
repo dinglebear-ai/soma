@@ -35,7 +35,7 @@ use checks::{
 use anyhow::{bail, Result};
 use serde::Serialize;
 
-use soma_contracts::config::{default_data_dir, Config};
+use soma_config::{default_data_dir, Config};
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -103,8 +103,9 @@ pub async fn run_doctor(config: &Config, json: bool) -> Result<()> {
 
     let issues = checks.iter().filter(|c| !c.ok).count();
 
-    if json {
-        println!("{}", serde_json::to_string_pretty(&checks)?);
+    let format = soma_cli_core::output::OutputFormat::from_json_flag(json);
+    if format.is_json() {
+        println!("{}", soma_cli_core::json::to_pretty_string(&checks)?);
     } else {
         print_doctor_report(&checks);
     }
@@ -233,53 +234,34 @@ impl DoctorCheck {
 /// Section headings and the version string are the main things to customise.
 /// Add new sections if you add new check categories beyond the five defaults.
 fn print_doctor_report(checks: &[DoctorCheck]) {
-    use std::io::IsTerminal;
-    let color = std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none();
+    let color = soma_cli_core::terminal::stderr_supports_color();
 
     // ── ANSI helpers ──────────────────────────────────────────────────────────
+    // Delegates to soma-cli-core's color policy (crates/shared/cli-core);
+    // wrapped in local macros so call sites below stay unchanged.
     macro_rules! green {
         ($s:expr) => {
-            if color {
-                format!("\x1b[32m{}\x1b[0m", $s)
-            } else {
-                $s.to_string()
-            }
+            soma_cli_core::color::green(&$s.to_string(), color)
         };
     }
     macro_rules! red {
         ($s:expr) => {
-            if color {
-                format!("\x1b[31m{}\x1b[0m", $s)
-            } else {
-                $s.to_string()
-            }
+            soma_cli_core::color::red(&$s.to_string(), color)
         };
     }
     macro_rules! yellow {
         ($s:expr) => {
-            if color {
-                format!("\x1b[33m{}\x1b[0m", $s)
-            } else {
-                $s.to_string()
-            }
+            soma_cli_core::color::yellow(&$s.to_string(), color)
         };
     }
     macro_rules! bold {
         ($s:expr) => {
-            if color {
-                format!("\x1b[1m{}\x1b[0m", $s)
-            } else {
-                $s.to_string()
-            }
+            soma_cli_core::color::bold(&$s.to_string(), color)
         };
     }
     macro_rules! dim {
         ($s:expr) => {
-            if color {
-                format!("\x1b[2m{}\x1b[0m", $s)
-            } else {
-                $s.to_string()
-            }
+            soma_cli_core::color::dim(&$s.to_string(), color)
         };
     }
 

@@ -1,0 +1,26 @@
+[package]
+name = "soma-http-server"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Reusable Axum server plumbing: listener binding, graceful shutdown, request IDs, tracing, timeouts, body limits, generic CORS, health primitives, rejection envelopes"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[dependencies]
+axum = "0.8"
+soma-http-api = { workspace = true }
+tokio = { version = "1", features = ["macros", "net", "rt", "signal"] }
+tower-http = { version = "0.7", features = ["cors", "limit", "request-id", "timeout", "trace"] }
+tracing = "0.1"
+
+[dev-dependencies]
+serde_json = "1"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tower = { version = "0.5", features = ["util"] }

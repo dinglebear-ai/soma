@@ -1,0 +1,35 @@
+[package]
+name = "soma-palette"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Palette product API for soma: /v1/palette/* routes, DTOs, and product launcher policy"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "product-surface"
+
+[features]
+default = []
+auth = ["dep:soma-auth"]
+oauth = ["auth"]
+
+[dependencies]
+axum = "0.8"
+soma-auth = { path = "../../shared/auth", optional = true, features = ["http-axum"] }
+soma-application = { path = "../application", default-features = false }
+soma-domain = { path = "../domain" }
+soma-http-api = { path = "../../shared/http-api" }
+soma-provider-core = { path = "../../shared/provider-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+[dev-dependencies]
+soma-test-support = { workspace = true }
+tokio = { version = "1", features = ["macros", "rt"] }
+tower = { version = "0.5", features = ["util"] }

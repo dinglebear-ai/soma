@@ -1,12 +1,12 @@
-use soma_contracts::errors::ToolError;
-use soma_contracts::{
+use soma_domain::{
     actions::{ActionCost, ActionSpec, ActionTransport, SomaAction, ACTION_SPECS},
-    providers::{
-        CliOverlay, HostCapabilities, ProviderCatalog, ProviderIdentity, ProviderKind,
-        ProviderManifest, ProviderTool,
-    },
+    errors::ToolError,
 };
-use soma_test_support::application_with_provider;
+use soma_provider_core::{
+    CliOverlay, HostCapabilities, ProviderCatalog, ProviderIdentity, ProviderKind,
+    ProviderManifest, ProviderTool,
+};
+use soma_test_support::{application_with_provider, default_application};
 
 use super::{
     confirm_destructive_action_allowed, confirm_destructive_action_from_io, parse_args_from,
@@ -498,6 +498,150 @@ async fn run_dynamic_command_uses_application_dispatch() {
     .await
     .expect("dynamic command should run through the application facade");
     assert_eq!(io.stdout, vec!["{}"]);
+    assert!(io.stderr.is_empty());
+}
+
+// ── run() coverage for the built-in service actions (greet/echo/status/help) ──
+//
+// `run_dynamic_command_uses_application_dispatch` above only exercises the
+// dynamic Provider command path. These tests drive `run()` for every
+// service-backed `Command` variant and assert on the *serialized stdout*
+// `run()` actually prints — pinning the CLI's own JSON rendering of
+// `SomaApplication::execute_action`'s `ExecuteActionResponse` so a shape
+// change during the PR12/13 soma-application/soma-contracts split fails a
+// test instead of silently altering `soma greet`/`echo`/`status`/`help`.
+
+#[tokio::test]
+async fn run_greet_command_prints_default_greeting_json() {
+    let application = default_application();
+    let mut io = TestIo::default();
+    run(application, Command::Greet { name: None }.into(), &mut io)
+        .await
+        .expect("greet should run through the application facade");
+
+    let expected = serde_json::to_string_pretty(&serde_json::json!({
+        "greeting": "Hello, World!",
+        "target": "World",
+        "server": "",
+    }))
+    .unwrap();
+    assert_eq!(io.stdout, vec![expected]);
+    assert!(io.stderr.is_empty());
+}
+
+#[tokio::test]
+async fn run_greet_command_with_name_prints_personalized_greeting_json() {
+    let application = default_application();
+    let mut io = TestIo::default();
+    run(
+        application,
+        Command::Greet {
+            name: Some("Alice".into()),
+        }
+        .into(),
+        &mut io,
+    )
+    .await
+    .expect("greet --name should run through the application facade");
+
+    let expected = serde_json::to_string_pretty(&serde_json::json!({
+        "greeting": "Hello, Alice!",
+        "target": "Alice",
+        "server": "",
+    }))
+    .unwrap();
+    assert_eq!(io.stdout, vec![expected]);
+    assert!(io.stderr.is_empty());
+}
+
+#[tokio::test]
+async fn run_echo_command_prints_message_json() {
+    let application = default_application();
+    let mut io = TestIo::default();
+    run(
+        application,
+        Command::Echo {
+            message: "hello".into(),
+        }
+        .into(),
+        &mut io,
+    )
+    .await
+    .expect("echo should run through the application facade");
+
+    let expected = serde_json::to_string_pretty(&serde_json::json!({ "echo": "hello" })).unwrap();
+    assert_eq!(io.stdout, vec![expected]);
+    assert!(io.stderr.is_empty());
+}
+
+#[tokio::test]
+async fn run_status_command_prints_status_json() {
+    // Suppress the stale-binary warning field so the snapshot is stable
+    // regardless of source/binary mtimes in the build environment. Save and
+    // restore any prior value — `cargo test` runs tests in this binary on
+    // shared threads, so an unrestored `set_var` would leak into whichever
+    // other test happens to run next.
+    const VAR: &str = "SOMA_SUPPRESS_STALE_BINARY_WARNING";
+    let previous = std::env::var(VAR).ok();
+    std::env::set_var(VAR, "1");
+
+    let application = default_application();
+    let mut io = TestIo::default();
+    let result = run(application, Command::Status.into(), &mut io).await;
+
+    match previous {
+        Some(value) => std::env::set_var(VAR, value),
+        None => std::env::remove_var(VAR),
+    }
+
+    result.expect("status should run through the application facade");
+
+    let expected = serde_json::to_string_pretty(&serde_json::json!({
+        "status": "ok",
+        "note": "stub — replace with real health endpoint",
+    }))
+    .unwrap();
+    assert_eq!(io.stdout, vec![expected]);
+    assert!(io.stderr.is_empty());
+}
+
+#[tokio::test]
+async fn run_help_command_prints_action_reference_json() {
+    let application = default_application();
+    let mut io = TestIo::default();
+    run(application, Command::Help.into(), &mut io)
+        .await
+        .expect("help should run through the application facade");
+
+    assert_eq!(io.stdout.len(), 1);
+    let result: serde_json::Value = serde_json::from_str(&io.stdout[0]).unwrap();
+
+    assert_eq!(result["preferred_rest_style"], "direct_routes");
+    assert_eq!(
+        result["usage"],
+        "Use direct REST routes such as POST /v1/echo or GET /v1/status. \
+MCP keeps a single action-dispatched tool; REST does not expose an action envelope."
+    );
+    assert_eq!(
+        result["examples"],
+        serde_json::json!({
+            "greet":  {"method": "POST", "path": "/v1/greet",  "body": {"name": "Alice"}},
+            "echo":   {"method": "POST", "path": "/v1/echo",   "body": {"message": "Hello!"}},
+            "status": {"method": "GET", "path": "/v1/status"},
+        })
+    );
+    let actions: Vec<&str> = result["actions"]
+        .as_array()
+        .expect("actions should be an array")
+        .iter()
+        .map(|v| v.as_str().expect("action name should be a string"))
+        .collect();
+    for expected in ["greet", "echo", "status", "help"] {
+        assert!(
+            actions.contains(&expected),
+            "help actions missing `{expected}`: {actions:?}"
+        );
+    }
     assert!(io.stderr.is_empty());
 }
 

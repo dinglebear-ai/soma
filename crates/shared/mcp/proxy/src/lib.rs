@@ -4,6 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use soma_mcp_client::upstream::{PromptDescriptor, ResourceDescriptor, ToolDescriptor};
 
+mod projection;
+
+pub use projection::{rmcp_prompt_from_route, rmcp_resource_from_route, rmcp_tool_from_route};
+
 const DEFAULT_UPSTREAM_RESOURCE_PREFIX: &str = "mcp-gateway://upstream/";
 
 #[derive(Debug, Clone, PartialEq, Eq)]

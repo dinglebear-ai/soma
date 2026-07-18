@@ -5,8 +5,13 @@ const ACTION_TEST_COVERAGE_EXCEPTIONS: &[&str] = &[
     "elicit_name",
 ];
 
+// ACTION_SPECS moved from crates/soma/contracts/src/actions.rs to
+// crates/soma/domain/src/actions.rs (plan section 6.2 "From soma-contracts";
+// PR 13). crates/soma/contracts was deleted in PR 19.
+const ACTION_SPECS_PATH: &str = "crates/soma/domain/src/actions.rs";
+
 pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
-    let actions_text = read_file("crates/soma/contracts/src/actions.rs");
+    let actions_text = read_file(ACTION_SPECS_PATH);
     let action_specs = action_specs_body(&actions_text).unwrap_or(&actions_text);
     let action_names = extract_action_names(action_specs);
     let mcp_only = extract_mcp_only_actions(action_specs);
@@ -14,7 +19,7 @@ pub(super) fn action_surfaces(reporter: &mut PatternReporter) {
     if action_names.is_empty() {
         reporter.fail(
             "actions",
-            "could not parse ACTION_SPECS from crates/soma/contracts/src/actions.rs",
+            format!("could not parse ACTION_SPECS from {ACTION_SPECS_PATH}"),
         );
         return;
     }

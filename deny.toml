@@ -22,6 +22,42 @@ ignore = [
   # server is not exposed to untrusted timing oracles in its normal deployment.
   # Revisit when jsonwebtoken releases a fix or switches to a constant-time impl.
   { id = "RUSTSEC-2023-0071", reason = "no fix available; risk accepted for JWT-only usage via lab-auth" },
+
+  # RUSTSEC-2024-0411/0412/0413/0414/0415/0416/0417/0418/0419/0420 — gtk-rs GTK3
+  # bindings ("no longer maintained", upstream points to gtk4-rs). Pulled in
+  # transitively: soma-tauri-shell → tauri → tray-icon → libappindicator → gtk
+  # 0.18 (gdk, gdk-sys, gdkx11, gdkx11-sys, gdkwayland-sys, gtk, gtk-sys,
+  # gtk3-macros, atk, atk-sys). This is Tauri 2.x's current Linux tray-icon/
+  # windowing backend as of 2026-07 — every Tauri 2.x desktop app on Linux
+  # pulls the same GTK3 stack; tauri-runtime-wry has not migrated to gtk4-rs.
+  # These are "unmaintained" flags, not active vulnerabilities/CVEs. Revisit
+  # when tauri-runtime-wry/tray-icon ship a GTK4 (or GTK-free) Linux backend.
+  { id = "RUSTSEC-2024-0411", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0412", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0413", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0414", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0415", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0416", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0417", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0418", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0419", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+  { id = "RUSTSEC-2024-0420", reason = "unmaintained gtk-rs GTK3 binding; inherent to Tauri 2.x Linux tray-icon backend, no upstream fix yet" },
+
+  # RUSTSEC-2024-0370 — proc-macro-error is unmaintained. Pulled in via
+  # soma-tauri-shell → tauri → wry/webkit2gtk's macro dependencies. No
+  # replacement forced by upstream yet.
+  { id = "RUSTSEC-2024-0370", reason = "unmaintained proc-macro-error; transitive via tauri's webkit2gtk/wry stack, no upstream fix yet" },
+
+  # RUSTSEC-2025-0075/0080/0081/0098/0100 — unic-* Unicode data crates are
+  # unmaintained. Pulled in transitively: soma-tauri-shell → tauri →
+  # tauri-utils → urlpattern → unic-ucd-ident/unic-ucd-version →
+  # unic-char-property/unic-char-range/unic-common. No safe upgrade path
+  # until tauri-utils moves off urlpattern's unic-* dependency.
+  { id = "RUSTSEC-2025-0075", reason = "unmaintained unic-* Unicode crate; transitive via tauri-utils → urlpattern, no upstream fix yet" },
+  { id = "RUSTSEC-2025-0080", reason = "unmaintained unic-* Unicode crate; transitive via tauri-utils → urlpattern, no upstream fix yet" },
+  { id = "RUSTSEC-2025-0081", reason = "unmaintained unic-* Unicode crate; transitive via tauri-utils → urlpattern, no upstream fix yet" },
+  { id = "RUSTSEC-2025-0098", reason = "unmaintained unic-* Unicode crate; transitive via tauri-utils → urlpattern, no upstream fix yet" },
+  { id = "RUSTSEC-2025-0100", reason = "unmaintained unic-* Unicode crate; transitive via tauri-utils → urlpattern, no upstream fix yet" },
 ]
 
 # ── Licenses ──────────────────────────────────────────────────────────────────

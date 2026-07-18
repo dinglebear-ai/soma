@@ -6,7 +6,7 @@ Keep MCP, CLI, REST, and web surfaces thin while letting new business actions li
 
 ## Recommended Shape
 
-Business logic should live in `crates/soma/service`.
+Business logic should live in `crates/soma/application`.
 
 The stable flow should be:
 
@@ -14,12 +14,12 @@ The stable flow should be:
 MCP / CLI / REST / Web
   -> surface adapter
   -> SomaAction
-  -> soma_service::dispatch_action(...)
-  -> SomaService method
+  -> SomaApplication::execute_action(...)
+  -> ProviderRegistry / SomaService method
   -> domain modules or standalone crates
 ```
 
-`SomaService` in `crates/soma/service/src/app.rs` should be the shared application facade. It can call local modules, upstream clients, repositories, or standalone crates such as auth, codemode, gateway, and traces. Surface crates should parse inputs, call the service, and format outputs.
+`SomaApplication` in `crates/soma/application/src/app.rs` should be the shared application facade. It can call local modules, upstream clients, repositories, or standalone crates such as auth, codemode, gateway, and traces. Surface crates should parse inputs, call the application facade, and format outputs.
 
 ## MCP Surface
 
@@ -49,7 +49,7 @@ Direct routes give better OpenAPI, clearer auth docs, easier client SDK generati
 
 ## Action Contract
 
-Use `crates/soma/contracts/src/actions.rs` as the canonical action contract:
+Use `crates/soma/domain/src/actions.rs` as the canonical action contract:
 
 - action enum
 - transport availability

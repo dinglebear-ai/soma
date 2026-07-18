@@ -1,0 +1,43 @@
+//! Product adapters connecting `soma-application`'s transport-neutral ports
+//! to Soma's shared engines (plan section 3.20).
+//!
+//! This is intentionally an outer-layer crate: it is the one place allowed to
+//! see both `soma-application` ports and concrete shared engines
+//! (`soma-gateway`, `soma-codemode`, and — once wired — `soma-openapi`) in
+//! the same dependency graph. `apps/soma` constructs these adapters; it must
+//! not contain their implementation logic.
+//!
+//! Modules:
+//!   [`gateway`]           — [`GatewayPort`](soma_application::GatewayPort) implementation over `soma-gateway`'s `GatewayManager`.
+//!   [`gateway_auth`]      — bridges `soma-auth`'s upstream OAuth runtime into `soma-gateway`'s generic OAuth traits (`oauth` feature).
+//!   [`auth`]              — Soma's product auth default mapping (env prefix, scopes, cookie name) (`auth` feature).
+//!   [`codemode`]          — [`CodeModePort`](soma_application::CodeModePort) implementation over `soma-codemode`.
+//!
+//! `protected_routes`/`protected_routes_proxy` (bearer-token auth, scope
+//! authorization, and gateway-subset dispatch for protected MCP routes)
+//! lived here briefly behind a `protected-http` feature but were moved to
+//! `soma-runtime` as a PR 19 review fix: they need both `AppState`
+//! (`soma-runtime`) and `soma-mcp`'s `McpState`, and depending on either
+//! from this crate inverted plan section 3.20's target dependency shape
+//! (below) and contradicted this crate's own `gateway.rs`, which documents
+//! taking the gateway manager directly rather than depending on
+//! `soma-runtime` for that reason.
+//!
+//! Not yet implemented here (see `soma-architecture-refactor-plan-v3.md` PR 11
+//! notes on the bead for this slice): `OpenApiPort` has no product adapter —
+//! `soma_application::OpenApiExecuteRequest` has no spec/label field and no
+//! `soma_openapi::registry::OpenApiRegistry` is constructed anywhere in the
+//! runtime yet, so a real adapter would require inventing an unspecified wire
+//! shape rather than moving or wiring existing, tested behavior.
+
+pub mod gateway;
+
+#[cfg(feature = "auth")]
+pub mod auth;
+#[cfg(feature = "oauth")]
+pub mod gateway_auth;
+
+pub mod codemode;
+
+pub use codemode::CodeModeApplicationPort;
+pub use gateway::GatewayApplicationPort;

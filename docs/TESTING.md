@@ -49,22 +49,22 @@ retries = 2
 | `apps/soma/tests/api_routes.rs` | REST and mounted auth route behavior. |
 | `apps/soma/tests/plugin_contract.rs` | Plugin package and hook contracts. |
 | `apps/soma/tests/soma_invariants.rs` | Automation/Soma invariants. |
-| `crates/soma/service/src/app_tests.rs` | Private service-layer unit tests (sidecar to `app.rs`). |
+| `crates/soma/application/src/service_tests.rs` | Private service-layer unit tests (sidecar to `service.rs`). |
 
 ## Test sidecars
 
 All tests that need access to private functions live in `_tests.rs` sidecar files, not inline:
 
 ```rust
-// crates/soma/service/src/app.rs
+// crates/soma/application/src/service.rs
 pub struct SomaService { ... }
 impl SomaService { ... }
 
 #[cfg(test)]
-#[path = "app_tests.rs"]
+#[path = "service_tests.rs"]
 mod tests;
 
-// crates/soma/service/src/app_tests.rs
+// crates/soma/application/src/service_tests.rs
 use super::*;  // access to private items
 
 #[test]

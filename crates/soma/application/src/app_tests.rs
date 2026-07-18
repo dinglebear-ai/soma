@@ -2,26 +2,22 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use soma_contracts::{
-    actions::{READ_SCOPE, WRITE_SCOPE},
-    config::SomaConfig,
-    providers::{ProviderCatalog, ProviderResource},
-};
+use soma_client::SomaClient;
+use soma_config::SomaConfig;
 use soma_domain::{
+    scopes::{READ_SCOPE, WRITE_SCOPE},
     AuthorizationMode, Confirmation, Principal, RequestId, ScopeSet, Surface, TraceContext,
 };
-use soma_service::{
-    provider_registry::Provider, DynamicResourceTemplate, ProviderCall, ProviderError,
-    ProviderOutput, ProviderRegistry, SomaClient, SomaService, StaticRustProvider,
-};
+use soma_provider_core::{ProviderCatalog, ProviderResource};
 
 use super::{
     CodeModeExecuteRequest, ExecuteActionRequest, GatewayExecuteRequest, GatewayReloadRequest,
     OpenApiExecuteRequest, ScaffoldIntentRequest, SomaApplication,
 };
 use crate::{
-    ApplicationError, ApplicationErrorDetails, ApplicationPorts, CodeModePort, ExecutionContext,
-    GatewayPort, OpenApiPort, PortError,
+    provider_registry::Provider, ApplicationError, ApplicationErrorDetails, ApplicationPorts,
+    CodeModePort, DynamicResourceTemplate, ExecutionContext, GatewayPort, OpenApiPort, PortError,
+    ProviderCall, ProviderError, ProviderOutput, ProviderRegistry, SomaService, StaticRustProvider,
 };
 
 struct RecordingProvider {
@@ -36,10 +32,7 @@ impl Provider for RecordingProvider {
         self.catalog.clone()
     }
 
-    async fn call(
-        &self,
-        call: ProviderCall,
-    ) -> Result<ProviderOutput, soma_service::ProviderError> {
+    async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, crate::ProviderError> {
         self.calls.lock().unwrap().push(call);
         Ok(ProviderOutput::json(self.output.clone()))
     }
@@ -284,7 +277,7 @@ async fn execute_action_applies_defaults_and_returns_request_context() {
     assert_eq!(response.request_id, "request-1");
     let calls = provider.calls.lock().unwrap();
     assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].surface, soma_service::ProviderSurface::Rest);
+    assert_eq!(calls[0].surface, crate::ProviderSurface::Rest);
     assert!(!calls[0].snapshot_id.is_empty());
 }
 

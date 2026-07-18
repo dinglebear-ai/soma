@@ -15,17 +15,33 @@ layer = "product-application"
 
 [features]
 default = []
-client = ["soma-service/client"]
-observability = ["soma-service/observability"]
+client = ["soma-client/client", "soma-provider-core/preserve-order"]
+observability = ["dep:metrics", "soma-client/observability"]
 
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
+base64 = "0.22"
+jsonschema = "0.47"
+metrics = { version = "0.24", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-soma-contracts = { path = "../contracts" }
-soma-domain = { path = "../domain" }
-soma-service = { path = "../service", default-features = false }
+sha2 = "0.11"
+soma-client = { workspace = true }
+soma-domain = { workspace = true }
+soma-provider-adapters = { workspace = true, features = [
+  "ai-sdk",
+  "gateway",
+  "openapi",
+  "python",
+  "static-echo",
+  "wasm",
+] }
+soma-provider-core = { workspace = true }
+tracing = "0.1"
+url = "2"
 
 [dev-dependencies]
+soma-config = { workspace = true }
+tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

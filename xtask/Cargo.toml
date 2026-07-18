@@ -31,13 +31,16 @@ layer = "legacy"
 #           Add more only if a new command truly requires it.
 anyhow = "1"
 jsonschema = "0.47"
-soma-contracts = { path = "../crates/soma/contracts" }
-soma-service = { path = "../crates/soma/service", default-features = false }
+soma-application = { workspace = true }
+soma-client = { workspace = true }
+soma-config = { workspace = true }
+soma-domain = { workspace = true }
+soma-provider-core = { workspace = true }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 # NOT "preserve_order": that feature is unified across the whole workspace's
 # serde_json (Cargo's feature unification applies to every crate xtask links
-# against, including soma-contracts/soma-service), so it silently changed the
+# against, including soma-provider-core/soma-application), so it silently changed the
 # key ordering of *unrelated* generated docs (docs/generated/openapi.json,
 # palette-manifest.json, ...) the first time it was added here - discovered
 # via CI staleness failures on files codex-schema never touches. The

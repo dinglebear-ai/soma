@@ -11,11 +11,8 @@ use rmcp::{
     ServiceExt,
 };
 use serde_json::{json, Map, Value};
-use soma_contracts::providers::{ProviderCatalog, ProviderManifest};
-use soma_service::{
-    provider_registry::Provider, providers::mcp::McpProvider, ProviderAuthMode, ProviderCall,
-    ProviderPrincipal, ProviderRequestLimits, ProviderSurface,
-};
+use soma_provider_adapters::gateway::UpstreamMcpProvider;
+use soma_provider_core::{Provider as CoreProvider, ProviderCall as CoreProviderCall};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     process::{Child, Command},
@@ -101,48 +98,45 @@ async fn hot_dropped_mcp_provider_proxies_upstream_tool_call() -> anyhow::Result
 async fn mcp_provider_infers_http_transport_from_url() -> anyhow::Result<()> {
     let port = unused_loopback_port()?;
     let _server = HttpServerGuard::spawn(port).await?;
-    let catalog: ProviderCatalog = serde_json::from_value::<ProviderManifest>(json!({
-        "schema_version": 1,
-        "provider": {
-            "name": "upstream-http-mcp",
-            "kind": "mcp"
-        },
-        "tools": [{
-            "name": "http_echo",
-            "description": "Proxy echo through a streamable HTTP MCP server.",
-            "input_schema": {
-                "type": "object",
-                "required": ["message"],
-                "additionalProperties": false,
-                "properties": {
-                    "message": { "type": "string", "minLength": 1 }
-                }
+    let catalog: soma_provider_core::ProviderCatalog =
+        serde_json::from_value::<soma_provider_core::ProviderManifest>(json!({
+            "schema_version": 1,
+            "provider": {
+                "name": "upstream-http-mcp",
+                "kind": "mcp"
             },
+            "tools": [{
+                "name": "http_echo",
+                "description": "Proxy echo through a streamable HTTP MCP server.",
+                "input_schema": {
+                    "type": "object",
+                    "required": ["message"],
+                    "additionalProperties": false,
+                    "properties": {
+                        "message": { "type": "string", "minLength": 1 }
+                    }
+                },
+                "meta": {
+                    "mcp": {
+                        "upstream_tool": "soma",
+                        "static_args": { "action": "echo" }
+                    }
+                }
+            }],
             "meta": {
                 "mcp": {
-                    "upstream_tool": "soma",
-                    "static_args": { "action": "echo" }
+                    "url": format!("http://127.0.0.1:{port}/mcp"),
+                    "timeout_ms": 10000
                 }
             }
-        }],
-        "meta": {
-            "mcp": {
-                "url": format!("http://127.0.0.1:{port}/mcp"),
-                "timeout_ms": 10000
-            }
-        }
-    }))?;
+        }))?;
 
-    let output = McpProvider::new(catalog)
-        .call(ProviderCall {
+    let output = UpstreamMcpProvider::new(catalog)
+        .call(CoreProviderCall {
             provider: "upstream-http-mcp".to_owned(),
             action: "http_echo".to_owned(),
             params: json!({"message": "hello over http"}),
-            principal: ProviderPrincipal::loopback_dev(),
-            auth_mode: ProviderAuthMode::LoopbackDev,
-            surface: ProviderSurface::Mcp,
-            destructive_confirmed: false,
-            limits: ProviderRequestLimits::default(),
+            surface: soma_provider_core::ProviderSurface::Mcp,
             snapshot_id: "test-snapshot".to_owned(),
         })
         .await?;

@@ -1,7 +1,12 @@
 //! `soma` library crate.
 //!
 //! Exposes the service layer, config, and transport client so that integration
-//! tests can import them without duplicating state construction.
+//! tests can import them without duplicating state construction. The
+//! composition root itself lives in private modules: [`bootstrap`] builds the
+//! concrete dependency graph, `invocation` classifies `argv` into an
+//! execution mode, and `local`/`http`/`stdio` run each mode. [`run`] is the
+//! single public entry point `apps/soma/src/bin/soma.rs` calls (plan
+//! section 3.1).
 //!
 //! Public modules:
 //!   [`app`]     — `SomaService` (business logic)
@@ -17,24 +22,30 @@ pub use soma_api::api;
 pub use soma_api::gateway as gateway_api;
 #[cfg(feature = "cli")]
 pub use soma_cli as cli;
-pub use soma_contracts::actions;
-pub use soma_contracts::config;
-pub use soma_contracts::env_registry;
+pub use soma_client as soma;
+pub use soma_config::config;
+pub use soma_config::env_registry;
+pub use soma_domain::actions;
+pub use soma_domain::token_limit;
 #[cfg(feature = "mcp")]
 pub use soma_mcp as mcp;
 #[cfg(feature = "observability")]
 pub use soma_observability::binary_status;
 #[cfg(feature = "observability")]
 pub use soma_observability::logging;
-pub use soma_service::app;
-pub use soma_service::soma;
-#[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
-pub mod runtime;
-pub use soma_contracts::token_limit;
 #[cfg(feature = "web")]
 pub use soma_web as web;
 
+/// Business-logic facade. `SomaService` now lives in `soma-application`
+/// (plan section PR 19, which finished moving it out of the deleted
+/// `crates/soma/service`); this module preserves the `soma::app::SomaService`
+/// path for callers that have not migrated their import yet.
+pub mod app {
+    pub use soma_application::SomaService;
+}
+
 #[cfg(any(
+    feature = "cli",
     feature = "mcp-stdio",
     feature = "mcp-http",
     all(
@@ -42,22 +53,73 @@ pub use soma_web as web;
         any(feature = "cli", feature = "mcp", feature = "api")
     )
 ))]
-mod application_ports;
-#[cfg(feature = "oauth")]
-mod gateway_auth;
+mod bootstrap;
 #[cfg(feature = "mcp-http")]
-mod protected_routes;
+mod http;
+// Only `run()` (gated below) references `invocation::*` — match its gate so
+// this module is not `dead_code` in an mcp-http-only build (e.g. a
+// downstream fork embedding just the HTTP server; see `run`'s doc comment).
+#[cfg(all(feature = "cli", feature = "mcp-stdio"))]
+mod invocation;
+#[cfg(feature = "cli")]
+mod local;
 #[cfg(feature = "mcp-http")]
-mod protected_routes_proxy;
-#[cfg(feature = "mcp-http")]
-mod routes;
+mod shutdown;
+#[cfg(feature = "mcp-stdio")]
+mod stdio;
+
+/// Run the `soma` binary: classify `argv` into an execution mode (see
+/// `crate::invocation::Mode`), then dispatch to the CLI (`local`), stdio MCP
+/// (`stdio`), or HTTP server (`http`). The sole entry point
+/// `apps/soma/src/bin/soma.rs` calls — everything else in this crate is
+/// composition, not process wiring.
+#[cfg(all(feature = "cli", feature = "mcp-stdio"))]
+pub async fn run(args: impl IntoIterator<Item = String>) -> anyhow::Result<()> {
+    let args: Vec<String> = args.into_iter().collect();
+
+    let dispatch = match invocation::resolve(&args) {
+        invocation::Mode::Exit(invocation::ExitAction::Help) => {
+            eprintln!("{}", cli::usage());
+            return Ok(());
+        }
+        invocation::Mode::Exit(invocation::ExitAction::Version) => {
+            println!("soma {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        invocation::Mode::Dispatch(dispatch) => dispatch,
+    };
+
+    // Load ~/.soma/.env (or SOMA_HOME/.env) for local CLI/plugin runs before
+    // any command loads typed config. Explicit process env still wins.
+    config::load_dotenv();
+    bootstrap::init_logging(dispatch.default_log_level());
+
+    match dispatch {
+        invocation::DispatchMode::Serve => {
+            #[cfg(feature = "mcp-http")]
+            {
+                http::serve().await
+            }
+            #[cfg(not(feature = "mcp-http"))]
+            {
+                anyhow::bail!("`soma serve` requires the `mcp-http` or `server` feature")
+            }
+        }
+        invocation::DispatchMode::Stdio => stdio::serve().await,
+        invocation::DispatchMode::Cli => local::run(&args).await,
+    }
+}
 
 #[cfg(any(feature = "cli", feature = "mcp", feature = "api"))]
 pub mod server {
     pub use soma_runtime::server::*;
 
+    // Reachable under `mcp-http` alone (independent of `run()`'s `cli` +
+    // `mcp-stdio` gate) so a downstream fork that only wants the HTTP server
+    // — e.g. embedding it without CLI/stdio deps — has a public entry point,
+    // matching the pre-PR18 `soma::runtime::serve_http_mcp()` shape.
     #[cfg(feature = "mcp-http")]
-    pub use crate::routes::router;
+    pub use crate::http::{router, serve as serve_http_mcp};
 }
 
 /// Test helpers — available when `features = ["test-support"]` or in `cfg(test)`.
@@ -76,10 +138,10 @@ pub mod testing {
         server::{AppState, AuthPolicy, GatewayProductState},
         soma::SomaClient,
     };
+    use soma_application::ProviderRegistry;
     use soma_runtime::server::empty_gateway_product_state;
     #[cfg(feature = "auth")]
     use soma_runtime::server::gateway_product_state_from_config;
-    use soma_service::ProviderRegistry;
 
     fn stub_service() -> SomaService {
         let client = SomaClient::new(&SomaConfig {
@@ -98,8 +160,7 @@ pub mod testing {
         provider_registry: ProviderRegistry,
         gateway: GatewayProductState,
     ) -> AppState {
-        let runtime =
-            crate::application_ports::runtime_for_components(service, provider_registry, gateway);
+        let runtime = crate::bootstrap::runtime_for_components(service, provider_registry, gateway);
         AppState::new(config, auth_policy, runtime, Default::default())
     }
 
@@ -108,7 +169,7 @@ pub mod testing {
     pub fn loopback_state() -> AppState {
         let service = stub_service();
         let provider_registry =
-            soma_service::static_provider_registry(service.clone()).expect("static registry");
+            soma_application::static_provider_registry(service.clone()).expect("static registry");
         state(
             McpConfig::default(),
             AuthPolicy::LoopbackDev,
@@ -133,7 +194,7 @@ pub mod testing {
     pub fn bearer_state(token: &str) -> AppState {
         let service = stub_service();
         let provider_registry =
-            soma_service::static_provider_registry(service.clone()).expect("static registry");
+            soma_application::static_provider_registry(service.clone()).expect("static registry");
         state(
             McpConfig {
                 api_token: Some(token.to_string()),
@@ -148,7 +209,7 @@ pub mod testing {
 
     #[cfg(feature = "mcp")]
     pub fn mcp_state(state: &AppState) -> soma_mcp::McpState {
-        crate::application_ports::mcp_state_for_state(state)
+        crate::bootstrap::mcp_state_for_state(state)
     }
 
     /// `AppState` with full OAuth (requires data directory for SQLite + key file).
@@ -176,10 +237,10 @@ pub mod testing {
         let auth_state = build_auth_state(data_dir).await;
         let service = stub_service();
         let provider_registry =
-            soma_service::static_provider_registry(service.clone()).expect("static registry");
+            soma_application::static_provider_registry(service.clone()).expect("static registry");
         state(
             McpConfig {
-                auth: soma_contracts::config::AuthConfig {
+                auth: soma_config::AuthConfig {
                     public_url: Some("https://example.example.com".to_string()),
                     ..Default::default()
                 },
@@ -225,9 +286,9 @@ pub mod testing {
             .env_prefix("SOMA_MCP")
             .session_cookie_name("soma_mcp_session")
             .scopes_supported(vec![
-                soma_contracts::actions::READ_SCOPE.into(),
-                soma_contracts::actions::WRITE_SCOPE.into(),
-                soma_contracts::scopes::ADMIN_SCOPE.into(),
+                soma_domain::actions::READ_SCOPE.into(),
+                soma_domain::actions::WRITE_SCOPE.into(),
+                soma_domain::scopes::ADMIN_SCOPE.into(),
             ])
             .default_scope("soma:read")
             .resource_path("/mcp")

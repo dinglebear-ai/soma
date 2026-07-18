@@ -6,6 +6,7 @@ use axum::{
 };
 use serde_json::json;
 use soma_application::ApplicationError;
+use soma_http_api::response::json_rejection_response;
 
 pub(crate) fn rest_error_response(error: anyhow::Error, action: &str) -> Response {
     tracing::warn!(error = %error, action, "REST action rejected invalid params");
@@ -20,13 +21,10 @@ pub(crate) fn rest_error_response(error: anyhow::Error, action: &str) -> Respons
         .into_response()
 }
 
+/// Delegates to `soma-http-api`'s generic body-rejection renderer — every
+/// Soma REST handler in this crate shares the exact same 413/400 mapping.
 pub(crate) fn rest_json_rejection_response(error: JsonRejection) -> Response {
-    let status = if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
-        StatusCode::PAYLOAD_TOO_LARGE
-    } else {
-        StatusCode::BAD_REQUEST
-    };
-    (status, Json(json!({"error": error.to_string()}))).into_response()
+    json_rejection_response(error)
 }
 
 pub(crate) fn application_error_response(error: ApplicationError) -> Response {
@@ -35,31 +33,12 @@ pub(crate) fn application_error_response(error: ApplicationError) -> Response {
     (status, Json(error)).into_response()
 }
 
+/// Delegates to `soma-http-api`'s shared `ApplicationError.code` → status
+/// mapping — every Soma REST/HTTP surface that renders `ApplicationError`
+/// bodies shares the exact same classification (see
+/// `soma_http_api::response::application_error_status`).
 pub(crate) fn application_error_status(error: &ApplicationError) -> StatusCode {
-    match error.code.as_str() {
-        "unknown_action" | "surface_not_exposed" | "upstream_missing" | "unknown_upstream" => {
-            StatusCode::NOT_FOUND
-        }
-        "insufficient_scope" | "capability_denied" | "admin_required" | "not_exposed" => {
-            StatusCode::FORBIDDEN
-        }
-        "input_too_large" | "response_too_large" => StatusCode::PAYLOAD_TOO_LARGE,
-        "input_schema_failed"
-        | "confirmation_required"
-        | "invalid_param"
-        | "spawn_validation_failed"
-        | "upstream_exists"
-        | "invalid_config" => StatusCode::BAD_REQUEST,
-        "unsupported_transport" => StatusCode::NOT_IMPLEMENTED,
-        "gateway_reloading"
-        | "store_not_mounted"
-        | "oauth_runtime_error"
-        | "not_routable"
-        | "upstream_connect_failed"
-        | "upstream_call_failed"
-        | "engine_unavailable" => StatusCode::SERVICE_UNAVAILABLE,
-        _ => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    soma_http_api::response::application_error_status(&error.code)
 }
 
 #[cfg(test)]

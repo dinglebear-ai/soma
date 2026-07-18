@@ -1,13 +1,13 @@
 use std::{fs, process::Command, time::Duration};
 
 use serde_json::{json, Value};
-use soma_contracts::config::SomaConfig;
-use soma_service::{
+use soma_application::{
     dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
     provider_registry::ProviderCall, provider_registry::ProviderPrincipal,
-    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface, SomaClient,
-    SomaService,
+    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface, SomaService,
 };
+use soma_client::SomaClient;
+use soma_config::SomaConfig;
 
 #[tokio::test]
 async fn ai_sdk_provider_executes_hot_dropped_typescript_handler() -> anyhow::Result<()> {
@@ -186,7 +186,7 @@ export async function call(input) {
 }
 
 async fn dispatch(
-    registry: &soma_service::ProviderRegistry,
+    registry: &soma_application::ProviderRegistry,
     action: &str,
     params: serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {

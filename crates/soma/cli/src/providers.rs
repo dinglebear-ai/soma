@@ -2,14 +2,14 @@
 //!
 //! Unlike `soma providers validate|inspect|test`, these never build or dispatch
 //! through the live application provider catalog — they only parse manifests on disk via
-//! `soma_service::providers::filesystem::FileProviderSource::inspect()`. Safe to
+//! `soma_application::providers::filesystem::FileProviderSource::inspect()`. Safe to
 //! run before the runtime touches TS/WASM/MCP/OpenAPI handlers.
 
 use std::path::PathBuf;
 
 use anyhow::Result;
 use serde_json::{json, Value};
-use soma_service::providers::filesystem::{
+use soma_application::providers::filesystem::{
     FileProviderSource, ProviderDirectoryInspection, ProviderFileInspectionStatus,
 };
 

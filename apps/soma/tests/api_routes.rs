@@ -12,12 +12,14 @@ use soma::{
     server::{self, AuthPolicy},
     testing::{bearer_state, loopback_state, loopback_state_with_registry},
 };
-use soma_contracts::actions::ACTION_SPECS;
-use soma_contracts::providers::{
+use soma_application::provider_registry::{
+    Provider, ProviderCall, ProviderOutput, ProviderRegistry,
+};
+use soma_application::ProviderError;
+use soma_domain::actions::ACTION_SPECS;
+use soma_provider_core::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool, RestOverlay,
 };
-use soma_service::provider_registry::{Provider, ProviderCall, ProviderOutput, ProviderRegistry};
-use soma_service::ProviderError;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -371,6 +373,34 @@ async fn mounted_bearer_auth_protects_rest_endpoint() {
         request_json(app, Method::GET, "/v1/status", Some("secret"), None).await;
     assert_eq!(valid_status, StatusCode::OK);
     assert_eq!(valid_body["status"], "ok");
+}
+
+#[tokio::test]
+async fn palette_catalog_is_reachable_through_the_composed_router() {
+    let app = server::router(loopback_state());
+    let (status, body) = request_json(app, Method::GET, "/v1/palette/catalog", None, None).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.get("entries").is_some(), "{body}");
+}
+
+#[tokio::test]
+async fn mounted_bearer_auth_protects_palette_routes() {
+    let app = server::router(bearer_state("secret"));
+
+    let (missing_status, _) =
+        request_json(app.clone(), Method::GET, "/v1/palette/catalog", None, None).await;
+    assert_eq!(missing_status, StatusCode::UNAUTHORIZED);
+
+    let (valid_status, _) = request_json(
+        app,
+        Method::GET,
+        "/v1/palette/catalog",
+        Some("secret"),
+        None,
+    )
+    .await;
+    assert_eq!(valid_status, StatusCode::OK);
 }
 
 #[tokio::test]

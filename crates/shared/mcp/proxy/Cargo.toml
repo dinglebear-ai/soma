@@ -17,7 +17,10 @@ layer = "shared"
 default = []
 
 [dependencies]
-soma-mcp-client = { path = "../client", default-features = false }
+rmcp = { workspace = true }
+soma-mcp-client = { workspace = true }
+soma-mcp-server = { workspace = true }
 
 [dev-dependencies]
 serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt"] }

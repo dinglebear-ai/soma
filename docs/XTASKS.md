@@ -72,7 +72,7 @@ symlink-docs:
 ```
 WARN  crates/soma/mcp/src/tools.rs  line 42: potential business logic in MCP shim
 WARN  crates/soma/cli/src/lib.rs  line 87: potential business logic in CLI shim
-ERROR crates/soma/service/src/app/mod.rs: mod.rs files are banned
+ERROR crates/soma/application/src/service/mod.rs: mod.rs files are banned
 ERROR crates/soma/mcp/src/tools.rs: action "new_action" in ACTION_SPECS missing from dispatch
 ERROR apps/soma/tests/tool_dispatch.rs: action "new_action" has no test
 ## Web Source Sync

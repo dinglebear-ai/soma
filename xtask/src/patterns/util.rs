@@ -29,7 +29,7 @@ pub(super) fn size_limit(path: &Path) -> Option<usize> {
         // keep it visible as a warning without blocking unrelated CI gates.
         return Some(700);
     }
-    if path == Path::new("crates/soma/service/src/provider_registry.rs") {
+    if path == Path::new("crates/soma/application/src/provider_registry.rs") {
         // Provider registration and dispatch is intentionally centralized while
         // the drop-in provider contract is settling. Keep it warning-visible.
         return Some(400);

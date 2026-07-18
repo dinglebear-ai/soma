@@ -1,0 +1,23 @@
+[package]
+name = "soma-http-api"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Reusable HTTP API surface mechanics: response envelopes, problem details, probe DTOs, route inventory, pagination"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[dependencies]
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+tower = { version = "0.5", features = ["util"] }

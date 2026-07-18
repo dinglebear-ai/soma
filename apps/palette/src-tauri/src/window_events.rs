@@ -1,26 +1,16 @@
-use std::sync::atomic::Ordering;
-
+use soma_tauri_shell::blur::{handle_close_requested, handle_focus_lost, BlurDismissState};
 use tauri::{Manager, Window, WindowEvent};
 
-use super::{BlurDismiss, log_palette_warning, merged_settings_or_default};
+use super::merged_settings_or_default;
 
 pub(super) fn handle_window_event(window: &Window, event: &WindowEvent) {
     match event {
-        WindowEvent::CloseRequested { api, .. } => {
-            api.prevent_close();
-            if let Err(err) = window.hide() {
-                log_palette_warning("failed to hide main window on close", err);
-            }
-        }
+        WindowEvent::CloseRequested { api, .. } => handle_close_requested(window, api),
         WindowEvent::Focused(false) => {
             let app = window.app_handle();
-            let blur_dismiss = app.state::<BlurDismiss>().0.load(Ordering::Relaxed);
-            if blur_dismiss
-                && merged_settings_or_default(app).hide_on_blur
-                && let Err(err) = window.hide()
-            {
-                log_palette_warning("failed to hide main window on focus loss", err);
-            }
+            let state = app.state::<BlurDismissState>();
+            let hide_on_blur_pref = merged_settings_or_default(app).hide_on_blur;
+            handle_focus_lost(window, &state, hide_on_blur_pref);
         }
         _ => {}
     }

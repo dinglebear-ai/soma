@@ -1,7 +1,7 @@
 //! MCP tool dispatch — thin shims only.
 //!
 //! **Rule**: no business logic here. Parse args → call service → return Value.
-//! All logic belongs in `app.rs` (or `soma.rs` for transport concerns).
+//! All logic belongs in `app.rs` (or `soma-client` for transport concerns).
 //!
 //! The `peer` parameter is threaded through so that elicitation actions can
 //! ask the MCP client for user input mid-call. For non-elicitation actions
@@ -21,7 +21,7 @@ use soma_application::{
     ElicitedName, ExecuteActionRequest, ExecutionContext, ScaffoldIntentRequest, SomaApplication,
 };
 #[cfg(test)]
-use soma_contracts::actions::{ActionTransport, ACTION_SPECS};
+use soma_domain::actions::{ActionTransport, ACTION_SPECS};
 
 use crate::McpState;
 
@@ -377,7 +377,7 @@ fn build_help_text() -> String {
 
 1. Add the action metadata to `ACTION_SPECS` in `actions.rs`.
 2. Add any new parameters to the action's `params` metadata.
-3. Add a method to `SomaClient` in `soma.rs` (transport).
+3. Add a method to `SomaClient` in `soma-client` (transport).
 4. Add an application use case in `soma-application` (business logic).
 5. Add a match arm in `dispatch_soma()` in `mcp/tools.rs`.
 6. Add a test covering parser, schema, and dispatch behavior.

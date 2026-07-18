@@ -1,8 +1,7 @@
 use serde::Serialize;
-use soma_contracts::errors::ServiceErrorKind;
-use soma_service::ProviderError;
+use soma_domain::errors::ServiceErrorKind;
 
-use crate::PortError;
+use crate::{PortError, ProviderError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ApplicationError {
@@ -63,7 +62,7 @@ impl ApplicationError {
     }
 
     pub(crate) fn service(error: &anyhow::Error) -> Self {
-        let classified = soma_service::classify_service_error(error);
+        let classified = crate::classify_service_error(error);
         Self {
             code: classified.code,
             message: classified.message,
@@ -100,7 +99,7 @@ impl ApplicationError {
     }
 
     pub(crate) fn legacy(operation: &str, error: impl std::fmt::Display) -> Self {
-        let diagnostic = soma_service::provider_errors::redact_public(&error.to_string());
+        let diagnostic = crate::provider_errors::redact_public(&error.to_string());
         Self::new(
             "legacy_operation_failed",
             format!("{operation} failed: {diagnostic}"),
@@ -140,7 +139,7 @@ impl From<ProviderError> for ApplicationError {
 
 impl From<PortError> for ApplicationError {
     fn from(error: PortError) -> Self {
-        let message = soma_service::provider_errors::redact_public(&error.message);
+        let message = crate::provider_errors::redact_public(&error.message);
         Self::new(error.code, message, error.retryable, error.remediation)
     }
 }

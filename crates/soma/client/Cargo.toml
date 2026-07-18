@@ -1,0 +1,31 @@
+[package]
+name = "soma-client"
+version = "0.4.1"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Concrete outbound transport for a remote Soma HTTP server"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "product-support"
+
+[features]
+default = ["client", "observability"]
+client = []
+observability = ["dep:soma-observability"]
+test-support = []
+
+[dependencies]
+anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+soma-config = { workspace = true }
+soma-observability = { workspace = true, optional = true }
+serde_json = "1"
+
+[dev-dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }

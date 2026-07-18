@@ -10,24 +10,31 @@ members = [
   "apps/soma",
   "crates/integrations/unifi",
   "crates/shared/auth",
+  "crates/shared/cli-core",
   "crates/shared/codemode",
   "crates/shared/codex-app-server-client",
+  "crates/shared/http-api",
+  "crates/shared/http-server",
   "crates/shared/mcp/client",
   "crates/shared/mcp/gateway",
   "crates/shared/mcp/proxy",
   "crates/shared/mcp/server",
   "crates/shared/observability",
   "crates/shared/openapi",
+  "crates/shared/provider-adapters",
   "crates/shared/provider-core",
+  "crates/shared/tauri-shell",
   "crates/shared/traces",
   "crates/soma/api",
   "crates/soma/application",
   "crates/soma/cli",
-  "crates/soma/contracts",
+  "crates/soma/client",
+  "crates/soma/config",
   "crates/soma/domain",
+  "crates/soma/integrations",
   "crates/soma/mcp",
+  "crates/soma/palette",
   "crates/soma/runtime",
-  "crates/soma/service",
   "crates/soma/test-support",
   "crates/soma/web",
   "xtask",
@@ -40,6 +47,60 @@ description = "Batteries-included RMCP runtime and scaffold for provider-backed 
 homepage = "https://soma.dinglebear.ai"
 repository = "https://github.com/jmagar/soma"
 keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
+
+# ── workspace dependencies ───────────────────────────────────────────────────
+# Single source of truth for consumed internal crate paths and the exact rmcp
+# pin (plan section 7). Members inherit with `<name> = { workspace = true, ... }`.
+# Entries that any consumer uses with `default-features = false` must declare
+# it here — a member cannot turn workspace-enabled default features off, only
+# on (via an explicit `default-features = true`).
+[workspace.dependencies]
+# Protocol / framework pins. One exact rmcp version for every crate that
+# exchanges rmcp types in-process. The pin appears twice — here and on the
+# `rmcp-client` alias entry below — because TOML cannot reference another
+# entry's version; bump BOTH lines together or the workspace carries two
+# conflicting exact requirements and fails to resolve.
+rmcp = { version = "=2.2.0", default-features = false }
+# soma-auth consumes rmcp under the `rmcp-client` alias; workspace inheritance
+# is keyed by the member-side dependency name, so the alias needs its own entry
+# (`package =` cannot be combined with `workspace = true` on the member side).
+# Keep the version in sync with `rmcp` above.
+rmcp-client = { package = "rmcp", version = "=2.2.0", default-features = false }
+
+# Shared crates
+rmcp-traces = { path = "crates/shared/traces" }
+soma-auth = { path = "crates/shared/auth" }
+soma-cli-core = { path = "crates/shared/cli-core" }
+soma-codemode = { path = "crates/shared/codemode", default-features = false }
+soma-gateway = { path = "crates/shared/mcp/gateway" }
+soma-http-api = { path = "crates/shared/http-api" }
+soma-http-server = { path = "crates/shared/http-server" }
+soma-mcp-client = { path = "crates/shared/mcp/client", default-features = false }
+# apps/soma consumes soma-mcp-client under the `mcp-client` alias (with default
+# features on); like rmcp-client above, the alias needs a dedicated entry.
+# Keep the path in sync with `soma-mcp-client` above if the crate ever moves.
+mcp-client = { package = "soma-mcp-client", path = "crates/shared/mcp/client" }
+soma-mcp-proxy = { path = "crates/shared/mcp/proxy", default-features = false }
+soma-mcp-server = { path = "crates/shared/mcp/server" }
+soma-observability = { path = "crates/shared/observability" }
+soma-openapi = { path = "crates/shared/openapi", default-features = false }
+soma-provider-adapters = { path = "crates/shared/provider-adapters" }
+soma-provider-core = { path = "crates/shared/provider-core", default-features = false }
+soma-tauri-shell = { path = "crates/shared/tauri-shell" }
+
+# Soma product crates
+soma-api = { path = "crates/soma/api" }
+soma-application = { path = "crates/soma/application", default-features = false }
+soma-cli = { path = "crates/soma/cli" }
+soma-client = { path = "crates/soma/client", default-features = false }
+soma-config = { path = "crates/soma/config" }
+soma-domain = { path = "crates/soma/domain" }
+soma-integrations = { path = "crates/soma/integrations", default-features = false }
+soma-mcp = { path = "crates/soma/mcp" }
+soma-palette = { path = "crates/soma/palette" }
+soma-runtime = { path = "crates/soma/runtime", default-features = false }
+soma-test-support = { path = "crates/soma/test-support" }
+soma-web = { path = "crates/soma/web" }
 
 # ── profiles ─────────────────────────────────────────────────────────────────
 # release-fast: release-grade binary (optimized, stripped) but with cheap LTO and

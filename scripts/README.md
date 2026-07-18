@@ -311,7 +311,7 @@ Generates `docs/generated/openapi.json` for Soma REST API surface:
 - deprecated `retired REST action-envelope route` compatibility envelope
 
 The version comes from `Cargo.toml`. The REST action enum is derived from
-`crates/soma/contracts/src/actions.rs`, excluding MCP-only actions.
+`crates/soma/domain/src/actions.rs`, excluding MCP-only actions.
 
 ### `check-readme-guide.py`
 
@@ -455,7 +455,7 @@ just schema-docs
 just schema-docs-check
 ```
 
-Treats `crates/soma/contracts/src/actions.rs::ACTION_SPECS` as canonical
+Treats `crates/soma/domain/src/actions.rs::ACTION_SPECS` as canonical
 and generates/checks `docs/MCP_SCHEMA.md`.
 
 It also checks that action docs stay mentioned in key user-facing surfaces such

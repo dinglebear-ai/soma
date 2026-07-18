@@ -122,6 +122,16 @@ impl ApplicationPorts {
         self.gateway = gateway;
         self
     }
+
+    pub fn with_codemode(mut self, codemode: Arc<dyn CodeModePort>) -> Self {
+        self.codemode = codemode;
+        self
+    }
+
+    pub fn with_openapi(mut self, openapi: Arc<dyn OpenApiPort>) -> Self {
+        self.openapi = openapi;
+        self
+    }
 }
 
 struct UnavailableEnginePort;

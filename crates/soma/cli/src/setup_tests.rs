@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use super::{SetupCommand, SetupReport};
-use soma_contracts::config::{Config, McpConfig, SomaConfig};
+use soma_config::{Config, McpConfig, SomaConfig};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 

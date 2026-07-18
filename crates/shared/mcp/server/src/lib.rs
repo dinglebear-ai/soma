@@ -1,6 +1,12 @@
 //! Reusable inbound MCP server helpers.
 
+pub mod conformance;
+pub mod error_result;
+#[cfg(feature = "http")]
+pub mod http;
+pub mod protocol;
 pub mod response_paging;
+pub mod trace;
 
 pub use response_paging::ResponsePageStore;
 

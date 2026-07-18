@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use soma_contracts::providers::ProviderCatalog;
+use soma_provider_core::ProviderCatalog;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ExecuteActionRequest {

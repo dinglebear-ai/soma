@@ -1,5 +1,5 @@
-use soma_service::provider_errors::redact_public;
-use soma_service::ProviderError;
+use soma_application::provider_errors::redact_public;
+use soma_application::ProviderError;
 
 #[test]
 fn provider_errors_redact_secret_bearing_diagnostics() {

@@ -3,12 +3,12 @@
 //! This is the adapter between the rmcp crate and your application. It:
 //!   - Advertises tools, resources, and prompts to MCP clients
 //!   - Enforces auth scopes on every call
-//!   - Delegates business logic to `tools.rs` → `app.rs` → `soma.rs`
+//!   - Delegates business logic to `tools.rs` → `app.rs` → `soma-client`
 //!
 //! **Customize**: rename `SomaRmcpServer`. Update action metadata in
 //! `src/actions.rs` to keep schemas, scope rules, and dispatch in sync.
 
-use std::{borrow::Cow, sync::Arc, time::Instant};
+use std::time::Instant;
 
 use rmcp::{
     model::{
@@ -24,15 +24,18 @@ use rmcp_traces::{TraceSummary, TraceTrust};
 use serde_json::{Map, Value};
 
 use soma_application::{ApplicationError, ExecutionContext, ReadResourceRequest, ResourceContent};
-use soma_contracts::{providers::ProviderResource, token_limit::MAX_RESPONSE_BYTES};
-use soma_domain::TraceContext;
-use soma_mcp_server::response_paging::{
-    response_page_request, strip_response_page_params, tool_result_from_cached_page,
-    tool_result_from_json, ResponsePagingOptions,
+use soma_domain::{token_limit::MAX_RESPONSE_BYTES, TraceContext};
+use soma_mcp_server::{
+    conformance,
+    response_paging::{
+        response_page_request, strip_response_page_params, tool_result_from_cached_page,
+        tool_result_from_json, ResponsePagingOptions,
+    },
 };
+use soma_provider_core::ProviderResource;
 
 use super::{
-    conformance, gateway_proxy, prompts,
+    gateway_proxy, prompts,
     protocol_errors::{application_error_payload, tool_error_result, unknown_tool_error},
     rmcp_auth::{
         principal, protected_route_scope, protected_scope_allows_service, require_auth_context,
@@ -601,31 +604,7 @@ fn tool_definitions_for_state(state: &McpState) -> Vec<Value> {
 }
 
 fn rmcp_tool_from_json(value: Value) -> Result<Tool, ErrorData> {
-    let name = value
-        .get("name")
-        .and_then(Value::as_str)
-        .ok_or_else(|| ErrorData::internal_error("tool definition missing name", None))?;
-    let description = value
-        .get("description")
-        .and_then(Value::as_str)
-        .map(|d| Cow::Owned(d.to_string()));
-    let input_schema = value
-        .get("inputSchema")
-        .and_then(Value::as_object)
-        .cloned()
-        .ok_or_else(|| ErrorData::internal_error("tool definition missing inputSchema", None))?;
-    let mut tool = Tool::new_with_raw(
-        Cow::Owned(name.to_string()),
-        description,
-        Arc::new(input_schema),
-    );
-    if let Some(output_schema) = value.get("outputSchema") {
-        let output_schema = output_schema.as_object().cloned().ok_or_else(|| {
-            ErrorData::internal_error("tool outputSchema must be an object", None)
-        })?;
-        tool = tool.with_raw_output_schema(Arc::new(output_schema));
-    }
-    Ok(tool)
+    soma_mcp_server::protocol::tool_from_json_definition(value)
 }
 
 fn empty_action_as_none(action: &str) -> Option<&str> {
@@ -641,7 +620,7 @@ fn trace_summary_from_context(context: &RequestContext<RoleServer>) -> TraceSumm
 }
 
 fn trace_summary_from_meta(meta: &rmcp::model::Meta) -> TraceSummary {
-    TraceSummary::from_meta(meta, TraceTrust::Untrusted)
+    soma_mcp_server::trace::trace_summary_from_meta(meta, TraceTrust::Untrusted)
 }
 
 fn execution_context(
@@ -656,14 +635,10 @@ fn execution_context(
 }
 
 fn trace_context_from_meta(meta: &rmcp::model::Meta) -> Option<TraceContext> {
-    let summary = trace_summary_from_meta(meta);
-    summary.trace_id_prefix()?;
+    let fields = soma_mcp_server::trace::raw_trace_fields_from_meta(meta, TraceTrust::Untrusted)?;
     Some(TraceContext {
-        traceparent: meta.get_traceparent().map(ToOwned::to_owned),
-        tracestate: summary
-            .has_tracestate()
-            .then(|| meta.get_tracestate().map(ToOwned::to_owned))
-            .flatten(),
+        traceparent: fields.traceparent,
+        tracestate: fields.tracestate,
     })
 }
 

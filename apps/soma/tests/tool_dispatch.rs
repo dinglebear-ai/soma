@@ -13,11 +13,13 @@ use soma::{
     mcp::{execute_tool_without_peer_for_test, rmcp_server},
     testing::{bearer_state, loopback_state, loopback_state_with_registry, mcp_state},
 };
-use soma_contracts::providers::{
+use soma_application::provider_registry::{
+    Provider, ProviderCall, ProviderOutput, ProviderRegistry,
+};
+use soma_application::ProviderError;
+use soma_provider_core::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool,
 };
-use soma_service::provider_registry::{Provider, ProviderCall, ProviderOutput, ProviderRegistry};
-use soma_service::ProviderError;
 use std::sync::Arc;
 
 async fn call_mcp_action(args: serde_json::Value) -> serde_json::Value {

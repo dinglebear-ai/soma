@@ -9,7 +9,7 @@ Hard boundaries:
 
 - No `labby-*` dependencies.
 - No dependencies on Soma product/runtime/shim crates: `soma`, `soma-runtime`,
-  `soma-service`, `soma-contracts`, `soma-mcp`, `soma-api`, or `soma-cli`.
+  `soma-application`, `soma-domain`, `soma-mcp`, `soma-api`, or `soma-cli`.
 - Only optional shared foundation dependencies are allowed. During PR 0 staging
   this means a generic OAuth provider seam behind `oauth`, `soma-codemode`
   behind `codemode`, and `soma-openapi` behind `openapi`; after the physical

@@ -119,6 +119,6 @@ appropriate stable guide, contract, or ADR.
 - Examples should be runnable as written. Verify port numbers, command names, and flag names against the code before committing.
 - Keep generated or historical material out of guides. If something belongs in a guide, distill it; don't paste.
 - Do not move broad architecture into narrow docs only. Top-level docs should remain the map.
-- Env var names are authoritative in `crates/soma/contracts/src/config.rs`. If a doc disagrees with the code, update the doc.
+- Env var names are authoritative in `crates/soma/config/src/config.rs`. If a doc disagrees with the code, update the doc.
 - Runner labels and trust boundaries must be documented in `docs/CI.md` plus
   the focused runner runbook. Do not leave runner behavior only in session notes.

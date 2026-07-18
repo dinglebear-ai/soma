@@ -10,7 +10,7 @@ scope: "soma"
 source_of_truth: false
 upstream_refs:
   - "docs/PATTERNS.md"
-last_reviewed: "2026-05-15"
+last_reviewed: "2026-07-17"
 ---
 
 # Architecture
@@ -20,16 +20,17 @@ last_reviewed: "2026-05-15"
 ## Layer diagram
 
 ```
-SomaClient  (crates/soma/service/src/soma.rs) → HTTP/API transport ONLY — network calls, no logic
-SomaService (crates/soma/service/src/app.rs)     → ALL business logic, validation, enrichment
-MCP shim       (crates/soma/mcp/src/tools.rs)       → parse JSON args → call service → return Value
-CLI shim       (crates/soma/cli/src/lib.rs)         → parse argv → call service → print
-REST shim      (crates/soma/api/src/api.rs)       → parse HTTP JSON → call service → return JSON
+SomaClient      (crates/soma/client/src/client.rs)      → HTTP/API transport ONLY — network calls, no logic
+SomaApplication (crates/soma/application/src/app.rs)    → shared use-case facade every surface calls
+SomaService     (crates/soma/application/src/service.rs) → business logic, validation, enrichment
+MCP shim        (crates/soma/mcp/src/tools.rs)          → parse JSON args → call SomaApplication → return Value
+CLI shim        (crates/soma/cli/src/lib.rs)            → parse argv → call SomaApplication → print
+REST shim       (crates/soma/api/src/api.rs)            → parse HTTP JSON → call SomaApplication → return JSON
 ```
 
 **The golden rule:** If you are writing business logic in `mcp/tools.rs`,
 `cli.rs`, or the canonical binary entrypoint, you are doing it wrong. Move it to
-`app.rs`.
+`crates/soma/application`.
 
 ## Module layout
 
@@ -44,16 +45,23 @@ apps/
 crates/
   soma/
     api/                   ← REST API handlers
+    application/           ← SomaApplication facade + SomaService business layer + provider registry
     cli/                   ← CLI parser, doctor/setup/watch commands
-    contracts/             ← action metadata, config, DTOs, token limits
+    client/                ← SomaClient — HTTP/API transport
+    config/                ← config structs, env prefixes, safe defaults
+    domain/                ← action metadata, invariant rules, error taxonomy, scopes
+    integrations/          ← product bridges from application ports to shared engines (gateway, auth)
     mcp/                   ← Soma-specific MCP schemas, tools, prompts, transport
-    runtime/               ← AppState, auth policy, shared runtime wiring
-    service/               ← SomaClient + SomaService business layer
+    palette/               ← Palette product routes/DTOs shared by server and desktop app
+    runtime/               ← AppState, SomaRuntime, auth policy, protected-route HTTP middleware
     test-support/          ← shared Soma test fixtures and harness helpers
     web/                   ← static web asset serving and source bundle helpers
   shared/
     auth/                  ← reusable bearer/OAuth auth policy and token handling
+    cli-core/              ← reusable terminal/output/confirmation mechanics
     codemode/              ← reusable Code Mode runtime and runner support
+    http-api/              ← reusable API response/error/probe helpers
+    http-server/           ← reusable Axum lifecycle/middleware helpers
     mcp/
       client/              ← reusable outbound MCP upstream client runtime
       gateway/             ← reusable MCP aggregation gateway runtime
@@ -61,6 +69,9 @@ crates/
       server/              ← reusable inbound MCP server protocol helpers
     observability/         ← reusable tracing/metrics wiring
     openapi/               ← reusable OpenAPI operation registry and dispatcher
+    provider-adapters/     ← reusable concrete provider implementations
+    provider-core/         ← generic provider registry/contracts engine
+    tauri-shell/           ← reusable Tauri shell mechanics
     traces/                ← reusable RMCP trace capture/support
     codex-app-server-client/
                            ← generated reusable Codex app-server client
@@ -68,7 +79,7 @@ crates/
 
 Shared crates are reusable building blocks below the Soma product layer and must
 not depend back on `apps/soma` or `crates/soma/**`. Two pieces sit outside the
-client → service → shim pattern:
+client → application → shim pattern:
 
 - `crates/shared/codex-app-server-client/` - a fully-typed async Rust client for the
   Codex CLI's `app-server` v2 JSON-RPC protocol, with zero path-dependencies
@@ -77,36 +88,50 @@ client → service → shim pattern:
 - `xtask/` - repo-local build/release tooling (version-sync checks, release
   planning, schema codegen for `codex-app-server-client`). Its
   `codex-schema` subcommand has no dependency on `soma-*` crates, but `xtask`
-  itself depends on `soma-contracts` and `soma-service` (path deps) for its
-  other duties, such as version-sync and release-plan checks. See
-  `docs/XTASKS.md`.
+  itself depends on `soma-application`, `soma-client`, `soma-config`,
+  `soma-domain`, and `soma-provider-core` (path deps) for its other duties,
+  such as version-sync and release-plan checks. See `docs/XTASKS.md`.
 
 ## Core files
 
 | File | Responsibility |
 |---|---|
-| `crates/soma/service/src/soma.rs` | Upstream/client transport stub. Replace with your service API client. |
-| `crates/soma/service/src/app.rs` | Service layer. All business rules live here. |
-| `crates/soma/contracts/src/actions.rs` | Canonical action metadata, parsing, REST dispatch helpers. |
+| `crates/soma/client/src/client.rs` | Upstream/client transport stub. Replace with your service API client. |
+| `crates/soma/application/src/app.rs` | `SomaApplication` — the shared use-case facade every surface calls. |
+| `crates/soma/application/src/service.rs` | `SomaService` — business logic. All product-specific rules live here. |
+| `crates/soma/domain/src/actions.rs` | Canonical action metadata, parsing, REST dispatch helpers. |
 | `crates/soma/mcp/src/tools.rs` | MCP tool dispatch and elicitation-only actions. |
 | `crates/soma/mcp/src/schemas.rs` | Tool input schema generated from action metadata. |
 | `crates/soma/mcp/src/rmcp_server.rs` | `ServerHandler`, scope enforcement, tools/resources/prompts. |
-| `crates/soma/runtime/src/server.rs` | Shared auth policy resolution and app state. |
+| `crates/soma/runtime/src/server.rs` | `SomaRuntime`, `AppState`, and auth policy resolution. |
 | `apps/soma/src/routes.rs` | HTTP routes for MCP, health, status, REST API, and web assets. |
-| `crates/soma/contracts/src/config.rs` | Environment/config loading and safe defaults. |
+| `crates/soma/config/src/config.rs` | Environment/config loading and safe defaults. |
 | `apps/soma/src/bin/soma.rs` | Canonical binary mode dispatch for `serve`, `mcp`, and CLI commands. |
 
 ## AppState
+
+`AppState` no longer holds the service directly — it wraps `SomaRuntime`, which
+bundles the initialized `SomaApplication` handle with concrete engine state
+(the gateway) so every surface constructs its request context the same way:
 
 ```rust
 #[derive(Clone)]
 pub struct AppState {
     pub config: McpConfig,                  // MCP server config (host, port, auth settings)
     pub auth_policy: AuthPolicy,            // LoopbackDev | TrustedGatewayUnscoped | Mounted
-    pub service: SomaService,            // The service layer — everything routes through here
+    runtime: Arc<SomaRuntime>,              // holds SomaApplication + GatewayProductState
     pub response_pages: ResponsePageStore,  // Cached oversized MCP responses for continuation calls
 }
+
+pub struct SomaRuntime {
+    application: Arc<SomaApplication>,      // everything routes through here
+    gateway: GatewayProductState,
+}
 ```
+
+`AppState::application()` / `AppState::application_handle()` are the accessors
+surfaces use — `AppState` never exposes the raw `SomaService` or provider
+registry.
 
 `AppState` is cloned per-request by the RMCP framework. Keep it cheap to clone — the service wraps an `Arc`-backed `reqwest::Client` internally.
 
@@ -265,7 +290,7 @@ Zero validation, zero defaults, zero error message crafting in shims. All of tha
 ## Invariants
 
 - Shims do not contain business logic.
-- All action metadata starts in `crates/soma/contracts/src/actions.rs`.
+- All action metadata starts in `crates/soma/domain/src/actions.rs`.
 - Read actions require `soma:read`; write actions require `soma:write`; `help` is public.
 - Stdio is local trusted transport; HTTP is protected unless in loopback or explicit trusted-gateway mode.
 - Plugin setup is binary-owned: hook scripts delegate to `soma setup plugin-hook`.

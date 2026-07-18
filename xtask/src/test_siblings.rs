@@ -124,7 +124,7 @@ fn filename(path: &Path) -> String {
 /// and are therefore checked by this command.
 ///
 /// Every workspace member's `src/` must appear either here or in
-/// [`UNCHECKED_SRC_ROOTS`]; `crate_src_roots_classify_every_workspace_member`
+/// [`UNCHECKED_SRC_ROOTS`]; `every_workspace_member_src_root_is_classified`
 /// fails the build otherwise. That is the point of splitting the two lists:
 /// this used to be a bare allowlist, so a crate that was simply never added
 /// to it was silently unchecked, and the command still reported "all source
@@ -141,10 +141,11 @@ const CHECKED_SRC_ROOTS: &[&str] = &[
     "crates/shared/openapi/src",
     "crates/soma/api/src",
     "crates/soma/cli/src",
-    "crates/soma/contracts/src",
+    "crates/soma/client/src",
+    "crates/soma/config/src",
+    "crates/soma/integrations/src",
     "crates/soma/mcp/src",
-    "crates/soma/runtime/src",
-    "crates/soma/service/src",
+    "crates/soma/palette/src",
     "crates/soma/web/src",
 ];
 
@@ -159,8 +160,19 @@ const CHECKED_SRC_ROOTS: &[&str] = &[
 /// bare allowlist could not express.
 const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
     (
+        "crates/integrations/unifi/src",
+        "newly vendored (crates/integrations/ layer) with inline #[cfg(test)] \
+         mod tests throughout - no siblings anywhere in the crate yet.",
+    ),
+    (
         "crates/shared/auth/src",
         "inline #[cfg(test)] mod tests throughout (21 modules, 0 siblings)",
+    ),
+    (
+        "crates/shared/cli-core/src",
+        "extracted from soma-cli with its tests still inline - predates the \
+         sibling convention. Tracked separately; move this entry to \
+         CHECKED_SRC_ROOTS once it gets siblings.",
     ),
     (
         "crates/shared/codex-app-server-client/src",
@@ -168,6 +180,24 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
          lifted wholesale into another repo (see its README.md), so its tests \
          travel inside the files they cover rather than depending on this \
          repo's sibling layout.",
+    ),
+    (
+        "crates/shared/http-api/src",
+        "extracted from soma-api with its tests still inline - predates the \
+         sibling convention. Tracked separately; move this entry to \
+         CHECKED_SRC_ROOTS once it gets siblings.",
+    ),
+    (
+        "crates/shared/http-server/src",
+        "extracted from apps/soma with its tests still inline - predates the \
+         sibling convention. Tracked separately; move this entry to \
+         CHECKED_SRC_ROOTS once it gets siblings.",
+    ),
+    (
+        "crates/shared/provider-adapters/src",
+        "follows the sibling convention but does not satisfy it yet - error.rs \
+         has no sibling. Tracked separately; move this entry to \
+         CHECKED_SRC_ROOTS once it does.",
     ),
     (
         "crates/shared/provider-core/src",
@@ -178,22 +208,38 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
          private internals. Siblings here would invite the opposite.",
     ),
     (
+        "crates/shared/tauri-shell/src",
+        "extracted with window.rs/app.rs/tray.rs still untested (Tauri desktop \
+         windowing needs a display to exercise) - no siblings for those three \
+         yet. Tracked separately; move this entry to CHECKED_SRC_ROOTS once \
+         they do.",
+    ),
+    (
         "crates/shared/traces/src",
         "inline #[cfg(test)] mod tests throughout",
     ),
     (
+        "crates/soma/application/src",
+        "follows the sibling convention but does not satisfy it yet - types.rs, \
+         context.rs, ports.rs and error.rs have no sibling. Tracked \
+         separately; move this entry to CHECKED_SRC_ROOTS once they do.",
+    ),
+    (
         "crates/soma/domain/src",
-        "inline #[cfg(test)] mod tests throughout",
+        "follows the sibling convention but does not satisfy it yet - \
+         execution.rs and principal.rs have no sibling. Tracked separately; \
+         move this entry to CHECKED_SRC_ROOTS once they do.",
+    ),
+    (
+        "crates/soma/runtime/src",
+        "follows the sibling convention except test_support.rs, a \
+         `#![cfg(test)]` dev-dependency-only helper module - it IS test \
+         infrastructure, not source under test, so it has no _tests.rs \
+         sibling by design.",
     ),
     (
         "crates/soma/test-support/src",
         "test-support code is exercised by the crates that consume it",
-    ),
-    (
-        "crates/soma/application/src",
-        "follows the sibling convention but does not satisfy it yet - types.rs, \
-         ports.rs and two others have no sibling. Tracked separately; move this \
-         entry to CHECKED_SRC_ROOTS once they do.",
     ),
     (
         "xtask/src",

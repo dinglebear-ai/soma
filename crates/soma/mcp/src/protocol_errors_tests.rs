@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use soma_contracts::token_limit::MAX_RESPONSE_BYTES;
+use soma_domain::token_limit::MAX_RESPONSE_BYTES;
 
 use crate::assert_result_has_no_meta;
 

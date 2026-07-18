@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 
 use serde_json::{json, Map, Value};
 
-use soma_contracts::providers::{ProviderCatalog, ProviderTool};
+use soma_provider_core::{ProviderCatalog, ProviderTool};
 
 use crate::ACTION_DISCRIMINATOR_FIELD;
 

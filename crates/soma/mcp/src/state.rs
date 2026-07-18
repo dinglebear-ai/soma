@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use soma_application::{ExecutionContext, GatewayRouteScope, SomaApplication};
-use soma_contracts::config::McpConfig;
+use soma_config::McpConfig;
 use soma_domain::{AuthorizationMode, Principal, RequestId, Surface, TraceContext};
 use soma_mcp_server::ResponsePageStore;
 

@@ -1,6 +1,15 @@
 {
+  "name": "soma",
   "description": "Soma RMCP runtime plugins by dinglebear.ai.",
+  "owner": {
+    "name": "dinglebear.ai",
+    "url": "https://dinglebear.ai"
+  },
   "homepage": "https://soma.dinglebear.ai",
+  "repository": "https://github.com/jmagar/soma",
+  "support": "https://github.com/jmagar/soma/issues",
+  "security_policy": "https://github.com/jmagar/soma/security/policy",
+  "license": "MIT",
   "keywords": [
     "mcp",
     "mcp-server",
@@ -19,42 +28,33 @@
     "server-runtime",
     "soma"
   ],
-  "license": "MIT",
-  "name": "soma",
-  "owner": {
-    "name": "dinglebear.ai",
-    "url": "https://dinglebear.ai"
-  },
   "plugins": [
     {
-      "category": "Infrastructure",
+      "name": "soma",
       "description": "Batteries-included RMCP runtime for drop-in provider-backed tools, prompts, and resources.",
+      "source": {
+        "source": "local",
+        "path": "./plugins/soma"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Infrastructure",
       "interface": {
+        "displayName": "Soma",
+        "shortDescription": "Drop-in RMCP runtime.",
+        "developerName": "dinglebear.ai",
         "brandColor": "#6366F1",
         "composerIcon": "./plugins/soma/assets/icon.png",
-        "developerName": "dinglebear.ai",
-        "displayName": "Soma",
-        "logo": "./plugins/soma/assets/logo.svg",
-        "shortDescription": "Drop-in RMCP runtime."
+        "logo": "./plugins/soma/assets/logo.svg"
       },
       "metadata": {
-        "binary": "soma",
         "mcpServer": "server.json",
         "nodePackage": "soma-rmcp",
-        "ociImage": "ghcr.io/jmagar/soma"
-      },
-      "name": "soma",
-      "policy": {
-        "authentication": "ON_INSTALL",
-        "installation": "AVAILABLE"
-      },
-      "source": {
-        "path": "./plugins/soma",
-        "source": "local"
+        "ociImage": "ghcr.io/jmagar/soma",
+        "binary": "soma"
       }
     }
-  ],
-  "repository": "https://github.com/jmagar/soma",
-  "security_policy": "https://github.com/jmagar/soma/security/policy",
-  "support": "https://github.com/jmagar/soma/issues"
+  ]
 }

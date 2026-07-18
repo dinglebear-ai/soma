@@ -1,10 +1,6 @@
 {
-  "builtins": {
-    "browser": false,
-    "file_explorer": false,
-    "github": false,
-    "terminal": false
-  },
+  "schema_version": 1,
+  "provider_fingerprint": "sha256:acd5dd24f91640f2ecd98cc350220d74037b74d4e7ba5ce7f159784f205bd4cb",
   "commands": [
     "echo",
     "elicit_name",
@@ -13,10 +9,14 @@
     "scaffold_intent",
     "status"
   ],
-  "limits": {
-    "max_examples_per_command": 3,
-    "max_inline_schema_bytes": 16384
+  "builtins": {
+    "file_explorer": false,
+    "github": false,
+    "browser": false,
+    "terminal": false
   },
-  "provider_fingerprint": "sha256:8f29033b9f2404a231ab8e9ab187202feb6a0cc26a79083c6915b4e085d0ce95",
-  "schema_version": 1
+  "limits": {
+    "max_inline_schema_bytes": 16384,
+    "max_examples_per_command": 3
+  }
 }

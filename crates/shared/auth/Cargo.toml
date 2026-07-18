@@ -51,9 +51,7 @@ anyhow = { version = "1", optional = true }
 oauth2 = { version = "5.0", default-features = false, optional = true }
 
 [dependencies.rmcp-client]
-package = "rmcp"
-version = "=2.2.0"
-default-features = false
+workspace = true
 features = ["client", "auth", "transport-streamable-http-client-reqwest"]
 optional = true
 

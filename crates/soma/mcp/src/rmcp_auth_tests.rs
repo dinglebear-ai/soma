@@ -1,4 +1,4 @@
-use soma_contracts::actions::READ_SCOPE;
+use soma_domain::actions::READ_SCOPE;
 
 use super::{principal, protected_scope_allows_service};
 use crate::state::McpRouteScope;

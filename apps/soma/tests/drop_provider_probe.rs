@@ -451,7 +451,7 @@ async fn dropped_dynamic_resource_reader_hot_registers_and_reads() -> anyhow::Re
         Ok(read) => read,
         // The upfront probe (a direct `node --eval`) can succeed while the
         // *server's own* internal `mise which node` shim resolution
-        // (crates/soma/service/src/providers/sidecar.rs::resolve_mise_shim,
+        // (crates/shared/provider-adapters/src/sidecar.rs::resolve_mise_shim,
         // run server-side from the spawned child's tempdir cwd, not this
         // test's) still fails on a host with a stale/inconsistent mise
         // install — a pre-existing environment fragility in the shared
@@ -480,7 +480,7 @@ async fn dropped_dynamic_resource_reader_hot_registers_and_reads() -> anyhow::Re
 
 /// Probes Node availability from `cwd` specifically, not the test process's
 /// own working directory — `resolve_sidecar_command`'s mise-shim resolution
-/// (`crates/soma/service/src/providers/sidecar.rs`) runs `mise which node`
+/// (`crates/shared/provider-adapters/src/sidecar.rs`) runs `mise which node`
 /// from the *spawned server's* cwd, and mise resolves tool versions
 /// per-directory from `.mise.toml`. A probe run from the repo root (which
 /// has `.mise.toml`) is not representative of a `soma mcp` child process

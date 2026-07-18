@@ -16,7 +16,7 @@ layer = "product-surface"
 [features]
 default = []
 stdio = ["rmcp/transport-io"]
-http = ["dep:axum", "rmcp/transport-streamable-http-server"]
+http = ["dep:axum", "rmcp/transport-streamable-http-server", "soma-mcp-server/http"]
 auth = ["dep:soma-auth"]
 oauth = ["auth"]
 test-support = []
@@ -25,18 +25,19 @@ test-support = []
 anyhow = "1"
 axum = { version = "0.8", optional = true }
 http = "1"
-rmcp = { version = "=2.2.0", default-features = false, features = [
+rmcp = { workspace = true, features = [
   "server",
   "macros",
   "elicitation",
   "schemars",
 ] }
-rmcp-traces = { path = "../../shared/traces" }
-soma-auth = { path = "../../shared/auth", optional = true, features = ["http-axum"] }
-soma-application = { path = "../application", default-features = false }
-soma-contracts = { path = "../contracts" }
-soma-domain = { path = "../domain" }
-soma-mcp-server = { path = "../../shared/mcp/server" }
+rmcp-traces = { workspace = true }
+soma-auth = { workspace = true, optional = true, features = ["http-axum"] }
+soma-application = { workspace = true }
+soma-config = { workspace = true }
+soma-domain = { workspace = true }
+soma-mcp-server = { workspace = true }
+soma-provider-core = { workspace = true }
 schemars = "1.2.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -46,11 +47,11 @@ url = "2"
 
 [dev-dependencies]
 async-trait = "0.1"
-rmcp = { version = "=2.2.0", default-features = false, features = [
+rmcp = { workspace = true, features = [
   "client",
   "transport-io",
 ] }
-soma-test-support = { path = "../test-support" }
+soma-test-support = { workspace = true }
 tempfile = "3"
 tokio = { version = "1", features = ["io-util", "macros", "rt"] }
 tracing-subscriber = { version = "0.3", features = ["fmt"] }

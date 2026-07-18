@@ -26,27 +26,33 @@ subcommands select HTTP server, stdio MCP, or CLI adapter mode.
 
 | File | Role |
 |------|------|
-| `crates/soma/service/src/soma.rs` | `SomaClient` — HTTP/API transport stub; one method per remote operation |
-| `crates/soma/service/src/app.rs` | `SomaService` — business layer; all logic lives here, never in shims |
+| `crates/soma/client/src/client.rs` | `SomaClient` — HTTP/API transport stub; one method per remote operation |
+| `crates/soma/application/src/app.rs` | `SomaApplication` — shared use-case facade every surface (MCP/REST/CLI) calls |
+| `crates/soma/application/src/service.rs` | `SomaService` — business layer; all logic lives here, never in shims |
+| `crates/soma/application/src/provider_registry.rs` | `ProviderRegistry` — provider dispatch, catalog snapshots, resource/prompt indexing |
+| `crates/soma/application/src/providers/` | Provider sources: static Rust, file-backed manifests, remote catalogs |
+| `crates/soma/domain/src/actions.rs` | `SomaAction`, `ACTION_SPECS` — canonical action metadata, scope/transport availability |
+| `crates/soma/domain/src/errors.rs` | `ServiceError`, `ToolError` — error taxonomy shared across surfaces |
+| `crates/soma/config/src/config.rs` | `Config`, `SomaConfig`, `McpConfig`, `AuthConfig`, env loading |
+| `crates/soma/integrations/` | Product bridges from `SomaApplication` ports to shared engines (gateway, auth) |
 | `crates/soma/runtime/src/server.rs` | `SomaRuntime`, `AppState`, `AuthPolicy`, `build_auth_layer` — process facade, HTTP state, and auth policy |
 | `apps/soma/src/routes.rs` | Axum router: `/mcp`, `/health`, `/status`, OAuth discovery routes |
 | `crates/soma/api/src/api.rs` | REST API handlers: direct `/v1/*` routes, `GET /health`, `GET /status` |
 | `crates/soma/mcp/src/lib.rs` | MCP protocol layer — re-exports from `mcp/` submodules |
-| `crates/soma/mcp/src/tools.rs` | MCP shim: parse JSON args → call service → return `Value` |
+| `crates/soma/mcp/src/tools.rs` | MCP shim: parse JSON args → call `SomaApplication` → return `Value` |
 | `crates/soma/mcp/src/schemas.rs` | Tool JSON schema derived from `ACTION_SPECS` |
 | `crates/soma/mcp/src/rmcp_server.rs` | `ServerHandler` impl: tools, resources, prompts, scope checks |
 | `crates/soma/mcp/src/prompts.rs` | MCP prompts (`quick_start`) |
-| `crates/soma/contracts/src/config.rs` | `Config`, `SomaConfig`, `McpConfig`, `AuthConfig`, env loading |
-| `crates/soma/cli/src/lib.rs` | CLI shim: parse args → call service → print |
+| `crates/soma/cli/src/lib.rs` | CLI shim: parse args → call `SomaApplication` → print |
 | `crates/soma/cli/src/doctor.rs` | Pre-flight checks: env, connectivity, config validation |
 | `crates/soma/cli/src/setup.rs` | Interactive first-run / plugin setup wizard |
 | `crates/soma/cli/src/watch.rs` | Polls `/health` and emits state-change lines for plugin monitor |
 | `crates/soma/mcp/src/transport.rs` | Streamable HTTP transport wiring and session lifecycle |
-| `crates/soma/contracts/src/token_limit.rs` | Token budget enforcement for MCP response payloads |
+| `crates/soma/domain/src/token_limit.rs` | Token budget enforcement for MCP response payloads |
 | `apps/soma/src/bin/soma.rs` | Canonical binary dispatcher for `serve`, `mcp`, and CLI modes |
 | `apps/soma/src/lib.rs` | Public facade + `testing` helpers for integration tests |
 | `apps/soma/tests/cli_parse.rs` | CLI argument parsing tests |
-| `apps/soma/tests/tool_dispatch.rs` | MCP tool dispatch tests (service-layer, no real credentials) |
+| `apps/soma/tests/tool_dispatch.rs` | MCP tool dispatch tests (application-layer, no real credentials) |
 
 ## The thin-shim rule — enforce this hard
 
@@ -60,15 +66,15 @@ If you find yourself computing, filtering, transforming, or validating data in
 
 Dynamic providers load from `./providers` by default or `SOMA_PROVIDER_DIR`. Two distinct CLI surfaces inspect them:
 - `soma providers validate|inspect|test` — dispatches through the *live, loaded* `ProviderRegistry`; executes handlers.
-- `soma providers list|lint|status` — non-executing filesystem inspection via `soma_service::providers::filesystem::FileProviderSource::inspect()`; never loads the registry or runs TS/WASM/MCP/OpenAPI handlers. Use `soma providers lint` before committing provider examples or runtime docs.
+- `soma providers list|lint|status` — non-executing filesystem inspection via `soma_application::providers::filesystem::FileProviderSource::inspect()`; never loads the registry or runs TS/WASM/MCP/OpenAPI handlers. Use `soma providers lint` before committing provider examples or runtime docs.
 
 ## How to add an action
 
-1. **`crates/soma/service/src/soma.rs`** — add `pub async fn your_action(&self, ...) -> Result<Value>` with the actual HTTP/API call (or stub).
+1. **`crates/soma/client/src/client.rs`** — add `pub async fn your_action(&self, ...) -> Result<Value>` with the actual HTTP/API call (or stub).
 
-2. **`crates/soma/service/src/app.rs`** — add a delegating method: `pub async fn your_action(&self, ...) -> Result<Value> { self.client.your_action(...).await }`.
+2. **`crates/soma/application/src/service.rs`** — add a delegating method: `pub async fn your_action(&self, ...) -> Result<Value> { self.client.your_action(...).await }`.
 
-3. **`crates/soma/contracts/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope and transport.
+3. **`crates/soma/domain/src/actions.rs`** — add the action to `ACTION_SPECS`, including scope and transport.
 
 4. **`crates/soma/mcp/src/schemas.rs`** — add any new parameters to `tool_definitions()`; the action enum comes from `ACTION_SPECS`.
 

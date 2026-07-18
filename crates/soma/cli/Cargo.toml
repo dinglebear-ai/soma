@@ -17,16 +17,17 @@ layer = "product-surface"
 anyhow = "1"
 dirs = "6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-soma-application = { path = "../application", default-features = false }
-soma-contracts = { path = "../contracts" }
-soma-domain = { path = "../domain" }
-soma-runtime = { path = "../runtime", default-features = false }
-soma-service = { path = "../service", default-features = false }
+soma-application = { workspace = true }
+soma-cli-core = { workspace = true }
+soma-config = { workspace = true }
+soma-domain = { workspace = true }
+soma-provider-core = { workspace = true }
+soma-runtime = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt", "time"] }
 
 [dev-dependencies]
-soma-test-support = { path = "../test-support" }
+soma-test-support = { workspace = true }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt"] }

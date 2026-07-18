@@ -39,24 +39,26 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 axum = { version = "0.8", optional = true }
 futures = { version = "0.3", optional = true }
-soma-runtime = { path = "../../crates/soma/runtime", default-features = false }
-soma-api = { path = "../../crates/soma/api", optional = true }
-soma-application = { path = "../../crates/soma/application", default-features = false }
-soma-auth = { path = "../../crates/shared/auth", optional = true, features = ["http-axum"] }
-soma-cli = { path = "../../crates/soma/cli", optional = true }
-soma-contracts = { path = "../../crates/soma/contracts" }
-soma-domain = { path = "../../crates/soma/domain" }
-soma-gateway = { path = "../../crates/shared/mcp/gateway" }
-mcp-client = { package = "soma-mcp-client", path = "../../crates/shared/mcp/client", optional = true, features = ["oauth"] }
-soma-mcp = { path = "../../crates/soma/mcp", optional = true }
-soma-observability = { path = "../../crates/shared/observability", optional = true }
-soma-service = { path = "../../crates/soma/service", default-features = false }
-soma-web = { path = "../../crates/soma/web", optional = true }
-rmcp = { version = "=2.2.0", default-features = false, optional = true }
+soma-runtime = { workspace = true }
+soma-api = { workspace = true, optional = true }
+soma-application = { workspace = true }
+soma-auth = { workspace = true, optional = true, features = ["http-axum"] }
+soma-cli = { workspace = true, optional = true }
+soma-client = { workspace = true }
+soma-config = { workspace = true }
+soma-domain = { workspace = true }
+soma-gateway = { workspace = true }
+soma-http-server = { workspace = true, optional = true }
+soma-integrations = { workspace = true, optional = true }
+mcp-client = { workspace = true, optional = true, features = ["oauth"] }
+soma-mcp = { workspace = true, optional = true }
+soma-observability = { workspace = true, optional = true }
+soma-palette = { workspace = true, optional = true }
+soma-web = { workspace = true, optional = true }
+rmcp = { workspace = true, optional = true }
 reqwest = { version = "0.13.2", default-features = false, features = ["rustls-no-provider", "stream"], optional = true }
 serde_json = { version = "1", optional = true }
 tower = { version = "0.5", features = ["util"], optional = true }
-tower-http = { version = "0.7", features = ["cors", "limit", "trace"], optional = true }
 
 [features]
 default = ["full"]
@@ -64,24 +66,25 @@ cli = [
   "dep:serde_json",
   "dep:soma-cli",
   "soma-application/client",
-  "soma-service/client",
 ]
 mcp = ["dep:soma-mcp"]
 mcp-stdio = [
   "mcp",
   "dep:rmcp",
   "dep:serde_json",
+  "dep:soma-integrations",
   "rmcp/transport-io",
   "soma-gateway/protected-routes",
   "soma-application/client",
   "soma-mcp/stdio",
-  "soma-service/client",
 ]
 api = ["auth", "dep:serde_json", "dep:soma-api"]
 auth = [
   "dep:soma-auth",
   "soma-api?/auth",
+  "soma-integrations/auth",
   "soma-mcp?/auth",
+  "soma-palette?/auth",
   "soma-runtime/auth",
 ]
 oauth = [
@@ -91,13 +94,13 @@ oauth = [
   "dep:futures",
   "soma-auth/upstream-oauth-rmcp",
   "soma-gateway/oauth",
+  "soma-integrations/oauth",
   "soma-mcp?/oauth",
   "soma-runtime/oauth",
 ]
 observability = [
   "dep:soma-observability",
   "soma-application/observability",
-  "soma-service/observability",
 ]
 plugin = ["cli"]
 mcp-http = [
@@ -106,33 +109,42 @@ mcp-http = [
   "dep:axum",
   "dep:reqwest",
   "dep:serde_json",
+  "dep:soma-http-server",
+  "dep:soma-integrations",
+  "dep:soma-palette",
   "dep:tower",
-  "dep:tower-http",
   "soma-gateway/protected-routes",
   "soma-application/client",
   "soma-mcp/http",
   "soma-runtime/protected-routes",
-  "soma-service/client",
 ]
 web = ["api", "dep:soma-web"]
 local-adapter = ["cli", "mcp-stdio"]
 server = ["cli", "api", "mcp-http", "mcp-stdio"]
 full = ["local-adapter", "server", "web", "oauth", "observability", "plugin"]
-test-support = ["soma-mcp?/test-support"]
+test-support = ["dep:soma-integrations", "soma-mcp?/test-support"]
 
 [dev-dependencies]
 axum = "0.8"
 soma = { path = ".", package = "soma", default-features = false, features = ["test-support"] }
-soma-contracts = { path = "../../crates/soma/contracts" }
-soma-service = { path = "../../crates/soma/service", default-features = false }
-soma-test-support = { path = "../../crates/soma/test-support" }
+soma-provider-adapters = { workspace = true, features = [
+  "ai-sdk",
+  "gateway",
+  "openapi",
+  "python",
+  "static-echo",
+  "wasm",
+] }
+soma-provider-core = { workspace = true }
+soma-test-support = { workspace = true }
 serde_json = "1"
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 wat = "1.252.0"
-rmcp = { version = "=2.2.0", default-features = false, features = [
+rmcp = { workspace = true, features = [
   "client",
   "transport-child-process",
+  "transport-streamable-http-client-reqwest",
 ] }

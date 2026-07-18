@@ -29,6 +29,7 @@ const CORE_RUST_FORBIDDEN: &[&str] = &[
     "Command::new",
     "SomaClient::new",
     "crate::soma::SomaClient",
+    "soma_client::SomaClient",
 ];
 
 const WEB_FORBIDDEN: &[&str] = &[
@@ -229,7 +230,7 @@ fn surface_file(path: &str) -> Option<SurfaceFile> {
     let kind = if matches!(
         path,
         "crates/soma/api/src/api.rs"
-            | "apps/soma/src/routes.rs"
+            | "apps/soma/src/http.rs"
             | "crates/soma/mcp/src/tools.rs"
             | "crates/soma/mcp/src/rmcp_server.rs"
             | "crates/soma/mcp/src/schemas.rs"

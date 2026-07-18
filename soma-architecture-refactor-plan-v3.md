@@ -2,17 +2,25 @@
 
 **Repository:** `jmagar/soma`
 **Date:** 2026-07-15
-**Status:** In progress; PR 0 through PR 9 completed
+**Status:** All plan slices (PR 0 through PR 19) completed; see the execution
+ledger below for merge evidence and two carried-forward follow-ups tracked in
+beads (`rmcp-template-f1ll` freeze-audit gaps, `rmcp-template-ns29`
+brand-neutral shared-crate rename)
 **Supersedes:** `soma-architecture-refactor-plan-v2.md`
 
 ## Execution status
 
-Last updated: 2026-07-16.
+Last updated: 2026-07-17.
 
 This ledger is the source of truth for plan execution. "Completed" means the
 slice's acceptance boundary is implemented and reviewed; merge evidence names
 the GitHub PRs that landed it. PR 1 was intentionally satisfied as a distributed
-safety-net effort rather than a standalone pull request.
+safety-net effort rather than a standalone pull request. PRs 10-18 landed as a
+stacked branch chain (each based on the previous slice's branch); their PR
+numbers below are open GitHub PRs against that chain, not yet merged to
+`main` — the work itself is implemented and reviewed per this ledger's
+"Completed" definition, and PR 19 (this slice) builds directly on top of
+`refactor/pr18-slim-app`.
 
 | Plan slice | Status | Merge evidence or remaining outcome |
 |---|---|---|
@@ -26,19 +34,26 @@ safety-net effort rather than a standalone pull request.
 | PR 7 - MCP through `SomaApplication` | Completed | #146 and stdio/profile follow-up #147 |
 | PR 8 - runtime application facade | Completed | #148 |
 | PR 9 - extract canonical `soma-provider-core` | Completed | #149; shared-only provider contracts/registry with Soma as a product-policy wrapper |
-| PR 10 - provider adapters and engine reconciliation | Remaining | Extract reusable adapters; remove duplicate OpenAPI, Code Mode, and upstream MCP engines |
-| PR 11 - `soma-integrations` | Remaining | Centralize product bridges to shared engines, auth, gateway, and infrastructure |
-| PR 12 - split `soma-service` | Remaining | Move workflows, client, providers, and integrations to their owning crates |
-| PR 13 - split `soma-contracts` | Remaining | Move contracts by ownership, including reusable HTTP API mechanics into `soma-http-api` |
-| PR 14 - finish MCP role-crate cleanup | Remaining | Move residual generic client/server/proxy mechanics out of `soma-mcp` |
-| PR 15 - extract `soma-http-server` | Remaining | Reusable Axum lifecycle, middleware, limits, shutdown, and server plumbing |
-| PR 16 - extract `soma-cli-core` | Remaining | Reusable output, terminal, confirmation, completion, and progress mechanics |
-| PR 17 - Palette and Tauri split | Remaining | Create `soma-palette` and `soma-tauri-shell`; keep `apps/palette` as the desktop app |
-| PR 18 - slim `apps/soma` | Remaining | Finalize the executable as a composition root with no business rules |
-| PR 19 - delete legacy facades and update artifacts | Remaining | Remove `soma-service`, `soma-contracts`, temporary exceptions, aliases, and duplicate engines |
+| PR 10 - provider adapters and engine reconciliation | Completed | #152 (also opened against `main` as #153) |
+| PR 11 - `soma-integrations` | Completed | #154 |
+| PR 12 - split `soma-service` | Completed | #155 (provider catalog contracts extracted into `soma-provider-core`; `SomaService`, `ProviderRegistry`, `CapabilityBroker`, and the drop-in providers themselves were left in `crates/soma/service` — that migration into `soma-application`, plus the crate deletion, was finished by PR 19; see its own row) |
+| PR 13 - split `soma-contracts` | Completed | #156 (actions/errors/scopes/token_limit/provider_validation to `soma-domain`, config/env_registry to `soma-config`, provider metadata to `soma-provider-core`; PR 19 finished the crate deletion) |
+| PR 14 - finish MCP role-crate cleanup | Completed | #157 |
+| PR 15 - extract `soma-http-server` | Completed | #158 |
+| PR 16 - extract `soma-cli-core` | Completed | #159 |
+| PR 17 - Palette and Tauri split | Completed | #160 |
+| PR 18 - slim `apps/soma` | Completed | #161 |
+| PR 19 - delete legacy facades and update artifacts | Completed | bead `rmcp-template-cfi0`. Deleted `crates/soma/service` (moved its remaining business logic — `SomaService`, `ProviderRegistry`, `CapabilityBroker`, drop-in providers — into `soma-application`, since PR 12's own slice left that migration unfinished) and `crates/soma/contracts` (already a pure re-export facade after PR 13; deleted with no consumer migration needed). Removed both `TEMPORARY_EXCEPTIONS` entries from `xtask/src/architecture.rs`; `cargo xtask check-architecture` now runs with zero exceptions. Updated every ecosystem artifact that named the deleted crates (README, docs/ARCHITECTURE.md, CLAUDE.md module map, xtask path constants, scaffold output, generated-docs generators, plugin/doc cross-references) — see PR body for the full list |
 
-Current stopping point: merge and clean PR 9, then resume with PR 10 in a new
-worktree. Do not begin PR 10 as part of the PR 9 delivery.
+Current stopping point: PR 19 is the last slice in this plan. The refactor's
+"Definition of done" (section 13) is satisfied — `soma-service` and
+`soma-contracts` are gone, the architecture checker has zero temporary
+exceptions, and all gates (fmt, clippy, nextest, check-architecture,
+check-version-sync, the three feature-profile builds, and the optional xtask
+doc/schema/plugin-layout gates) are green. Remaining follow-on work is tracked
+in beads, not this plan: `rmcp-template-ns29` (brand-neutral shared-crate
+rename — see the note below) and `rmcp-template-f1ll` (freeze-audit gap
+closure).
 
 ### Open risks carried into PR 10 and later
 
@@ -50,16 +65,35 @@ worktree. Do not begin PR 10 as part of the PR 9 delivery.
    `soma-contracts` and drop their compatibility re-exports — exactly what the
    freeze exists to guard. Audit the PR 1 snapshot list for real coverage before
    PR 12 starts deleting, rather than assuming "distributed" means complete.
+   **Status:** tracked as its own follow-up in bead `rmcp-template-f1ll`
+   (freeze-audit gap closure) rather than blocking PR 19; PR 19 verified
+   behavior preservation for its own slice via the full gate suite (fmt,
+   clippy, nextest — 1582 tests — check-architecture, the three feature-profile
+   builds, and the optional doc/schema/plugin-layout gates) plus a manual
+   review of every moved module's call sites, but did not re-run a dedicated
+   PR 1 characterization/parity audit across the whole PR 12/13/19 deletion
+   span. See the bead's comments for how that gap is being closed.
 
-2. **Shared crate publish names are still Soma-branded.** Twelve of sixteen
-   shared crates carry `soma-*` package names. Section 2 defers the
-   brand-neutral rename as a separate decision "before publishing", but PR 19
-   rewrites the README, `docs/ARCHITECTURE.md`, scaffold output, the
+2. **Shared crate publish names are still Soma-branded — rename decided, names
+   pending.** Twelve of sixteen shared crates carry `soma-*` package names.
+   PR 19 rewrites the README, `docs/ARCHITECTURE.md`, scaffold output, the
    cargo-generate template, generated provider docs, plugin metadata,
-   Dockerfiles, and CI workflows. A rename after PR 19 redoes all of it. Decide
-   before PR 19: either rename in its own slice ahead of the artifact sweep, or
-   state plainly that publishing is out of scope for this refactor and the
-   `soma-*` names stand.
+   Dockerfiles, and CI workflows; a rename after PR 19 would redo all of it.
+   **Decided 2026-07-16:** the shared crates get brand-neutral names in a
+   dedicated rename slice that lands after PR 16 (once all shared crates
+   exist) and before PR 19 (so the artifact sweep writes final names once).
+   Choosing the concrete names is a separate exercise tracked in beads; until
+   that slice lands, `soma-*` names remain valid in-repo and must not be
+   published to crates.io.
+   **Status as of PR 19:** the ordering precondition is now satisfied — PR 16
+   (`soma-cli-core`, the last shared crate created by this plan) and PR 19
+   (this artifact sweep) have both landed, so every shared crate this rename
+   touches now exists and every ecosystem artifact the rename would otherwise
+   need to rewrite twice has already been written once with final (`soma-*`)
+   names. The rename slice is unblocked and tracked in bead
+   `rmcp-template-ns29`; it did not land inside PR 19 itself (out of this
+   slice's scope — PR 19 deletes legacy facades and updates artifacts for the
+   current names, it does not choose or apply new package names).
 
 This revision adopts the physical workspace taxonomy selected for Soma:
 
@@ -264,7 +298,7 @@ The physical path determines the architectural layer. The package name determine
 | `crates/soma/test-support` | `soma-test-support` | `soma_test_support` | product |
 | `crates/soma/web` | `soma-web` | `soma_web` | product |
 
-The nested path is the architectural signal. Existing incoming package names may remain unchanged during the migration to reduce Cargo churn, but brand-neutral shared package names should be a separate explicit decision before publishing these crates outside the repo.
+The nested path is the architectural signal. Existing incoming package names may remain unchanged during the migration to reduce Cargo churn. Brand-neutral shared package names are **decided** (2026-07-16): the rename happens in a dedicated slice after PR 16 and before PR 19, so PR 19's ecosystem-artifact sweep writes the final names exactly once. Concrete name selection is tracked as its own bead; nothing ships to crates.io under a `soma-*` name.
 
 Avoid `-kit` for shared crate names unless the crate is truly a loose grab bag. Prefer `*-core` for foundational contracts that other crates build around, `*-adapters` for concrete implementations, `*-client`/`*-server`/`*-proxy` for protocol roles, and concrete purpose names such as `http-api` or `http-server` when the boundary is obvious.
 
@@ -731,19 +765,18 @@ soma-mcp-proxy ───────────▶ soma-mcp-server
 The gateway composes the role crates directly; it does not reach the client only
 through the proxy. This matches the shared-layer DAG in section 4.3.
 
-Live as of 2026-07-16, the `soma-mcp-server` edges do not exist yet:
-
-```text
-soma-gateway ─────────────▶ soma-mcp-client      present
-soma-gateway ─────────────▶ soma-mcp-proxy       present
-soma-mcp-proxy ───────────▶ soma-mcp-client      present
-```
-
-Both crates still reach for `rmcp` server types directly instead of going through
-`soma-mcp-server`. PR 14 closes that gap when it moves the residual inbound
-lifecycle, paging, and protocol mechanics into the server role crate. Until then
-the two diagrams above differ on purpose — do not "fix" section 4.3 to match the
-manifests.
+PR 14 closed the `soma-mcp-server` gap by moving the residual inbound
+lifecycle, paging, and protocol mechanics into the server role crate. All five
+target edges above are now present in the manifests (verified via
+`cargo tree -p soma-gateway --all-features -i soma-mcp-server` and
+`cargo tree -p soma-mcp-proxy --all-features -i soma-mcp-server`), and neither
+`soma-gateway` nor `soma-mcp-proxy` imports `rmcp` server-side types
+(`ServerHandler`, the tool/prompt router macros) directly — the only
+remaining `rmcp::` references in either crate's `src/` are `rmcp::model`
+wire-value types (`Tool`, `Resource`, `Prompt`) returned by
+`soma-mcp-server`/`soma-mcp-proxy` conversion helpers.
+`apps/soma/tests/gateway_architecture_boundaries.rs` enforces both the
+dependency edges and the absence of direct `rmcp` server-machinery usage.
 
 The gateway is the reusable engine that users instantiate when they want a full MCP aggregation runtime. It is not the primitive client or server library. A project that only needs to call upstream MCP servers depends on `soma-mcp-client`; a project that only needs to expose an MCP server depends on `soma-mcp-server`; a project that needs to bridge inbound MCP requests to upstream servers depends on `soma-mcp-proxy`.
 

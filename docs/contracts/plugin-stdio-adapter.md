@@ -12,7 +12,7 @@ upstream_refs:
   - "plugins/soma/.claude-plugin/plugin.json"
   - "plugins/soma/.codex-plugin/plugin.json"
   - "plugins/soma/gemini-extension.json"
-  - "crates/soma/service/src/soma.rs"
+  - "crates/soma/client/src/client.rs"
   - "apps/soma/src/bin/soma.rs"
 last_reviewed: "2026-05-26"
 ---

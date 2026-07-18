@@ -21,5 +21,5 @@ http = ["dep:http"]
 
 [dependencies]
 http = { version = "1", optional = true }
-rmcp = { version = "=2.2.0", default-features = false }
+rmcp = { workspace = true }
 serde_json = "1"

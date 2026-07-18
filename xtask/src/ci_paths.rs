@@ -125,7 +125,12 @@ fn classify(event: &str, paths: &[String]) -> BTreeMap<String, bool> {
             &[
                 "crates/soma/mcp/",
                 "crates/soma/api/",
-                "crates/soma/contracts/",
+                // crates/soma/contracts was split (plan PR 13) and deleted
+                // (PR 19); the pieces that shape MCP tool schemas and server
+                // startup env now live in soma-domain (ACTION_SPECS) and
+                // soma-config (McpConfig, env prefixes).
+                "crates/soma/domain/",
+                "crates/soma/config/",
                 "apps/soma/tests/mcporter/",
                 "docs/reference/mcp/",
             ],

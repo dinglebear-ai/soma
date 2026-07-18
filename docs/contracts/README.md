@@ -35,8 +35,8 @@ dynamic `.ts` resource reader contract, and path-traversal trust boundary.
 Validate with:
 
 ```bash
-cargo test -p soma-service providers::resource_uri
-cargo test -p soma-service providers::resource_files
+cargo test -p soma-application providers::resource_uri
+cargo test -p soma-application providers::resource_files
 cargo test -p soma --test provider_registry
 cargo test -p soma --test drop_provider_probe
 ```

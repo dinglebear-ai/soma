@@ -1,0 +1,65 @@
+[package]
+name = "soma-provider-adapters"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.96"
+license = "MIT"
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+# One feature-gated crate per plan section 3.9 ("Do not over-split"): each
+# adapter kind is its own feature so a consumer only pays for the runtimes it
+# actually drop-in-loads (wasmtime, an MCP client stack, an OpenAPI dispatch
+# stack, ...). No feature here may pull in a `crates/soma/*` or `apps/*`
+# dependency under any combination — verified by
+# `cargo tree -p soma-provider-adapters --all-features` staying shared-only.
+[features]
+default = []
+# Bounded child-process sidecar runner shared by the ai-sdk and python
+# adapters, and by any product-layer resource-reader that also needs to run a
+# sandboxed sidecar (e.g. soma-application's dynamic resource-file readers).
+sidecar = ["dep:tokio"]
+static-echo = []
+ai-sdk = ["sidecar", "dep:tokio"]
+python = ["sidecar", "dep:tokio"]
+wasm = ["sidecar", "dep:wasmtime", "dep:tokio"]
+openapi = ["dep:reqwest", "dep:rustls", "dep:url", "dep:soma-openapi"]
+codemode = ["dep:soma-codemode", "dep:tokio"]
+gateway = ["dep:rmcp", "dep:reqwest", "dep:rustls", "dep:url", "dep:tokio", "dep:soma-gateway"]
+
+[dependencies]
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+soma-provider-core = { workspace = true }
+thiserror = "2"
+tracing = "0.1"
+
+# ai-sdk / python / sidecar / wasm
+tokio = { version = "1", features = ["io-util", "process", "rt", "time"], optional = true }
+wasmtime = { version = "46.0.1", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"], optional = true }
+
+# codemode bridge
+soma-codemode = { workspace = true, optional = true }
+
+# gateway bridge (thin upstream-MCP projection adapter, and a pure gateway
+# action-catalog -> ProviderCatalog projection)
+rmcp = { workspace = true, optional = true, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
+soma-gateway = { workspace = true, optional = true }
+
+# shared by openapi + gateway features: both speak reqwest 0.13/rustls,
+# matching the rest of the shared MCP/OpenAPI ecosystem (soma-mcp-client,
+# soma-gateway, soma-openapi) rather than soma-application's older reqwest 0.12.
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "query", "rustls", "rustls-no-provider"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
+url = { version = "2", optional = true }
+
+# openapi bridge: dispatch delegates to soma-openapi's HTTP executor (see
+# openapi.rs module docs) instead of hand-rolling a second one.
+soma-openapi = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
