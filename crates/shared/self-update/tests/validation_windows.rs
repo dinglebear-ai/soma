@@ -82,7 +82,7 @@ fn main() {
         .unwrap();
     fs::write(executable.with_extension("part.child"), child.id().to_string()).unwrap();
     println!("validator 2.0.0");
-    std::thread::sleep(Duration::from_millis(20));
+    std::thread::sleep(Duration::from_secs(30));
 }
 
 "#,
