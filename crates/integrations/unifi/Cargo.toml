@@ -1,0 +1,31 @@
+[package]
+name = "unifi"
+description = "Core UniFi Network Controller API client: auth, official + internal REST bindings, capability detection, and actions."
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+repository.workspace = true
+license = "MIT"
+readme = "README.md"
+keywords = ["unifi", "ubiquiti", "networking", "api-client"]
+categories = ["api-bindings", "network-programming"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "vendor"
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "rustls-tls",
+  "cookies",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"

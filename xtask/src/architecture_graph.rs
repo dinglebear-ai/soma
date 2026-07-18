@@ -157,6 +157,7 @@ pub(crate) struct Edge {
 pub(crate) enum Layer {
     App,
     Shared,
+    Vendor,
     ProductDomain,
     ProductApplication,
     ProductIntegration,
@@ -192,6 +193,7 @@ impl Layer {
             }
             "xtask" => Some(Self::Legacy),
             path if path.starts_with("crates/shared/") => Some(Self::Shared),
+            path if path.starts_with("crates/integrations/") => Some(Self::Vendor),
             path if path.starts_with("crates/soma/") => Some(Self::Legacy),
             _ => None,
         }
@@ -201,6 +203,7 @@ impl Layer {
         match value {
             "app" => Some(Self::App),
             "shared" => Some(Self::Shared),
+            "vendor" => Some(Self::Vendor),
             "product-domain" => Some(Self::ProductDomain),
             "product-application" => Some(Self::ProductApplication),
             "product-integration" => Some(Self::ProductIntegration),
@@ -216,6 +219,7 @@ impl Layer {
         match self {
             Self::App => "app",
             Self::Shared => "shared",
+            Self::Vendor => "vendor",
             Self::ProductDomain => "product-domain",
             Self::ProductApplication => "product-application",
             Self::ProductIntegration => "product-integration",

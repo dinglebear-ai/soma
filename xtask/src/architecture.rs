@@ -139,6 +139,16 @@ fn check_direct_edges(graph: &Graph, exceptions: &[ArchitectureException]) -> Ve
                 graph.edge_label(edge)
             ));
         }
+        if from.layer == Layer::Vendor && to.layer != Layer::Vendor {
+            failures.push(format!(
+                "vendor package {} ({}) depends on non-vendor package {} ({}); vendor crates wrap a third-party API and must stay standalone for reuse outside soma\n  edge: {}",
+                from.name,
+                from.rel_path,
+                to.name,
+                to.rel_path,
+                graph.edge_label(edge)
+            ));
+        }
         failures.extend(check_layer_edge(graph, edge, from, to));
     }
     failures.extend(check_mixed_application_and_engine_edges(graph, exceptions));

@@ -447,6 +447,48 @@ fn mixed_application_engine_check_allows_a_named_temporary_bridge() {
 }
 
 #[test]
+fn vendor_package_depending_on_non_vendor_package_fails() {
+    let failures = failures(vec![
+        pkg(
+            "unifi",
+            "crates/integrations/unifi",
+            "vendor",
+            vec![dep("soma-observability", "crates/shared/observability")],
+        ),
+        pkg(
+            "soma-observability",
+            "crates/shared/observability",
+            "shared",
+            vec![],
+        ),
+    ]);
+
+    let report = failures.join("\n");
+    assert!(report.contains("vendor package unifi"));
+    assert!(report.contains("depends on non-vendor package soma-observability"));
+}
+
+#[test]
+fn vendor_packages_may_depend_on_one_another() {
+    let failures = failures(vec![
+        pkg(
+            "sonarr",
+            "crates/integrations/sonarr",
+            "vendor",
+            vec![dep("arr-common", "crates/integrations/arr-common")],
+        ),
+        pkg(
+            "arr-common",
+            "crates/integrations/arr-common",
+            "vendor",
+            vec![],
+        ),
+    ]);
+
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
 fn internal_dependency_cycles_fail() {
     let failures = failures(vec![
         pkg(
