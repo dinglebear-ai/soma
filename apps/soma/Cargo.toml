@@ -53,6 +53,7 @@ soma-integrations = { workspace = true, optional = true }
 mcp-client = { workspace = true, optional = true, features = ["oauth"] }
 soma-mcp = { workspace = true, optional = true }
 soma-observability = { workspace = true, optional = true }
+soma-palette = { workspace = true, optional = true }
 soma-service = { workspace = true }
 soma-web = { workspace = true, optional = true }
 rmcp = { workspace = true, optional = true }
@@ -86,6 +87,7 @@ auth = [
   "soma-api?/auth",
   "soma-integrations/auth",
   "soma-mcp?/auth",
+  "soma-palette?/auth",
   "soma-runtime/auth",
 ]
 oauth = [
@@ -113,9 +115,11 @@ mcp-http = [
   "dep:serde_json",
   "dep:soma-http-server",
   "dep:soma-integrations",
+  "dep:soma-palette",
   "dep:tower",
   "soma-gateway/protected-routes",
   "soma-application/client",
+  "soma-integrations/protected-http",
   "soma-mcp/http",
   "soma-runtime/protected-routes",
   "soma-service/client",

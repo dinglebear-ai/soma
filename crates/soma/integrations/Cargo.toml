@@ -21,19 +21,60 @@ auth = ["dep:soma-auth"]
 # Gateway-to-auth bridge: translates soma-auth's upstream OAuth runtime into
 # soma-gateway's generic `UpstreamOAuthRuntime`/`UpstreamOAuthProvider`/
 # `UpstreamOAuthManager` traits.
-oauth = ["auth", "dep:mcp-client", "dep:futures", "soma-auth/upstream-oauth-rmcp"]
+oauth = [
+  "auth",
+  "dep:mcp-client",
+  "dep:futures",
+  "soma-auth/upstream-oauth-rmcp",
+  "soma-runtime?/oauth",
+]
+# Protected-route HTTP middleware: bearer-token authentication/scope
+# authorization for `soma-runtime`'s protected MCP routes, plus the
+# inbound-to-upstream proxy and gateway-subset dispatch that serve them.
+protected-http = [
+  "auth",
+  "dep:axum",
+  "dep:reqwest",
+  "dep:soma-mcp",
+  "dep:soma-runtime",
+  "dep:tower",
+  "soma-auth/http-axum",
+  "soma-mcp/http",
+  "soma-runtime/auth",
+  "soma-runtime/protected-routes",
+]
 
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
+axum = { version = "0.8", optional = true }
 futures = { version = "0.3", optional = true }
+reqwest = { version = "0.13.2", default-features = false, features = [
+  "rustls-no-provider",
+  "stream",
+], optional = true }
 serde_json = "1"
 soma-application = { workspace = true }
 soma-auth = { workspace = true, optional = true }
 soma-codemode = { workspace = true }
 soma-domain = { workspace = true }
 soma-gateway = { workspace = true, features = ["protected-routes"] }
+soma-mcp = { workspace = true, optional = true, features = ["http"] }
+soma-runtime = { workspace = true, optional = true, features = [
+  "protected-routes",
+] }
 mcp-client = { workspace = true, optional = true, features = ["oauth"] }
+tower = { version = "0.5", features = ["util"], optional = true }
+tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# Test-only: build a real `AppState`/`SomaApplication` stub for
+# `protected-http` axum-harness tests. Dev-dependencies are excluded from
+# `cargo xtask check-architecture`'s layer graph (normal-kind edges only), so
+# this does not create a product-integration -> legacy/product-support layer
+# dependency for real builds.
+soma-client = { workspace = true }
+soma-config = { workspace = true }
+soma-service = { workspace = true }
+tempfile = "3"

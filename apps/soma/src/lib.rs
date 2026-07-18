@@ -1,7 +1,12 @@
 //! `soma` library crate.
 //!
 //! Exposes the service layer, config, and transport client so that integration
-//! tests can import them without duplicating state construction.
+//! tests can import them without duplicating state construction. The
+//! composition root itself lives in private modules: [`bootstrap`] builds the
+//! concrete dependency graph, `invocation` classifies `argv` into an
+//! execution mode, and `local`/`http`/`stdio` run each mode. [`run`] is the
+//! single public entry point `apps/soma/src/bin/soma.rs` calls (plan
+//! section 3.1).
 //!
 //! Public modules:
 //!   [`app`]     — `SomaService` (business logic)
@@ -21,6 +26,7 @@ pub use soma_client as soma;
 pub use soma_config::config;
 pub use soma_config::env_registry;
 pub use soma_domain::actions;
+pub use soma_domain::token_limit;
 #[cfg(feature = "mcp")]
 pub use soma_mcp as mcp;
 #[cfg(feature = "observability")]
@@ -28,13 +34,11 @@ pub use soma_observability::binary_status;
 #[cfg(feature = "observability")]
 pub use soma_observability::logging;
 pub use soma_service::app;
-#[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
-pub mod runtime;
-pub use soma_domain::token_limit;
 #[cfg(feature = "web")]
 pub use soma_web as web;
 
 #[cfg(any(
+    feature = "cli",
     feature = "mcp-stdio",
     feature = "mcp-http",
     all(
@@ -42,20 +46,73 @@ pub use soma_web as web;
         any(feature = "cli", feature = "mcp", feature = "api")
     )
 ))]
-mod application_ports;
+mod bootstrap;
 #[cfg(feature = "mcp-http")]
-mod protected_routes;
+mod http;
+// Only `run()` (gated below) references `invocation::*` — match its gate so
+// this module is not `dead_code` in an mcp-http-only build (e.g. a
+// downstream fork embedding just the HTTP server; see `run`'s doc comment).
+#[cfg(all(feature = "cli", feature = "mcp-stdio"))]
+mod invocation;
+#[cfg(feature = "cli")]
+mod local;
 #[cfg(feature = "mcp-http")]
-mod protected_routes_proxy;
-#[cfg(feature = "mcp-http")]
-mod routes;
+mod shutdown;
+#[cfg(feature = "mcp-stdio")]
+mod stdio;
+
+/// Run the `soma` binary: classify `argv` into an execution mode (see
+/// `crate::invocation::Mode`), then dispatch to the CLI (`local`), stdio MCP
+/// (`stdio`), or HTTP server (`http`). The sole entry point
+/// `apps/soma/src/bin/soma.rs` calls — everything else in this crate is
+/// composition, not process wiring.
+#[cfg(all(feature = "cli", feature = "mcp-stdio"))]
+pub async fn run(args: impl IntoIterator<Item = String>) -> anyhow::Result<()> {
+    let args: Vec<String> = args.into_iter().collect();
+
+    let dispatch = match invocation::resolve(&args) {
+        invocation::Mode::Exit(invocation::ExitAction::Help) => {
+            eprintln!("{}", cli::usage());
+            return Ok(());
+        }
+        invocation::Mode::Exit(invocation::ExitAction::Version) => {
+            println!("soma {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        invocation::Mode::Dispatch(dispatch) => dispatch,
+    };
+
+    // Load ~/.soma/.env (or SOMA_HOME/.env) for local CLI/plugin runs before
+    // any command loads typed config. Explicit process env still wins.
+    config::load_dotenv();
+    bootstrap::init_logging(dispatch.default_log_level());
+
+    match dispatch {
+        invocation::DispatchMode::Serve => {
+            #[cfg(feature = "mcp-http")]
+            {
+                http::serve().await
+            }
+            #[cfg(not(feature = "mcp-http"))]
+            {
+                anyhow::bail!("`soma serve` requires the `mcp-http` or `server` feature")
+            }
+        }
+        invocation::DispatchMode::Stdio => stdio::serve().await,
+        invocation::DispatchMode::Cli => local::run().await,
+    }
+}
 
 #[cfg(any(feature = "cli", feature = "mcp", feature = "api"))]
 pub mod server {
     pub use soma_runtime::server::*;
 
+    // Reachable under `mcp-http` alone (independent of `run()`'s `cli` +
+    // `mcp-stdio` gate) so a downstream fork that only wants the HTTP server
+    // — e.g. embedding it without CLI/stdio deps — has a public entry point,
+    // matching the pre-PR18 `soma::runtime::serve_http_mcp()` shape.
     #[cfg(feature = "mcp-http")]
-    pub use crate::routes::router;
+    pub use crate::http::{router, serve as serve_http_mcp};
 }
 
 /// Test helpers — available when `features = ["test-support"]` or in `cfg(test)`.
@@ -96,8 +153,7 @@ pub mod testing {
         provider_registry: ProviderRegistry,
         gateway: GatewayProductState,
     ) -> AppState {
-        let runtime =
-            crate::application_ports::runtime_for_components(service, provider_registry, gateway);
+        let runtime = crate::bootstrap::runtime_for_components(service, provider_registry, gateway);
         AppState::new(config, auth_policy, runtime, Default::default())
     }
 
@@ -146,7 +202,7 @@ pub mod testing {
 
     #[cfg(feature = "mcp")]
     pub fn mcp_state(state: &AppState) -> soma_mcp::McpState {
-        crate::application_ports::mcp_state_for_state(state)
+        crate::bootstrap::mcp_state_for_state(state)
     }
 
     /// `AppState` with full OAuth (requires data directory for SQLite + key file).

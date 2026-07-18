@@ -1,3 +1,13 @@
+//! Protected-route HTTP middleware: bearer-token authentication, OAuth-scope
+//! authorization, resource metadata responses, and gateway-subset dispatch
+//! for `soma-runtime`'s protected MCP routes (`protected-http` feature).
+//!
+//! Moved out of `apps/soma` (formerly `protected_routes.rs`) as a PR 18
+//! review fix — this crate is its permanent home per PR 18's acceptance
+//! criterion that `apps/soma` contains no business rules (authorization
+//! decisions and gateway dispatch workflows are explicitly out of scope for
+//! the composition root; plan section 3.1 "Does not own").
+
 use std::{convert::Infallible, str::FromStr};
 
 use axum::{
@@ -18,14 +28,18 @@ use tower::ServiceExt;
 
 use crate::protected_routes_proxy::proxy_protected_mcp_route;
 
+/// State for the protected-MCP-route interceptor middleware: pairs the
+/// composition root's `AppState` with the MCP transport's `McpState` the
+/// gateway-subset dispatch path needs. Fields stay private; construct via
+/// [`ProtectedMcpState::new`].
 #[derive(Clone)]
-pub(crate) struct ProtectedMcpState {
+pub struct ProtectedMcpState {
     runtime: AppState,
     mcp: soma_mcp::McpState,
 }
 
 impl ProtectedMcpState {
-    pub(crate) fn new(runtime: AppState, mcp: soma_mcp::McpState) -> Self {
+    pub fn new(runtime: AppState, mcp: soma_mcp::McpState) -> Self {
         Self { runtime, mcp }
     }
 }
@@ -312,7 +326,7 @@ fn auth_error(route: &ProtectedMcpRouteConfig, message: &str) -> Response {
     response
 }
 
-pub(super) fn json_error(status: StatusCode, code: &str, message: impl Into<String>) -> Response {
+pub(crate) fn json_error(status: StatusCode, code: &str, message: impl Into<String>) -> Response {
     (
         status,
         Json(json!({

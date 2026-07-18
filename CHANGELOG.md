@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Restructured `apps/soma` (plan section 3.1, PR 18) into a composition-only
+  layout: `bootstrap.rs` builds the concrete dependency graph (config, the
+  transport client, provider registries, gateway/Code Mode adapters,
+  `SomaApplication`, `SomaRuntime`); `invocation.rs` classifies `argv` into an
+  execution `Mode` (help/version/serve/stdio/cli); `local.rs` runs one-shot
+  CLI commands against `Arc<SomaApplication>`; `http.rs` merges the MCP
+  Streamable HTTP transport, REST API, Palette product API, OAuth discovery,
+  Prometheus metrics, and the web UI fallback into one router and serves it;
+  `stdio.rs` starts the product MCP adapter over stdio; `shutdown.rs` owns the
+  process shutdown signal. `bin/soma.rs` is now a two-line process entry point
+  that forwards `argv` to the new `soma::run` library entrypoint — mode
+  selection, engine construction, and router/lifecycle composition all moved
+  out of the binary and into the library crate. `http.rs` also wires
+  `soma-palette`'s `/v1/palette/*` router into the composed HTTP router for
+  the first time (previously built but unmounted). Replaces `runtime.rs`,
+  `routes.rs`, and `application_ports.rs`. Behavior is
+  unchanged: the full pre-existing `apps/soma` test suite (unit, integration,
+  and architecture-boundary tests) passes unmodified in substance, with only
+  file-path references updated to match the new module names.
 - Add `crates/shared/http-server` (`soma-http-server`, layer `shared`), plan
   section 3.12's crate for reusable Axum server plumbing: listener binding
   and the `axum::serve` run loop (`server.rs`), a graceful-shutdown signal
@@ -305,6 +324,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- PR18 review fix (second pass): `apps/soma/src/invocation.rs`'s `Mode` enum
+  split into `Mode::Exit(ExitAction)` / `Mode::Dispatch(DispatchMode)` so
+  `lib.rs::run()` no longer needs an `unreachable!()` backstop for the
+  already-handled help/version arms — illegal dispatch-of-an-exit-action is
+  now unrepresentable instead of a runtime invariant. `mod invocation` (and
+  `bootstrap::init_logging`/its `tracing_subscriber` import) are now gated to
+  `cli` + `mcp-stdio`, their only real caller (`run()`), fixing `dead_code`
+  warnings under an `mcp-http`-only *library* build (the profile the prior
+  PR18 fix restored `soma::server::serve_http_mcp` for) without risking a
+  double-`tracing_subscriber::init()` panic by calling `init_logging` from
+  `http::serve()` instead. Added axum-harness test coverage for
+  `crates/soma/integrations/src/protected_routes.rs`'s
+  `authenticate_protected_route_request`/`protected_mcp_intercept` (missing
+  token, malformed token, insufficient scope, admin-scope bypass, missing
+  OAuth auth state, unmatched route) and
+  `protected_routes_proxy.rs`'s `protected_route_upstream_target` resolver
+  (backend_url vs. upstream vs. neither, upstream-not-found,
+  upstream-missing-url, unsupported-transport, bearer-token-env resolution) —
+  this security-critical path had zero test coverage before. Added an
+  `apps/soma` architecture-boundary test
+  (`apps_soma_does_not_reintroduce_protected_route_business_logic`) so the
+  protected-route logic the prior fix moved out of `apps/soma` cannot silently
+  reappear there. Fixed a stale `example --help` binary name in
+  `apps/soma/src/local.rs`'s unknown-command message and stale
+  `apps/soma::runtime::run_cli` references in `crates/soma/cli/src/lib.rs`
+  comments/panic messages (both predate this PR's `runtime.rs` ->
+  `bootstrap.rs`/`local.rs` split). Minor comment-accuracy fixes in
+  `local_tests.rs`/`stdio_tests.rs`/`mcp_http_roundtrip.rs`, and a doc comment
+  on `ProtectedMcpState`.
+- PR18 review fix: `protected_routes.rs` and `protected_routes_proxy.rs`
+  (bearer-token authentication, OAuth-scope authorization, gateway-subset
+  dispatch, and inbound-to-upstream proxy forwarding for protected MCP
+  routes — 560 of `apps/soma`'s ~1578 `src/` lines, ~35%) implemented real
+  authorization rules and gateway business workflows in the composition-root
+  binary crate, contradicting PR 18's own acceptance criterion (`apps/soma`
+  "contains no business rules"; plan section 3.1 lists both explicitly under
+  "Does not own"). Moved both modules verbatim to
+  `crates/soma/integrations` (`soma-integrations`, `product-integration`
+  layer — plan section 11.1's own architecture-check example names this
+  crate as the destination for exactly this kind of adapter) behind a new
+  `protected-http` feature, following the same "moved out of `apps/soma`,
+  permanent home here" precedent as PR 11's `gateway.rs`/`gateway_auth.rs`.
+  `apps/soma/src/http.rs` now wires `soma_integrations::protected_routes::*`
+  instead of constructing the logic itself; no behavior change (bodies are
+  unmodified, only import paths and one `pub(super)` → `pub(crate)`
+  visibility changed). Also restored a public HTTP-server bootstrap entry
+  point for the `mcp-http`-only build profile: pre-PR18,
+  `soma::runtime::serve_http_mcp()` was reachable under the `mcp-http`
+  feature alone; PR 18 made `mod http` private with its only caller
+  (`soma::run`) gated on `all(feature = "cli", feature = "mcp-stdio")`,
+  silently breaking a downstream fork that embeds only the HTTP server.
+  `apps/soma/src/http.rs`'s `serve()` is now `pub` and re-exported as
+  `soma::server::serve_http_mcp` under `mcp-http` alone, independent of
+  `cli`/`mcp-stdio`.
 - PR17 review fix: `soma-palette` duplicated `soma-api`'s
   `ApplicationError.code` → `StatusCode` mapping verbatim instead of sharing
   it through `soma-http-api` (both crates are `product-surface` and must not

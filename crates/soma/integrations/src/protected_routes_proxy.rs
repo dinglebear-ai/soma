@@ -1,3 +1,14 @@
+//! Inbound-to-upstream HTTP forwarding for protected MCP routes: resolves
+//! the backend target (static URL, named upstream, or gateway subset),
+//! attaches upstream auth, and streams the request/response through
+//! (`protected-http` feature).
+//!
+//! Moved out of `apps/soma` (formerly `protected_routes_proxy.rs`) as a
+//! PR 18 review fix — this crate is its permanent home per PR 18's
+//! acceptance criterion that `apps/soma` contains no business rules
+//! (`apps/soma` "Does not own: gateway business workflows"; plan
+//! section 3.1).
+
 use std::time::Instant;
 
 use axum::{
@@ -15,14 +26,14 @@ const PROTECTED_PROXY_BODY_LIMIT: usize = 50 * 1024 * 1024;
 #[cfg(feature = "oauth")]
 const SHARED_GATEWAY_OAUTH_SUBJECT: &str = "gateway";
 
-pub(super) async fn proxy_protected_mcp_route(
+pub(crate) async fn proxy_protected_mcp_route(
     state: &AppState,
     request: Request<Body>,
     route: ProtectedMcpRouteConfig,
 ) -> Response {
     let started = Instant::now();
     if let Err(error) = validate_backend_for_dispatch(&route) {
-        return super::protected_routes::json_error(
+        return crate::protected_routes::json_error(
             StatusCode::BAD_GATEWAY,
             "backend_denied",
             error.to_string(),
@@ -44,7 +55,7 @@ pub(super) async fn proxy_protected_mcp_route(
     let body = match to_bytes(request.into_body(), PROTECTED_PROXY_BODY_LIMIT).await {
         Ok(body) => body,
         Err(error) => {
-            return super::protected_routes::json_error(
+            return crate::protected_routes::json_error(
                 StatusCode::BAD_REQUEST,
                 "body_read_failed",
                 format!("failed to read MCP request body: {error}"),
@@ -63,7 +74,7 @@ pub(super) async fn proxy_protected_mcp_route(
     let upstream_response = match builder.body(body).send().await {
         Ok(response) => response,
         Err(error) => {
-            return super::protected_routes::json_error(
+            return crate::protected_routes::json_error(
                 StatusCode::BAD_GATEWAY,
                 "backend_request_failed",
                 format!("protected MCP backend request to {target} failed: {error}"),
@@ -88,7 +99,7 @@ pub(super) async fn proxy_protected_mcp_route(
     response
         .body(Body::from_stream(upstream_response.bytes_stream()))
         .unwrap_or_else(|error| {
-            super::protected_routes::json_error(
+            crate::protected_routes::json_error(
                 StatusCode::BAD_GATEWAY,
                 "response_build_failed",
                 format!("failed to build protected MCP response: {error}"),
@@ -102,7 +113,7 @@ async fn protected_route_upstream_target(
 ) -> Result<(reqwest::Url, Option<String>, String), Response> {
     if !route.backend_url.trim().is_empty() {
         let url = reqwest::Url::parse(&route.backend_url).map_err(|error| {
-            super::protected_routes::json_error(
+            crate::protected_routes::json_error(
                 StatusCode::BAD_GATEWAY,
                 "invalid_backend_url",
                 format!("protected MCP route backend_url is invalid: {error}"),
@@ -111,35 +122,35 @@ async fn protected_route_upstream_target(
         return Ok((url, None, "backend_url".to_owned()));
     }
     let Some(upstream_name) = route.upstream.as_deref() else {
-        return Err(super::protected_routes::json_error(
+        return Err(crate::protected_routes::json_error(
             StatusCode::BAD_GATEWAY,
             "missing_target",
             "protected MCP route has no backend_url, upstream, or gateway subset target",
         ));
     };
     let Some(upstream) = state.upstream_config(upstream_name) else {
-        return Err(super::protected_routes::json_error(
+        return Err(crate::protected_routes::json_error(
             StatusCode::NOT_FOUND,
             "upstream_not_found",
             format!("upstream `{upstream_name}` not found for protected MCP route"),
         ));
     };
     let Some(raw_url) = upstream.url.as_deref() else {
-        return Err(super::protected_routes::json_error(
+        return Err(crate::protected_routes::json_error(
             StatusCode::BAD_GATEWAY,
             "upstream_url_missing",
             format!("upstream `{upstream_name}` does not have an HTTP MCP URL"),
         ));
     };
     let url = reqwest::Url::parse(raw_url).map_err(|error| {
-        super::protected_routes::json_error(
+        crate::protected_routes::json_error(
             StatusCode::BAD_GATEWAY,
             "invalid_upstream_url",
             format!("upstream `{upstream_name}` URL is invalid: {error}"),
         )
     })?;
     if !matches!(url.scheme(), "http" | "https") {
-        return Err(super::protected_routes::json_error(
+        return Err(crate::protected_routes::json_error(
             StatusCode::BAD_GATEWAY,
             "unsupported_upstream_transport",
             format!("upstream `{upstream_name}` protected proxy requires http(s) transport"),
@@ -163,7 +174,7 @@ async fn upstream_auth_token(
                 .upstream_oauth_access_token(upstream, SHARED_GATEWAY_OAUTH_SUBJECT)
                 .await
                 .map_err(|error| {
-                    super::protected_routes::json_error(
+                    crate::protected_routes::json_error(
                         StatusCode::BAD_GATEWAY,
                         "upstream_oauth_required",
                         error.to_string(),
@@ -172,7 +183,7 @@ async fn upstream_auth_token(
         }
         #[cfg(not(feature = "oauth"))]
         {
-            return Err(super::protected_routes::json_error(
+            return Err(crate::protected_routes::json_error(
                 StatusCode::BAD_GATEWAY,
                 "upstream_oauth_unavailable",
                 "upstream OAuth requires compiling Soma with the oauth feature",

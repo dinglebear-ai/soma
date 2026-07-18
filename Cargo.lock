@@ -5210,6 +5210,7 @@ dependencies = [
  "soma-mcp",
  "soma-mcp-client",
  "soma-observability",
+ "soma-palette",
  "soma-provider-adapters",
  "soma-provider-core",
  "soma-runtime",
@@ -5451,15 +5452,25 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "futures",
+ "reqwest 0.13.4",
  "serde_json",
  "soma-application",
  "soma-auth",
+ "soma-client",
  "soma-codemode",
+ "soma-config",
  "soma-domain",
  "soma-gateway",
+ "soma-mcp",
  "soma-mcp-client",
+ "soma-runtime",
+ "soma-service",
+ "tempfile",
  "tokio",
+ "tower",
+ "tracing",
 ]
 
 [[package]]

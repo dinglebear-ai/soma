@@ -22,7 +22,7 @@ const REQUIRED_PATTERN_FILES: &[&str] = &[
     "crates/soma/mcp/src/tools.rs",
     "crates/soma/mcp/src/schemas.rs",
     "crates/soma/mcp/src/rmcp_server.rs",
-    "apps/soma/src/routes.rs",
+    "apps/soma/src/http.rs",
     "crates/soma/mcp/src/prompts.rs",
     "crates/soma/config/src/config.rs",
     "crates/soma/cli/src/lib.rs",
@@ -208,7 +208,7 @@ pub(super) fn thin_shims(reporter: &mut PatternReporter) {
 }
 
 pub(super) fn routes(reporter: &mut PatternReporter) {
-    let routes = read_file("apps/soma/src/routes.rs");
+    let routes = read_file("apps/soma/src/http.rs");
     let missing = ["\"/mcp\"", "\"/health\"", "\"/status\""]
         .iter()
         .copied()

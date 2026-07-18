@@ -203,9 +203,10 @@ where
                 reject_args(rest, "help")?;
                 Some(Command::Help)
             }
-            // §48: doctor is always parsed here, dispatched via run_cli in main.rs.
+            // §48: doctor is always parsed here, dispatched via apps/soma::local::run
+            // (called from lib.rs::run(), called from bin/soma.rs).
             // CUSTOMIZE: Keep this arm. It routes to doctor::run_doctor() which needs
-            //           the full Config (not just SomaConfig), so main.rs handles it.
+            //           the full Config (not just SomaConfig), so apps/soma handles it.
             "doctor" => {
                 let json = parse_bool_flag(rest, "doctor", "--json")?;
                 Some(Command::Doctor { json })
@@ -302,7 +303,7 @@ pub async fn run(
                 params: json.clone(),
             }
         }
-        None => unreachable!("dispatched directly in apps/soma::runtime::run_cli"),
+        None => unreachable!("dispatched directly in apps/soma::local::run"),
     };
     let result = match application
         .execute_action(request, cli_execution_context(destructive_confirmed))
