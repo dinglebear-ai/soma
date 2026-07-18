@@ -39,6 +39,12 @@ struct TransactionLock {
     _file: File,
 }
 
+struct LayoutPaths {
+    executable: PathBuf,
+    state: PathBuf,
+    lock: PathBuf,
+}
+
 impl Updater {
     #[cfg(unix)]
     pub async fn install(
@@ -46,9 +52,16 @@ impl Updater {
         validated: ValidatedArtifact,
         previous_version: impl Into<String>,
     ) -> Result<InstallOutcome> {
-        let _lock = self.transaction_lock()?;
-        let executable = absolute(self.layout().executable())?;
-        let state = absolute(self.layout().state_file())?;
+        let paths = self.validated_layout()?;
+        let _lock = self.transaction_lock(&paths.lock)?;
+        let executable = paths.executable;
+        let state = paths.state;
+        if let Some(marker) = read_marker(&state, &executable)? {
+            return Err(UpdateError::PendingUpdateExists {
+                path: state,
+                target: marker.target,
+            });
+        }
         let previous = previous_version.into();
         let target = validated.target_version().to_owned();
         let backup = unique_backup(&executable);
@@ -96,9 +109,10 @@ impl Updater {
         }
         #[cfg(unix)]
         {
-            let _lock = self.transaction_lock()?;
-            let state = absolute(self.layout().state_file())?;
-            let Some(mut marker) = read_marker(&state, self.layout().executable())? else {
+            let paths = self.validated_layout()?;
+            let _lock = self.transaction_lock(&paths.lock)?;
+            let state = paths.state;
+            let Some(mut marker) = read_marker(&state, &paths.executable)? else {
                 return Ok(RecoveryAction::NoPendingUpdate);
             };
             if marker.target != running_version {
@@ -146,9 +160,10 @@ impl Updater {
         }
         #[cfg(unix)]
         {
-            let _lock = self.transaction_lock()?;
-            let state = absolute(self.layout().state_file())?;
-            let Some(marker) = read_marker(&state, self.layout().executable())? else {
+            let paths = self.validated_layout()?;
+            let _lock = self.transaction_lock(&paths.lock)?;
+            let state = paths.state;
+            let Some(marker) = read_marker(&state, &paths.executable)? else {
                 return Ok(ConfirmationOutcome::NoPendingUpdate);
             };
             if marker.target != running_version {
@@ -171,26 +186,47 @@ impl Updater {
         }
     }
 
-    fn transaction_lock(&self) -> Result<TransactionLock> {
-        let state = absolute(self.layout().state_file())?;
-        let lock_path = suffix_path(&state, ".lock");
+    fn transaction_lock(&self, lock_path: &Path) -> Result<TransactionLock> {
         let file = OpenOptions::new()
             .create(true)
             .truncate(false)
             .read(true)
             .write(true)
-            .open(&lock_path)
-            .map_err(|error| UpdateError::io(&lock_path, error))?;
+            .open(lock_path)
+            .map_err(|error| UpdateError::io(lock_path, error))?;
         file.try_lock_exclusive().map_err(|error| {
             if error.kind() == std::io::ErrorKind::WouldBlock {
                 UpdateError::UpdateInProgress {
-                    path: lock_path.clone(),
+                    path: lock_path.to_path_buf(),
                 }
             } else {
-                UpdateError::io(&lock_path, error)
+                UpdateError::io(lock_path, error)
             }
         })?;
         Ok(TransactionLock { _file: file })
+    }
+
+    fn validated_layout(&self) -> Result<LayoutPaths> {
+        let executable = path_identity(self.layout().executable())?;
+        let state = path_identity(self.layout().state_file())?;
+        let lock = path_identity(&suffix_path(self.layout().state_file(), ".lock"))?;
+        for (first, second) in [
+            (&executable, &state),
+            (&executable, &lock),
+            (&state, &lock),
+        ] {
+            if first == second {
+                return Err(UpdateError::InvalidLayout {
+                    first: first.clone(),
+                    second: second.clone(),
+                });
+            }
+        }
+        Ok(LayoutPaths {
+            executable,
+            state,
+            lock,
+        })
     }
 }
 
@@ -201,6 +237,15 @@ fn absolute(path: &Path) -> Result<PathBuf> {
     std::env::current_dir()
         .map(|directory| directory.join(path))
         .map_err(|error| UpdateError::io(path, error))
+}
+
+fn path_identity(path: &Path) -> Result<PathBuf> {
+    let absolute = absolute(path)?;
+    match std::fs::canonicalize(&absolute) {
+        Ok(canonical) => Ok(canonical),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(absolute),
+        Err(error) => Err(UpdateError::io(&absolute, error)),
+    }
 }
 
 fn suffix_path(path: &Path, suffix: &str) -> PathBuf {

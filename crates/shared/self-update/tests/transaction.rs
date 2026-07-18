@@ -216,3 +216,72 @@ async fn failed_install_preserves_original_and_cleans_created_backup() {
         0
     );
 }
+
+#[tokio::test]
+async fn second_install_preserves_last_confirmed_rollback_chain() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let v1 = b"#!/bin/sh\necho 'example 1.0.0'\n";
+    let v2 = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    let v3 = b"#!/bin/sh\necho 'example 3.0.0'\n";
+    std::fs::write(&executable, v1).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default()
+            .with_max_unconfirmed_restarts(1)
+            .unwrap(),
+    );
+    updater
+        .install(validated(&updater, v2, "2.0.0").await, "1.0.0")
+        .await
+        .unwrap();
+    let original_marker = std::fs::read(&state).unwrap();
+    let marker: serde_json::Value = serde_json::from_slice(&original_marker).unwrap();
+    let backup = std::path::PathBuf::from(marker["backup"].as_str().unwrap());
+    let result = updater
+        .install(validated(&updater, v3, "3.0.0").await, "2.0.0")
+        .await;
+    assert!(matches!(
+        result,
+        Err(UpdateError::PendingUpdateExists { .. })
+    ));
+    assert_eq!(std::fs::read(&state).unwrap(), original_marker);
+    assert_eq!(std::fs::read(&backup).unwrap(), v1);
+    assert!(matches!(
+        updater.recover_on_startup("2.0.0").await.unwrap(),
+        RecoveryAction::PendingUpdate { .. }
+    ));
+    assert!(matches!(
+        updater.recover_on_startup("2.0.0").await.unwrap(),
+        RecoveryAction::RollbackInstalled { .. }
+    ));
+    assert_eq!(std::fs::read(&executable).unwrap(), v1);
+}
+
+#[tokio::test]
+async fn layout_collisions_are_rejected_before_filesystem_mutation() {
+    for executable_is_state in [true, false] {
+        let temp = tempdir().unwrap();
+        let state = temp.path().join("update.json");
+        let executable = if executable_is_state {
+            state.clone()
+        } else {
+            temp.path().join("update.json.lock")
+        };
+        let original = b"#!/bin/sh\necho 'example 1.0.0'\n";
+        let update = b"#!/bin/sh\necho 'example 2.0.0'\n";
+        std::fs::write(&executable, original).unwrap();
+        let updater = Updater::new(
+            UpdateLayout::new(&executable, &state),
+            UpdatePolicy::default(),
+        );
+        let artifact = validated(&updater, update, "2.0.0").await;
+        assert!(matches!(
+            updater.install(artifact, "1.0.0").await,
+            Err(UpdateError::InvalidLayout { .. })
+        ));
+        assert_eq!(std::fs::read(&executable).unwrap(), original);
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 1);
+    }
+}

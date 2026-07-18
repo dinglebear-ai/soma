@@ -41,6 +41,10 @@ pub enum UpdateError {
     RunningVersionMismatch { running: String, target: String },
     #[error("the provided installer is unsupported on this platform")]
     UnsupportedPlatform,
+    #[error("update layout paths collide: {first} and {second}")]
+    InvalidLayout { first: PathBuf, second: PathBuf },
+    #[error("an update to {target} is already pending at {path}")]
+    PendingUpdateExists { path: PathBuf, target: String },
     #[error("I/O operation failed for {path}: {source}")]
     Io {
         path: PathBuf,
