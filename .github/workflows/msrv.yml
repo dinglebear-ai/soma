@@ -59,7 +59,12 @@ jobs:
     needs: [changes]
     if: ${{ (needs.changes.outputs.rust == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.toml == 'true' || needs.changes.outputs.workflow == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, tootie, rmcp-template]
-    timeout-minutes: 20
+    # Was 20; the workspace now includes a Tauri desktop app (GTK/webkit2gtk/
+    # wasmtime), which is a lot to compile from scratch under the 1.96
+    # toolchain's own sccache namespace the first time it builds post-refactor.
+    # Subsequent runs reuse that cache and should be much faster; raise
+    # again if 40 stops being enough headroom.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
