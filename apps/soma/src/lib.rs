@@ -190,6 +190,52 @@ pub mod testing {
         )
     }
 
+    /// Loopback state with caller-supplied MCP configuration.
+    pub fn loopback_state_with_mcp_config(config: McpConfig) -> AppState {
+        let service = stub_service();
+        let provider_registry =
+            soma_application::static_provider_registry(service.clone()).expect("static registry");
+        state(
+            config,
+            AuthPolicy::LoopbackDev,
+            service,
+            provider_registry,
+            empty_gateway_product_state(),
+        )
+    }
+
+    /// Trusted-gateway state with caller-supplied MCP configuration.
+    pub fn trusted_gateway_state_with_mcp_config(config: McpConfig) -> AppState {
+        let service = stub_service();
+        let provider_registry =
+            soma_application::static_provider_registry(service.clone()).expect("static registry");
+        state(
+            config,
+            AuthPolicy::TrustedGatewayUnscoped,
+            service,
+            provider_registry,
+            empty_gateway_product_state(),
+        )
+    }
+
+    /// Mounted bearer state with caller-supplied MCP configuration.
+    ///
+    /// This permits defense-in-depth request-path tests to construct policy
+    /// combinations that normal startup validation rejects.
+    pub fn bearer_state_with_mcp_config(token: &str, mut config: McpConfig) -> AppState {
+        config.api_token = Some(token.to_string());
+        let service = stub_service();
+        let provider_registry =
+            soma_application::static_provider_registry(service.clone()).expect("static registry");
+        state(
+            config,
+            mounted_test_policy(),
+            service,
+            provider_registry,
+            empty_gateway_product_state(),
+        )
+    }
+
     /// `AppState` requiring a static bearer token.
     pub fn bearer_state(token: &str) -> AppState {
         let service = stub_service();
