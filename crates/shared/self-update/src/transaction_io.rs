@@ -102,34 +102,49 @@ pub(super) fn create_backup(
             .permissions();
         write_backup_copy(&mut source, backup, source_permissions)?;
     }
-    let synced = (|| {
-        use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    verify_or_cleanup_created_backup(backup, verify_created_backup, remove_and_sync)
+}
 
-        let file = OpenOptions::new()
-            .read(true)
-            .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
-            .open(backup)
-            .map_err(|error| UpdateError::io(backup, error))?;
-        let metadata = file
-            .metadata()
-            .map_err(|error| UpdateError::io(backup, error))?;
-        if !metadata.file_type().is_file() {
-            return Err(UpdateError::InvalidMarker {
-                path: backup.to_path_buf(),
-                message: "rollback backup must be a non-symlink regular file".into(),
-            });
-        }
-        file.sync_all()
-            .map_err(|error| UpdateError::io(backup, error))?;
-        sync_parent(backup)?;
-        Ok(metadata.uid())
-    })();
-    match synced {
+fn verify_created_backup(backup: &Path) -> Result<u32> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+        .open(backup)
+        .map_err(|error| UpdateError::io(backup, error))?;
+    let metadata = file
+        .metadata()
+        .map_err(|error| UpdateError::io(backup, error))?;
+    if !metadata.file_type().is_file() {
+        return Err(UpdateError::InvalidMarker {
+            path: backup.to_path_buf(),
+            message: "rollback backup must be a non-symlink regular file".into(),
+        });
+    }
+    file.sync_all()
+        .map_err(|error| UpdateError::io(backup, error))?;
+    sync_parent(backup)?;
+    Ok(metadata.uid())
+}
+
+fn verify_or_cleanup_created_backup<
+    V: FnOnce(&Path) -> Result<u32>,
+    C: FnOnce(&Path) -> Result<()>,
+>(
+    backup: &Path,
+    verify: V,
+    cleanup: C,
+) -> Result<u32> {
+    match verify(backup) {
         Ok(uid) => Ok(uid),
-        Err(error) => {
-            std::fs::remove_file(backup).map_err(|cleanup| UpdateError::io(backup, cleanup))?;
-            Err(error)
-        }
+        Err(operation) => match cleanup(backup) {
+            Ok(()) => Err(operation),
+            Err(cleanup) => Err(UpdateError::TransactionCleanupFailed {
+                operation: Box::new(operation),
+                cleanup: Box::new(cleanup),
+            }),
+        },
     }
 }
 
@@ -334,7 +349,10 @@ pub(super) fn sync_parent(path: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{open_backup_copy_destination, write_backup_copy, write_backup_copy_with_cleanup};
+    use super::{
+        open_backup_copy_destination, remove_and_sync, verify_or_cleanup_created_backup,
+        write_backup_copy, write_backup_copy_with_cleanup,
+    };
 
     struct FailingReader {
         yielded: bool,
@@ -394,6 +412,67 @@ mod tests {
         };
         assert!(matches!(*operation, crate::UpdateError::Io { .. }));
         assert!(matches!(*cleanup, crate::UpdateError::Io { .. }));
+        std::fs::remove_file(backup).unwrap();
+    }
+
+    #[test]
+    fn hard_link_outer_sync_failure_is_durably_cleaned() {
+        let temp = tempfile::tempdir().unwrap();
+        let executable = temp.path().join("executable");
+        let backup = temp.path().join("hard-link-backup");
+        std::fs::write(&executable, b"confirmed executable").unwrap();
+        std::fs::hard_link(&executable, &backup).unwrap();
+
+        let error = verify_or_cleanup_created_backup(
+            &backup,
+            |path| {
+                Err(crate::UpdateError::io(
+                    path,
+                    std::io::Error::other("injected outer sync failure"),
+                ))
+            },
+            remove_and_sync,
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, crate::UpdateError::Io { .. }));
+        assert_eq!(std::fs::read(executable).unwrap(), b"confirmed executable");
+        assert!(!backup.exists());
+    }
+
+    #[test]
+    fn hard_link_outer_cleanup_failure_preserves_both_errors() {
+        let temp = tempfile::tempdir().unwrap();
+        let executable = temp.path().join("executable");
+        let backup = temp.path().join("hard-link-backup");
+        std::fs::write(&executable, b"confirmed executable").unwrap();
+        std::fs::hard_link(&executable, &backup).unwrap();
+
+        let error = verify_or_cleanup_created_backup(
+            &backup,
+            |path| {
+                Err(crate::UpdateError::io(
+                    path,
+                    std::io::Error::other("injected outer sync failure"),
+                ))
+            },
+            |path| {
+                assert!(path.exists());
+                Err(crate::UpdateError::io(
+                    path,
+                    std::io::Error::other("injected durable cleanup failure"),
+                ))
+            },
+        )
+        .unwrap_err();
+
+        let crate::UpdateError::TransactionCleanupFailed { operation, cleanup } = error else {
+            panic!("expected combined outer sync and cleanup error");
+        };
+        assert!(matches!(*operation, crate::UpdateError::Io { .. }));
+        assert!(matches!(*cleanup, crate::UpdateError::Io { .. }));
+        assert_eq!(std::fs::read(executable).unwrap(), b"confirmed executable");
+        assert_eq!(std::fs::read(&backup).unwrap(), b"confirmed executable");
         std::fs::remove_file(backup).unwrap();
     }
 

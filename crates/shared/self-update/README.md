@@ -122,6 +122,11 @@ can leave only a harmless orphan backup.
 Copy-based backup creation owns its destination only after exclusive creation;
 copy, permission, or sync failures durably remove the partial backup and report
 both the operation and cleanup errors if removal cannot be completed.
+After either copy or hard-link creation, reopen, metadata, file-sync, and
+directory-sync failures use the same durable, combined-error cleanup contract.
+If writing the prepared marker fails after its rename, cleanup durably removes
+marker state before the backup; failure to remove state retains the backup for
+recovery rather than leaving a marker that references a deleted rollback.
 If mode, identity, or digest validation fails after a prepared marker is
 durable but before replacement, the installer durably removes that marker
 first and then removes the rollback backup. Cleanup failures retain the primary

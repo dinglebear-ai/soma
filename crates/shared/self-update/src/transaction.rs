@@ -42,6 +42,8 @@ pub(super) enum TestFailpoint {
     AfterRollbackRename,
     FailedRenameAfterMarkerCleanup,
     FailedRenameAfterBackupCleanup,
+    AfterPreparedMarkerRename,
+    AfterPreparedMarkerRenameWithStateCleanupFailure,
     PostMarkerModeFailure,
     PostMarkerDigestFailure,
     PostMarkerModeFailureWithStateCleanupFailure,
@@ -96,8 +98,7 @@ impl Updater {
     ) -> Result<InstallOutcome> {
         let paths = self.validated_layout()?;
         let _lock = self.transaction_lock(&paths.lock)?;
-        let executable = paths.executable;
-        let state = paths.state;
+        let (executable, state) = (paths.executable, paths.state);
         let validated_path = absolute(validated.path())?;
         let target = validated.target_version().to_owned();
         let backup = unique_backup(&executable);
@@ -156,9 +157,10 @@ impl Updater {
                 actual: backup_digest,
             });
         }
-        if let Err(error) = write_marker(self, &state, &marker) {
-            remove_file(&backup)?;
-            return Err(error);
+        if let Err(operation) = write_marker(self, &state, &marker) {
+            return Err(pre_swap::cleanup_prepared_marker_failure(
+                self, &state, &backup, operation,
+            ));
         }
         self.maybe_fail(TestFailpoint::AfterMarkerSync, &state)?;
         validate_or_cleanup(self, &validated, &validated_path, &state, &backup)?;

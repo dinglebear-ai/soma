@@ -48,7 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validation failures durably remove authoritative state before rollback
   backups and retain both the primary and any cleanup error. Copy-based backup
   failures durably remove their partial rollback file and likewise retain both
-  errors if cleanup fails.
+  errors if cleanup fails. Post-creation verification failures now apply that
+  durable cleanup to both copy and hard-link backups. Prepared-marker write
+  failures remove and sync marker state before removing the backup, retaining
+  both artifacts if authoritative-state cleanup cannot complete.
   Transaction lock guards explicitly unlock before descriptor close, making
   immediate back-to-back recovery calls deterministic.
   The crate has no internal workspace dependencies; this change

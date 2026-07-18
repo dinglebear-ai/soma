@@ -5,8 +5,32 @@ use crate::{Result, UpdateError, Updater, ValidatedArtifact};
 use super::TestFailpoint;
 use super::transaction_io::{
     ensure_validated_artifact_mode, hash_stable_validated_artifact, remove_and_sync,
-    restore_validated_artifact_mode,
+    remove_if_present_and_sync, restore_validated_artifact_mode,
 };
+
+pub(super) fn cleanup_prepared_marker_failure(
+    updater: &Updater,
+    state: &Path,
+    backup: &Path,
+    operation: UpdateError,
+) -> UpdateError {
+    if updater.failpoint_active(TestFailpoint::AfterPreparedMarkerRenameWithStateCleanupFailure) {
+        return combined_error(
+            operation,
+            UpdateError::io(
+                state,
+                std::io::Error::other("injected prepared-marker cleanup failure"),
+            ),
+        );
+    }
+    if let Err(cleanup) = remove_if_present_and_sync(state) {
+        return combined_error(operation, cleanup);
+    }
+    if let Err(cleanup) = remove_and_sync(backup) {
+        return combined_error(operation, cleanup);
+    }
+    operation
+}
 
 pub(super) fn validate_or_cleanup(
     updater: &Updater,

@@ -23,7 +23,10 @@
 > arm only after exclusive file creation, and post-marker pre-swap validation
 > errors clean authoritative state before backups while preserving combined
 > operation and cleanup failures. Copy-backup failures also durably remove
-> their owned partial destination and preserve both errors at cleanup failures.
+> their owned partial destination and preserve both errors at cleanup failures;
+> outer verification applies that contract to hard links too. Prepared-marker
+> write failures clean authoritative state before backups and retain the
+> recovery pair if state cleanup fails.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

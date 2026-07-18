@@ -52,6 +52,48 @@ fn rollback_artifacts(updater: &Updater) -> Vec<PathBuf> {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn prepared_marker_parent_sync_failure_cleans_state_before_backup() {
+    let (_temp, updater, artifact, old, _new) = updater_and_artifact(1).await;
+    let staged = artifact.path().to_path_buf();
+    updater.set_test_failpoint(TestFailpoint::AfterPreparedMarkerRename);
+
+    let error = updater.install(artifact, "1.0.0").await.unwrap_err();
+
+    assert!(matches!(error, UpdateError::Io { .. }));
+    assert_eq!(std::fs::read(updater.layout().executable()).unwrap(), old);
+    assert!(!updater.layout().state_file().exists());
+    assert!(rollback_artifacts(&updater).is_empty());
+    assert!(!staged.exists());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn prepared_marker_cleanup_failure_retains_authoritative_backup() {
+    let (_temp, updater, artifact, old, _new) = updater_and_artifact(1).await;
+    let staged = artifact.path().to_path_buf();
+    updater.set_test_failpoint(TestFailpoint::AfterPreparedMarkerRenameWithStateCleanupFailure);
+
+    let error = updater.install(artifact, "1.0.0").await.unwrap_err();
+
+    let UpdateError::TransactionCleanupFailed { operation, cleanup } = error else {
+        panic!("expected combined marker-write and cleanup error");
+    };
+    assert!(matches!(*operation, UpdateError::Io { .. }));
+    assert!(matches!(*cleanup, UpdateError::Io { .. }));
+    assert_eq!(std::fs::read(updater.layout().executable()).unwrap(), old);
+    assert!(updater.layout().state_file().exists());
+    assert_eq!(rollback_artifacts(&updater).len(), 1);
+    assert!(!staged.exists());
+
+    updater.set_test_failpoint(TestFailpoint::None);
+    assert_eq!(
+        updater.recover_on_startup("1.0.0").await.unwrap(),
+        RecoveryAction::NoPendingUpdate
+    );
+    assert!(!updater.layout().state_file().exists());
+    assert!(rollback_artifacts(&updater).is_empty());
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn post_marker_mode_and_digest_failures_remove_state_then_backup() {
     for failpoint in [
         TestFailpoint::PostMarkerModeFailure,

@@ -61,6 +61,17 @@ pub(super) fn write_marker(updater: &Updater, path: &Path, marker: &Marker) -> R
             .map_err(|error| UpdateError::io(&temporary, error))?;
         updater.maybe_fail(TestFailpoint::AfterMarkerTempSync, &temporary)?;
         std::fs::rename(&temporary, path).map_err(|error| UpdateError::io(path, error))?;
+        if marker.phase == MarkerPhase::Prepared
+            && (updater.failpoint_active(TestFailpoint::AfterPreparedMarkerRename)
+                || updater.failpoint_active(
+                    TestFailpoint::AfterPreparedMarkerRenameWithStateCleanupFailure,
+                ))
+        {
+            return Err(UpdateError::io(
+                path,
+                std::io::Error::other("injected prepared-marker parent sync failure"),
+            ));
+        }
         sync_parent(path)
     })();
     if result.is_err()
