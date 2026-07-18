@@ -16,6 +16,10 @@ fn layer_paths_match_architecture_taxonomy() {
         Layer::from_path("crates/soma/api"),
         Some(Layer::ProductSurface)
     );
+    assert_eq!(
+        Layer::from_path("crates/integrations/unifi"),
+        Some(Layer::Vendor)
+    );
     assert_eq!(Layer::from_path("xtask"), Some(Layer::Legacy));
     assert_eq!(Layer::from_path("apps/web"), None);
 }

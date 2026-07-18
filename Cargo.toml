@@ -8,6 +8,7 @@
 [workspace]
 members = [
   "apps/soma",
+  "crates/integrations/unifi",
   "crates/shared/auth",
   "crates/shared/codemode",
   "crates/shared/codex-app-server-client",

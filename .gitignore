@@ -100,10 +100,10 @@ perf.data.old
 *.pid
 *.bak
 *.bak-*
-storage/
-data/
-logs/
-backups/
+/storage/
+/data/
+/logs/
+/backups/
 
 # ── Claude Code / AI tooling ──────────────────────────────────────────────────
 .claude/settings.local.json
