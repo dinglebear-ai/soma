@@ -9,8 +9,9 @@ atomic Unix installation, durable confirmation state, and rollback.
 
 The default policy streams at most 128 MiB and gives a staged executable 10
 seconds to answer `--version`. Validation requires the advertised version as an
-exact output token rather than a substring. Install re-hashes the validated path
-under the transaction lock immediately before any live state is mutated.
+exact output token rather than a substring. Install captures the validated
+artifact identity and rechecks its digest, device, and inode under the
+transaction lock, including a final check immediately before replacement.
 
 ## Non-goals
 
@@ -33,6 +34,8 @@ the heartbeat endpoint.
 ## Platform support
 
 Transport-neutral directive, staging, and validation APIs compile everywhere.
+Validator timeouts terminate the full Unix process group or Windows Job Object,
+including descendants that inherit the output pipes.
 The included atomic installer and re-exec adapter support Unix only.
 Non-Unix adopters can use directive, staging, and validation but the provided
 installer reports `UnsupportedPlatform`; supply a platform-specific deployment
@@ -45,24 +48,31 @@ restart, recover pending state on startup, and confirm only after the new
 service reports healthy.
 
 `recover_on_startup` also reclaims prior-process staging and orphan rollback
-files whose exact target-derived names, regular-file type, directory, and Unix
-owner identify them as crate-owned. It never follows matching symlinks or
-touches another executable's files, and it preserves the backup referenced by
-a valid marker. Calling startup recovery before each service loop therefore
-bounds crash leftovers across repeated restarts. Marker input is capped at 64
-KiB. Call `StagedArtifact::cleanup` when an adopter needs cleanup failures
-reported explicitly; automatic `Drop` cleanup is necessarily best effort.
+files only when their exact target-derived grammar, regular-file type,
+directory, Unix owner, and dead creator PID prove they are stale crate-owned
+artifacts. Live concurrent stages are preserved. Protected identities are
+canonicalized, matching symlinks are never followed, and another executable's
+files are untouched. Calling startup recovery before each service loop therefore
+bounds crash leftovers across process restarts. Marker input is capped at 64
+KiB. Failed staging explicitly reports both the operation and cleanup error;
+automatic `Drop` cleanup is reserved as a best-effort cancellation fallback.
 
-Installation takes an advisory state lock, writes and syncs a durable marker,
+Installation derives its advisory lock from the canonical state identity. The
+executable directory and state directory must not be writable by untrusted
+principals; no pathname-based installer can close the final metadata-to-rename
+race against an attacker who controls that directory. Installation writes and
+syncs a durable marker with explicit `prepared`, `installed`, `rolling_back`,
+and `rolled_back` phases,
 retains a unique rollback backup, syncs the backup and its directory before the
 marker may reference it, then atomically renames the verified artifact. Unix
 staging preserves the existing executable mode (falling back to restrictive
 `0700` only when no target exists); copy-based rollback backups preserve that
 same mode. `BackupStrategy::Copy` is available when an adopter cannot use hard
 links or wants to exercise the copy path explicitly.
-A process crash before confirmation leaves the marker and backup for startup
-recovery. Each unconfirmed startup increments the marker; after the configured
-threshold the backup is restored and the adopter must restart again. Successful
+A process crash at any marker, swap, or rollback boundary is completed or
+aborted idempotently by startup recovery. Each unconfirmed startup increments
+the marker; after the configured threshold the digest-verified backup is
+restored and the adopter must restart again. Successful
 health confirmation durably removes the authoritative marker before cleaning
 the backup, so a cleanup interruption can leave only a harmless orphan backup.
 A running-version mismatch retains both marker and backup and returns a typed

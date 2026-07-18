@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `crates/shared/self-update` as a standalone, transport-neutral binary
   update transaction with bounded streaming SHA-256 verification, timed exact-
   version validation, Unix atomic replacement, and durable health confirmation
-  and rollback. The crate has no internal workspace dependencies; this change
+  and rollback. Explicit crash phases make restart recovery idempotent, validator
+  timeouts terminate Unix process groups and Windows Job Objects, and rollback
+  state is identity-, owner-, and digest-checked. The crate has no internal
+  workspace dependencies; this change
   does not enable self-update behavior in the Soma runtime or integrate Cortex.
 - Restructured `apps/soma` (plan section 3.1, PR 18) into a composition-only
   layout: `bootstrap.rs` builds the concrete dependency graph (config, the

@@ -1,5 +1,11 @@
 # Reusable Self-Update Crate Implementation Plan
 
+> Second-review hardening: the implemented transaction uses explicit durable
+> `prepared`/`installed`/`rolling_back`/`rolled_back` phases; canonical state
+> locks; exact, owner-checked, digest-verified rollback artifacts; dead-PID-only
+> orphan reclamation; repeated staged identity checks; authoritative-first
+> failed-install cleanup; and process-group/Windows-Job validator termination.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extract Cortex's agent binary update transaction into a portable `soma-self-update` shared crate that has no dependencies on any Soma, Cortex, or other workspace crate, while closing the URL-resolution, unbounded-download, validation-timeout, and recovery-test gaps found in the Cortex implementation.
@@ -183,7 +189,7 @@
   }
   ```
 
-  Read fixed-size chunks, check the running byte count before each write, update `Sha256` incrementally, `flush` and `sync_all` before returning, and set mode `0o755` on Unix. Use an RAII cleanup guard so every early return removes the partial artifact. `StagedArtifact` exposes read-only `path()`, `target_version()`, `sha256()`, and `bytes_written()` accessors and is consumed by installation.
+  Read fixed-size chunks, check the running byte count before each write, update `Sha256` incrementally, `flush` and `sync_all` before returning, and preserve the installed executable mode on Unix (falling back to restrictive `0o700` when no target exists). Explicit error paths close and remove partial artifacts while an RAII cleanup guard covers cancellation. `StagedArtifact` exposes read-only `path()`, `target_version()`, `sha256()`, and `bytes_written()` accessors and is consumed by installation.
 
 - [x] **Step 7: Run focused tests and commit**
 
