@@ -269,7 +269,7 @@ impl AuthConfig {
         AuthConfigBuilder::new().build_from_sources(vars)
     }
 
-    fn validate(&self) -> Result<(), AuthError> {
+    pub(crate) fn validate(&self) -> Result<(), AuthError> {
         let prefix = &self.env_prefix;
         if !self.google.callback_path.starts_with('/') {
             return Err(AuthError::Config(format!(

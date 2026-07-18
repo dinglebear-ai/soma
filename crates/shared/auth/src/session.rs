@@ -132,6 +132,12 @@ mod tests {
             Some(url::Url::parse("https://syslog.example.com").expect("public url"));
         config.google.client_id = "client-id".into();
         config.google.client_secret = "client-secret".into();
+        // AuthConfig::default() -> GoogleConfig::default() leaves
+        // callback_path as "" (Default::default(), not the
+        // #[serde(default = ...)] value, which only applies during
+        // deserialization) — validate() now runs inside AuthState::new and
+        // rejects that, so this fixture must set it explicitly.
+        config.google.callback_path = "/auth/google/callback".to_string();
         config.admin_email = "admin@example.com".into();
         config.default_provider = "google".to_string();
         let dir = tempfile::tempdir().expect("tempdir");

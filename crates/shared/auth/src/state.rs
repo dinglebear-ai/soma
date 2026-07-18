@@ -124,6 +124,16 @@ pub struct AuthState {
 
 impl AuthState {
     pub async fn new(config: AuthConfig) -> Result<Self, AuthError> {
+        // Run the full validator first — struct-literal callers (test
+        // fixtures, or a downstream consumer bypassing AuthConfigBuilder)
+        // otherwise skip every safety check `validate()` enforces (HTTPS-only
+        // Authelia issuer, callback-path collisions, GitHub scope
+        // requirements, etc.). `validate()` only asserts OAuth-mode-specific
+        // invariants when `mode == AuthMode::OAuth`, so the manual mode check
+        // immediately below is NOT redundant with it — it's the only thing
+        // that rejects a non-OAuth config reaching `AuthState::new` at all.
+        config.validate()?;
+
         if !matches!(config.mode, AuthMode::OAuth) {
             return Err(AuthError::Config(format!(
                 "AuthState requires {prefix}_AUTH_MODE=oauth",
