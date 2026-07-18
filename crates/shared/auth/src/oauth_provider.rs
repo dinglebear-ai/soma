@@ -102,6 +102,13 @@ pub trait OAuthProvider: Send + Sync + std::fmt::Debug {
 /// format. Changing it would silently invalidate every existing Google
 /// session on upgrade. Authelia and GitHub are new — there is no existing
 /// data to break, so they get the safer namespaced form from day one.
+///
+/// Only called from `authorize.rs`/`token.rs`, both gated behind
+/// `http-axum` — a build of this crate with that feature off (and
+/// `--all-targets` but not `--tests`) has no production caller, hence the
+/// conditional `allow`. The two unit tests below exercise this function
+/// unconditionally regardless of `http-axum`.
+#[cfg_attr(not(feature = "http-axum"), allow(dead_code))]
 pub(crate) fn namespaced_subject(provider_id: &str, raw_subject: &str) -> String {
     if provider_id == "google" {
         raw_subject.to_string()
