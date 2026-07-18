@@ -92,10 +92,15 @@ fn expand_env_templates_substitutes_a_single_variable() {
 
 #[test]
 fn expand_env_templates_substitutes_multiple_variables() {
+    // CARGO_PKG_NAME, not HOME: Cargo sets this as a real process
+    // environment variable for every `cargo test` run on every platform it
+    // supports, unlike HOME — which Windows test runners don't set,
+    // breaking this exact test there.
     let path = std::env::var("PATH").expect("PATH is set in any test environment");
-    let home = std::env::var("HOME").expect("HOME is set in any test environment");
-    let result = expand_env_templates("${PATH}-${HOME}");
-    assert_eq!(result, Ok(format!("{path}-{home}")));
+    let pkg_name = std::env::var("CARGO_PKG_NAME")
+        .expect("CARGO_PKG_NAME is set by cargo test on every platform");
+    let result = expand_env_templates("${PATH}-${CARGO_PKG_NAME}");
+    assert_eq!(result, Ok(format!("{path}-{pkg_name}")));
 }
 
 #[test]
