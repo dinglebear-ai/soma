@@ -146,7 +146,7 @@ fn doctor_json_reports_deterministic_checks_for_a_clean_loopback_environment() {
 
     let data_dir = env.data_dir();
     let config_path = data_dir.join("config.toml");
-    let bin_path = bin_dir().join("soma");
+    let bin_path = bin_dir().join(format!("soma{}", std::env::consts::EXE_SUFFIX));
 
     assert_eq!(
         checks[0],

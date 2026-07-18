@@ -122,6 +122,22 @@ pub fn check_binary_in_path(binary: &str) -> DoctorCheck {
                 candidate.display().to_string(),
             );
         }
+
+        // Command lookup on Windows adds `.exe` for extensionless names. Mirror
+        // that behavior so callers can use the canonical binary name on every
+        // platform (for example, `soma` rather than a Windows-only `soma.exe`).
+        if !std::env::consts::EXE_SUFFIX.is_empty()
+            && !binary.ends_with(std::env::consts::EXE_SUFFIX)
+        {
+            let candidate = dir.join(format!("{binary}{}", std::env::consts::EXE_SUFFIX));
+            if candidate.is_file() {
+                return DoctorCheck::pass(
+                    "config",
+                    format!("Binary in PATH: {binary}"),
+                    candidate.display().to_string(),
+                );
+            }
+        }
     }
 
     DoctorCheck::fail(
