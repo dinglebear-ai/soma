@@ -109,18 +109,29 @@ pub fn check_dir_writable(label: &str, dir: &Path) -> DoctorCheck {
 /// Claude Code stdio config (`~/.claude/settings.json`) resolves the binary by
 /// name. If it is not in PATH the stdio transport will silently fail.
 ///
+/// `binary` is the bare name (no platform-specific extension expected from
+/// the caller — `"soma"`, not `"soma.exe"`). Each PATH directory is checked
+/// both for `binary` as-is and for `binary` plus
+/// [`std::env::consts::EXE_SUFFIX`] (empty on Unix, `.exe` on Windows), so a
+/// caller never needs to special-case the platform. Without the suffixed
+/// check, this always failed on Windows even when the binary was correctly
+/// installed and on PATH, since `soma.exe` never matches a bare `dir.join("soma")`.
+///
 /// # CUSTOMIZE
 /// Replace `"soma"` with your binary name (matches Cargo.toml `[[bin]] name`).
 pub fn check_binary_in_path(binary: &str) -> DoctorCheck {
     let path_var = std::env::var_os("PATH").unwrap_or_default();
+    let suffixed = format!("{binary}{}", std::env::consts::EXE_SUFFIX);
     for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(binary);
-        if candidate.is_file() {
-            return DoctorCheck::pass(
-                "config",
-                format!("Binary in PATH: {binary}"),
-                candidate.display().to_string(),
-            );
+        for name in [binary, suffixed.as_str()] {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return DoctorCheck::pass(
+                    "config",
+                    format!("Binary in PATH: {binary}"),
+                    candidate.display().to_string(),
+                );
+            }
         }
     }
 

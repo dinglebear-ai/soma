@@ -70,10 +70,28 @@ fn binary_in_path_passes_for_posix_sh() {
 
 #[cfg(windows)]
 #[test]
-fn binary_in_path_passes_for_windows_cmd() {
-    let check = check_binary_in_path("cmd.exe");
-    assert!(check.ok, "cmd.exe should be found in PATH");
+fn binary_in_path_passes_for_windows_cmd_given_the_bare_name() {
+    // Callers pass the bare name (as production's check_binary_in_path("soma")
+    // does) and rely on the platform-suffix resolution, not a hardcoded
+    // `.exe` — this is the exact shape that let a real bug ship: passing
+    // "cmd.exe" here instead would still pass even if bare-name resolution
+    // were broken, since it would match "cmd.exe" literally either way.
+    let check = check_binary_in_path("cmd");
+    assert!(
+        check.ok,
+        "cmd should be found in PATH given only the bare name"
+    );
     assert_eq!(check.category, "config");
+}
+
+#[cfg(windows)]
+#[test]
+fn binary_in_path_also_passes_given_the_exe_suffix_explicitly() {
+    let check = check_binary_in_path("cmd.exe");
+    assert!(
+        check.ok,
+        "cmd.exe should still be found when passed explicitly"
+    );
 }
 
 #[test]
