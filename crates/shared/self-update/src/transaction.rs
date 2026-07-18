@@ -57,14 +57,22 @@ impl Updater {
         let _lock = self.transaction_lock(&paths.lock)?;
         let executable = paths.executable;
         let state = paths.state;
+        let validated_path = absolute(validated.path())?;
+        let staged_metadata = std::fs::symlink_metadata(&validated_path)
+            .map_err(|error| UpdateError::io(&validated_path, error))?;
+        if !staged_metadata.file_type().is_file() {
+            return Err(UpdateError::InvalidStagedArtifact {
+                path: validated_path,
+            });
+        }
         if let Some(marker) = read_marker(&state, &executable)? {
             return Err(UpdateError::PendingUpdateExists {
                 path: state,
                 target: marker.target,
             });
         }
-        cleanup_owned_artifacts(&executable, None, Some(validated.path()))?;
-        let actual_digest = hash_file(validated.path())?;
+        cleanup_owned_artifacts(&executable, None, Some(&validated_path))?;
+        let actual_digest = hash_file(&validated_path)?;
         if actual_digest != validated.sha256() {
             return Err(UpdateError::DigestMismatch {
                 expected: validated.sha256().to_owned(),
@@ -88,7 +96,7 @@ impl Updater {
             remove_file(&backup)?;
             return Err(error);
         }
-        if let Err(source) = std::fs::rename(validated.path(), &executable) {
+        if let Err(source) = std::fs::rename(&validated_path, &executable) {
             remove_file(&state)?;
             remove_file(&backup)?;
             return Err(UpdateError::io(&executable, source));

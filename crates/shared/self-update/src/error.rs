@@ -45,6 +45,8 @@ pub enum UpdateError {
     InvalidLayout { first: PathBuf, second: PathBuf },
     #[error("an update to {target} is already pending at {path}")]
     PendingUpdateExists { path: PathBuf, target: String },
+    #[error("staged artifact is not a regular file: {path}")]
+    InvalidStagedArtifact { path: PathBuf },
     #[error("I/O operation failed for {path}: {source}")]
     Io {
         path: PathBuf,

@@ -40,6 +40,32 @@ async fn install_rehashes_validated_bytes_before_mutating_live_state() {
 }
 
 #[tokio::test]
+async fn install_rejects_a_validated_path_replaced_by_a_symlink() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let other = temp.path().join("other");
+    let old = b"#!/bin/sh\necho 'example 1.0.0'\n";
+    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    std::fs::write(&executable, old).unwrap();
+    std::fs::write(&other, new).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    let artifact = validated(&updater, new, "2.0.0").await;
+    let staged_path = artifact.path().to_path_buf();
+    std::fs::remove_file(&staged_path).unwrap();
+    std::os::unix::fs::symlink(&other, &staged_path).unwrap();
+    assert!(matches!(
+        updater.install(artifact, "1.0.0").await,
+        Err(UpdateError::InvalidStagedArtifact { .. })
+    ));
+    assert_eq!(std::fs::read(&executable).unwrap(), old);
+    assert!(!state.exists());
+}
+
+#[tokio::test]
 async fn copy_backup_and_rollback_preserve_restrictive_unix_modes() {
     use std::os::unix::fs::PermissionsExt;
 
