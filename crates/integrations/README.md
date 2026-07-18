@@ -9,8 +9,15 @@ soma-specific types. They exist so the API-client logic can be reused
 outside soma (a CLI, a different MCP server, a plain script) and eventually
 published to crates.io independently.
 
-**[`unifi`](unifi) is the reference example.** When extracting the next
-service, read it first and copy its shape rather than inventing a new one.
+**[`unifi`](unifi) and [`gotify`](gotify) are the reference examples** —
+read whichever fits the next service's shape and copy it rather than
+inventing a new one. `unifi` fronts a large, growing API (244 actions
+across two upstream surfaces) via a capability catalog and dynamic
+dispatch; `gotify` fronts a small, fixed API (13 operations) as a flat
+client with named methods and no dispatch machinery at all. See gotify's
+README ["Why no dynamic action dispatch"](gotify/README.md#why-no-dynamic-action-dispatch)
+section before reaching for `unifi`'s heavier shape by default — most
+services extracted here will look more like `gotify` than `unifi`.
 
 ## What belongs here
 

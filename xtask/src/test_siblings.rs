@@ -165,6 +165,13 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
          mod tests throughout - no siblings anywhere in the crate yet.",
     ),
     (
+        "crates/integrations/gotify/src",
+        "newly vendored (crates/integrations/ layer) with inline #[cfg(test)] \
+         mod tests throughout, plus tests/client.rs exercising the HTTP \
+         layer through the public API. Same convention as \
+         crates/integrations/unifi/src - see crates/integrations/README.md.",
+    ),
+    (
         "crates/shared/auth/src",
         "inline #[cfg(test)] mod tests throughout (21 modules, 0 siblings)",
     ),

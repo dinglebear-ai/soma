@@ -34,8 +34,8 @@ use axum::{
 use tracing::info;
 
 use crate::api::{
-    health, readyz, status, v1_capabilities, v1_dynamic_provider_route, v1_echo, v1_greet,
-    v1_help, v1_provider_tool_action, v1_providers, v1_service_status,
+    health, readyz, status, v1_capabilities, v1_dynamic_provider_route, v1_echo, v1_greet, v1_help,
+    v1_provider_tool_action, v1_providers, v1_service_status,
 };
 use crate::bootstrap::{authorization_mode, mcp_state_for_state};
 use crate::gateway_api::v1_gateway_action;

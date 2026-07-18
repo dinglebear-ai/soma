@@ -261,9 +261,7 @@ pub async fn openapi_json(State(state): State<ApiState>) -> axum::response::Resp
 /// the composition root (`apps/soma`) also calls it so it can layer its own
 /// route augmentation (e.g. Palette's `/v1/palette/*`) on top without
 /// `soma-api` depending on a peer product-surface crate.
-pub async fn build_openapi_document(
-    state: &ApiState,
-) -> Result<Value, axum::response::Response> {
+pub async fn build_openapi_document(state: &ApiState) -> Result<Value, axum::response::Response> {
     if let Some(response) = refresh_file_providers(state) {
         return Err(response);
     }
