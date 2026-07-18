@@ -53,9 +53,19 @@ async fn single_round_trip_sends_request_and_parses_response() {
     let (socket_path, _dir) =
         spawn_fake_daemon(move |_req| json_response("HTTP/1.1 200 OK", body)).await;
 
-    let response = execute(&socket_path, Method::Get, "/1.0/test", &[], None, None)
-        .await
-        .expect("round trip should succeed");
+    let response = execute(
+        &socket_path,
+        RequestSpec {
+            method: Method::Get,
+            path: "/1.0/test",
+            query: &[],
+            body: None,
+            if_match: None,
+        },
+        None,
+    )
+    .await
+    .expect("round trip should succeed");
 
     assert_eq!(response.status, 200);
     let parsed: serde_json::Value = serde_json::from_slice(&response.body).unwrap();
@@ -81,9 +91,19 @@ async fn concurrent_requests_on_the_same_socket_do_not_block_each_other() {
     let fast_path = socket_path.clone();
     let fast = tokio::spawn(async move {
         let start = std::time::Instant::now();
-        execute(&fast_path, Method::Get, "/1.0/fast", &[], None, None)
-            .await
-            .expect("fast request should succeed");
+        execute(
+            &fast_path,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/fast",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
+            None,
+        )
+        .await
+        .expect("fast request should succeed");
         start.elapsed()
     });
 
@@ -91,7 +111,18 @@ async fn concurrent_requests_on_the_same_socket_do_not_block_each_other() {
     tokio::time::sleep(Duration::from_millis(20)).await;
     let slow_path = socket_path.clone();
     let _slow = tokio::spawn(async move {
-        execute(&slow_path, Method::Get, "/1.0/slow", &[], None, None).await
+        execute(
+            &slow_path,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/slow",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
+            None,
+        )
+        .await
     });
 
     let fast_elapsed = fast.await.expect("fast task should not panic");
@@ -123,7 +154,17 @@ async fn mid_response_disconnect_returns_transport_error_not_a_hang() {
 
     let result = tokio::time::timeout(
         Duration::from_secs(5),
-        execute(&socket_path, Method::Get, "/1.0/test", &[], None, None),
+        execute(
+            &socket_path,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/test",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
+            None,
+        ),
     )
     .await
     .expect("must not hang - should return promptly with an error");
@@ -153,7 +194,18 @@ async fn execute_rejects_crlf_injection_in_path_before_sending_anything() {
     let malicious_path =
         "/1.0/instances/c1\r\n\r\nDELETE /1.0/instances/other HTTP/1.1\r\nHost: localhost\r\n\r\n";
 
-    let result = execute(&socket_path, Method::Get, malicious_path, &[], None, None).await;
+    let result = execute(
+        &socket_path,
+        RequestSpec {
+            method: Method::Get,
+            path: malicious_path,
+            query: &[],
+            body: None,
+            if_match: None,
+        },
+        None,
+    )
+    .await;
 
     assert!(
         matches!(result, Err(crate::Error::InvalidRequest(_))),
@@ -184,11 +236,14 @@ async fn execute_rejects_crlf_injection_in_if_match_before_sending_anything() {
 
     let result = execute(
         &socket_path,
-        Method::Get,
-        "/1.0/instances/c1",
-        &[],
+        RequestSpec {
+            method: Method::Get,
+            path: "/1.0/instances/c1",
+            query: &[],
+            body: None,
+            if_match: Some(malicious_etag),
+        },
         None,
-        Some(malicious_etag),
     )
     .await;
 
@@ -239,12 +294,15 @@ async fn response_exceeding_the_cap_is_rejected_without_buffering_it_fully() {
         Duration::from_secs(5),
         execute_capped(
             &socket_path,
-            Method::Get,
-            "/1.0/test",
-            &[],
-            None,
-            None,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/test",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
             1024,
+            None,
         ),
     )
     .await
@@ -254,4 +312,180 @@ async fn response_exceeding_the_cap_is_rejected_without_buffering_it_fully() {
         result,
         Err(crate::Error::ResponseTooLarge { limit: 1024 })
     ));
+}
+
+/// Builds a `Transfer-Encoding: chunked` response body from `chunks`,
+/// terminated by the standard zero-size chunk.
+fn chunked_response(status_line: &str, chunks: &[&str]) -> Vec<u8> {
+    let mut out = format!("{status_line}\r\nTransfer-Encoding: chunked\r\n\r\n").into_bytes();
+    for chunk in chunks {
+        out.extend_from_slice(format!("{:x}\r\n", chunk.len()).as_bytes());
+        out.extend_from_slice(chunk.as_bytes());
+        out.extend_from_slice(b"\r\n");
+    }
+    out.extend_from_slice(b"0\r\n\r\n");
+    out
+}
+
+#[tokio::test]
+async fn chunked_transfer_encoding_response_decodes_correctly() {
+    // Split across multiple chunks to exercise the multi-chunk accumulation
+    // path, not just a single-chunk shortcut.
+    let (socket_path, _dir) = spawn_fake_daemon(move |_req| {
+        chunked_response(
+            "HTTP/1.1 200 OK",
+            &[
+                r#"{"type":"sync","status":"S"#,
+                r#"uccess","status_code":200,"metadata":{"hello":"world"}}"#,
+            ],
+        )
+    })
+    .await;
+
+    let response = execute(
+        &socket_path,
+        RequestSpec {
+            method: Method::Get,
+            path: "/1.0/test",
+            query: &[],
+            body: None,
+            if_match: None,
+        },
+        None,
+    )
+    .await
+    .expect("chunked round trip should succeed");
+
+    assert_eq!(response.status, 200);
+    let parsed: serde_json::Value = serde_json::from_slice(&response.body).unwrap();
+    assert_eq!(parsed["metadata"]["hello"], "world");
+}
+
+#[tokio::test]
+async fn chunked_body_chunk_size_that_would_overflow_the_cap_check_is_rejected_not_panicking() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let socket_path = dir.path().join("incus.sock");
+    let listener = UnixListener::bind(&socket_path).expect("bind unix listener");
+
+    tokio::spawn(async move {
+        let Ok((mut stream, _)) = listener.accept().await else {
+            return;
+        };
+        let mut buf = vec![0u8; 8192];
+        let _ = stream.read(&mut buf).await;
+        // A chunk-size line claiming a value near usize::MAX. Before the
+        // overflow fix, `body.len() + size` here would wrap (release) or
+        // panic (debug) instead of being caught by the `> max_bytes` guard.
+        let headers = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\n";
+        let _ = stream.write_all(headers).await;
+        // Deliberately never write the (impossible) chunk body.
+    });
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        execute(
+            &socket_path,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/test",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
+            None,
+        ),
+    )
+    .await
+    .expect("must reject the oversized chunk-size claim promptly, not hang");
+
+    assert!(
+        matches!(result, Err(crate::Error::ResponseTooLarge { .. })),
+        "expected ResponseTooLarge for a chunk-size claim near usize::MAX, got {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn response_with_too_many_header_lines_is_rejected() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let socket_path = dir.path().join("incus.sock");
+    let listener = UnixListener::bind(&socket_path).expect("bind unix listener");
+
+    tokio::spawn(async move {
+        let Ok((mut stream, _)) = listener.accept().await else {
+            return;
+        };
+        let mut buf = vec![0u8; 8192];
+        let _ = stream.read(&mut buf).await;
+        // MAX_HEADER_COUNT is 100 - send well past that before ever
+        // terminating the header section, so a peer that just keeps
+        // sending small, individually-legal header lines can't grow
+        // memory without bound.
+        let mut response = b"HTTP/1.1 200 OK\r\n".to_vec();
+        for i in 0..200 {
+            response.extend_from_slice(format!("X-Filler-{i}: 1\r\n").as_bytes());
+        }
+        response.extend_from_slice(b"\r\n{}");
+        let _ = stream.write_all(&response).await;
+    });
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        execute(
+            &socket_path,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/test",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
+            None,
+        ),
+    )
+    .await
+    .expect("must reject the excessive header count promptly, not hang");
+
+    assert!(
+        matches!(result, Err(crate::Error::ResponseTooLarge { .. })),
+        "expected ResponseTooLarge for a response with 200 header lines, got {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_daemon_that_never_responds_times_out_instead_of_hanging_forever() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let socket_path = dir.path().join("incus.sock");
+    let listener = UnixListener::bind(&socket_path).expect("bind unix listener");
+
+    tokio::spawn(async move {
+        let Ok((_stream, _)) = listener.accept().await else {
+            return;
+        };
+        // Accept the connection but never read or write anything - the
+        // caller-supplied timeout, not a server-side signal, must be what
+        // ends this call.
+        std::future::pending::<()>().await;
+    });
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        execute(
+            &socket_path,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/test",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
+            Some(Duration::from_millis(100)),
+        ),
+    )
+    .await
+    .expect("the per-request timeout must fire well before the test's own 5s backstop");
+
+    assert!(
+        matches!(result, Err(crate::Error::Timeout { .. })),
+        "expected Error::Timeout for a daemon that never responds, got {result:?}"
+    );
 }

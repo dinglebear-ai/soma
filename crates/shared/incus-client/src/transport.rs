@@ -7,6 +7,7 @@ pub(crate) mod unix;
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::config::ClientConfig;
 use crate::error::{Error, Result};
@@ -119,6 +120,7 @@ impl RecursionQuery {
 #[derive(Debug, Clone)]
 struct ClientInner {
     socket_path: PathBuf,
+    request_timeout: Option<Duration>,
 }
 
 /// The Incus API client. Cheap to clone (`Arc`-backed) - share one instance
@@ -133,6 +135,7 @@ impl Client {
     pub fn new(config: ClientConfig) -> Self {
         Self(Arc::new(ClientInner {
             socket_path: config.socket_path,
+            request_timeout: config.request_timeout,
         }))
     }
 
@@ -151,11 +154,14 @@ impl Client {
         let body_bytes = body.map(serde_json::to_vec).transpose()?;
         let raw = unix::execute(
             &self.0.socket_path,
-            method,
-            path,
-            query,
-            body_bytes.as_deref(),
-            if_match,
+            unix::RequestSpec {
+                method,
+                path,
+                query,
+                body: body_bytes.as_deref(),
+                if_match,
+            },
+            self.0.request_timeout,
         )
         .await?;
 

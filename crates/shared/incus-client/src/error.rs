@@ -38,6 +38,9 @@ pub enum Error {
 
     #[error("invalid request: {0}")]
     InvalidRequest(String),
+
+    #[error("request timed out after {after:?}")]
+    Timeout { after: std::time::Duration },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
