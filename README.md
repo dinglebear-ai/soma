@@ -140,7 +140,7 @@ Lower-level Cargo features are available when you need a custom shape:
 | `mcp-stdio` | Local stdio MCP transport. |
 | `api` | REST handlers and OpenAPI-backed business routes. |
 | `auth` | Shared auth policy and bearer-token enforcement. |
-| `oauth` | Google OAuth and JWT issuance on top of `auth`. |
+| `oauth` | Google, Authelia, and GitHub OAuth/OIDC plus JWT issuance on top of `auth`. |
 | `mcp-http` | Streamable HTTP MCP mounted in Axum. |
 | `web` | Embedded static web UI fallback. |
 | `observability` | Metrics/tracing hooks. |
@@ -537,7 +537,7 @@ The HTTP server supports four auth policies:
 |---|---|---|
 | Loopback development | Loopback bind, or `SOMA_MCP_NO_AUTH=true` on loopback | No auth middleware, no scope checks. |
 | Bearer token | `SOMA_MCP_TOKEN` set | `/mcp` and `/v1/*` require `Authorization: Bearer <token>`. |
-| OAuth | `SOMA_MCP_AUTH_MODE=oauth` with Google OAuth settings | Browser-based Google OAuth issues JWT bearer tokens. |
+| OAuth | `SOMA_MCP_AUTH_MODE=oauth` with at least one configured provider | Browser-based Google, Authelia, or GitHub login issues JWT bearer tokens. |
 | Trusted gateway | `SOMA_NOAUTH=true` on non-loopback | Local auth and scope checks disabled because an upstream gateway is responsible. |
 
 The startup guard refuses non-loopback unauthenticated binds unless bearer,
@@ -570,6 +570,12 @@ upstream/platform credentials as required.
 | `SOMA_MCP_PUBLIC_URL` | OAuth | empty | Public URL for OAuth metadata and callbacks. |
 | `SOMA_MCP_GOOGLE_CLIENT_ID` | OAuth | empty | Google OAuth client ID. |
 | `SOMA_MCP_GOOGLE_CLIENT_SECRET` | OAuth | empty | Google OAuth client secret. |
+| `SOMA_MCP_AUTHELIA_ISSUER_URL` | Authelia | empty | HTTPS Authelia OIDC issuer URL. |
+| `SOMA_MCP_AUTHELIA_CLIENT_ID` | Authelia | empty | Authelia OIDC client ID. |
+| `SOMA_MCP_AUTHELIA_CLIENT_SECRET` | Authelia | empty | Authelia OIDC client secret. |
+| `SOMA_MCP_GITHUB_CLIENT_ID` | GitHub | empty | GitHub OAuth App client ID. |
+| `SOMA_MCP_GITHUB_CLIENT_SECRET` | GitHub | empty | GitHub OAuth App client secret. |
+| `SOMA_MCP_AUTH_DEFAULT_PROVIDER` | no | first configured | Provider used when a request omits `provider`; automatic priority is Google, Authelia, GitHub. |
 | `SOMA_MCP_AUTH_ADMIN_EMAIL` | OAuth | empty | Initial/admin OAuth email. |
 | `RUST_LOG` | no | `info` | Log filter. Stdio mode suppresses noisy logs to avoid corrupting JSON-RPC. |
 
@@ -577,6 +583,14 @@ Samples:
 
 - [.env.example](.env.example) for secrets, URLs, and runtime env.
 - [config.soma.toml](config.soma.toml) for non-secret defaults.
+
+Provider callback paths default to `/auth/google/callback`,
+`/auth/authelia/callback`, and `/auth/github/callback`; callback and scope
+overrides are listed in [docs/ENV.md](docs/ENV.md). GitHub OAuth Apps do not
+provide an upstream refresh token, so GitHub-authenticated sessions do not
+receive a local refresh token and must sign in again after their access token
+expires. See [docs/AUTH.md](docs/AUTH.md) for provider selection and security
+details.
 
 ## Development
 

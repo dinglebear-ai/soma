@@ -5,7 +5,7 @@
 //! middleware writes an [`AuthContext`] into request extensions on success,
 //! returns an [`AuthError`]-shaped 401 response on failure, and (for cookie
 //! mode + browser GETs) optionally redirects to a configured login path so the
-//! Google OAuth flow can establish a session.
+//! configured OAuth/OIDC flow can establish a session.
 //!
 //! Precedence (matches the legacy lab middleware):
 //!

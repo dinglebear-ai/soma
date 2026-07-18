@@ -28,6 +28,8 @@ mode = "bearer"
 # public_url = "https://example.yourdomain.com"
 # google_client_id = ""
 # google_client_secret = ""
+# Authelia/GitHub credentials, callback overrides, scopes, and the default
+# provider are runtime-only environment variables; see docs/ENV.md.
 admin_email = ""
 allowed_emails = []
 sqlite_path = "/data/auth.db"

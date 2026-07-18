@@ -520,6 +520,12 @@ Secrets belong in environment variables or `.env`; non-secret tuning belongs in
 | `[PREFIX]_MCP_PUBLIC_URL` | OAuth | empty | Public URL for OAuth metadata and callbacks. |
 | `[PREFIX]_MCP_GOOGLE_CLIENT_ID` | OAuth | empty | Google OAuth client ID. |
 | `[PREFIX]_MCP_GOOGLE_CLIENT_SECRET` | OAuth | empty | Google OAuth client secret. |
+| `[PREFIX]_MCP_AUTHELIA_ISSUER_URL` | Authelia | empty | HTTPS Authelia OIDC issuer URL. |
+| `[PREFIX]_MCP_AUTHELIA_CLIENT_ID` | Authelia | empty | Authelia OIDC client ID. |
+| `[PREFIX]_MCP_AUTHELIA_CLIENT_SECRET` | Authelia | empty | Authelia OIDC client secret. |
+| `[PREFIX]_MCP_GITHUB_CLIENT_ID` | GitHub | empty | GitHub OAuth App client ID. |
+| `[PREFIX]_MCP_GITHUB_CLIENT_SECRET` | GitHub | empty | GitHub OAuth App client secret. |
+| `[PREFIX]_MCP_AUTH_DEFAULT_PROVIDER` | no | first configured | Provider used when `provider` is omitted; automatic priority is Google, Authelia, GitHub. |
 | `[PREFIX]_MCP_AUTH_ADMIN_EMAIL` | OAuth | empty | Initial/admin OAuth email. |
 | `RUST_LOG` or `[PREFIX]_LOG` | no | `info` | Log filter. Stdio mode must keep protocol logs off stdout. |
 
@@ -549,7 +555,7 @@ The HTTP MCP endpoint supports these policies:
 |---|---|---|
 | Loopback development | Loopback bind or `[PREFIX]_MCP_NO_AUTH=true` on loopback | No auth middleware; scope checks may be bypassed. |
 | Bearer token | `[PREFIX]_MCP_TOKEN` set | `/mcp` requires `Authorization: Bearer <token>`. |
-| OAuth | `[PREFIX]_MCP_AUTH_MODE=oauth` with Google OAuth settings | Browser-based Google OAuth issues scoped JWT bearer tokens. |
+| OAuth | `[PREFIX]_MCP_AUTH_MODE=oauth` with at least one configured provider | Browser-based Google, Authelia, or GitHub login issues scoped JWT bearer tokens. |
 | Trusted gateway | `[PREFIX]_NOAUTH=true` on non-loopback | Local auth/scope checks disabled because an upstream gateway enforces them. |
 
 Document scopes:

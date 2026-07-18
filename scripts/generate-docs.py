@@ -296,6 +296,18 @@ def env_purpose(spec: EnvSpec) -> str:
         "SOMA_MCP_PUBLIC_URL": "Public URL used for OAuth metadata endpoints.",
         "SOMA_MCP_GOOGLE_CLIENT_ID": "Google OAuth client ID.",
         "SOMA_MCP_GOOGLE_CLIENT_SECRET": "Google OAuth client secret.",
+        "SOMA_MCP_GOOGLE_CALLBACK_PATH": "Google callback path (default: `/auth/google/callback`).",
+        "SOMA_MCP_GOOGLE_SCOPES": "Comma-separated Google scopes (default: `openid,email,profile`).",
+        "SOMA_MCP_AUTHELIA_ISSUER_URL": "Authelia OIDC issuer URL. HTTPS is required.",
+        "SOMA_MCP_AUTHELIA_CLIENT_ID": "Authelia OIDC client ID.",
+        "SOMA_MCP_AUTHELIA_CLIENT_SECRET": "Authelia OIDC client secret.",
+        "SOMA_MCP_AUTHELIA_CALLBACK_PATH": "Authelia callback path (default: `/auth/authelia/callback`).",
+        "SOMA_MCP_AUTHELIA_SCOPES": "Comma-separated Authelia scopes (default: `openid,email,profile,offline_access`).",
+        "SOMA_MCP_GITHUB_CLIENT_ID": "GitHub OAuth App client ID.",
+        "SOMA_MCP_GITHUB_CLIENT_SECRET": "GitHub OAuth App client secret.",
+        "SOMA_MCP_GITHUB_CALLBACK_PATH": "GitHub callback path (default: `/auth/github/callback`).",
+        "SOMA_MCP_GITHUB_SCOPES": "Comma-separated GitHub scopes; must include `user:email` (default: `read:user,user:email`).",
+        "SOMA_MCP_AUTH_DEFAULT_PROVIDER": "Provider used when `provider` is omitted: `google`, `authelia`, or `github`; automatic priority is Google, Authelia, GitHub.",
         "SOMA_MCP_AUTH_ADMIN_EMAIL": "Initial/admin email allowed by the OAuth flow.",
         "SOMA_MCP_HOST": "Bind host for HTTP transport. Set `0.0.0.0` only with bearer, OAuth, or trusted-gateway auth configured.",
         "SOMA_MCP_PORT": "Bind port for HTTP transport.",
@@ -313,6 +325,13 @@ def env_default(spec: EnvSpec, host: str, port: int) -> str:
         "SOMA_MCP_AUTH_MODE": "`bearer`",
         "SOMA_MCP_NO_AUTH": "`false`",
         "SOMA_NOAUTH": "`false`",
+        "SOMA_MCP_GOOGLE_CALLBACK_PATH": "`/auth/google/callback`",
+        "SOMA_MCP_GOOGLE_SCOPES": "`openid,email,profile`",
+        "SOMA_MCP_AUTHELIA_CALLBACK_PATH": "`/auth/authelia/callback`",
+        "SOMA_MCP_AUTHELIA_SCOPES": "`openid,email,profile,offline_access`",
+        "SOMA_MCP_GITHUB_CALLBACK_PATH": "`/auth/github/callback`",
+        "SOMA_MCP_GITHUB_SCOPES": "`read:user,user:email`",
+        "SOMA_MCP_AUTH_DEFAULT_PROVIDER": "automatic",
         "SOMA_MCP_SERVER_NAME": f"`{default_string('default_server_name')}`",
     }
     return defaults.get(spec.key, "unset")
@@ -405,6 +424,18 @@ def placeholder_for(spec: EnvSpec) -> str:
         "SOMA_MCP_PUBLIC_URL": "https://example.yourdomain.com",
         "SOMA_MCP_GOOGLE_CLIENT_ID": "123456789-abcdefg.apps.googleusercontent.com",
         "SOMA_MCP_GOOGLE_CLIENT_SECRET": "GOCSPX-your-secret-here",
+        "SOMA_MCP_GOOGLE_CALLBACK_PATH": "/auth/google/callback",
+        "SOMA_MCP_GOOGLE_SCOPES": "openid,email,profile",
+        "SOMA_MCP_AUTHELIA_ISSUER_URL": "https://auth.example.com",
+        "SOMA_MCP_AUTHELIA_CLIENT_ID": "soma",
+        "SOMA_MCP_AUTHELIA_CLIENT_SECRET": "your-authelia-client-secret",
+        "SOMA_MCP_AUTHELIA_CALLBACK_PATH": "/auth/authelia/callback",
+        "SOMA_MCP_AUTHELIA_SCOPES": "openid,email,profile,offline_access",
+        "SOMA_MCP_GITHUB_CLIENT_ID": "your-github-oauth-app-client-id",
+        "SOMA_MCP_GITHUB_CLIENT_SECRET": "your-github-oauth-app-client-secret",
+        "SOMA_MCP_GITHUB_CALLBACK_PATH": "/auth/github/callback",
+        "SOMA_MCP_GITHUB_SCOPES": "read:user,user:email",
+        "SOMA_MCP_AUTH_DEFAULT_PROVIDER": "authelia",
         "SOMA_MCP_AUTH_ADMIN_EMAIL": "admin@example.com",
         "SOMA_MCP_HOST": default_string("default_mcp_host"),
         "SOMA_MCP_PORT": str(default_int("default_mcp_port")),
@@ -504,6 +535,8 @@ mode = "bearer"
 # public_url = "https://example.yourdomain.com"
 # google_client_id = ""
 # google_client_secret = ""
+# Authelia/GitHub credentials, callback overrides, scopes, and the default
+# provider are runtime-only environment variables; see docs/ENV.md.
 admin_email = ""
 allowed_emails = []
 sqlite_path = "{sqlite_path}"
@@ -671,12 +704,12 @@ def plugin_setting_description(key: str, env_key: str) -> str:
     descriptions = {
         "server_url": "Optional HTTP server base URL for remote/platform fallback and health monitoring. The default MCP connection uses local stdio instead.",
         "api_token": "Optional bearer token for HTTP MCP fallback. Not used by the default stdio connection.",
-        "auth_mode": "Server auth mode. 'bearer' uses only the static API token. 'oauth' enables Google OAuth/JWT.",
+        "auth_mode": "Server auth mode. 'bearer' uses only the static API token. 'oauth' enables configured OAuth/OIDC providers and JWT issuance.",
         "no_auth": "Run the MCP server without authentication. ONLY safe when the server is bound to 127.x loopback.",
         "public_url": "Public base URL for OAuth issuer metadata, e.g. https://example.yourdomain.com. Required when auth_mode=oauth.",
         "google_client_id": "Google OAuth client ID used when auth_mode=oauth.",
         "google_client_secret": "Google OAuth client secret from the same Google Cloud Console credential.",
-        "auth_admin_email": "Bootstrap allowed Google account for OAuth mode.",
+        "auth_admin_email": "Bootstrap allowed email for OAuth mode, shared by all configured providers.",
         "soma_api_url": "Optional upstream API URL for dropped-in tools that use the bundled SomaClient compatibility layer. Maps to SOMA_API_URL.",
         "soma_api_key": "Optional upstream API key for dropped-in tools that use the bundled SomaClient compatibility layer. Maps to SOMA_API_KEY.",
     }

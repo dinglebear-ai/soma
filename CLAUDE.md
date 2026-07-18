@@ -98,7 +98,7 @@ For actions with parameters, extract them with `string_arg(&args, "param_name")`
 | `AuthPolicy::LoopbackDev` | `no_auth=true` or host is loopback (`localhost`, `127.*`, `::1`) via `McpConfig::is_loopback()` | No auth middleware; scope checks bypassed |
 | `AuthPolicy::TrustedGatewayUnscoped` | `SOMA_NOAUTH=true` on non-loopback behind an authz-enforcing gateway | No auth middleware; scope checks bypassed |
 | `AuthPolicy::Mounted { auth_state: None }` | Default non-loopback | Static bearer token required |
-| `AuthPolicy::Mounted { auth_state: Some(_) }` | `auth_mode = "oauth"` | Full Google OAuth + RS256 JWT issuance |
+| `AuthPolicy::Mounted { auth_state: Some(_) }` | `auth_mode = "oauth"` | Google, Authelia, and/or GitHub login + RS256 JWT issuance |
 
 Auth is selected in `build_auth_policy()` in `main.rs`. Scopes are `soma:read` and `soma:write` (write satisfies read). `help` requires no scope. Unknown actions get `DENY_SCOPE`.
 
@@ -118,6 +118,12 @@ Auth is selected in `build_auth_policy()` in `main.rs`. Scopes are `soma:read` a
 | `SOMA_MCP_AUTH_MODE` | `bearer` | `bearer` or `oauth` |
 | `SOMA_MCP_GOOGLE_CLIENT_ID` | — | Google OAuth client ID |
 | `SOMA_MCP_GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
+| `SOMA_MCP_AUTHELIA_ISSUER_URL` | — | HTTPS Authelia OIDC issuer URL |
+| `SOMA_MCP_AUTHELIA_CLIENT_ID` | — | Authelia OIDC client ID |
+| `SOMA_MCP_AUTHELIA_CLIENT_SECRET` | — | Authelia OIDC client secret |
+| `SOMA_MCP_GITHUB_CLIENT_ID` | — | GitHub OAuth App client ID |
+| `SOMA_MCP_GITHUB_CLIENT_SECRET` | — | GitHub OAuth App client secret |
+| `SOMA_MCP_AUTH_DEFAULT_PROVIDER` | auto | Default provider; automatic priority is Google, Authelia, GitHub |
 | `SOMA_MCP_AUTH_ADMIN_EMAIL` | — | OAuth admin email |
 | `RUST_LOG` | `info` | Log filter |
 

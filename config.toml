@@ -57,6 +57,8 @@ server_name = "soma" # advertised to MCP clients in tools/list response
 # public_url = ""           # SOMA_MCP_PUBLIC_URL (required for oauth)
 # google_client_id = ""     # SOMA_MCP_GOOGLE_CLIENT_ID (use env var)
 # google_client_secret = "" # SOMA_MCP_GOOGLE_CLIENT_SECRET (use env var)
+# Authelia/GitHub credentials, callback overrides, scopes, and the default
+# provider are runtime-only environment variables; see docs/ENV.md.
 admin_email = ""                       # SOMA_MCP_AUTH_ADMIN_EMAIL
 allowed_emails = []                    # additional allowed emails beyond admin_email
 sqlite_path = "/data/auth.db"          # OAuth session storage; update for your data dir

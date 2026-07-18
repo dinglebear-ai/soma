@@ -287,7 +287,7 @@ format, parse it here minimally but don't transform or interpret the data.
 |---|---|
 | API keys, tokens, passwords | bind host, port, server_name |
 | Service URLs | TLS skip, site, tailnet |
-| Google OAuth credentials | auth_mode, auth TTLs |
+| OAuth/OIDC provider credentials | auth_mode, auth TTLs |
 | MCP bearer token | allowed_hosts, allowed_origins |
 | Docker runtime vars (PUID, PGID) | retention settings, batch sizes |
 | RUST_LOG | resource limits |
@@ -1572,7 +1572,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release
 - MCP server with action-based tool dispatch
 - CLI thin shim
-- Bearer token + Google OAuth authentication
+- Bearer token + Google, Authelia, and GitHub OAuth/OIDC authentication
 - Streamable HTTP + stdio transport
 - Thin plugin setup hook plus binary-owned setup/repair
 - Claude Code plugin with userConfig

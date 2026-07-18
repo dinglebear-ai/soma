@@ -50,6 +50,12 @@ Claude Code plugin manifest. Defines the plugin identity, lifecycle hooks, and u
 Soma maps these plugin options into the current `SOMA_API_URL` /
 `SOMA_API_KEY` runtime env names for compatibility.
 
+The plugin settings surface currently exposes Google credentials only. The
+server runtime also supports Authelia and GitHub, but those providers must be
+configured with the direct `SOMA_MCP_AUTHELIA_*`, `SOMA_MCP_GITHUB_*`, and
+`SOMA_MCP_AUTH_DEFAULT_PROVIDER` environment variables documented in
+[`docs/ENV.md`](../docs/ENV.md).
+
 ### `.codex-plugin/plugin.json`
 
 Codex equivalent of the Claude Code manifest. Shares `skills/` with the Claude plugin. Adds Codex-specific UI fields under `interface`:

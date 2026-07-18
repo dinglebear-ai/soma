@@ -342,7 +342,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release
 - MCP server with action-based tool dispatch
 - CLI thin shim
-- Bearer token + Google OAuth authentication
+- Bearer token + Google, Authelia, and GitHub OAuth/OIDC authentication
 - Streamable HTTP + stdio transport
 - Thin plugin setup hook plus binary-owned setup/repair
 - Claude Code plugin with userConfig

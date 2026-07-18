@@ -32,7 +32,7 @@ Configuration is split between non-secret settings (`config.toml`) and secrets (
 |---|---|
 | API keys, tokens, passwords | bind host, port, server_name |
 | Service URLs | TLS skip, site, tailnet |
-| Google OAuth credentials | auth_mode, auth TTLs |
+| OAuth/OIDC provider credentials | auth_mode, auth TTLs |
 | MCP bearer token | allowed_hosts, allowed_origins |
 | Docker runtime vars (PUID, PGID) | retention settings, batch sizes |
 | RUST_LOG | resource limits |
@@ -106,6 +106,15 @@ Current env overrides include:
 | `mcp.auth.admin_email` | `SOMA_MCP_AUTH_ADMIN_EMAIL` |
 | `soma.api_url` | `SOMA_API_URL` |
 | `soma.api_key` | `SOMA_API_KEY` |
+
+Authelia and GitHub provider credentials currently bypass this typed TOML
+layer and are read directly by the OAuth runtime. Configure
+`SOMA_MCP_AUTHELIA_ISSUER_URL`, `SOMA_MCP_AUTHELIA_CLIENT_ID`,
+`SOMA_MCP_AUTHELIA_CLIENT_SECRET`, `SOMA_MCP_GITHUB_CLIENT_ID`,
+`SOMA_MCP_GITHUB_CLIENT_SECRET`, and `SOMA_MCP_AUTH_DEFAULT_PROVIDER` in the
+runtime environment. Callback and scope overrides are listed in
+[`docs/ENV.md`](ENV.md). The setup wizard, doctor, and plugin-option mapping
+remain Google-only until the typed config surface is extended.
 
 ## Auth policy summary
 

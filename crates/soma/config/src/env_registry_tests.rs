@@ -7,6 +7,9 @@ fn registry_contains_core_runtime_keys() {
         "SOMA_API_URL",
         "SOMA_API_KEY",
         "SOMA_MCP_TOKEN",
+        "SOMA_MCP_AUTHELIA_CLIENT_ID",
+        "SOMA_MCP_GITHUB_CLIENT_ID",
+        "SOMA_MCP_AUTH_DEFAULT_PROVIDER",
         "SOMA_MCP_HOST",
         "SOMA_MCP_PORT",
     ] {
@@ -18,6 +21,9 @@ fn registry_contains_core_runtime_keys() {
 fn secret_keys_are_marked_secret() {
     assert!(spec_for("SOMA_API_KEY").unwrap().secret);
     assert!(spec_for("SOMA_MCP_TOKEN").unwrap().secret);
+    assert!(spec_for("SOMA_MCP_AUTHELIA_CLIENT_SECRET").unwrap().secret);
+    assert!(spec_for("SOMA_MCP_GITHUB_CLIENT_SECRET").unwrap().secret);
+    assert!(!spec_for("SOMA_MCP_AUTHELIA_ISSUER_URL").unwrap().secret);
     assert!(!spec_for("SOMA_API_URL").unwrap().secret);
 }
 

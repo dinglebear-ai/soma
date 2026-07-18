@@ -8,7 +8,10 @@ This server supports two authentication mechanisms simultaneously: **static bear
 
 **Bearer tokens** are for agents and automation. An agent sets `Authorization: Bearer <token>` and makes calls. No browser, no redirect flow, no session cookie — just a shared secret. Tokens are fast to issue (`just gen-token`) and easy to rotate.
 
-**OAuth** is for humans. It runs a full browser-based Google OAuth flow, issues short-lived JWTs, and maintains refresh tokens. This is the right choice when a human user needs to grant access through a UI without ever seeing a raw token.
+**OAuth** is for humans. It runs a browser-based flow through Google, Authelia,
+or GitHub and issues short-lived Soma JWTs. Google and Authelia can maintain
+refresh tokens; GitHub OAuth Apps cannot. This is the right choice when a human
+user needs to grant access through a UI without ever seeing a raw token.
 
 When both are configured, each request is accepted if it satisfies either mechanism. A human signs in via OAuth; an agent uses a token. They share the same server.
 
@@ -45,15 +48,47 @@ dynamic `/v1/*` routes.
 
 ## Configuring OAuth
 
-Set the following environment variables:
+Set the common variables plus at least one complete provider credential set:
 
 ```bash
 SOMA_MCP_AUTH_MODE=oauth
 SOMA_MCP_PUBLIC_URL=https://your-server.example.com   # public URL for OAuth callbacks
+SOMA_MCP_AUTH_ADMIN_EMAIL=you@example.com
+
+# Choose one or more providers.
 SOMA_MCP_GOOGLE_CLIENT_ID=...
 SOMA_MCP_GOOGLE_CLIENT_SECRET=...
-SOMA_MCP_AUTH_ADMIN_EMAIL=you@example.com
+
+SOMA_MCP_AUTHELIA_ISSUER_URL=https://auth.example.com
+SOMA_MCP_AUTHELIA_CLIENT_ID=soma
+SOMA_MCP_AUTHELIA_CLIENT_SECRET=...
+
+SOMA_MCP_GITHUB_CLIENT_ID=...
+SOMA_MCP_GITHUB_CLIENT_SECRET=...
+
+# Optional. When omitted, the first configured provider wins in this order:
+# google, authelia, github.
+SOMA_MCP_AUTH_DEFAULT_PROVIDER=authelia
 ```
+
+Provider credentials are configured directly through `SOMA_MCP_*` environment
+variables. The typed `config.toml`, setup wizard, doctor output, and plugin
+settings still expose only the legacy Google fields; use environment variables
+for Authelia, GitHub, callback overrides, scopes, and default-provider selection.
+
+Default callback paths are `/auth/google/callback`,
+`/auth/authelia/callback`, and `/auth/github/callback`. Register the selected
+provider's full callback URL as `SOMA_MCP_PUBLIC_URL` plus that path. Override
+them with `SOMA_MCP_GOOGLE_CALLBACK_PATH`,
+`SOMA_MCP_AUTHELIA_CALLBACK_PATH`, or `SOMA_MCP_GITHUB_CALLBACK_PATH` when
+needed. Callback paths must begin with `/`, must be unique, and cannot collide
+with Soma's built-in OAuth routes.
+
+The default scopes are `openid,email,profile` for Google,
+`openid,email,profile,offline_access` for Authelia, and
+`read:user,user:email` for GitHub. Override them with the matching
+`SOMA_MCP_<PROVIDER>_SCOPES` comma-separated variable. GitHub scopes must keep
+`user:email` so Soma can obtain a verified primary email.
 
 The server exposes standard OAuth discovery endpoints under `/mcp/.well-known/` that MCP clients can use for dynamic registration. Session cookies are disabled — all auth is via `Authorization` headers.
 
@@ -61,22 +96,29 @@ OAuth and bearer token can coexist: set both `SOMA_MCP_TOKEN` and the OAuth vari
 
 ---
 
-## Multi-provider OAuth (crate capability)
+## Multi-provider OAuth
 
 `soma-auth` (`crates/shared/auth`) supports more than one upstream OAuth/OIDC
 identity provider at once: Google, Authelia (a real OIDC Provider with a
-configurable issuer), and GitHub (plain OAuth2, no ID token). A consuming
-deployment enables any subset simultaneously via `AuthConfig.google` /
+configurable issuer), and GitHub (plain OAuth2, no ID token). The `soma` binary
+enables any subset simultaneously through its `SOMA_MCP` environment variables,
+which populate `AuthConfig.google` /
 `.authelia` / `.github` and `AuthConfig.default_provider`. When 2+ providers
 are configured, `GET /auth/login` renders a plain HTML picker unless the
 request already specifies `?provider=`, and `GET /authorize` accepts the same
 optional `?provider=` query parameter for headless MCP clients.
 
-The `soma` binary's own CLI/config/setup-wizard/doctor surface does not yet
-expose Authelia/GitHub configuration — that wiring is a separate, dependent
-change. This section documents the underlying crate capability so downstream
-consumers of `soma-auth` (any Rust MCP server in this family) can wire it in
-directly today.
+If `SOMA_MCP_AUTH_DEFAULT_PROVIDER` is omitted, Soma chooses the first
+configured provider in the stable priority order Google, Authelia, GitHub.
+Requests can override that choice with `?provider=google`,
+`?provider=authelia`, or `?provider=github`.
+
+Authelia and Google are OIDC providers: Soma verifies their signed ID tokens,
+and `offline_access` lets Authelia return an upstream refresh token. GitHub is
+plain OAuth2. Soma fetches `/user` and `/user/emails` to establish identity;
+GitHub OAuth Apps do not issue an upstream refresh token, so Soma deliberately
+does not issue a local refresh token for GitHub-authenticated sessions. After
+the short-lived Soma access token expires, the client must authenticate again.
 
 **Security trade-off — read before enabling 2+ providers.** The email
 allowlist (`admin_email` plus the `allowed_users` SQLite table) is a single

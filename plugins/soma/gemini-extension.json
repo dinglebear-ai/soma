@@ -51,7 +51,7 @@
     },
     {
       "name": "auth_mode",
-      "description": "Server auth mode. 'bearer' uses only the static API token. 'oauth' enables Google OAuth/JWT.",
+      "description": "Server auth mode. 'bearer' uses only the static API token. 'oauth' enables configured OAuth/OIDC providers and JWT issuance.",
       "required": false
     },
     {
@@ -78,7 +78,7 @@
     },
     {
       "name": "auth_admin_email",
-      "description": "Bootstrap allowed Google account for OAuth mode.",
+      "description": "Bootstrap allowed email for OAuth mode, shared by all configured providers.",
       "required": false
     }
   ]

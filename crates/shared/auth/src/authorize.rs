@@ -28,8 +28,8 @@ const NATIVE_CALLBACK_EXPIRED_PAGE: &str = r#"<!doctype html><html><body style="
 /// Enforces the configured email allowlist.
 ///
 /// `email_verified` is enforced before the email comparison: without this guard,
-/// an attacker who creates a Google account with someone else's address (without
-/// verifying it) could bypass the allowlist.
+/// an attacker who presents someone else's unverified address through an
+/// upstream provider could bypass the allowlist.
 fn check_email_allowlist(
     provider_id: &str,
     email: Option<&str>,

@@ -174,7 +174,8 @@ pub struct AuthConfig {
     pub key_path: PathBuf,
     pub bootstrap_secret: Option<String>,
     pub allowed_client_redirect_uris: Vec<String>,
-    /// Single bootstrap admin email permitted to log in via Google OAuth.
+    /// Single bootstrap admin email permitted to log in through any configured
+    /// OAuth/OIDC provider.
     /// Required when `mode == AuthMode::OAuth`. Additional users are granted
     /// through the SQLite-backed allowlist managed via the web UI.
     pub admin_email: String,

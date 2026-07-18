@@ -32,6 +32,18 @@ This file is generated from `ENV_KEY_SPECS` and typed config defaults. Run `carg
 | `SOMA_MCP_PUBLIC_URL` | unset | no | `mcp.auth.public_url` | `CLAUDE_PLUGIN_OPTION_PUBLIC_URL` | Public URL used for OAuth metadata endpoints. |
 | `SOMA_MCP_GOOGLE_CLIENT_ID` | unset | yes | `mcp.auth.google_client_id` | `CLAUDE_PLUGIN_OPTION_GOOGLE_CLIENT_ID` | Google OAuth client ID. |
 | `SOMA_MCP_GOOGLE_CLIENT_SECRET` | unset | yes | `mcp.auth.google_client_secret` | `CLAUDE_PLUGIN_OPTION_GOOGLE_CLIENT_SECRET` | Google OAuth client secret. |
+| `SOMA_MCP_GOOGLE_CALLBACK_PATH` | `/auth/google/callback` | no | - | - | Google callback path (default: `/auth/google/callback`). |
+| `SOMA_MCP_GOOGLE_SCOPES` | `openid,email,profile` | no | - | - | Comma-separated Google scopes (default: `openid,email,profile`). |
+| `SOMA_MCP_AUTHELIA_ISSUER_URL` | unset | no | - | - | Authelia OIDC issuer URL. HTTPS is required. |
+| `SOMA_MCP_AUTHELIA_CLIENT_ID` | unset | yes | - | - | Authelia OIDC client ID. |
+| `SOMA_MCP_AUTHELIA_CLIENT_SECRET` | unset | yes | - | - | Authelia OIDC client secret. |
+| `SOMA_MCP_AUTHELIA_CALLBACK_PATH` | `/auth/authelia/callback` | no | - | - | Authelia callback path (default: `/auth/authelia/callback`). |
+| `SOMA_MCP_AUTHELIA_SCOPES` | `openid,email,profile,offline_access` | no | - | - | Comma-separated Authelia scopes (default: `openid,email,profile,offline_access`). |
+| `SOMA_MCP_GITHUB_CLIENT_ID` | unset | yes | - | - | GitHub OAuth App client ID. |
+| `SOMA_MCP_GITHUB_CLIENT_SECRET` | unset | yes | - | - | GitHub OAuth App client secret. |
+| `SOMA_MCP_GITHUB_CALLBACK_PATH` | `/auth/github/callback` | no | - | - | GitHub callback path (default: `/auth/github/callback`). |
+| `SOMA_MCP_GITHUB_SCOPES` | `read:user,user:email` | no | - | - | Comma-separated GitHub scopes; must include `user:email` (default: `read:user,user:email`). |
+| `SOMA_MCP_AUTH_DEFAULT_PROVIDER` | automatic | no | - | - | Provider used when `provider` is omitted: `google`, `authelia`, or `github`; automatic priority is Google, Authelia, GitHub. |
 | `SOMA_MCP_AUTH_ADMIN_EMAIL` | unset | no | `mcp.auth.admin_email` | `CLAUDE_PLUGIN_OPTION_AUTH_ADMIN_EMAIL` | Initial/admin email allowed by the OAuth flow. |
 | `SOMA_MCP_HOST` | `127.0.0.1` | no | `mcp.host` | - | Bind host for HTTP transport. Set `0.0.0.0` only with bearer, OAuth, or trusted-gateway auth configured. |
 | `SOMA_MCP_SERVER_NAME` | `soma` | no | `mcp.server_name` | - | MCP server name advertised to clients. |
