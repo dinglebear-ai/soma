@@ -26,7 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transaction state, validation cancellation kills the full process tree, and
   transport adapters can validate every redirect and final response URL.
   Successful confirmation rehashes the installed executable before deleting
-  recovery state. The crate has no internal workspace dependencies; this change
+  recovery state, and startup recovery verifies installed bytes before counting
+  an unconfirmed attempt. Recovery markers are opened nonblocking without
+  following symlinks and must be service-owned regular files. Public async
+  transaction methods offload hashing, copying, locking, and durability work to
+  Tokio blocking workers. The compile-checked heartbeat example separates
+  authentication from parsing and propagates health-report failures before
+  confirmation. The crate has no internal workspace dependencies; this change
   does not enable self-update behavior in the Soma runtime or integrate Cortex.
 - Restructured `apps/soma` (plan section 3.1, PR 18) into a composition-only
   layout: `bootstrap.rs` builds the concrete dependency graph (config, the

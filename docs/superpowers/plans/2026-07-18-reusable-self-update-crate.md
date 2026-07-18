@@ -9,7 +9,10 @@
 > and deterministic lock-protected marker-temporary recovery.
 > Final security hardening also preflights the largest reachable marker before mutation, rejects
 > generated backup collisions, kills validator trees on future cancellation,
-> and requires redirect/final-response URL validation by transport adapters.
+> requires redirect/final-response URL validation by transport adapters,
+> verifies installed bytes before recovery/confirmation state changes, opens
+> markers no-follow and nonblocking, and offloads synchronous transactions from
+> async executor workers.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

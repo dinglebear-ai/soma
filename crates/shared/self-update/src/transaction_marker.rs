@@ -1,4 +1,4 @@
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -108,17 +108,27 @@ pub(super) fn marker_temp_owner_is_valid(owner_uid: u32, effective_uid: u32) -> 
 }
 
 pub(super) fn read_marker(path: &Path, expected_executable: &Path) -> Result<Option<Marker>> {
-    let file = match File::open(path) {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+        .open(path)
+    {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(UpdateError::io(path, error)),
     };
-    if file
+    let metadata = file
         .metadata()
-        .map_err(|error| UpdateError::io(path, error))?
-        .len()
-        > MAX_MARKER_BYTES
-    {
+        .map_err(|error| UpdateError::io(path, error))?;
+    if !metadata.file_type().is_file() || metadata.uid() != nix::unistd::geteuid().as_raw() {
+        return Err(UpdateError::InvalidMarker {
+            path: path.to_path_buf(),
+            message: "marker must be a service-owned non-symlink regular file".into(),
+        });
+    }
+    if metadata.len() > MAX_MARKER_BYTES {
         return Err(marker_too_large(path));
     }
     use std::io::Read;
@@ -193,5 +203,46 @@ mod tests {
             preflight_marker_lifecycle(state, &marker),
             Err(UpdateError::InvalidMarker { .. })
         ));
+    }
+
+    #[test]
+    fn marker_open_rejects_symlinks_without_reading_the_target() {
+        let temp = tempfile::tempdir().unwrap();
+        let target = temp.path().join("foreign-marker");
+        let state = temp.path().join("update.json");
+        std::fs::write(&target, b"foreign bytes").unwrap();
+        std::os::unix::fs::symlink(&target, &state).unwrap();
+
+        assert!(read_marker(&state, &temp.path().join("agent")).is_err());
+        assert_eq!(std::fs::read(&target).unwrap(), b"foreign bytes");
+    }
+
+    #[test]
+    fn marker_open_rejects_fifo_without_waiting_for_a_writer() {
+        use nix::sys::stat::Mode;
+        use std::time::{Duration, Instant};
+
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path().join("update.json");
+        nix::unistd::mkfifo(&state, Mode::S_IRUSR | Mode::S_IWUSR).unwrap();
+        let mut delayed_writer = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("sleep 0.3; printf x > \"$1\"")
+            .arg("marker-writer")
+            .arg(&state)
+            .spawn()
+            .unwrap();
+
+        let started = Instant::now();
+        let result = read_marker(&state, &temp.path().join("agent"));
+        let elapsed = started.elapsed();
+        let _ = delayed_writer.kill();
+        let _ = delayed_writer.wait();
+
+        assert!(matches!(result, Err(UpdateError::InvalidMarker { .. })));
+        assert!(
+            elapsed < Duration::from_millis(150),
+            "FIFO marker open blocked for {elapsed:?}"
+        );
     }
 }

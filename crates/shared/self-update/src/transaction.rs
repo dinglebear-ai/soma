@@ -9,6 +9,8 @@ use crate::{RecoveryAction, Result, UpdateError, Updater, ValidatedArtifact};
 
 #[path = "transaction_artifacts.rs"]
 mod artifacts;
+#[path = "transaction_async.rs"]
+mod asynchronous;
 #[path = "transaction_marker.rs"]
 mod marker;
 #[path = "transaction_io.rs"]
@@ -80,17 +82,16 @@ impl Updater {
         Ok(())
     }
 
-    pub async fn install(
+    pub(super) fn install_sync(
         &self,
         validated: ValidatedArtifact,
-        previous_version: impl Into<String>,
+        previous: String,
     ) -> Result<InstallOutcome> {
         let paths = self.validated_layout()?;
         let _lock = self.transaction_lock(&paths.lock)?;
         let executable = paths.executable;
         let state = paths.state;
         let validated_path = absolute(validated.path())?;
-        let previous = previous_version.into();
         let target = validated.target_version().to_owned();
         let backup = unique_backup(&executable);
         let marker_temp = suffix_path(&state, ".tmp");
@@ -185,7 +186,7 @@ impl Updater {
         })
     }
 
-    pub async fn recover_on_startup(&self, running_version: &str) -> Result<RecoveryAction> {
+    pub(super) fn recover_on_startup_sync(&self, running_version: &str) -> Result<RecoveryAction> {
         let paths = self.validated_layout()?;
         let _lock = self.transaction_lock(&paths.lock)?;
         let state = paths.state;
@@ -218,6 +219,13 @@ impl Updater {
                 if marker.target != running_version {
                     return Err(version_mismatch(running_version, &marker));
                 }
+                let installed_digest = hash_file(&marker.executable)?;
+                if installed_digest != marker.sha256 {
+                    return Err(UpdateError::DigestMismatch {
+                        expected: marker.sha256,
+                        actual: installed_digest,
+                    });
+                }
             }
             MarkerPhase::RollingBack => {
                 return resume_rollback(self, &state, marker, running_version);
@@ -247,7 +255,10 @@ impl Updater {
         finalize_rollback(&state, marker)
     }
 
-    pub async fn confirm_success(&self, running_version: &str) -> Result<ConfirmationOutcome> {
+    pub(super) fn confirm_success_sync(
+        &self,
+        running_version: &str,
+    ) -> Result<ConfirmationOutcome> {
         let paths = self.validated_layout()?;
         let _lock = self.transaction_lock(&paths.lock)?;
         let state = paths.state;

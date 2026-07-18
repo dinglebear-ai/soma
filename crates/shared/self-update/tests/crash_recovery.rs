@@ -100,6 +100,34 @@ async fn prepared_marker_with_target_binary_completes_the_install_phase() {
 }
 
 #[tokio::test]
+async fn installed_marker_rejects_changed_executable_before_counting_attempt() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("agent");
+    let state = temp.path().join("update.json");
+    let backup = temp.path().join(".agent.rollback-999999-1");
+    let staged = temp.path().join(".agent.update-999999-2.part");
+    let old = b"old executable";
+    let new = b"new executable";
+    let changed = b"changed executable reporting 2.0.0";
+    std::fs::write(&executable, changed).unwrap();
+    std::fs::write(&backup, old).unwrap();
+    write_marker(&state, &executable, &backup, &staged, "installed", old, new);
+    let original_marker = std::fs::read(&state).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+
+    assert!(matches!(
+        updater.recover_on_startup("2.0.0").await,
+        Err(soma_self_update::UpdateError::DigestMismatch { .. })
+    ));
+    assert_eq!(std::fs::read(&state).unwrap(), original_marker);
+    assert_eq!(std::fs::read(&backup).unwrap(), old);
+    assert_eq!(std::fs::read(&executable).unwrap(), changed);
+}
+
+#[tokio::test]
 async fn rolling_back_marker_with_previous_binary_finishes_idempotently() {
     let temp = tempdir().unwrap();
     let executable = temp.path().join("agent");

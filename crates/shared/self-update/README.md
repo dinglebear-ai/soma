@@ -74,6 +74,9 @@ syncs a durable marker with explicit `prepared`, `installed`, `rolling_back`,
 and `rolled_back` phases. Marker replacement uses one deterministic
 lock-protected `<state>.tmp` sibling; startup recovery validates and reclaims an
 effective-user-owned regular-file leftover before reading transaction state.
+The authoritative marker itself is opened with Unix no-follow and nonblocking
+flags, then its descriptor must be a current-effective-user-owned regular file
+before any bounded read, preventing symlink traversal and FIFO stalls.
 Serialized state is capped at the same 64 KiB limit on both writes and reads.
 Before backup creation or executable replacement, installation preflights the
 largest reachable phase and attempt-count representation so later recovery
@@ -89,7 +92,9 @@ same mode. `BackupStrategy::Copy` is available when an adopter cannot use hard
 links or wants to exercise the copy path explicitly.
 A process crash at any marker, swap, or rollback boundary is completed or
 aborted idempotently by startup recovery. Each unconfirmed startup increments
-the marker; after the configured threshold the digest-verified backup is
+the marker only after hashing the installed executable against the verified
+target digest; changed bytes preserve recovery state and return an error. After
+the configured threshold the digest-verified backup is
 restored and the adopter must restart again. Successful health confirmation
 rehashes the installed executable against the verified target digest before
 durably removing the authoritative marker and cleaning the backup. Changed
@@ -101,6 +106,12 @@ removing recovery state. Corrupt markers, missing
 backups, and cleanup failures are typed errors and retain diagnostic state where
 possible. Operators should stop competing updater processes before repairing a
 reported marker or backup path.
+
+The public install, startup-recovery, and confirmation methods are async for
+service integration, but their synchronous hashing, copying, advisory locking,
+and filesystem durability work runs on Tokio blocking workers rather than an
+async executor worker. Once dispatched, a transaction continues to its durable
+boundary even if the awaiting future is cancelled.
 
 ## Cortex extraction map
 

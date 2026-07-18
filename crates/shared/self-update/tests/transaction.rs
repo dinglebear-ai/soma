@@ -39,6 +39,34 @@ async fn install_rehashes_validated_bytes_before_mutating_live_state() {
     assert!(!state.exists());
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn install_yields_the_async_executor_while_transaction_work_blocks() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let old = b"#!/bin/sh\necho 'example 1.0.0'\n";
+    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    std::fs::write(&executable, old).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    let artifact = validated(&updater, new, "2.0.0").await;
+    let progressed = Arc::new(AtomicBool::new(false));
+    let task_progressed = Arc::clone(&progressed);
+    let unrelated_task = tokio::spawn(async move {
+        task_progressed.store(true, Ordering::SeqCst);
+    });
+
+    updater.install(artifact, "1.0.0").await.unwrap();
+
+    assert!(progressed.load(Ordering::SeqCst));
+    unrelated_task.await.unwrap();
+}
+
 #[tokio::test]
 async fn oversized_previous_version_is_rejected_before_backup_or_swap() {
     let temp = tempdir().unwrap();
