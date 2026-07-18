@@ -7,7 +7,7 @@ plan: docs/superpowers/plans/2026-07-18-reusable-self-update-crate.md
 working directory: /home/jmagar/workspace/soma/.worktrees/cortex-auto-update-crate-review
 worktree: /home/jmagar/workspace/soma/.worktrees/cortex-auto-update-crate-review
 pr: "#170 feat: add reusable self-update crate (https://github.com/jmagar/soma/pull/170)"
-beads: rmcp-template-xdlz, rmcp-template-xdlz.1 through rmcp-template-xdlz.23
+beads: rmcp-template-xdlz, rmcp-template-xdlz.1 through rmcp-template-xdlz.24
 ---
 
 # Cortex self-update extraction
@@ -18,7 +18,7 @@ Create a worktree from `main`, inspect Cortex's automatic update mechanism, dete
 
 ## Session Overview
 
-Created an owned feature worktree and draft PR, distinguished Cortex's heartbeat-driven agent updater from its operator deployment updater, and extracted the reusable logic into `soma-self-update`. The new crate has only crates.io dependencies, a transport-neutral API, bounded download staging, exact-version validation, process-tree containment, crash-consistent install/confirm/rollback, and Linux plus native Windows coverage. Three rounds of independent architecture, quality, and security review produced 23 tracked findings; all were fixed, verified, and closed.
+Created an owned feature worktree and draft PR, distinguished Cortex's heartbeat-driven agent updater from its operator deployment updater, and extracted the reusable logic into `soma-self-update`. The new crate has only crates.io dependencies, a transport-neutral API, bounded download staging, exact-version validation, process-tree containment, crash-consistent install/confirm/rollback, and Linux plus native Windows coverage. Repeated independent and ready-for-review passes produced 24 tracked findings; all were fixed, verified, and closed.
 
 ## Sequence of Events
 
@@ -29,7 +29,8 @@ Created an owned feature worktree and draft PR, distinguished Cortex's heartbeat
 5. Ran repeated independent reviews. Each actionable issue was recorded as a child Bead, fixed, retested, and reviewed again.
 6. Added native Windows CI execution after cross-compilation alone proved insufficient; the Windows job caught and verified platform-specific path and Job Object behavior.
 7. Split transaction concerns into focused sibling modules to satisfy Soma's 350-line new-file target without adding an exception.
-8. Closed all 23 child Beads and parent `rmcp-template-xdlz` after local and remote gates passed.
+8. Closed the first 23 child Beads and parent `rmcp-template-xdlz` after local and remote gates passed.
+9. Marked PR #170 ready; the Codex connector found a same-version executable replacement gap in confirmation. Added Bead `.24`, reproduced it, rehashed installed bytes before cleanup, passed 53 tests and full gates, resolved the review thread, and reclosed the parent.
 
 ## Key Findings
 
@@ -96,11 +97,12 @@ All entries were created or updated, claimed, verified, closed, and synchronized
 | `.21` | Reject generated rollback path collisions before backup creation | closed | Protected dynamic transaction identities |
 | `.22` | Kill validator process trees when validation futures are cancelled | closed | Contained caller cancellation on Unix/Windows |
 | `.23` | Require artifact URL validation on every redirect and final response | closed | Prevented redirect trust-policy bypass |
+| `.24` | Verify installed digest before confirming update | closed | Preserved rollback when same-version installed bytes changed |
 
 ## Repository Maintenance
 
 - Plans: `docs/plans/` contained no completed plan eligible to move. The active plan is under `docs/superpowers/plans/` and remains with the feature branch as implementation evidence.
-- Beads: parent and all 23 children were read, verified, closed, and synchronized only after current-head CI passed.
+- Beads: parent and all 24 children were read, verified, closed, and synchronized; `.24` followed the ready-for-review Codex finding and focused/full local proof.
 - Worktrees/branches: inspected every registered worktree and local/remote branch. No cleanup was safe or in scope because several worktrees are active or of unknown ownership; `marketplace-no-mcp` is protected and was not touched.
 - Stale docs: the new crate README, example, changelog, plan, and CI workflow were updated to match the final redirect, ownership, cancellation, and recovery contracts.
 - No live configuration changes are required because the crate is not yet integrated into a Soma or Cortex runtime.
@@ -118,7 +120,7 @@ All entries were created or updated, claimed, verified, closed, and synchronized
 | Command | Result |
 |---|---|
 | `git worktree add ... origin/main` | Created owned worktree and feature branch |
-| `cargo test -p soma-self-update --all-features` | 52 Linux tests passed |
+| `cargo test -p soma-self-update --all-features` | 53 Linux tests passed after the final confirmation-integrity regression |
 | `cargo clippy -p soma-self-update --all-targets --all-features -- -D warnings` | Passed |
 | Windows GNU `cargo check`, `clippy`, and `test --no-run` | Passed |
 | `cargo test --workspace --locked -- --test-threads=1` | Passed; one unrelated codemode parallel flake reran green |
@@ -132,6 +134,7 @@ All entries were created or updated, claimed, verified, closed, and synchronized
 - Initial Windows CI exposed a raw-versus-canonical staging path assertion. The assertion was canonicalized and native reruns passed.
 - Soma Contracts rejected an oversized transaction module. Artifact, marker, I/O, layout, and test concerns were split into cohesive sibling modules; `transaction.rs` finished at 348 physical lines.
 - Independent reviews reproduced crash-boundary wedges, path collisions, parallel failpoint races, process-tree leaks, redirect bypass, ownership mismatches, and a worst-case marker-size boundary. Each received a Bead, regression test, fix, and clean rereview.
+- The ready-for-review Codex connector found that confirmation did not rehash installed bytes. Bead `.24` added the failing same-version replacement regression; `confirm_success()` now preserves marker and rollback state on digest mismatch, and the inline thread was resolved after proof.
 - A full workspace run observed one unrelated `soma-codemode` parallel global-state flake; the focused test and serialized full suite reran green, so scope was not expanded.
 
 ## Behavior Changes (Before/After)
@@ -149,12 +152,12 @@ All entries were created or updated, claimed, verified, closed, and synchronized
 
 | Command | Expected | Actual | Status |
 |---|---|---|---|
-| crate tests | Lifecycle and regressions pass | 52 Linux tests passed repeatedly | pass |
+| crate tests | Lifecycle and regressions pass | 53 Linux tests passed after the final review fix | pass |
 | native Windows self-update CI | Job Object timeout/cancellation cleanup works | Build Windows step passed | pass |
 | workspace test/Clippy/build | No regression | Passed locally and in CI | pass |
 | architecture boundary | No Soma/path/workspace dependency | Passed; cargo tree contains crates.io packages only | pass |
 | CI/MSRV gates | Current HEAD accepted | CI Gate and MSRV Gate passed | pass |
-| independent final reviews | No actionable findings | Security and quality reviews clean at `6c7e83e` | pass |
+| independent final reviews | No actionable findings | Security/quality clean at `6c7e83e`; focused confirmation review clean at `842ca2d` | pass |
 
 ## Risks and Rollback
 
