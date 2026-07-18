@@ -8,6 +8,7 @@
 
 use std::os::unix::fs::FileTypeExt;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
@@ -27,7 +28,9 @@ pub const MAX_RESPONSE_BYTES: usize = 64 * 1024 * 1024;
 /// individually-legal header lines and grow `headers`/memory without bound.
 const MAX_HEADER_COUNT: usize = 100;
 
-/// A parsed HTTP response: status code, headers (lowercased names), and the
+/// A parsed HTTP response: status code, headers (names stored exactly as
+/// received - case-insensitive lookup happens at read time in
+/// [`RawResponse::header`], not by normalizing case on the way in), and the
 /// raw body bytes. Envelope (Incus sync/async/error JSON) parsing happens
 /// one layer up, in `crate::transport`.
 #[derive(Debug, Clone)]
@@ -47,11 +50,18 @@ impl RawResponse {
 }
 
 /// Confirms `path` is actually a Unix domain socket before we ever try to
-/// connect to it, so a stale regular file or wrong path fails with a clear
-/// error instead of an opaque connection-refused. Synchronous
-/// (`std::fs::metadata`) - see [`check_is_socket_off_thread`] for the async
-/// wrapper used on the request path; this sync version stays directly
-/// testable and is the single source of truth for the check's logic.
+/// connect to it, so a stale regular file or wrong path fails with a clear,
+/// specific error instead of an opaque connection-refused. This is an
+/// error-message quality improvement, not a security control: it follows
+/// symlinks and there's an inherent gap between this check and the
+/// `connect()` that follows (TOCTOU), but closing that gap wouldn't add any
+/// real protection here - an actor able to swap the socket file between the
+/// two calls already needs write access to its parent directory, at which
+/// point they could just as easily have replaced it before this function
+/// ever ran. Synchronous (`std::fs::metadata`) - see
+/// [`check_is_socket_off_thread`] for the async wrapper used on the request
+/// path; this sync version stays directly testable and is the single source
+/// of truth for the check's logic.
 pub(crate) fn check_is_socket(path: &Path) -> Result<()> {
     let metadata = std::fs::metadata(path).map_err(Error::Transport)?;
     if !metadata.file_type().is_socket() {
@@ -72,13 +82,28 @@ pub(crate) fn check_is_socket(path: &Path) -> Result<()> {
 /// relying on `UnixStream::connect`'s own, less specific, error).
 async fn check_is_socket_off_thread(path: &Path) -> Result<()> {
     let owned_path = path.to_path_buf();
-    tokio::task::spawn_blocking(move || check_is_socket(&owned_path))
-        .await
-        .map_err(|join_err| {
-            Error::Transport(std::io::Error::other(format!(
-                "socket check task panicked: {join_err}"
-            )))
-        })?
+    run_blocking(move || check_is_socket(&owned_path)).await
+}
+
+/// Runs `f` on the blocking-task pool via [`tokio::task::spawn_blocking`],
+/// mapping a panic inside `f` to `Error::Transport` (via `JoinError`)
+/// instead of letting it propagate as a bare panic out of an unrelated
+/// `.await` point, or - worse - silently losing the failure. Pulled out of
+/// [`check_is_socket_off_thread`] as its own function so the
+/// panic-to-error mapping is directly unit-testable (`check_is_socket`
+/// itself has no code path that panics under normal conditions, so testing
+/// this mapping through it would require injecting an artificial panic
+/// into production logic).
+async fn run_blocking<T, F>(f: F) -> Result<T>
+where
+    F: FnOnce() -> Result<T> + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(f).await.map_err(|join_err| {
+        Error::Transport(std::io::Error::other(format!(
+            "blocking task panicked: {join_err}"
+        )))
+    })?
 }
 
 /// The request-shaping parameters for one call, grouped into a struct so
@@ -123,18 +148,31 @@ pub(crate) async fn execute_capped(
         reject_control_chars(etag, "If-Match header value")?;
     }
 
+    // Set to `true` the moment the request has been fully written (before
+    // the response is read), so a timeout that fires afterward can tell the
+    // caller "this may have already been received and acted on server-side"
+    // apart from "nothing was sent, safe to retry" - see `Error::Timeout`'s
+    // doc comment. A plain `AtomicBool` is enough: `execute_io` sets it from
+    // a single task before any concurrent access is possible, and
+    // `tokio::time::timeout` dropping `io` on expiry doesn't race the read
+    // here since we only read it *after* `.await`ing the timeout.
+    let request_fully_sent = AtomicBool::new(false);
     let io = execute_io(
         socket_path,
         request_line,
         spec.if_match,
         spec.body,
         max_response_bytes,
+        &request_fully_sent,
     );
 
     match timeout {
         Some(duration) => tokio::time::timeout(duration, io)
             .await
-            .map_err(|_elapsed| Error::Timeout { after: duration })?,
+            .map_err(|_elapsed| Error::Timeout {
+                after: duration,
+                request_fully_sent: request_fully_sent.load(Ordering::Relaxed),
+            })?,
         None => io.await,
     }
 }
@@ -148,6 +186,7 @@ async fn execute_io(
     if_match: Option<&str>,
     body: Option<&[u8]>,
     max_response_bytes: usize,
+    request_fully_sent: &AtomicBool,
 ) -> Result<RawResponse> {
     check_is_socket_off_thread(socket_path).await?;
     let stream = UnixStream::connect(socket_path)
@@ -184,6 +223,7 @@ async fn execute_io(
         write_half.write_all(body).await.map_err(Error::Transport)?;
     }
     write_half.flush().await.map_err(Error::Transport)?;
+    request_fully_sent.store(true, Ordering::Relaxed);
 
     read_response(&mut reader, max_response_bytes).await
 }
@@ -212,8 +252,40 @@ fn reject_control_chars(value: &str, what: &str) -> Result<()> {
     Ok(())
 }
 
+/// [`reject_control_chars`], plus `?` and `#` - the query-string and
+/// fragment delimiters. Every resource method builds `path` from a fixed
+/// URL template plus caller-supplied identifiers interpolated via
+/// `format!`, with no percent-encoding; a `?`/`#` inside one of those
+/// identifiers would let a crafted name smuggle unintended query
+/// parameters into the request, or silently truncate/reinterpret the
+/// path, the same class of confusion CRLF injection is - just scoped to
+/// path/query framing rather than full request splitting. Not applied to
+/// `If-Match` (only `reject_control_chars` is): an ETag's legal character
+/// set already excludes control characters but has no reason to exclude
+/// `?`/`#`, and it's never interpolated into a path or query string.
+///
+/// This still doesn't reject a bare `/` inside an identifier (which could
+/// shift which URL segment a caller-controlled value lands in) - Incus's
+/// own server-side name validation is the backstop for that narrower,
+/// lower-severity case, and rejecting `/` centrally here isn't safe: some
+/// legitimate paths in this crate (storage volumes, snapshots) already
+/// interpolate multiple caller-supplied segments separated by literal `/`
+/// by design, so a blanket reject can't distinguish "caller injected an
+/// extra segment" from "this endpoint always has multiple segments"
+/// without validating each identifier individually before assembly.
+fn reject_unsafe_path_chars(value: &str, what: &str) -> Result<()> {
+    reject_control_chars(value, what)?;
+    if value.contains(['?', '#']) {
+        return Err(Error::InvalidRequest(format!(
+            "{what} contains '?' or '#', which could smuggle unintended query parameters or a \
+             fragment into the request: {value:?}"
+        )));
+    }
+    Ok(())
+}
+
 fn build_request_line(method: Method, path: &str, query: &[(&str, &str)]) -> Result<String> {
-    reject_control_chars(path, "request path")?;
+    reject_unsafe_path_chars(path, "request path")?;
     if query.is_empty() {
         Ok(format!("{} {} HTTP/1.1\r\n", method.as_str(), path))
     } else {
@@ -274,6 +346,21 @@ where
         name.eq_ignore_ascii_case("transfer-encoding") && value.eq_ignore_ascii_case("chunked")
     });
 
+    // RFC 7230 Section 3.3.3: a message carrying both headers is invalid -
+    // exactly the shape used for HTTP request/response smuggling, since a
+    // client and server that each independently prefer one header over the
+    // other for framing can disagree about where a message ends. This
+    // client always speaks to one fresh, direct connection per request (no
+    // pooling, no proxying), so there's no second party here for the two
+    // framings to desync against - but reject it anyway rather than
+    // silently picking one, since a compliant Incus daemon should never
+    // send both and doing so is itself a signal something is wrong.
+    if content_length.is_some() && is_chunked {
+        return Err(Error::InvalidResponse(
+            "response carried both Content-Length and Transfer-Encoding: chunked".to_owned(),
+        ));
+    }
+
     let body = if let Some(length) = content_length {
         if length > max_bytes {
             return Err(Error::ResponseTooLarge { limit: max_bytes });
@@ -332,12 +419,16 @@ where
         if size > max_bytes.saturating_sub(body.len()) {
             return Err(Error::ResponseTooLarge { limit: max_bytes });
         }
-        let mut chunk = vec![0u8; size];
+        // Read directly into `body`'s tail instead of a separate scratch
+        // buffer that then gets copied in via `extend_from_slice` - `resize`
+        // extends without re-zeroing already-written bytes, and
+        // `read_exact` fills exactly the new tail.
+        let previous_len = body.len();
+        body.resize(previous_len + size, 0);
         reader
-            .read_exact(&mut chunk)
+            .read_exact(&mut body[previous_len..])
             .await
             .map_err(Error::Transport)?;
-        body.extend_from_slice(&chunk);
         // Each chunk is followed by a CRLF that isn't part of the payload.
         let _ = read_line(reader, max_bytes).await?;
     }

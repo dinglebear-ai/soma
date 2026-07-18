@@ -36,11 +36,35 @@ pub enum Error {
     #[error("precondition failed updating {resource} (stale ETag - re-fetch and retry)")]
     PreconditionFailed { resource: String },
 
+    #[error("{resource} not found")]
+    NotFound { resource: String },
+
     #[error("invalid request: {0}")]
     InvalidRequest(String),
 
-    #[error("request timed out after {after:?}")]
-    Timeout { after: std::time::Duration },
+    /// A WebSocket-level failure from the `events` feature's
+    /// `/1.0/events` subscription that is *not* a plain socket I/O error
+    /// (those still map to `Transport`) - a protocol violation, oversized
+    /// frame, or similar. Kept separate from `Transport` so a caller can
+    /// tell "the connection itself broke" apart from "the daemon sent
+    /// something the WebSocket layer rejected" without string-matching.
+    #[cfg(feature = "events")]
+    #[error("WebSocket protocol error on /1.0/events: {0}")]
+    WebSocketProtocol(String),
+
+    /// `request_fully_sent` tells a caller building retry logic whether the
+    /// request had already been fully written to the daemon when the
+    /// timeout fired: if `true`, a mutating call (create/update/delete) may
+    /// have already been received and acted on server-side even though the
+    /// caller only sees this timeout - retrying could duplicate the
+    /// operation. If `false`, nothing was sent and a retry is safe. Incus
+    /// operations are not inherently idempotent, so this distinction
+    /// matters for anything more than a manual "try again and see."
+    #[error("request timed out after {after:?} (request fully sent: {request_fully_sent})")]
+    Timeout {
+        after: std::time::Duration,
+        request_fully_sent: bool,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

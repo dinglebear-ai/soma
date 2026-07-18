@@ -141,6 +141,51 @@ async fn subscribe_events_ends_silently_on_a_normal_close() {
     );
 }
 
+#[tokio::test]
+async fn subscribe_events_distinguishes_websocket_protocol_errors_from_io_errors() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let socket_path = dir.path().join("incus.sock");
+    let listener = UnixListener::bind(&socket_path).expect("bind unix listener");
+
+    tokio::spawn(async move {
+        let Ok((stream, _)) = listener.accept().await else {
+            return;
+        };
+        let mut ws = tokio_tungstenite::accept_async(stream)
+            .await
+            .expect("accept websocket handshake");
+        // Write a raw WebSocket text frame carrying invalid UTF-8 directly
+        // to the underlying stream, bypassing tungstenite's own encoder -
+        // `Message::Text` can't be constructed with invalid UTF-8 through
+        // its safe API (it's backed by a real `String`), so this is the
+        // only way to trigger a genuine protocol-level parse failure rather
+        // than a socket I/O error. Frame: FIN + text opcode (0x81),
+        // unmasked 2-byte payload (0x02), payload bytes that aren't valid
+        // UTF-8 (0xFF 0xFE).
+        use tokio::io::AsyncWriteExt;
+        let raw_frame: &[u8] = &[0x81, 0x02, 0xff, 0xfe];
+        let _ = ws.get_mut().write_all(raw_frame).await;
+        let _ = ws.get_mut().flush().await;
+        // Keep the connection open long enough for the client to read it.
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    });
+
+    let client = Client::new(ClientConfig::unix_socket(socket_path));
+    let mut stream = client
+        .subscribe_events(EventFilter::default())
+        .await
+        .expect("subscribe should succeed");
+
+    let first = stream
+        .next()
+        .await
+        .expect("must yield one Err item for the malformed frame");
+    assert!(
+        matches!(first, Err(crate::Error::WebSocketProtocol(_))),
+        "expected WebSocketProtocol (not Transport) for an invalid-UTF8 text frame, got {first:?}"
+    );
+}
+
 #[test]
 fn event_filter_default_subscribes_to_everything() {
     let filter = EventFilter::default();

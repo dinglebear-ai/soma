@@ -210,6 +210,21 @@ fn operation_class_serde_round_trips_lowercase_wire_values() {
 }
 
 #[test]
+fn operation_class_deserializes_an_unrecognized_value_as_other_instead_of_failing() {
+    // A future Incus version could add a class this crate doesn't know
+    // about yet - that must not hard-fail deserialization of the whole
+    // Operation, consistent with Error's own #[non_exhaustive] stance.
+    let deserialized: OperationClass = serde_json::from_str("\"future-class\"").unwrap();
+    assert_eq!(
+        deserialized,
+        OperationClass::Other("future-class".to_owned())
+    );
+    // Round-trips back to the original wire string, not a wrapped shape.
+    let serialized = serde_json::to_string(&deserialized).unwrap();
+    assert_eq!(serialized, "\"future-class\"");
+}
+
+#[test]
 fn operation_deserializes_from_a_real_example_payload() {
     // Copied verbatim from the Incus REST API docs' operation object shape
     // (https://linuxcontainers.org/incus/docs/main/rest-api/), so this test

@@ -22,6 +22,13 @@ use crate::transport::Client;
 
 /// Which event types to subscribe to. All `true` by default (subscribe to
 /// everything Incus emits).
+///
+/// Setting every field to `false` sends `?type=` (an empty value) to Incus
+/// rather than omitting the parameter - whether a real daemon then treats
+/// that as "no filter, send everything" or "filter to nothing" is not
+/// verified by this crate. [`EventFilter::default`] covers the common case;
+/// if you deliberately construct an all-`false` filter, confirm the
+/// behavior against a real daemon first.
 #[derive(Debug, Clone, Copy)]
 pub struct EventFilter {
     pub operations: bool,
@@ -94,6 +101,17 @@ fn parse_event(text: &str) -> Result<Event> {
 /// reached over the same Unix socket as every other request), so the inner
 /// stream is `WebSocketStream<UnixStream>` directly rather than wrapped in
 /// `tokio_tungstenite::MaybeTlsStream`.
+///
+/// The hand-rolled `poll_next` below (rather than a `futures` combinator
+/// chain like `filter_map`/`scan`) is a deliberate choice, not an
+/// oversight: this stream needs three behaviors that don't compose cleanly
+/// through a single combinator - skip-and-continue-polling (Ping/Pong),
+/// emit-and-keep-going (a parsed event, or a recoverable per-frame error),
+/// and emit-one-final-item-then-permanently-stop (an abnormal close).
+/// `filter_map` alone can express the first two but conflates "skip" with
+/// "stop", which is exactly the bug the `done` flag below fixes; layering
+/// `scan` on top to add termination just moves the same state machine into
+/// nested combinator closures without simplifying it.
 pub struct EventStream {
     inner: WebSocketStream<UnixStream>,
     // Set once the connection has genuinely ended (a close frame was seen,
@@ -151,9 +169,21 @@ impl Stream for EventStream {
                         "unexpected binary websocket frame from /1.0/events".to_owned(),
                     ))));
                 }
+                // Distinguish a genuine socket I/O failure (`Transport`,
+                // consistent with every other transport error in this
+                // crate) from a WebSocket-layer protocol violation
+                // (oversized frame, malformed handshake data, capacity
+                // limit, ...) that isn't really an I/O problem at all - a
+                // caller shouldn't have to parse the error message to tell
+                // them apart.
+                std::task::Poll::Ready(Some(Err(tokio_tungstenite::tungstenite::Error::Io(
+                    io_err,
+                )))) => {
+                    return std::task::Poll::Ready(Some(Err(Error::Transport(io_err))));
+                }
                 std::task::Poll::Ready(Some(Err(err))) => {
-                    return std::task::Poll::Ready(Some(Err(Error::Transport(
-                        std::io::Error::other(err.to_string()),
+                    return std::task::Poll::Ready(Some(Err(Error::WebSocketProtocol(
+                        err.to_string(),
                     ))));
                 }
                 std::task::Poll::Pending => return std::task::Poll::Pending,

@@ -258,6 +258,55 @@ async fn execute_rejects_crlf_injection_in_if_match_before_sending_anything() {
 }
 
 #[tokio::test]
+async fn execute_rejects_a_query_delimiter_smuggled_into_the_path_before_sending_anything() {
+    let seen_request = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let seen = seen_request.clone();
+    let (socket_path, _dir) = spawn_fake_daemon(move |req| {
+        *seen.lock().unwrap() = String::from_utf8_lossy(&req).into_owned();
+        json_response(
+            "HTTP/1.1 200 OK",
+            r#"{"type":"sync","status":"Success","status_code":200,"metadata":{}}"#,
+        )
+    })
+    .await;
+
+    // A crafted instance name containing '?' would otherwise let a caller
+    // smuggle unintended query parameters into the request target.
+    let malicious_path = "/1.0/instances/c1?project=other-tenant";
+
+    let result = execute(
+        &socket_path,
+        RequestSpec {
+            method: Method::Get,
+            path: malicious_path,
+            query: &[],
+            body: None,
+            if_match: None,
+        },
+        None,
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(crate::Error::InvalidRequest(_))),
+        "expected InvalidRequest for a path containing '?', got {result:?}"
+    );
+    assert!(
+        seen_request.lock().unwrap().is_empty(),
+        "the malicious request must never reach the wire"
+    );
+}
+
+#[tokio::test]
+async fn a_panic_inside_run_blocking_surfaces_as_transport_error_not_swallowed() {
+    let result: Result<()> = run_blocking(|| panic!("boom")).await;
+    assert!(
+        matches!(result, Err(crate::Error::Transport(_))),
+        "expected Error::Transport for a blocking-task panic, got {result:?}"
+    );
+}
+
+#[tokio::test]
 async fn constructing_client_with_a_non_socket_path_fails_fast() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let regular_file = dir.path().join("not-a-socket.txt");
@@ -362,6 +411,34 @@ async fn chunked_transfer_encoding_response_decodes_correctly() {
 }
 
 #[tokio::test]
+async fn response_with_both_content_length_and_chunked_encoding_is_rejected() {
+    // RFC 7230 3.3.3: a message carrying both headers is invalid - reject
+    // rather than silently preferring one framing over the other.
+    let (socket_path, _dir) = spawn_fake_daemon(move |_req| {
+        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n{}".to_vec()
+    })
+    .await;
+
+    let result = execute(
+        &socket_path,
+        RequestSpec {
+            method: Method::Get,
+            path: "/1.0/test",
+            query: &[],
+            body: None,
+            if_match: None,
+        },
+        None,
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(crate::Error::InvalidResponse(_))),
+        "expected InvalidResponse for a response carrying both framing headers, got {result:?}"
+    );
+}
+
+#[tokio::test]
 async fn chunked_body_chunk_size_that_would_overflow_the_cap_check_is_rejected_not_panicking() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let socket_path = dir.path().join("incus.sock");
@@ -373,12 +450,20 @@ async fn chunked_body_chunk_size_that_would_overflow_the_cap_check_is_rejected_n
         };
         let mut buf = vec![0u8; 8192];
         let _ = stream.read(&mut buf).await;
-        // A chunk-size line claiming a value near usize::MAX. Before the
-        // overflow fix, `body.len() + size` here would wrap (release) or
-        // panic (debug) instead of being caught by the `> max_bytes` guard.
-        let headers = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\n";
+        // A chunk-size line claiming a value far larger than the 64 MiB
+        // cap. Before the overflow fix, `body.len() + size` here would
+        // wrap (release) or panic (debug) instead of being caught by the
+        // `> max_bytes` guard. Deliberately 0x8000_0000 (2 GiB) rather
+        // than a value near usize::MAX: it's still comfortably larger
+        // than the cap on any target, but - unlike a 16-hex-digit,
+        // 64-bit-only value - it also parses successfully as a usize on
+        // 32-bit targets (usize::MAX there is 0xFFFF_FFFF), so this test
+        // isn't silently platform-dependent. The overflow-safety property
+        // being tested (`saturating_sub` instead of a bare add) holds for
+        // any magnitude, not just ones near usize::MAX.
+        let headers = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n80000000\r\n";
         let _ = stream.write_all(headers).await;
-        // Deliberately never write the (impossible) chunk body.
+        // Deliberately never write the (huge) chunk body.
     });
 
     let result = tokio::time::timeout(
@@ -484,8 +569,71 @@ async fn a_daemon_that_never_responds_times_out_instead_of_hanging_forever() {
     .await
     .expect("the per-request timeout must fire well before the test's own 5s backstop");
 
-    assert!(
-        matches!(result, Err(crate::Error::Timeout { .. })),
-        "expected Error::Timeout for a daemon that never responds, got {result:?}"
-    );
+    match result {
+        Err(crate::Error::Timeout {
+            request_fully_sent, ..
+        }) => {
+            // A bodyless GET is tiny enough to fit entirely in the kernel's
+            // socket send buffer, so the write completes even though the
+            // fake daemon above never reads it - request_fully_sent must
+            // reflect that.
+            assert!(
+                request_fully_sent,
+                "a small bodyless request should have been fully written before the timeout \
+                 fired"
+            );
+        }
+        other => panic!("expected Error::Timeout for a daemon that never responds, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn timeout_reports_request_not_fully_sent_when_the_write_itself_stalls() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let socket_path = dir.path().join("incus.sock");
+    let listener = UnixListener::bind(&socket_path).expect("bind unix listener");
+
+    tokio::spawn(async move {
+        let Ok((_stream, _)) = listener.accept().await else {
+            return;
+        };
+        // Accept the connection but never read from it - once the kernel's
+        // socket receive buffer fills, the client's write_all stalls
+        // instead of completing, so the timeout fires mid-write.
+        std::future::pending::<()>().await;
+    });
+
+    // Comfortably larger than any typical Unix-socket kernel buffer, so the
+    // write genuinely cannot finish before a short timeout elapses.
+    let large_body = serde_json::json!({ "padding": "x".repeat(16 * 1024 * 1024) });
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        execute(
+            &socket_path,
+            RequestSpec {
+                method: Method::Post,
+                path: "/1.0/test",
+                query: &[],
+                body: Some(&serde_json::to_vec(&large_body).unwrap()),
+                if_match: None,
+            },
+            Some(Duration::from_millis(50)),
+        ),
+    )
+    .await
+    .expect("the per-request timeout must fire well before the test's own 10s backstop");
+
+    match result {
+        Err(crate::Error::Timeout {
+            request_fully_sent, ..
+        }) => {
+            assert!(
+                !request_fully_sent,
+                "a multi-megabyte write into a never-drained socket should not have completed \
+                 before a 50ms timeout"
+            );
+        }
+        other => panic!("expected Error::Timeout for a stalled write, got {other:?}"),
+    }
 }

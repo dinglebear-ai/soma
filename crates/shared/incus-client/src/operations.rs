@@ -11,12 +11,63 @@ use uuid::Uuid;
 use crate::error::{Error, Result};
 use crate::transport::{Client, IncusEnvelope, Method};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// Defensive floor between re-issued long-poll calls when `timeout = None`.
+/// Under Incus's documented behavior this branch should essentially never
+/// fire - a no-timeout `.../wait` call blocks server-side until the
+/// operation completes, so a genuinely quick non-terminal response
+/// shouldn't happen - but if a daemon/proxy ever did return quickly and
+/// repeatedly, this stops the loop from hot-spinning fresh Unix-socket
+/// connections with no backoff at all.
+const WAIT_REPOLL_MIN_INTERVAL: Duration = Duration::from_millis(50);
+
+/// `#[non_exhaustive]`-equivalent: an unrecognized `class` value from a
+/// future Incus version becomes `Other(<the raw string>)` rather than
+/// failing deserialization outright (which is what a plain
+/// `#[derive(Serialize, Deserialize)]` enum would do here) - consistent
+/// with `Error`'s own `#[non_exhaustive]` forward-compatibility stance.
+/// `Serialize`/`Deserialize` are implemented by hand rather than derived so
+/// `Other` round-trips back to its original wire string exactly, instead of
+/// serializing as `{"Other": "..."}`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationClass {
     Task,
     Websocket,
     Token,
+    Other(String),
+}
+
+impl OperationClass {
+    fn as_wire_str(&self) -> &str {
+        match self {
+            OperationClass::Task => "task",
+            OperationClass::Websocket => "websocket",
+            OperationClass::Token => "token",
+            OperationClass::Other(raw) => raw.as_str(),
+        }
+    }
+}
+
+impl Serialize for OperationClass {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_wire_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for OperationClass {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let raw = String::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "task" => OperationClass::Task,
+            "websocket" => OperationClass::Websocket,
+            "token" => OperationClass::Token,
+            _ => OperationClass::Other(raw),
+        })
+    }
 }
 
 /// An Incus asynchronous operation - see
@@ -63,6 +114,27 @@ pub(crate) fn operation_from_envelope(envelope: IncusEnvelope) -> Result<Operati
     Ok(serde_json::from_value(metadata)?)
 }
 
+/// Like [`operation_from_envelope`], but for endpoints Incus documents as
+/// *conditionally* sync-or-async depending on the request payload rather
+/// than always one or the other - e.g. creating a blank storage volume is
+/// synchronous, but creating one by copying another volume is async
+/// (verified against `cmd/incusd/storage_volumes.go`'s `doVolumeCreateOrCopy`
+/// on the `lxc/incus` `main` branch: it returns `response.EmptySyncResponse`
+/// when `req.Source.Name == ""`, and `operations.OperationResponse(op)`
+/// otherwise). Returns `None` for a genuinely-sync response (nothing to
+/// wait for) rather than trying to parse an `Operation` out of a body that
+/// doesn't contain one - unlike `operation_from_envelope`, which assumes
+/// every sync envelope it's given already contains the operation itself
+/// (true for `wait_for_operation`'s `.../wait` responses, not true here).
+pub(crate) fn optional_operation_from_envelope(
+    envelope: IncusEnvelope,
+) -> Result<Option<Operation>> {
+    match envelope {
+        IncusEnvelope::Sync { .. } => Ok(None),
+        IncusEnvelope::Async { metadata } => Ok(Some(serde_json::from_value(metadata)?)),
+    }
+}
+
 impl Client {
     /// Waits for operation `id` to reach a terminal status, using Incus's
     /// `.../wait?timeout=<seconds>` long-poll endpoint.
@@ -88,7 +160,13 @@ impl Client {
         loop {
             let query_value;
             let query: &[(&str, &str)] = if let Some(duration) = timeout {
-                query_value = duration.as_secs().to_string();
+                // Round up rather than truncate: `duration.as_secs()` alone
+                // would send `Some(Duration::from_millis(500))` as
+                // `?timeout=0`, which - depending on how Incus treats a
+                // zero-second wait - could return immediately instead of
+                // honoring something close to the caller's actual request.
+                let secs = duration.as_secs() + u64::from(duration.subsec_nanos() > 0);
+                query_value = secs.to_string();
                 &[("timeout", query_value.as_str())]
             } else {
                 &[]
@@ -114,7 +192,9 @@ impl Client {
                 }
                 // No caller-set bound: this window elapsed without a
                 // terminal status, so re-issue the wait call and keep
-                // waiting.
+                // waiting - after a small defensive floor (see
+                // WAIT_REPOLL_MIN_INTERVAL's doc comment).
+                tokio::time::sleep(WAIT_REPOLL_MIN_INTERVAL).await;
                 continue;
             }
 

@@ -55,20 +55,56 @@ pub(crate) enum IncusEnvelope {
 
 /// A value paired with the ETag it was fetched with, for later use as an
 /// `If-Match` precondition on an update.
+///
+/// Fields are `pub(crate)`, not `pub`: every `WithEtag` a caller can observe
+/// came from an actual `get_*` call in this crate, which is what makes the
+/// ETag trustworthy as "this really was fetched, not typed in by hand." A
+/// `pub` struct literal would let a caller construct
+/// `WithEtag { value, etag: Some("whatever") }` directly, defeating that
+/// guarantee. Use [`WithEtag::value`], [`WithEtag::etag`], or
+/// [`WithEtag::into_parts`] to get the data back out.
 #[derive(Debug, Clone)]
 pub struct WithEtag<T> {
-    pub value: T,
-    pub etag: Option<String>,
+    pub(crate) value: T,
+    pub(crate) etag: Option<String>,
 }
 
-/// Maps a 412 (Precondition Failed) API error - returned when a caller's
-/// `If-Match` ETag was stale - into `Error::PreconditionFailed { resource }`.
-/// Every other error passes through unchanged. Shared by every resource
-/// module's `update_*`/`patch_*` methods that accept an `etag: Option<&str>`
-/// precondition, so the 412-detection logic lives in exactly one place
-/// rather than once per resource type.
-pub(crate) fn precondition_failed_or(err: Error, resource: &str) -> Error {
+impl<T> WithEtag<T> {
+    /// The fetched value.
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    /// The ETag it was fetched with, if the response carried one. Pass this
+    /// straight to the matching `update_*`/`patch_*` call's `etag`
+    /// parameter (as `Some(etag.as_deref())`) for optimistic-concurrency
+    /// protection.
+    pub fn etag(&self) -> Option<&str> {
+        self.etag.as_deref()
+    }
+
+    /// Consumes `self`, returning the value and ETag by ownership - useful
+    /// when you need to move `value` out (e.g. to mutate it in place
+    /// before sending it back as a `new_definition`) without cloning.
+    pub fn into_parts(self) -> (T, Option<String>) {
+        (self.value, self.etag)
+    }
+}
+
+/// Maps the two HTTP statuses that mean something specific about a
+/// caller-identified resource into their matching typed `Error` variant -
+/// 404 into `Error::NotFound { resource }`, and 412 (a stale `If-Match`
+/// ETag) into `Error::PreconditionFailed { resource }`. Every other error
+/// passes through unchanged. Shared by every resource module's `get_*`,
+/// `update_*`/`patch_*`, and `delete_*` methods, so both status-to-variant
+/// mappings live in exactly one place rather than once per resource type.
+pub(crate) fn resource_error_or(err: Error, resource: &str) -> Error {
     match err {
+        Error::Api {
+            status_code: 404, ..
+        } => Error::NotFound {
+            resource: resource.to_owned(),
+        },
         Error::Api {
             status_code: 412, ..
         } => Error::PreconditionFailed {
