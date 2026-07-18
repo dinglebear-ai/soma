@@ -172,6 +172,13 @@ impl AutheliaProvider {
             .verifier
             .verify(&payload.id_token, &self.client_id)
             .await?;
+        info!(
+            provider = "authelia",
+            subject_id = %fingerprint(&claims.sub),
+            has_refresh_token = payload.refresh_token.is_some(),
+            expires_in_secs = payload.expires_in,
+            "oauth upstream code exchange succeeded"
+        );
         Ok(ProviderExchange {
             subject: claims.sub,
             email: claims.email,
@@ -185,6 +192,11 @@ impl AutheliaProvider {
 
     pub async fn refresh(&self, refresh_token: &str) -> Result<ProviderExchange, AuthError> {
         let trace = RequestTrace::start("authelia", "refresh", "POST", &self.token_endpoint);
+        info!(
+            provider = "authelia",
+            refresh_token_id = %fingerprint(refresh_token),
+            "oauth upstream refresh started"
+        );
         let payload: AutheliaTokenResponse = read_json_response(
             trace,
             self.http.post(self.token_endpoint.clone()).form(&[
@@ -205,6 +217,13 @@ impl AutheliaProvider {
             .verifier
             .verify(&payload.id_token, &self.client_id)
             .await?;
+        info!(
+            provider = "authelia",
+            subject_id = %fingerprint(&claims.sub),
+            has_refresh_token = payload.refresh_token.is_some(),
+            expires_in_secs = payload.expires_in,
+            "oauth upstream refresh succeeded"
+        );
         Ok(ProviderExchange {
             subject: claims.sub,
             email: claims.email,
