@@ -17,17 +17,33 @@ fn raw_trace_fields_recovers_traceparent_and_tracestate() {
 }
 
 #[test]
-fn raw_trace_fields_can_reuse_an_existing_summary() {
+fn extraction_returns_summary_and_fields_from_the_same_meta() {
     let mut meta = Meta::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
-    let summary = trace_summary_from_meta(&meta, TraceTrust::Untrusted);
-
-    let fields = raw_trace_fields_from_summary(&meta, &summary)
+    let extraction = extract_trace_meta(&meta, TraceTrust::Untrusted);
+    let fields = extraction
+        .raw_fields
         .expect("validated summary should gate raw field recovery");
 
+    assert_eq!(extraction.summary.trace_id_prefix(), Some("0af76519"));
     assert_eq!(fields.traceparent.as_deref(), Some(VALID_TRACEPARENT));
     assert_eq!(fields.tracestate.as_deref(), Some("vendor=value"));
+}
+
+#[test]
+fn extraction_cannot_authorize_fields_from_an_unrelated_meta() {
+    let mut valid = Meta::new();
+    valid.set_traceparent(VALID_TRACEPARENT);
+    let mut invalid = Meta::new();
+    invalid.set_traceparent("not-a-traceparent");
+
+    let valid_extraction = extract_trace_meta(&valid, TraceTrust::Untrusted);
+    let invalid_extraction = extract_trace_meta(&invalid, TraceTrust::Untrusted);
+
+    assert!(valid_extraction.raw_fields.is_some());
+    assert!(invalid_extraction.raw_fields.is_none());
+    assert!(invalid_extraction.summary.trace_id_prefix().is_none());
 }
 
 #[test]
