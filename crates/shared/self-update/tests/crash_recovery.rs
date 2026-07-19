@@ -24,6 +24,9 @@ fn write_marker(
 ) {
     use std::os::unix::fs::MetadataExt;
 
+    if std::fs::symlink_metadata(backup).is_ok_and(|metadata| metadata.file_type().is_file()) {
+        std::fs::set_permissions(backup, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
     std::fs::write(
         state,
         serde_json::to_vec_pretty(&json!({
@@ -269,6 +272,46 @@ async fn rollback_rejects_backup_bytes_that_do_not_match_previous_digest() {
     ));
     assert_eq!(std::fs::read(&executable).unwrap(), new);
     assert!(state.exists());
+}
+
+#[tokio::test]
+async fn rollback_rejects_crash_left_backups_with_unsafe_or_non_executable_modes() {
+    for mode in [0o4755, 0o777, 0o644] {
+        let temp = tempdir().unwrap();
+        let executable = temp.path().join("agent");
+        let state = temp.path().join("update.json");
+        let backup = temp.path().join(".agent.rollback-999999-1");
+        let staged = temp.path().join(".agent.update-999999-2.part");
+        let old = b"old executable";
+        let new = b"new executable";
+        std::fs::write(&executable, new).unwrap();
+        std::fs::write(&backup, old).unwrap();
+        write_marker(&state, &executable, &backup, &staged, "installed", old, new);
+        let updater = Updater::new(
+            UpdateLayout::new(&executable, &state),
+            UpdatePolicy::default()
+                .with_max_unconfirmed_restarts(1)
+                .unwrap(),
+        );
+
+        assert!(matches!(
+            updater.recover_on_startup("2.0.0").await.unwrap(),
+            RecoveryAction::PendingUpdate { attempts: 1, .. }
+        ));
+        std::fs::set_permissions(&backup, std::fs::Permissions::from_mode(mode)).unwrap();
+        let marker_before_rejection = std::fs::read(&state).unwrap();
+
+        assert!(matches!(
+            updater.recover_on_startup("2.0.0").await,
+            Err(soma_self_update::UpdateError::UnsafeExecutableMode {
+                mode: rejected_mode,
+                ..
+            }) if rejected_mode == mode
+        ));
+        assert_eq!(std::fs::read(&executable).unwrap(), new);
+        assert_eq!(std::fs::read(&backup).unwrap(), old);
+        assert_eq!(std::fs::read(&state).unwrap(), marker_before_rejection);
+    }
 }
 
 #[tokio::test]

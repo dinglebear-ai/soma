@@ -15,7 +15,7 @@ pub(crate) const VALIDATION_MODE: u32 = 0o700;
 const UNSAFE_EXECUTABLE_MODE_BITS: u32 = 0o7022;
 #[cfg(unix)]
 const UNSAFE_EXECUTABLE_MODE_REMEDIATION: &str =
-    "remove special bits and group/other write permissions before staging an update";
+    "grant owner execute and remove special bits and group/other write permissions before staging an update";
 
 /// A fully downloaded artifact whose digest matches its directive.
 #[derive(Debug)]
@@ -301,7 +301,7 @@ fn executable_mode_and_identity(path: &Path) -> Result<(u32, ExecutableIdentity)
 #[cfg(unix)]
 pub(crate) fn validate_executable_mode(path: &Path, mode: u32) -> Result<()> {
     let mode = mode & 0o7777;
-    if mode & UNSAFE_EXECUTABLE_MODE_BITS != 0 {
+    if mode & UNSAFE_EXECUTABLE_MODE_BITS != 0 || mode & 0o100 == 0 {
         return Err(UpdateError::UnsafeExecutableMode {
             path: path.to_path_buf(),
             mode,

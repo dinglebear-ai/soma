@@ -509,6 +509,7 @@ async fn install_rejects_executable_identity_change_after_staging() {
     );
     let artifact = validated(&updater, new, "2.0.0").await;
     std::fs::write(&replacement, other).unwrap();
+    std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o700)).unwrap();
     std::fs::rename(&replacement, &executable).unwrap();
 
     assert!(matches!(

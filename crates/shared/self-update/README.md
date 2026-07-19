@@ -81,8 +81,9 @@ mode `0700` for validation. The named staged artifact never inherits setuid,
 setgid, group, or other permissions from the installed executable. Staging
 resolves the executable once, rejects a symlink leaf, and reads its intended
 full mode and device/inode identity through a no-follow descriptor. It rejects
-source modes with any special bit or group/other write permission using the
-typed `UnsafeExecutableMode` error before creating or reading a partial artifact.
+source modes without owner execute, with any special bit, or with group/other
+write permission using the typed `UnsafeExecutableMode` error before creating
+or reading a partial artifact.
 Transports can call `Updater::preflight_stage` before starting a download;
 `stage` repeats the check. Installation revalidates the captured identity under
 the transaction locks, so replacing or retargeting the executable between
@@ -135,17 +136,19 @@ mode. The artifact must remain exact mode `0700` through validation and the
 final locked digest check. Only then does installation apply a supported
 intended mode such as `0700`, `0750`, or `0755` through the validated descriptor,
 sync it, and recheck identity and mode immediately before replacement. Modes
-with setuid, setgid, sticky, group-write, or other-write bits are never accepted
-as source, staged, installed, or copy-backup modes. Validator-side permission
-changes therefore fail closed instead of being repaired.
+without owner execute or with setuid, setgid, sticky, group-write, or other-write
+bits are never accepted as source, staged, installed, or copy-backup modes.
+Validator-side permission changes therefore fail closed instead of being repaired.
 `BackupStrategy::Copy` is available when an adopter cannot use hard links or
 wants to exercise the copy path explicitly.
 A process crash at any marker, swap, or rollback boundary is completed or
 aborted idempotently by startup recovery. Each unconfirmed startup increments
 the marker only after hashing the installed executable against the verified
 target digest; changed bytes preserve recovery state and return an error. After
-the configured threshold the digest-verified backup is
-restored and the adopter must restart again. Successful health confirmation
+the configured threshold, recovery opens the backup with no-follow semantics,
+binds owner, safe executable mode, digest, and identity to that descriptor, and
+rechecks the descriptor and path immediately before rollback rename. The backup
+is then restored and the adopter must restart again. Successful health confirmation
 rehashes the installed executable against the verified target digest before
 durably removing the authoritative marker and cleaning the backup. Changed
 bytes retain both marker and backup; a cleanup interruption after confirmation

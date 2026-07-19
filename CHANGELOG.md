@@ -271,10 +271,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   permissions before use. Relative layouts bind to their construction-time
   directory. Staged downloads begin mode `0600`, become exact mode `0700` only
   after digest verification, and must remain `0700` through validation and the
-  final locked hash. Source modes with special bits or group/other write access
-  are rejected with typed remediation before partial creation; transports can
-  run the same preflight before download. Rollback copy destinations only use a
-  prevalidated safe source mode, markers retain the actual backup owner, and a
+  final locked hash. Source modes without owner execute, with special bits, or
+  with group/other write access are rejected with typed remediation before
+  partial creation; transports can run the same preflight before download.
+  Rollback recovery binds safe executable mode, digest, and identity to one
+  no-follow backup descriptor and rechecks it immediately before rename.
+  Rollback copy destinations only use a prevalidated safe source mode, markers
+  retain the actual backup owner, and a
   supported intended executable mode is restored, synced, and rechecked only
   after the final hash and immediately before swap.
   Successful validation explicitly terminates and drains its Unix

@@ -230,11 +230,10 @@ impl Updater {
                 max_attempts: self.policy().max_unconfirmed_restarts(),
             });
         }
-        validate_rollback_backup(&state, &marker)?;
+        let rollback = validate_rollback_backup(&state, &marker)?;
         marker.phase = MarkerPhase::RollingBack;
         write_marker(self, &state, &marker)?;
-        std::fs::rename(&marker.backup, &marker.executable)
-            .map_err(|error| UpdateError::io(&marker.executable, error))?;
+        rollback.rename_to(&state, &marker.executable)?;
         sync_parent(&marker.executable)?;
         self.maybe_fail(TestFailpoint::AfterRollbackRename, &marker.executable)?;
         marker.phase = MarkerPhase::RolledBack;
@@ -282,7 +281,7 @@ impl Updater {
                 actual: installed_digest,
             });
         }
-        validate_rollback_backup(&state, &marker)?;
+        let _rollback = validate_rollback_backup(&state, &marker)?;
         remove_file(&state)?;
         sync_parent(&state)?;
         remove_file(&marker.backup)?;
@@ -321,9 +320,8 @@ fn resume_rollback(
     if running_version != marker.target || executable_digest != marker.sha256 {
         return Err(version_mismatch(running_version, &marker));
     }
-    validate_rollback_backup(state, &marker)?;
-    std::fs::rename(&marker.backup, &marker.executable)
-        .map_err(|error| UpdateError::io(&marker.executable, error))?;
+    let rollback = validate_rollback_backup(state, &marker)?;
+    rollback.rename_to(state, &marker.executable)?;
     sync_parent(&marker.executable)?;
     updater.maybe_fail(TestFailpoint::AfterRollbackRename, &marker.executable)?;
     marker.phase = MarkerPhase::RolledBack;

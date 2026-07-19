@@ -292,7 +292,7 @@ async fn unsafe_source_modes_are_rejected_before_reading_or_creating_transaction
         }
     }
 
-    for mode in [0o4755, 0o2755, 0o1755, 0o777, 0o775] {
+    for mode in [0o4755, 0o2755, 0o1755, 0o777, 0o775, 0o600, 0o644] {
         let temp = tempdir().unwrap();
         let executable = temp.path().join("example");
         let state = temp.path().join("state.json");
@@ -319,7 +319,7 @@ async fn unsafe_source_modes_are_rejected_before_reading_or_creating_transaction
             }) => {
                 assert_eq!(path, executable);
                 assert_eq!(rejected_mode, mode);
-                assert!(remediation.contains("remove special bits"));
+                assert!(remediation.contains("grant owner execute"));
             }
             result => panic!("expected typed unsafe-mode rejection, got {result:?}"),
         }

@@ -16,6 +16,15 @@ async fn public_contract_is_constructible_without_product_types() {
     std::fs::create_dir_all(construction_dir.join(executable.parent().unwrap())).unwrap();
     std::fs::create_dir_all(construction_dir.join(state_file.parent().unwrap())).unwrap();
     std::fs::write(construction_dir.join(&executable), b"old").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(
+            construction_dir.join(&executable),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+    }
     let layout = UpdateLayout::new(&executable, &state_file);
     let updater = Updater::new(layout, UpdatePolicy::default());
     let directive = UpdateDirective::new(

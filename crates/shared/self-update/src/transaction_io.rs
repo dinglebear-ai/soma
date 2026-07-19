@@ -320,7 +320,7 @@ pub(super) fn hash_stable_validated_artifact(
     Ok(digest)
 }
 
-fn hash_reader(file: &mut File, path: &Path) -> Result<String> {
+pub(super) fn hash_reader(file: &mut File, path: &Path) -> Result<String> {
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
     loop {

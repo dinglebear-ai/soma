@@ -1,7 +1,13 @@
-use std::path::Path;
+use std::fs::{File, OpenOptions};
+use std::io::Seek;
+use std::path::{Path, PathBuf};
 
-use super::{Marker, MarkerPhase, hash_file, path_validation::paths_may_alias, sync_parent};
+use super::{
+    Marker, MarkerPhase, path_validation::paths_may_alias, sync_parent,
+    transaction_io::hash_reader,
+};
 use crate::{Result, UpdateError};
+use crate::staging::validate_executable_mode;
 
 pub(super) fn validate_backup_candidate(
     executable: &Path,
@@ -106,16 +112,116 @@ pub(super) fn validate_marker_staged_metadata(state: &Path, marker: &Marker) -> 
     Ok(())
 }
 
-pub(super) fn validate_rollback_backup(state: &Path, marker: &Marker) -> Result<()> {
-    validate_marker_backup_metadata(state, marker)?;
-    let actual = hash_file(&marker.backup)?;
+pub(super) struct ValidatedRollbackBackup {
+    file: File,
+    path: PathBuf,
+    device: u64,
+    inode: u64,
+    uid: u32,
+    mode: u32,
+    digest: String,
+}
+
+impl ValidatedRollbackBackup {
+    fn revalidate_path(&self, state: &Path) -> Result<()> {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let descriptor = self
+            .file
+            .metadata()
+            .map_err(|error| UpdateError::io(&self.path, error))?;
+        let path = std::fs::symlink_metadata(&self.path)
+            .map_err(|error| UpdateError::io(&self.path, error))?;
+        let descriptor_mode = descriptor.permissions().mode() & 0o7777;
+        let path_mode = path.permissions().mode() & 0o7777;
+        validate_executable_mode(&self.path, descriptor_mode)?;
+        validate_executable_mode(&self.path, path_mode)?;
+        if !descriptor.file_type().is_file()
+            || !path.file_type().is_file()
+            || descriptor.dev() != self.device
+            || descriptor.ino() != self.inode
+            || descriptor.uid() != self.uid
+            || descriptor_mode != self.mode
+            || path.dev() != self.device
+            || path.ino() != self.inode
+            || path.uid() != self.uid
+            || path_mode != self.mode
+        {
+            return Err(UpdateError::InvalidMarker {
+                path: state.to_path_buf(),
+                message: "rollback backup identity or mode changed during validation".into(),
+            });
+        }
+        Ok(())
+    }
+
+    pub(super) fn rename_to(mut self, state: &Path, executable: &Path) -> Result<()> {
+        self.file
+            .rewind()
+            .map_err(|error| UpdateError::io(&self.path, error))?;
+        let actual = hash_reader(&mut self.file, &self.path)?;
+        if actual != self.digest {
+            return Err(UpdateError::InvalidMarker {
+                path: state.to_path_buf(),
+                message: "rollback backup digest changed before rename".into(),
+            });
+        }
+        self.revalidate_path(state)?;
+        std::fs::rename(&self.path, executable)
+            .map_err(|error| UpdateError::io(executable, error))
+    }
+}
+
+pub(super) fn validate_rollback_backup(
+    state: &Path,
+    marker: &Marker,
+) -> Result<ValidatedRollbackBackup> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+
+    let mut file = OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+        .open(&marker.backup)
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                UpdateError::MissingRollback {
+                    path: marker.backup.clone(),
+                }
+            } else {
+                UpdateError::io(&marker.backup, error)
+            }
+        })?;
+    let metadata = file
+        .metadata()
+        .map_err(|error| UpdateError::io(&marker.backup, error))?;
+    let mode = metadata.permissions().mode() & 0o7777;
+    if !metadata.file_type().is_file()
+        || !backup_owner_matches_recorded(metadata.uid(), marker.backup_uid)
+    {
+        return Err(UpdateError::InvalidMarker {
+            path: state.to_path_buf(),
+            message: "rollback backup must be an owned non-symlink regular file".into(),
+        });
+    }
+    validate_executable_mode(&marker.backup, mode)?;
+    let actual = hash_reader(&mut file, &marker.backup)?;
     if actual != marker.previous_sha256 {
         return Err(UpdateError::InvalidMarker {
             path: state.to_path_buf(),
             message: "rollback backup digest does not match previous executable".into(),
         });
     }
-    Ok(())
+    let validated = ValidatedRollbackBackup {
+        file,
+        path: marker.backup.clone(),
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        uid: metadata.uid(),
+        mode,
+        digest: marker.previous_sha256.clone(),
+    };
+    validated.revalidate_path(state)?;
+    Ok(validated)
 }
 
 pub(super) fn cleanup_owned_artifacts(
