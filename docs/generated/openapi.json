@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Soma MCP REST API",
-    "version": "0.4.7",
+    "version": "0.5.0",
     "description": "Generated OpenAPI schema for Soma's direct REST surface. Auth modes: loopback/trusted-gateway deployments may have no local auth; mounted bearer mode uses SOMA_MCP_TOKEN; OAuth mode uses bearer JWTs. REST actions require their action-specific scopes when auth is mounted.",
     "contact": {
       "name": "dinglebear.ai",

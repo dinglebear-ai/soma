@@ -53,7 +53,7 @@
     "type": "git",
     "url": "git+https://github.com/jmagar/soma.git"
   },
-  "version": "0.4.7",
+  "version": "0.5.0",
   "scripts": {
     "prepack": "node scripts/sync-readme.js",
     "check": "node --check bin/soma-rmcp.js && node --check scripts/sync-readme.js && node --check scripts/check-package.js && node scripts/check-package.js",
