@@ -178,14 +178,7 @@ fn unresolved_leaves_may_alias(first: &Path, second: &Path) -> bool {
     ) else {
         return false;
     };
-    let same_canonical_parent = match (
-        std::fs::canonicalize(first_parent),
-        std::fs::canonicalize(second_parent),
-    ) {
-        (Ok(first_parent), Ok(second_parent)) => first_parent == second_parent,
-        _ => false,
-    };
-    if !same_canonical_parent {
+    if !parents_share_identity(first_parent, second_parent) {
         return false;
     }
 
@@ -202,6 +195,30 @@ fn unresolved_leaves_may_alias(first: &Path, second: &Path) -> bool {
     // Refuse differing non-ASCII or invalid UTF-8 leaves rather than probing the
     // directory and creating a lock before their identity is known.
     true
+}
+
+fn parents_share_identity(first: &Path, second: &Path) -> bool {
+    let same_canonical_path = match (
+        std::fs::canonicalize(first),
+        std::fs::canonicalize(second),
+    ) {
+        (Ok(first), Ok(second)) => first == second,
+        _ => false,
+    };
+    if same_canonical_path {
+        return true;
+    }
+
+    match (std::fs::metadata(first), std::fs::metadata(second)) {
+        (Ok(first), Ok(second)) => metadata_identity_matches(&first, &second),
+        _ => false,
+    }
+}
+
+fn metadata_identity_matches(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    first.dev() == second.dev() && first.ino() == second.ino()
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]

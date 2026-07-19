@@ -139,6 +139,36 @@ fn non_utf8_alias_check_is_side_effect_free() {
     assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
 }
 
+#[test]
+fn filesystem_identical_parent_metadata_is_recognized() {
+    let temp = tempdir().unwrap();
+    let other = temp.path().join("other");
+    std::fs::create_dir(&other).unwrap();
+    let first = std::fs::metadata(temp.path()).unwrap();
+    let same = std::fs::metadata(temp.path()).unwrap();
+    let distinct = std::fs::metadata(&other).unwrap();
+
+    assert!(metadata_identity_matches(&first, &same));
+    assert!(!metadata_identity_matches(&first, &distinct));
+}
+
+#[test]
+fn aliased_parent_collision_check_is_side_effect_free() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempdir().unwrap();
+    let state = temp.path().join("state");
+    let alias = temp.path().join("state-alias");
+    std::fs::create_dir(&state).unwrap();
+    symlink(&state, &alias).unwrap();
+
+    assert!(unresolved_leaves_may_alias(
+        &state.join("Update.JSON"),
+        &alias.join("update.json")
+    ));
+    assert_eq!(std::fs::read_dir(&state).unwrap().count(), 0);
+}
+
 fn migration_collision_is_side_effect_free(
     old_name: impl AsRef<std::ffi::OsStr>,
     new_name: impl AsRef<std::ffi::OsStr>,

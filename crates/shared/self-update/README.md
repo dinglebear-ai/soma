@@ -164,8 +164,10 @@ the sidecar. Before creating any lock or authority file, it rejects collisions
 between either marker/marker-temporary namespace and every old/new lock,
 authority, and authority-temporary path. Existing paths are compared by
 filesystem identity and canonical path. Because destination leaves can be
-absent, differing all-ASCII names under the same canonical parent are compared
-ASCII-case-insensitively. Any differing leaf containing non-ASCII or invalid
+absent, parent directories are matched by canonical path or Unix device/inode
+identity so bind-style aliases cannot bypass validation. Differing all-ASCII
+names under the same directory are compared ASCII-case-insensitively. Any
+differing leaf containing non-ASCII or invalid
 UTF-8 bytes is conservatively treated as a possible alias because portable
 Unicode normalization and full case-fold behavior varies by filesystem. This
 intentionally rejects some distinct names on case-sensitive filesystems, but
