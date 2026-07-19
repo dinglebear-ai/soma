@@ -11,8 +11,12 @@ use crate::{RecoveryAction, Result, UpdateError, Updater, ValidatedArtifact};
 mod artifacts;
 #[path = "transaction_async.rs"]
 mod asynchronous;
+#[path = "transaction_authority.rs"]
+mod authority;
 #[path = "transaction_marker.rs"]
 mod marker;
+#[path = "transaction_migration.rs"]
+mod migration;
 #[path = "transaction_outcome.rs"]
 mod outcome;
 #[path = "transaction_pre_swap.rs"]
@@ -27,32 +31,13 @@ use marker::marker_temp_owner_is_valid;
 use marker::{
     Marker, MarkerPhase, cleanup_marker_temp, preflight_marker_lifecycle, read_marker, write_marker,
 };
-use outcome::indeterminate_restart;
 pub use outcome::{ConfirmationOutcome, InstallOutcome};
+use outcome::{TestFailpoint, indeterminate_restart};
 use pre_swap::validate_or_cleanup;
 use transaction_io::{
     create_backup, hash_file, hash_stable_validated_artifact, remove_and_sync, remove_file,
     remove_if_present_and_sync, suffix_path, sync_parent, unique_backup,
 };
-
-#[cfg_attr(not(test), allow(dead_code))]
-#[derive(Clone, Copy)]
-#[repr(u8)]
-pub(super) enum TestFailpoint {
-    None,
-    AfterMarkerTempSync,
-    AfterMarkerSync,
-    AfterSwap,
-    AfterRollbackRename,
-    FailedRenameAfterMarkerCleanup,
-    FailedRenameAfterBackupCleanup,
-    AfterPreparedMarkerRename,
-    AfterPreparedMarkerRenameWithStateCleanupFailure,
-    PostMarkerModeFailure,
-    PostMarkerDigestFailure,
-    PostMarkerModeFailureWithStateCleanupFailure,
-    PostMarkerDigestFailureWithBackupCleanupFailure,
-}
 
 impl Updater {
     #[cfg(test)]
@@ -95,7 +80,7 @@ impl Updater {
         validate_backup_candidate(
             &executable,
             &state,
-            &paths.locks,
+            &paths.protected,
             &marker_temp,
             &validated_path,
             &backup,

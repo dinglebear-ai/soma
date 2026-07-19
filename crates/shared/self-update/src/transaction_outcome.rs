@@ -2,6 +2,28 @@ use std::path::PathBuf;
 
 use crate::UpdateError;
 
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Clone, Copy)]
+#[repr(u8)]
+pub(crate) enum TestFailpoint {
+    None,
+    AfterMarkerTempSync,
+    AfterMarkerSync,
+    AfterSwap,
+    AfterRollbackRename,
+    FailedRenameAfterMarkerCleanup,
+    FailedRenameAfterBackupCleanup,
+    AfterPreparedMarkerRename,
+    AfterPreparedMarkerRenameWithStateCleanupFailure,
+    PostMarkerModeFailure,
+    PostMarkerDigestFailure,
+    PostMarkerModeFailureWithStateCleanupFailure,
+    PostMarkerDigestFailureWithBackupCleanupFailure,
+    AuthorityAfterPartialWrite,
+    AuthorityBeforeFileSync,
+    AuthorityBeforeDirectorySync,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InstallOutcome {
     /// The swap and durable installed marker completed; restart into the new executable.

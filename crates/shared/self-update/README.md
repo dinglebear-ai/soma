@@ -79,11 +79,17 @@ On Unix each partial begins mode `0600` even under a permissive umask; only
 after the digest matches does staging apply the intended executable mode.
 
 Installation acquires sorted, deduplicated advisory locks derived from both the
-canonical executable and state identities. The executable-derived lock durably
-records the one authoritative state identity; a later updater constructed with
-the same executable and a different state path is rejected even after the first
-process exits. The state-derived lock preserves serialization for multiple
-executables sharing one state file. The
+canonical executable and state identities. The executable-derived lock is a
+stable inode used only for serialization. A separate mode-`0600` authority
+sidecar durably records the one authoritative state identity as a versioned,
+length-delimited, SHA-256-checksummed record. Authority changes use a
+file-synced temporary, atomic rename, and parent-directory sync, so a crash
+cannot truncate the stable lock or leave a partial record authoritative. Safe
+partial temporaries are reclaimed under the executable lock; malformed,
+symlinked, foreign-owner, or incorrectly permissioned authority files fail
+closed. A later updater constructed with the same executable and a different
+state path is rejected even after the first process exits. The state-derived
+lock preserves serialization for multiple executables sharing one state file. The
 executable directory and state directory must not be writable by untrusted
 principals; no pathname-based installer can close the final metadata-to-rename
 race against an attacker who controls that directory. Installation writes and
@@ -150,6 +156,16 @@ removing recovery state. Corrupt markers, missing
 backups, and cleanup failures are typed errors and retain diagnostic state where
 possible. Operators should stop competing updater processes before repairing a
 reported marker or backup path.
+
+Use `Updater::migrate_state_file` to intentionally move an executable's state
+authority. The method acquires the executable lock and both old and new state
+locks in sorted order, verifies the current authority, and atomically rewrites
+the sidecar. It refuses migration while either marker path, either marker
+temporary, or any exact staged/rollback recovery artifact exists. This makes
+pending and indeterminate transactions explicit operator work instead of
+silently orphaning recovery state. Use the returned `Updater` for subsequent
+transactions. Retrying the same migration is idempotent when an earlier call
+renamed the new authority record but could not confirm its directory sync.
 
 The public install, startup-recovery, and confirmation methods are async for
 service integration, but their synchronous hashing, copying, advisory locking,

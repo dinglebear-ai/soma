@@ -695,11 +695,17 @@ async fn symlinked_state_paths_are_rejected_across_process_construction() {
         UpdatePolicy::default(),
     );
 
-    assert!(matches!(
-        aliased.recover_on_startup("1").await,
-        Err(UpdateError::Io { source, .. })
-            if source.kind() == std::io::ErrorKind::InvalidInput
-    ));
+    match aliased.recover_on_startup("1").await {
+        Err(UpdateError::Io { path, source }) => {
+            assert_eq!(path, state_alias);
+            assert_eq!(source.kind(), std::io::ErrorKind::InvalidInput);
+            assert_eq!(
+                source.to_string(),
+                "state path must not contain symlinked components"
+            );
+        }
+        other => panic!("unexpected construction diagnostic: {other:?}"),
+    }
     std::fs::remove_file(&state_alias).unwrap();
     let retarget = temp.path().join("retarget");
     std::fs::create_dir(&retarget).unwrap();
@@ -960,4 +966,105 @@ async fn layout_collisions_are_rejected_before_filesystem_mutation() {
         assert_eq!(std::fs::read(&executable).unwrap(), original);
         assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 1);
     }
+}
+
+#[tokio::test]
+async fn idle_state_authority_can_be_migrated_explicitly() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let old_state = temp.path().join("old-update.json");
+    let new_state = temp.path().join("new-update.json");
+    std::fs::write(&executable, b"old").unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &old_state),
+        UpdatePolicy::default(),
+    );
+    assert_eq!(
+        updater.recover_on_startup("1").await.unwrap(),
+        RecoveryAction::NoPendingUpdate
+    );
+
+    let migrated = updater.migrate_state_file(&new_state).await.unwrap();
+
+    assert_eq!(migrated.layout().state_file(), new_state);
+    assert_eq!(
+        migrated.recover_on_startup("1").await.unwrap(),
+        RecoveryAction::NoPendingUpdate
+    );
+    assert!(matches!(
+        updater.recover_on_startup("1").await,
+        Err(UpdateError::InvalidLayout { .. })
+    ));
+}
+
+#[tokio::test]
+async fn state_authority_migration_refuses_a_pending_update() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let destination = temp.path().join("migrated.json");
+    let old = b"#!/bin/sh\necho 'example 1.0.0'\n";
+    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    std::fs::write(&executable, old).unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    updater
+        .install(validated(&updater, new, "2.0.0").await, "1.0.0")
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        updater.migrate_state_file(&destination).await,
+        Err(UpdateError::StateMigrationBlocked { path, .. }) if path == state
+    ));
+}
+
+#[tokio::test]
+async fn state_authority_migration_refuses_indeterminate_marker_temporary_state() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let state_temp = state.with_file_name("update.json.tmp");
+    let destination = temp.path().join("migrated.json");
+    std::fs::write(&executable, b"old").unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    updater.recover_on_startup("1").await.unwrap();
+    std::fs::write(&state_temp, b"partial marker").unwrap();
+
+    assert!(matches!(
+        updater.migrate_state_file(&destination).await,
+        Err(UpdateError::StateMigrationBlocked { path, .. }) if path == state_temp
+    ));
+    assert_eq!(
+        updater.recover_on_startup("1").await.unwrap(),
+        RecoveryAction::NoPendingUpdate
+    );
+}
+
+#[tokio::test]
+async fn state_authority_migration_refuses_recovery_artifacts() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let destination = temp.path().join("migrated.json");
+    let staged = temp
+        .path()
+        .join(format!(".example.update-{}-1.part", std::process::id()));
+    std::fs::write(&executable, b"old").unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    updater.recover_on_startup("1").await.unwrap();
+    std::fs::write(&staged, b"in-flight").unwrap();
+
+    assert!(matches!(
+        updater.migrate_state_file(&destination).await,
+        Err(UpdateError::StateMigrationBlocked { path, .. }) if path == staged
+    ));
 }

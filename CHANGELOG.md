@@ -59,8 +59,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   immediate back-to-back recovery calls deterministic. State paths reject
   symlinked components and are revalidated for every transaction. Sorted locks
   derived from both executable and state identities preserve shared-state
-  serialization while the executable lock durably binds one authoritative state
-  path across process lifetimes. Failures after executable replacement return a
+  serialization while a checksummed, atomically replaced authority sidecar
+  binds one state path across process lifetimes without rewriting the stable
+  lock inode. Crash-boundary tests cover partial authority writes and file- and
+  directory-sync failures. `Updater::migrate_state_file` explicitly moves that
+  authority only while both state locations and all recovery artifacts are
+  idle. Construction-time state binding errors preserve their original path,
+  I/O kind, and diagnostic message. Failures after executable replacement return a
   typed restart-required indeterminate outcome so adopters restart into the
   installed bytes and let startup recovery reconcile the prepared marker.
   The crate has no internal workspace dependencies; this change

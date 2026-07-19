@@ -1,9 +1,9 @@
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use fs2::FileExt;
 
+use super::authority::{authority_paths, ensure_state_authority};
 use super::transaction_io::{path_identity, suffix_path};
 use crate::{Result, UpdateError, Updater, bind_state_identity, reject_executable_leaf_symlink};
 
@@ -22,7 +22,10 @@ pub(super) struct LayoutPaths {
     pub(super) executable: PathBuf,
     pub(super) state: PathBuf,
     pub(super) locks: Vec<PathBuf>,
-    executable_lock: PathBuf,
+    pub(super) protected: Vec<PathBuf>,
+    pub(super) executable_lock: PathBuf,
+    pub(super) authority: PathBuf,
+    pub(super) authority_temp: PathBuf,
 }
 
 impl Updater {
@@ -78,19 +81,24 @@ impl Updater {
     }
 
     pub(super) fn transaction_locks(&self, paths: &LayoutPaths) -> Result<Vec<TransactionLock>> {
-        let mut locks: Vec<_> = paths
-            .locks
+        let locks = self.acquire_transaction_locks(&paths.locks)?;
+        if !locks.iter().any(|lock| lock.path == paths.executable_lock) {
+            return Err(UpdateError::InvalidPolicy(
+                "executable transaction lock is missing",
+            ));
+        }
+        ensure_state_authority(self, &paths.authority, &paths.authority_temp, &paths.state)?;
+        Ok(locks)
+    }
+
+    pub(super) fn acquire_transaction_locks(
+        &self,
+        lock_paths: &[PathBuf],
+    ) -> Result<Vec<TransactionLock>> {
+        lock_paths
             .iter()
             .map(|path| self.transaction_lock(path))
-            .collect::<Result<_>>()?;
-        let executable_lock = locks
-            .iter_mut()
-            .find(|lock| lock.path == paths.executable_lock)
-            .ok_or(UpdateError::InvalidPolicy(
-                "executable transaction lock is missing",
-            ))?;
-        bind_executable_state(executable_lock, &paths.state)?;
-        Ok(locks)
+            .collect()
     }
 
     pub(super) fn validated_layout(&self) -> Result<LayoutPaths> {
@@ -100,74 +108,37 @@ impl Updater {
         let state = bind_state_identity(self.layout().state_file())
             .map_err(|error| UpdateError::io(self.layout().state_file(), error))?;
         let executable_lock = executable_lock_path(&executable)?;
+        let (authority, authority_temp) = authority_paths(&executable)?;
         let mut locks = vec![executable_lock.clone(), suffix_path(&state, ".lock")];
         locks.sort();
         locks.dedup();
-        for (first, second) in std::iter::once((&executable, &state)).chain(
-            locks
-                .iter()
-                .flat_map(|lock| [(&executable, lock), (&state, lock)]),
-        ) {
-            if first == second {
-                return Err(UpdateError::InvalidLayout {
-                    first: first.clone(),
-                    second: second.clone(),
-                });
+        let mut protected = vec![
+            executable.clone(),
+            state.clone(),
+            authority.clone(),
+            authority_temp.clone(),
+        ];
+        protected.extend(locks.iter().cloned());
+        for (index, first) in protected.iter().enumerate() {
+            for second in &protected[index + 1..] {
+                if first == second {
+                    return Err(UpdateError::InvalidLayout {
+                        first: first.clone(),
+                        second: second.clone(),
+                    });
+                }
             }
         }
         Ok(LayoutPaths {
             executable,
             state,
             locks,
+            protected,
             executable_lock,
+            authority,
+            authority_temp,
         })
     }
-}
-
-fn bind_executable_state(lock: &mut TransactionLock, state: &Path) -> Result<()> {
-    use std::os::unix::ffi::{OsStrExt, OsStringExt};
-
-    const MAX_BINDING_BYTES: u64 = 16 * 1024;
-    let length = lock
-        .file
-        .metadata()
-        .map_err(|error| UpdateError::io(&lock.path, error))?
-        .len();
-    if length > MAX_BINDING_BYTES {
-        return Err(UpdateError::InvalidMarker {
-            path: lock.path.clone(),
-            message: "executable lock state binding is too large".into(),
-        });
-    }
-    lock.file
-        .rewind()
-        .map_err(|error| UpdateError::io(&lock.path, error))?;
-    let mut existing = Vec::with_capacity(length as usize);
-    lock.file
-        .read_to_end(&mut existing)
-        .map_err(|error| UpdateError::io(&lock.path, error))?;
-    if existing.is_empty() {
-        let bytes = state.as_os_str().as_bytes();
-        if bytes.len() as u64 > MAX_BINDING_BYTES {
-            return Err(UpdateError::InvalidPolicy("state path is too long"));
-        }
-        lock.file
-            .write_all(bytes)
-            .map_err(|error| UpdateError::io(&lock.path, error))?;
-        lock.file
-            .sync_all()
-            .map_err(|error| UpdateError::io(&lock.path, error))?;
-        super::transaction_io::sync_parent(&lock.path)?;
-        return Ok(());
-    }
-    let bound = PathBuf::from(std::ffi::OsString::from_vec(existing));
-    if bound != state {
-        return Err(UpdateError::InvalidLayout {
-            first: bound,
-            second: state.to_path_buf(),
-        });
-    }
-    Ok(())
 }
 
 pub(super) fn executable_lock_path(executable: &Path) -> Result<PathBuf> {

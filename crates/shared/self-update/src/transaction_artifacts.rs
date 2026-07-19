@@ -188,6 +188,25 @@ pub(super) fn cleanup_owned_artifacts(
     Ok(())
 }
 
+pub(super) fn ensure_no_recovery_artifacts(executable: &Path) -> Result<()> {
+    let directory = executable.parent().ok_or(UpdateError::InvalidPolicy(
+        "executable must have a parent directory",
+    ))?;
+    for entry in std::fs::read_dir(directory).map_err(|error| UpdateError::io(directory, error))? {
+        let entry = entry.map_err(|error| UpdateError::io(directory, error))?;
+        let path = entry.path();
+        if exact_artifact_name(executable, &path, "update", true).is_some()
+            || exact_artifact_name(executable, &path, "rollback", false).is_some()
+        {
+            return Err(UpdateError::StateMigrationBlocked {
+                path,
+                message: "a staged or rollback recovery artifact exists".into(),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn same_existing_identity(first: &Path, second: &Path) -> bool {
     match (std::fs::canonicalize(first), std::fs::canonicalize(second)) {
         (Ok(first), Ok(second)) => first == second,

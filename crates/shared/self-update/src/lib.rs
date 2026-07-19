@@ -218,7 +218,7 @@ impl UpdatePolicy {
 pub struct Updater {
     layout: UpdateLayout,
     policy: UpdatePolicy,
-    layout_resolution_error: Option<std::io::ErrorKind>,
+    layout_resolution_error: Option<LayoutBindingError>,
     #[cfg(all(test, unix))]
     test_failpoint: std::sync::Arc<std::sync::atomic::AtomicU8>,
 }
@@ -244,26 +244,39 @@ impl Updater {
     }
 
     pub(crate) fn ensure_layout_bound(&self) -> Result<()> {
-        match self.layout_resolution_error {
-            Some(kind) => Err(UpdateError::io(
-                Path::new("."),
-                std::io::Error::new(
-                    kind,
-                    "failed to bind update layout to construction-time canonical paths",
-                ),
+        match &self.layout_resolution_error {
+            Some(error) => Err(UpdateError::io(
+                &error.path,
+                std::io::Error::new(error.kind, error.message.clone()),
             )),
             None => Ok(()),
         }
     }
 }
 
-fn bind_layout_to_current_dir(layout: UpdateLayout) -> (UpdateLayout, Option<std::io::ErrorKind>) {
+#[derive(Clone, Debug)]
+struct LayoutBindingError {
+    path: PathBuf,
+    kind: std::io::ErrorKind,
+    message: String,
+}
+
+fn bind_layout_to_current_dir(layout: UpdateLayout) -> (UpdateLayout, Option<LayoutBindingError>) {
     let base = if layout.executable.is_absolute() && layout.state_file.is_absolute() {
         None
     } else {
         match std::env::current_dir() {
             Ok(base) => Some(base),
-            Err(error) => return (layout, Some(error.kind())),
+            Err(error) => {
+                return (
+                    layout,
+                    Some(LayoutBindingError {
+                        path: PathBuf::from("."),
+                        kind: error.kind(),
+                        message: error.to_string(),
+                    }),
+                );
+            }
         }
     };
     let executable = if layout.executable.is_absolute() {
@@ -280,12 +293,17 @@ fn bind_layout_to_current_dir(layout: UpdateLayout) -> (UpdateLayout, Option<std
     let state_file = match bind_state_identity(&state_file) {
         Ok(state_file) => state_file,
         Err(error) => {
+            let diagnostic = LayoutBindingError {
+                path: state_file.clone(),
+                kind: error.kind(),
+                message: error.to_string(),
+            };
             return (
                 UpdateLayout {
                     executable,
                     state_file,
                 },
-                Some(error.kind()),
+                Some(diagnostic),
             );
         }
     };

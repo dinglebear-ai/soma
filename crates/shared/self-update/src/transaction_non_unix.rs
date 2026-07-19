@@ -26,6 +26,10 @@ pub enum ConfirmationOutcome {
 }
 
 impl Updater {
+    pub async fn migrate_state_file(&self, _new_state_file: impl Into<PathBuf>) -> Result<Self> {
+        Err(UpdateError::UnsupportedPlatform)
+    }
+
     pub async fn install(
         &self,
         _validated: ValidatedArtifact,

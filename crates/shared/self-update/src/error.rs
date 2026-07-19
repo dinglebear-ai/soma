@@ -45,6 +45,8 @@ pub enum UpdateError {
     InvalidLayout { first: PathBuf, second: PathBuf },
     #[error("an update to {target} is already pending at {path}")]
     PendingUpdateExists { path: PathBuf, target: String },
+    #[error("state authority migration is blocked by transaction state at {path}: {message}")]
+    StateMigrationBlocked { path: PathBuf, message: String },
     #[error("staged artifact is not a regular file: {path}")]
     InvalidStagedArtifact { path: PathBuf },
     #[error("staged artifact identity changed after validation: {path}")]

@@ -345,12 +345,17 @@ fn created_marker_and_lock_ignore_permissive_umask() {
             .unwrap();
         let state = updater.layout().state_file();
         let lock = transaction_layout::executable_lock_path(updater.layout().executable()).unwrap();
+        let (authority, _) = authority::authority_paths(updater.layout().executable()).unwrap();
         assert_eq!(
             std::fs::metadata(state).unwrap().permissions().mode() & 0o777,
             0o600
         );
         assert_eq!(
             std::fs::metadata(lock).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            std::fs::metadata(authority).unwrap().permissions().mode() & 0o777,
             0o600
         );
         return;

@@ -4,6 +4,22 @@ use super::{ConfirmationOutcome, InstallOutcome};
 use crate::{RecoveryAction, Result, UpdateError, Updater, ValidatedArtifact};
 
 impl Updater {
+    /// Moves this executable's durable state authority to a new idle marker path.
+    ///
+    /// Migration refuses to run while any marker, marker temporary, staged
+    /// artifact, or rollback artifact exists. Use the returned updater for all
+    /// subsequent transactions. Retrying the same migration is idempotent if a
+    /// prior call reached authority rename but failed its directory sync.
+    pub async fn migrate_state_file(&self, new_state_file: impl Into<PathBuf>) -> Result<Self> {
+        let updater = self.clone();
+        let new_state_file = new_state_file.into();
+        let error_path = new_state_file.clone();
+        blocking_transaction(error_path, move || {
+            updater.migrate_state_file_sync(new_state_file)
+        })
+        .await
+    }
+
     pub async fn install(
         &self,
         validated: ValidatedArtifact,
