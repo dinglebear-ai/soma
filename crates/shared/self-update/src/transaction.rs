@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 
@@ -13,6 +13,8 @@ mod artifacts;
 mod asynchronous;
 #[path = "transaction_marker.rs"]
 mod marker;
+#[path = "transaction_outcome.rs"]
+mod outcome;
 #[path = "transaction_pre_swap.rs"]
 mod pre_swap;
 #[path = "transaction_io.rs"]
@@ -25,6 +27,8 @@ use marker::marker_temp_owner_is_valid;
 use marker::{
     Marker, MarkerPhase, cleanup_marker_temp, preflight_marker_lifecycle, read_marker, write_marker,
 };
+use outcome::indeterminate_restart;
+pub use outcome::{ConfirmationOutcome, InstallOutcome};
 use pre_swap::validate_or_cleanup;
 use transaction_io::{
     create_backup, hash_file, hash_stable_validated_artifact, remove_and_sync, remove_file,
@@ -48,21 +52,6 @@ pub(super) enum TestFailpoint {
     PostMarkerDigestFailure,
     PostMarkerModeFailureWithStateCleanupFailure,
     PostMarkerDigestFailureWithBackupCleanupFailure,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum InstallOutcome {
-    RestartRequired {
-        executable: PathBuf,
-        from: String,
-        to: String,
-    },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ConfirmationOutcome {
-    NoPendingUpdate,
-    Confirmed { version: String },
 }
 
 impl Updater {
@@ -98,7 +87,7 @@ impl Updater {
     ) -> Result<InstallOutcome> {
         let paths = self.validated_layout()?;
         let validated_path = pre_swap::validated_artifact_path(&paths.executable, &validated)?;
-        let _lock = self.transaction_lock(&paths.lock)?;
+        let _locks = self.transaction_locks(&paths)?;
         let (executable, state) = (paths.executable, paths.state);
         let target = validated.target_version().to_owned();
         let backup = unique_backup(&executable);
@@ -106,7 +95,7 @@ impl Updater {
         validate_backup_candidate(
             &executable,
             &state,
-            &paths.lock,
+            &paths.locks,
             &marker_temp,
             &validated_path,
             &backup,
@@ -179,10 +168,16 @@ impl Updater {
             self.maybe_fail(TestFailpoint::FailedRenameAfterBackupCleanup, &backup)?;
             return Err(UpdateError::io(&executable, source));
         }
-        sync_parent(&executable)?;
-        self.maybe_fail(TestFailpoint::AfterSwap, &executable)?;
+        if let Err(error) = sync_parent(&executable) {
+            return Ok(indeterminate_restart(executable, previous, target, error));
+        }
+        if let Err(error) = self.maybe_fail(TestFailpoint::AfterSwap, &executable) {
+            return Ok(indeterminate_restart(executable, previous, target, error));
+        }
         marker.phase = MarkerPhase::Installed;
-        write_marker(self, &state, &marker)?;
+        if let Err(error) = write_marker(self, &state, &marker) {
+            return Ok(indeterminate_restart(executable, previous, target, error));
+        }
         Ok(InstallOutcome::RestartRequired {
             executable,
             from: previous,
@@ -192,7 +187,7 @@ impl Updater {
 
     pub(super) fn recover_on_startup_sync(&self, running_version: &str) -> Result<RecoveryAction> {
         let paths = self.validated_layout()?;
-        let _lock = self.transaction_lock(&paths.lock)?;
+        let _locks = self.transaction_locks(&paths)?;
         let state = paths.state;
         cleanup_marker_temp(&state)?;
         let marker = read_marker(&state, &paths.executable)?;
@@ -264,7 +259,7 @@ impl Updater {
         running_version: &str,
     ) -> Result<ConfirmationOutcome> {
         let paths = self.validated_layout()?;
-        let _lock = self.transaction_lock(&paths.lock)?;
+        let _locks = self.transaction_locks(&paths)?;
         let state = paths.state;
         cleanup_marker_temp(&state)?;
         let marker = read_marker(&state, &paths.executable)?;

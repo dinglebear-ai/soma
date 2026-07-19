@@ -12,7 +12,7 @@ pub fn restart_command(executable: &Path, args: impl IntoIterator<Item = OsStrin
 /// Replaces the current Unix process with the installed executable.
 ///
 /// Adopters supervised by systemd or another process manager may instead exit
-/// with an agreed restart status after receiving `InstallOutcome::RestartRequired`.
+/// with an agreed restart status after receiving either `InstallOutcome` variant.
 #[cfg(unix)]
 pub fn reexec(
     executable: &Path,

@@ -59,10 +59,12 @@ service reports healthy.
 The configured executable leaf must be a regular path, not a symlink. The
 crate rejects leaf symlinks before staging or recovery so the staging grammar,
 marker identity, backup identity, and installed target cannot diverge. Symlinked
-parent directories are canonicalized consistently. Relative executable and
-state paths are bound to the construction-time current directory, so later
-process current-directory changes cannot redirect staging, installation,
-recovery, or confirmation to another target.
+executable parent directories are canonicalized consistently. State paths must
+already be canonical and may not contain symlinked components, including a
+dangling symlink leaf. Relative executable and state paths are bound to the
+construction-time current directory, so later process current-directory changes
+cannot redirect staging, installation, recovery, or confirmation to another
+target.
 
 `recover_on_startup` also reclaims prior-process staging and orphan rollback
 files only when their exact target-derived grammar, regular-file type,
@@ -76,7 +78,12 @@ automatic `Drop` cleanup is reserved as a best-effort cancellation fallback.
 On Unix each partial begins mode `0600` even under a permissive umask; only
 after the digest matches does staging apply the intended executable mode.
 
-Installation derives its advisory lock from the canonical state identity. The
+Installation acquires sorted, deduplicated advisory locks derived from both the
+canonical executable and state identities. The executable-derived lock durably
+records the one authoritative state identity; a later updater constructed with
+the same executable and a different state path is rejected even after the first
+process exits. The state-derived lock preserves serialization for multiple
+executables sharing one state file. The
 executable directory and state directory must not be writable by untrusted
 principals; no pathname-based installer can close the final metadata-to-rename
 race against an attacker who controls that directory. Installation writes and
@@ -162,4 +169,8 @@ boundary even if the awaiting future is cancelled.
 See `examples/heartbeat_agent.rs` for a compile-checked lifecycle. The library
 never reads global process arguments. Pass the arguments to preserve to
 `restart_command` or `reexec`, or let a supervisor such as systemd restart the
-service after `RestartRequired`.
+service after either install outcome. `RestartRequired` means the swap and
+installed marker both completed. `RestartRequiredIndeterminate` means the
+executable was already swapped but a following durability or marker step
+failed; its diagnostic error must be logged, but the caller must still restart
+and let startup recovery reconcile the prepared marker.

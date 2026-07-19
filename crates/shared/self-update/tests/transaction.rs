@@ -379,6 +379,7 @@ async fn install_rejects_artifact_staged_by_another_layout_before_lock_creation(
     assert_eq!(std::fs::read(&second_executable).unwrap(), old);
     assert!(!second_state.exists());
     assert!(!second_state.with_extension("json.lock").exists());
+    assert!(!second.join(".example.update.lock").exists());
 }
 
 #[tokio::test]
@@ -414,6 +415,8 @@ async fn install_rejects_sibling_executables_staged_artifact_before_lock_creatio
     assert!(!bar_state.exists());
     assert!(!foo_state.with_extension("json.lock").exists());
     assert!(!bar_state.with_extension("json.lock").exists());
+    assert!(!temp.path().join(".foo.update.lock").exists());
+    assert!(!temp.path().join(".bar.update.lock").exists());
     assert!(!staged.exists());
 }
 
@@ -447,6 +450,7 @@ async fn install_rejects_stage_after_executable_parent_symlink_retarget() {
     assert_eq!(std::fs::read(second.join("example")).unwrap(), old);
     assert!(!state.exists());
     assert!(!state.with_extension("json.lock").exists());
+    assert!(!second.join(".example.update.lock").exists());
 }
 
 #[tokio::test]
@@ -679,22 +683,13 @@ async fn transaction_lock_rejects_symlinks_and_non_regular_files() {
 }
 
 #[tokio::test]
-async fn symlink_state_aliases_share_the_canonical_transaction_lock() {
+async fn symlinked_state_paths_are_rejected_across_process_construction() {
     let temp = tempdir().unwrap();
     let executable = temp.path().join("example");
     let state = temp.path().join("update.json");
     let state_alias = temp.path().join("update-alias.json");
     std::fs::write(&executable, b"old").unwrap();
     std::os::unix::fs::symlink(&state, &state_alias).unwrap();
-    let lock_path = temp.path().join("update.json.lock");
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(&lock_path)
-        .unwrap();
-    lock.try_lock_exclusive().unwrap();
     let aliased = Updater::new(
         UpdateLayout::new(&executable, &state_alias),
         UpdatePolicy::default(),
@@ -702,8 +697,44 @@ async fn symlink_state_aliases_share_the_canonical_transaction_lock() {
 
     assert!(matches!(
         aliased.recover_on_startup("1").await,
-        Err(UpdateError::UpdateInProgress { path }) if path == lock_path
+        Err(UpdateError::Io { source, .. })
+            if source.kind() == std::io::ErrorKind::InvalidInput
     ));
+    std::fs::remove_file(&state_alias).unwrap();
+    let retarget = temp.path().join("retarget");
+    std::fs::create_dir(&retarget).unwrap();
+    std::os::unix::fs::symlink(retarget.join("update.json"), &state_alias).unwrap();
+    let reconstructed = Updater::new(
+        UpdateLayout::new(&executable, &state_alias),
+        UpdatePolicy::default(),
+    );
+    assert!(matches!(
+        reconstructed.recover_on_startup("1").await,
+        Err(UpdateError::Io { source, .. })
+            if source.kind() == std::io::ErrorKind::InvalidInput
+    ));
+}
+
+#[tokio::test]
+async fn state_symlink_introduced_after_construction_is_rejected() {
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let retarget = temp.path().join("other.json");
+    std::fs::write(&executable, b"old").unwrap();
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    std::os::unix::fs::symlink(&retarget, &state).unwrap();
+
+    assert!(matches!(
+        updater.recover_on_startup("1").await,
+        Err(UpdateError::Io { source, .. })
+            if source.kind() == std::io::ErrorKind::InvalidInput
+    ));
+    assert!(!temp.path().join(".example.update.lock").exists());
+    assert!(!state.with_extension("json.lock").exists());
 }
 
 #[tokio::test]

@@ -249,7 +249,7 @@ impl Updater {
                 Path::new("."),
                 std::io::Error::new(
                     kind,
-                    "failed to resolve relative update layout against the construction-time current directory",
+                    "failed to bind update layout to construction-time canonical paths",
                 ),
             )),
             None => Ok(()),
@@ -258,22 +258,36 @@ impl Updater {
 }
 
 fn bind_layout_to_current_dir(layout: UpdateLayout) -> (UpdateLayout, Option<std::io::ErrorKind>) {
-    if layout.executable.is_absolute() && layout.state_file.is_absolute() {
-        return (layout, None);
-    }
-    let base = match std::env::current_dir() {
-        Ok(base) => base,
-        Err(error) => return (layout, Some(error.kind())),
+    let base = if layout.executable.is_absolute() && layout.state_file.is_absolute() {
+        None
+    } else {
+        match std::env::current_dir() {
+            Ok(base) => Some(base),
+            Err(error) => return (layout, Some(error.kind())),
+        }
     };
     let executable = if layout.executable.is_absolute() {
         layout.executable
     } else {
-        base.join(layout.executable)
+        base.as_ref().unwrap().join(layout.executable)
     };
     let state_file = if layout.state_file.is_absolute() {
         layout.state_file
     } else {
-        base.join(layout.state_file)
+        base.as_ref().unwrap().join(layout.state_file)
+    };
+    #[cfg(unix)]
+    let state_file = match bind_state_identity(&state_file) {
+        Ok(state_file) => state_file,
+        Err(error) => {
+            return (
+                UpdateLayout {
+                    executable,
+                    state_file,
+                },
+                Some(error.kind()),
+            );
+        }
     };
     (
         UpdateLayout {
@@ -282,6 +296,52 @@ fn bind_layout_to_current_dir(layout: UpdateLayout) -> (UpdateLayout, Option<std
         },
         None,
     )
+}
+
+#[cfg(unix)]
+pub(crate) fn bind_state_identity(path: &Path) -> std::io::Result<PathBuf> {
+    let mut component_path = PathBuf::new();
+    for component in path.components() {
+        component_path.push(component);
+        match std::fs::symlink_metadata(&component_path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "state path must not contain symlinked components",
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => return Err(error),
+        }
+    }
+    let identity = match std::fs::canonicalize(path) {
+        Ok(path) => Ok(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let parent = path.parent().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "state file must have a parent",
+                )
+            })?;
+            let parent = std::fs::canonicalize(parent)?;
+            let name = path.file_name().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "state file must have a name",
+                )
+            })?;
+            Ok(parent.join(name))
+        }
+        Err(error) => Err(error),
+    }?;
+    if identity != path {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "state path must be canonical and contain no symlinked components",
+        ));
+    }
+    Ok(identity)
 }
 
 pub(crate) fn reject_executable_leaf_symlink(path: &Path) -> Result<()> {

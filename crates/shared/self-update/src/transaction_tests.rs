@@ -1,6 +1,11 @@
+use std::path::PathBuf;
+
 use super::*;
 use crate::{UpdateDirective, UpdateLayout, UpdatePolicy};
 use tempfile::tempdir;
+
+#[path = "transaction_lock_tests.rs"]
+mod lock_tests;
 
 async fn updater_and_artifact(
     max_restarts: u32,
@@ -168,34 +173,47 @@ async fn post_marker_cleanup_failures_preserve_primary_and_authoritative_orderin
         assert!(!updater.layout().state_file().exists());
         if state_remains {
             assert!(rollback_artifacts(&updater).is_empty());
+        } else {
+            assert_eq!(
+                rollback_artifacts(&updater).len(),
+                1,
+                "the current process still owns this diagnostic orphan"
+            );
         }
     }
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn failpoints_after_marker_and_swap_recover_idempotently() {
-    for (failpoint, running, expected) in [
-        (
-            TestFailpoint::AfterMarkerSync,
-            "1.0.0",
-            RecoveryAction::NoPendingUpdate,
-        ),
-        (
-            TestFailpoint::AfterSwap,
-            "2.0.0",
-            RecoveryAction::PendingUpdate {
-                target: "2.0.0".into(),
-                attempts: 1,
-                max_attempts: 1,
-            },
-        ),
-    ] {
-        let (_temp, updater, artifact, _old, _new) = updater_and_artifact(1).await;
-        updater.set_test_failpoint(failpoint);
-        assert!(updater.install(artifact, "1.0.0").await.is_err());
-        updater.set_test_failpoint(TestFailpoint::None);
-        assert_eq!(updater.recover_on_startup(running).await.unwrap(), expected);
-    }
+    let (_temp, updater, artifact, _old, _new) = updater_and_artifact(1).await;
+    updater.set_test_failpoint(TestFailpoint::AfterMarkerSync);
+    assert!(updater.install(artifact, "1.0.0").await.is_err());
+    updater.set_test_failpoint(TestFailpoint::None);
+    assert_eq!(
+        updater.recover_on_startup("1.0.0").await.unwrap(),
+        RecoveryAction::NoPendingUpdate
+    );
+
+    let (_temp, updater, artifact, _old, _new) = updater_and_artifact(1).await;
+    updater.set_test_failpoint(TestFailpoint::AfterSwap);
+    assert!(matches!(
+        updater.install(artifact, "1.0.0").await.unwrap(),
+        InstallOutcome::RestartRequiredIndeterminate {
+            ref from,
+            ref to,
+            ref error,
+            ..
+        } if from == "1.0.0" && to == "2.0.0" && !error.is_empty()
+    ));
+    updater.set_test_failpoint(TestFailpoint::None);
+    assert_eq!(
+        updater.recover_on_startup("2.0.0").await.unwrap(),
+        RecoveryAction::PendingUpdate {
+            target: "2.0.0".into(),
+            attempts: 1,
+            max_attempts: 1,
+        }
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -288,13 +306,23 @@ fn generated_backup_must_not_collide_with_transaction_paths() {
     let root = std::path::Path::new("/trusted/bin");
     let executable = root.join("agent");
     let state = root.join("state.json");
-    let lock = root.join("state.json.lock");
+    let locks = vec![
+        root.join("state.json.lock"),
+        root.join(".agent.update.lock"),
+    ];
     let marker_temp = root.join("state.json.tmp");
     let staged = root.join(".agent.update-1-1.part");
 
-    for collision in [&state, &lock, &marker_temp, &staged] {
+    for collision in [&state, &locks[0], &locks[1], &marker_temp, &staged] {
         assert!(matches!(
-            validate_backup_candidate(&executable, &state, &lock, &marker_temp, &staged, collision),
+            validate_backup_candidate(
+                &executable,
+                &state,
+                &locks,
+                &marker_temp,
+                &staged,
+                collision
+            ),
             Err(UpdateError::InvalidLayout { .. })
         ));
     }
@@ -316,7 +344,7 @@ fn created_marker_and_lock_ignore_permissive_umask() {
             .block_on(updater.install(artifact, "1.0.0"))
             .unwrap();
         let state = updater.layout().state_file();
-        let lock = suffix_path(state, ".lock");
+        let lock = transaction_layout::executable_lock_path(updater.layout().executable()).unwrap();
         assert_eq!(
             std::fs::metadata(state).unwrap().permissions().mode() & 0o777,
             0o600

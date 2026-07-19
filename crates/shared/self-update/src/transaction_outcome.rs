@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{RecoveryAction, Result, UpdateError, Updater, ValidatedArtifact};
+use crate::UpdateError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InstallOutcome {
@@ -11,6 +11,10 @@ pub enum InstallOutcome {
         to: String,
     },
     /// The executable was swapped, but a subsequent durability or marker step failed.
+    ///
+    /// The caller must restart into `executable` and let startup recovery inspect the
+    /// prepared marker. Treating this as an ordinary pre-swap failure can leave the old
+    /// process running after its on-disk executable has changed.
     RestartRequiredIndeterminate {
         executable: PathBuf,
         from: String,
@@ -25,20 +29,16 @@ pub enum ConfirmationOutcome {
     Confirmed { version: String },
 }
 
-impl Updater {
-    pub async fn install(
-        &self,
-        _validated: ValidatedArtifact,
-        _previous_version: impl Into<String>,
-    ) -> Result<InstallOutcome> {
-        Err(UpdateError::UnsupportedPlatform)
-    }
-
-    pub async fn recover_on_startup(&self, _running_version: &str) -> Result<RecoveryAction> {
-        Err(UpdateError::UnsupportedPlatform)
-    }
-
-    pub async fn confirm_success(&self, _running_version: &str) -> Result<ConfirmationOutcome> {
-        Err(UpdateError::UnsupportedPlatform)
+pub(super) fn indeterminate_restart(
+    executable: PathBuf,
+    previous: String,
+    target: String,
+    error: UpdateError,
+) -> InstallOutcome {
+    InstallOutcome::RestartRequiredIndeterminate {
+        executable,
+        from: previous,
+        to: target,
+        error: error.to_string(),
     }
 }

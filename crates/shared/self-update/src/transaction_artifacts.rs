@@ -6,12 +6,16 @@ use crate::{Result, UpdateError};
 pub(super) fn validate_backup_candidate(
     executable: &Path,
     state: &Path,
-    lock: &Path,
+    locks: &[std::path::PathBuf],
     marker_temp: &Path,
     staged: &Path,
     backup: &Path,
 ) -> Result<()> {
-    for protected in [executable, state, lock, marker_temp, staged] {
+    for protected in std::iter::once(executable)
+        .chain(std::iter::once(state))
+        .chain(locks.iter().map(std::path::PathBuf::as_path))
+        .chain([marker_temp, staged])
+    {
         let collides = backup == protected
             || match (
                 std::fs::canonicalize(backup),

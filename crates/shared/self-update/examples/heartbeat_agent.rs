@@ -74,7 +74,12 @@ async fn lifecycle() -> soma_self_update::Result<()> {
 
     #[cfg(unix)]
     {
-        let InstallOutcome::RestartRequired { executable, .. } = outcome;
+        // Both outcomes mean the executable may already have been replaced and
+        // the current process must restart into it before startup recovery.
+        let executable = match outcome {
+            InstallOutcome::RestartRequired { executable, .. }
+            | InstallOutcome::RestartRequiredIndeterminate { executable, .. } => executable,
+        };
         let args: Vec<OsString> = std::env::args_os().skip(1).collect();
         let never = soma_self_update::reexec(&executable, args)?;
         match never {}

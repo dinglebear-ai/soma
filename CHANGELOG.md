@@ -56,7 +56,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory or outside that executable's exact staging-name grammar before
   acquiring its transaction lock or mutating filesystem state.
   Transaction lock guards explicitly unlock before descriptor close, making
-  immediate back-to-back recovery calls deterministic.
+  immediate back-to-back recovery calls deterministic. State paths reject
+  symlinked components and are revalidated for every transaction. Sorted locks
+  derived from both executable and state identities preserve shared-state
+  serialization while the executable lock durably binds one authoritative state
+  path across process lifetimes. Failures after executable replacement return a
+  typed restart-required indeterminate outcome so adopters restart into the
+  installed bytes and let startup recovery reconcile the prepared marker.
   The crate has no internal workspace dependencies; this change
   does not enable self-update behavior in the Soma runtime or integrate Cortex.
 - Restructured `apps/soma` (plan section 3.1, PR 18) into a composition-only
