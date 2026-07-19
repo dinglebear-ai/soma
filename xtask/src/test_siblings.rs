@@ -133,6 +133,7 @@ fn filename(path: &Path) -> String {
 const CHECKED_SRC_ROOTS: &[&str] = &[
     "apps/soma/src",
     "crates/shared/codemode/src",
+    "crates/shared/incus-client/src",
     "crates/shared/mcp/client/src",
     "crates/shared/mcp/gateway/src",
     "crates/shared/mcp/proxy/src",
@@ -207,6 +208,12 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
          That is the point: the crate is the provider contract, so its tests \
          exercise it the way a provider author would rather than reaching into \
          private internals. Siblings here would invite the opposite.",
+    ),
+    (
+        "crates/shared/self-update/src",
+        "behavior, portability, and dependency boundaries are exercised through \
+         the public API from tests/. Private crash failpoints have one focused \
+         transaction_tests.rs sibling because they cannot be exposed publicly.",
     ),
     (
         "crates/shared/tauri-shell/src",

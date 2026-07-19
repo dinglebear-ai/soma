@@ -294,6 +294,47 @@ fn shared_crates_do_not_depend_on_soma_product_crates() {
 }
 
 #[test]
+fn self_update_crate_has_no_workspace_dependencies() {
+    let metadata = cargo_metadata();
+    let packages = metadata["packages"]
+        .as_array()
+        .expect("cargo metadata packages should be an array");
+    let package = packages
+        .iter()
+        .find(|package| package["name"] == "soma-self-update")
+        .expect("soma-self-update should be a workspace package");
+
+    for dependency in package["dependencies"]
+        .as_array()
+        .expect("package dependencies should be an array")
+    {
+        assert!(
+            dependency["path"].is_null(),
+            "soma-self-update dependency {} must come from crates.io, not path {}",
+            dependency["name"],
+            dependency["path"]
+        );
+    }
+
+    let tree = cargo(&["tree", "-p", "soma-self-update", "--edges", "normal"]);
+    for workspace_package in packages {
+        if workspace_package["name"] == "soma-self-update" {
+            continue;
+        }
+        let root = package_root(workspace_package);
+        if root.starts_with(workspace_root()) {
+            let name = workspace_package["name"]
+                .as_str()
+                .expect("workspace package should have a name");
+            assert!(
+                !tree_mentions_package(&tree, name),
+                "soma-self-update normal dependency tree must not include workspace package {name}\n{tree}"
+            );
+        }
+    }
+}
+
+#[test]
 fn codemode_openapi_crates_have_no_forbidden_internal_dependencies() {
     let root_manifest = read_workspace_file("Cargo.toml");
     for member in ["crates/shared/openapi", "crates/shared/codemode"] {

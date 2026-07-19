@@ -13,6 +13,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `crates/shared/self-update` as a standalone, transport-neutral binary
+  update transaction with bounded streaming SHA-256 verification, timed exact-
+  version validation, Unix atomic replacement, and durable health confirmation
+  and rollback. Explicit crash phases make restart recovery idempotent, validator
+  timeouts terminate Unix process groups and Windows Job Objects, and rollback
+  state is identity-, owner-, and digest-checked. Executable leaf symlinks are
+  rejected consistently, test failpoints are updater-scoped, and a deterministic
+  lock-protected marker temporary is reclaimed after crashes. The largest
+  reachable marker phase and attempt count are size-capped before mutation,
+  generated backup identities cannot collide with
+  transaction state, validation cancellation kills the full process tree, and
+  transport adapters can validate every redirect and final response URL.
+  Successful confirmation rehashes the installed executable before deleting
+  recovery state, and startup recovery verifies installed bytes before counting
+  an unconfirmed attempt. Recovery markers are opened nonblocking without
+  following symlinks and must be service-owned regular files. Public async
+  transaction methods offload hashing, copying, locking, and durability work to
+  Tokio blocking workers. The compile-checked heartbeat example separates
+  authentication from parsing and propagates health-report failures before
+  confirmation. Marker temporaries and advisory locks are created mode `0600`;
+  marker reads require exact mode `0600` without special bits, and lock
+  descriptors are no-follow, owner/type checked, and repair owned legacy
+  permissions before use. Relative layouts bind to their construction-time
+  directory. Staged downloads begin mode `0600`, rollback copy destinations
+  begin with the source mode, markers retain the actual backup owner, and the
+  intended executable mode is restored and synced immediately before swap.
+  Successful validation explicitly terminates and drains its Unix
+  process group or Windows Job Object before accepting captured output, so
+  pipe-inheriting or pipe-detached helpers cannot survive a successful
+  candidate or hold validation output open until timeout.
+  Staging cleanup ownership begins only after exclusive partial-file creation,
+  so path collisions cannot delete preexisting files. Post-marker pre-swap
+  validation failures durably remove authoritative state before rollback
+  backups and retain both the primary and any cleanup error. Copy-based backup
+  failures durably remove their partial rollback file and likewise retain both
+  errors if cleanup fails. Post-creation verification failures now apply that
+  durable cleanup to both copy and hard-link backups. Prepared-marker write
+  failures remove and sync marker state before removing the backup, retaining
+  both artifacts if authoritative-state cleanup cannot complete. Install also
+  rejects validated artifacts outside the currently resolved executable
+  directory or outside that executable's exact staging-name grammar before
+  acquiring its transaction lock or mutating filesystem state.
+  Transaction lock guards explicitly unlock before descriptor close, making
+  immediate back-to-back recovery calls deterministic. State paths reject
+  symlinked components and are revalidated for every transaction. Sorted locks
+  derived from both executable and state identities preserve shared-state
+  serialization while a checksummed, atomically replaced authority sidecar
+  binds one state path across process lifetimes without rewriting the stable
+  lock inode. Crash-boundary tests cover partial authority writes and file- and
+  directory-sync failures. `Updater::migrate_state_file` explicitly moves that
+  authority only while both state locations and all recovery artifacts are
+  idle. Migration validates the combined old/new marker and protected namespace
+  before creating locks, and returns a typed outcome carrying the new updater
+  when the authority rename succeeds but directory durability is indeterminate.
+  Transaction locks repair and recheck exact mode `0600`, including special
+  bits. Construction-time state binding errors preserve their original path,
+  I/O kind, and diagnostic message. Failures after executable replacement return
+  a typed restart-required indeterminate outcome so adopters restart into the
+  installed bytes and let startup recovery reconcile the prepared marker.
+  The crate has no internal workspace dependencies; this change
+  does not enable self-update behavior in the Soma runtime or integrate Cortex.
+- `incus-client` (crates/shared/incus-client) is now feature-complete for v1:
+  Unix-socket transport (with a configurable per-request timeout, defaulting
+  to 30s, correctly excluded from `wait_for_operation`'s long-poll), operation
+  wait/cancel (including WebSocket events behind the `events` feature, with
+  abnormal-close-code detection), and CRUD for instances (with lifecycle and
+  snapshots), images, networks, storage pools/volumes, and projects, with
+  ETag/`If-Match` optimistic-concurrency support - including guarded
+  convenience methods - across every resource type. Sync-vs-async return
+  types (`Result<()>` vs `Result<Operation>` vs `Result<Option<Operation>>`)
+  were corrected per-endpoint against the real `lxc/incus` daemon source
+  rather than assumed: network/project/storage-pool create/update/delete are
+  synchronous, storage-volume creation is conditionally sync-or-async
+  depending on the request payload, and only instance/image creation and
+  instance lifecycle actions are genuinely async. 404 responses now map to a
+  distinguishable `Error::NotFound`. Remote mTLS transport and certificates
+  CRUD are tracked separately for whenever a real remote consumer exists.
+  See `crates/shared/incus-client/README.md` for the full API reference.
 - `soma-auth` gained a multi-provider OAuth login system:
   - **`OAuthProvider` trait** (`crates/shared/auth/src/oauth_provider.rs`) generalizes the
     previously Google-only login flow. `AuthState.google: Arc<GoogleProvider>` became

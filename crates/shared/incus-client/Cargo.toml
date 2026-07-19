@@ -1,0 +1,46 @@
+[package]
+name = "incus-client"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+authors.workspace = true
+description = "Async Rust client for the Incus REST API (system container and VM management)."
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+# Deliberately has zero path-dependencies on other crates in this workspace -
+# this is a standalone protocol client, like codex-app-server-client.
+
+[features]
+# Explicit empty default to keep Cargo feature unification a no-op for
+# downstream consumers.
+default = []
+# WebSocket subscription to Incus's /1.0/events push-notification stream.
+# wait_for_operation() works without this feature; it's an enhancement, not
+# a requirement, for operation-completion tracking.
+events = ["dep:futures", "dep:tokio-tungstenite"]
+
+[dependencies]
+# Only used by events.rs/events_tests.rs, both gated behind the `events`
+# feature - a default-features build (unix-socket-only) has no use for it.
+futures = { version = "0.3", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "macros", "sync", "time", "net", "io-util"] }
+# No TLS feature: the events WebSocket connects over the same plain Unix
+# socket as every other request in this crate (no TLS transport in this
+# epic - see the crate root doc comment), so `client_async` never needs a
+# TLS connector, and pulling in rustls/webpki-roots here would be dead
+# weight.
+tokio-tungstenite = { version = "0.29", optional = true }
+url = "2"
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+tempfile = "3"

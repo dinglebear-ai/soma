@@ -141,6 +141,9 @@ jobs:
       - name: Check architecture boundaries
         run: cargo xtask check-architecture
 
+      - name: Check self-update production library features
+        run: cargo check -p soma-self-update --lib --locked
+
   # ── clippy: zero warnings ────────────────────────────────────────────────────
   clippy:
     name: Clippy
@@ -355,6 +358,18 @@ jobs:
         run: |
           "RUSTC_WRAPPER=" >> $env:GITHUB_ENV
           "CARGO_BUILD_RUSTC_WRAPPER=" >> $env:GITHUB_ENV
+
+      - name: Check portable self-update library surface
+        shell: pwsh
+        env:
+          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }} -D warnings
+        run: cargo check -p soma-self-update --lib --locked
+
+      - name: Test Windows self-update surface and validator job cleanup
+        shell: pwsh
+        env:
+          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }} -D warnings
+        run: cargo test -p soma-self-update --locked -- --test-threads=1
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
