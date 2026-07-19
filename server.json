@@ -164,7 +164,7 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "0.4.7"
+      "version": "0.5.0"
     }
   ],
   "repository": {
@@ -173,6 +173,6 @@
     "url": "https://github.com/jmagar/soma"
   },
   "title": "Soma",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "websiteUrl": "https://soma.dinglebear.ai"
 }
