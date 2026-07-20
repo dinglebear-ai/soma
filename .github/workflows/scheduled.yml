@@ -43,7 +43,7 @@ jobs:
   # ── advisories: weekly RUSTSEC refresh + on-demand full dependency audit ──────
   advisories:
     name: Dependency Advisories
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

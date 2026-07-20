@@ -1,0 +1,131 @@
+# =============================================================================
+# .github/workflows/docs.yml — Rust API documentation (rustdoc) build + Pages
+#
+# Builds `cargo doc` for the full workspace with warnings as errors, uploads
+# the rendered HTML as a Pages artifact on every run (so PRs validate docs),
+# and deploys that artifact to GitHub Pages on pushes to main.
+#
+# Kept as its own workflow (rather than a job in ci.yml) so the broader
+# `pages: write` / `id-token: write` permissions stay scoped to this file
+# only. ci.yml retains the tighter `contents: read`.
+#
+# Branch-protection note (this is a private repo): the `rustdoc` job is
+# path-skipped for non-Rust changes. Require the aggregate `Docs` status
+# check rather than this individual job — same pattern as the `CI Gate` /
+# `MSRV Gate` aggregates documented in CLAUDE.md.
+# =============================================================================
+
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+# Pages deploy needs these. The build-only job below overrides to
+# contents: read so the wider scope applies only to the deploy job.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow concurrent PR builds, but serialize main-branch deploys so only the
+# latest push lands on Pages.
+concurrency:
+  group: docs-pages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTDOCFLAGS: "-D warnings"
+
+jobs:
+  # ── rustdoc: build + upload Pages artifact ─────────────────────────────────
+  # Always runs on path match. PRs validate the build (the -D warnings gate)
+  # and produce an artifact for download, but do not deploy.
+  rustdoc:
+    name: Build rustdoc
+    runs-on: [self-hosted, unraid]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install Rust and sccache
+        uses: ./.github/actions/setup-rust-sccache
+
+      # Reuse the clippy/test cache key scheme so warm artifacts carry over
+      # from sibling CI jobs on the same runner.
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target
+          key: ${{ github.repository }}-rustdoc-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ github.repository }}-rustdoc-
+
+      # Public items only, no dependency docs, all features — matches the
+      # posture documented in CLAUDE.md and the `cargo xtask doc` defaults.
+      # RUSTDOCFLAGS=-D warnings (set above) makes this the rustdoc gate.
+      - name: cargo doc --workspace --no-deps --all-features
+        run: cargo doc --workspace --no-deps --all-features
+
+      # rustdoc emits one directory per crate (target/doc/soma/, target/doc/soma-application/,
+      # ...). Add a landing index.html that redirects to the canonical product
+      # crate so the Pages root isn't a bare directory listing.
+      - name: Write redirect index
+        run: |
+          cat > target/doc/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta http-equiv="refresh" content="0; url=soma/index.html">
+              <title>Soma API docs</title>
+            </head>
+            <body>
+              Redirecting to the <a href="soma/index.html"><code>soma</code> crate docs</a>…
+            </body>
+          </html>
+          HTML
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: target/doc
+
+  # ── pages: deploy the artifact to GitHub Pages ─────────────────────────────
+  # Main branch only — PR builds validate via the rustdoc job above but never
+  # publish. Requires Pages to be configured in repo Settings → Pages → Source
+  # = "GitHub Actions".
+  pages:
+    name: Deploy to Pages
+    needs: rustdoc
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, unraid]
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.0

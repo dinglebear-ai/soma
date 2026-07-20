@@ -47,7 +47,7 @@ env:
 jobs:
   validate-release-tag:
     name: Validate release tag
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 10
     permissions:
       contents: read
@@ -96,7 +96,7 @@ jobs:
   frontend-assets:
     name: Frontend Assets
     needs: validate-release-tag
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     defaults:
       run:
@@ -128,7 +128,7 @@ jobs:
   # ── Build release binaries ────────────────────────────────────────────────────
   build:
     name: Build ${{ matrix.target }}
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     needs: [validate-release-tag, frontend-assets]
     timeout-minutes: 60
     strategy:
@@ -219,7 +219,7 @@ jobs:
   lfs-commit:
     name: Commit binaries to bin/ (Git LFS)
     needs: [validate-release-tag, build]
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     permissions:
       contents: write
@@ -279,7 +279,7 @@ jobs:
   npm:
     name: Publish soma-rmcp to npm
     needs: [validate-release-tag, release]
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     permissions:
       contents: read
@@ -336,7 +336,7 @@ jobs:
   release:
     name: Create GitHub Release
     needs: [validate-release-tag, build, lfs-commit]
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     permissions:
       contents: write

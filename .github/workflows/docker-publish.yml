@@ -40,7 +40,7 @@ env:
 jobs:
   validate-release-tag:
     name: Validate release tag
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 10
     permissions:
       contents: read
@@ -89,7 +89,7 @@ jobs:
   docker:
     name: Build & Push Docker image
     needs: validate-release-tag
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 60
     permissions:
       contents: read
@@ -142,7 +142,7 @@ jobs:
   trivy:
     name: Trivy Vulnerability Scan
     needs: [validate-release-tag, docker]
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     permissions:
       contents: read
@@ -173,7 +173,7 @@ jobs:
     name: Publish MCP Registry Manifest
     needs: [validate-release-tag, docker]
     if: ${{ startsWith(needs.validate-release-tag.outputs.release_tag, 'v') }}
-    runs-on: [self-hosted, tootie, rmcp-template]
+    runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     permissions:
       contents: read
