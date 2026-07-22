@@ -86,7 +86,10 @@ jobs:
             echo "packages/soma-rmcp/package.json version ${npm_version} does not match ${tag}" >&2
             exit 1
           fi
-          cargo xtask check-version-sync
+          # Keep this short validation build isolated from any stale shared-runner
+          # target entries while retaining soldr's compiler and zccache layers.
+          CARGO_TARGET_DIR="${RUNNER_TEMP}/soma-version-sync-target" \
+            cargo xtask check-version-sync
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
 
   docker:
