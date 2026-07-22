@@ -88,6 +88,21 @@ runs:
         cache-preset: minimal
         shims: ${{ inputs.enable-shims }}
         toolchain: ${{ inputs.toolchain }}
+        # platform-default keeps the system linker (cc/gcc). soldr's own
+        # default (`fast`) injects a clang + mold/rust-lld toolchain that the
+        # CI runner image does not have (`error: linker 'clang' not found`),
+        # and soma leaves linker choice to the developer's global config, so
+        # CI has no linker preference to honor. This matches the pre-migration
+        # sccache behavior (system default linker).
+        linker: platform-default
+        # Disable the cargo-chef `cook` dependency prebuild. On soma it (a)
+        # panics — cargo-chef 0.1.73 chokes on this workspace — and (b) when
+        # its delta cache hits, restores a target/deps archive whose wasmtime
+        # is built with a different feature set than the real build needs,
+        # producing `error[E0432]: unresolved import crate::Result`. Every
+        # cache-preset keeps cook on, so it must be opted out explicitly.
+        # zccache compile caching (the actual point of soldr) is unaffected.
+        prebuild-deps: none
 
     # GitHub release assets are MUTABLE: the version pin above pins the tag
     # name, not the bytes — a compromised upstream account could swap the
