@@ -32,11 +32,16 @@ mode = "bearer"
 # provider are runtime-only environment variables; see docs/ENV.md.
 admin_email = ""
 allowed_emails = []
-sqlite_path = "/data/auth.db"
-key_path = "/data/auth-jwt.pem"
-access_token_ttl_secs = 3600
-refresh_token_ttl_secs = 2592000
-auth_code_ttl_secs = 300
-register_rpm = 10
-authorize_rpm = 60
+# Storage paths, token TTLs, and rate limits are optional. When unset the
+# built-in auth defaults apply (source of truth: crates/shared/auth). Set
+# these via [mcp.auth] or the matching SOMA_MCP_AUTH_* env vars to override;
+# see docs/ENV.md.
+# sqlite_path = "/path/to/auth.db"
+# key_path = "/path/to/auth-jwt.key"
+# access_token_ttl_secs = 3600
+# refresh_token_ttl_secs = 2592000
+# auth_code_ttl_secs = 300
+# register_rpm = 20
+# authorize_rpm = 60
+# max_pending_oauth_states = 1024
 allowed_client_redirect_uris = []

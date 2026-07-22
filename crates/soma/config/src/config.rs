@@ -191,7 +191,7 @@ pub struct AuthConfig {
     pub bootstrap_secret: Option<String>,
     /// Auth SQLite DB path (SOMA_MCP_AUTH_SQLITE_PATH).
     pub sqlite_path: Option<String>,
-    /// RS256 signing key path (SOMA_MCP_AUTH_KEY_PATH).
+    /// Ed25519 JWT signing key path (SOMA_MCP_AUTH_KEY_PATH).
     pub key_path: Option<String>,
     /// Access-token TTL in seconds (SOMA_MCP_AUTH_ACCESS_TOKEN_TTL_SECS).
     pub access_token_ttl_secs: Option<u64>,

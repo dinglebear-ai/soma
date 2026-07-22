@@ -287,7 +287,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   synthesized var list — `soma-auth` no longer reads process env in Soma's
   OAuth path. Var names, defaults, and `[mcp.auth]` config.toml keys are
   unchanged; provider settings can now also be set in `config.toml` (pattern
-  ported from cortex's synthetic-env config bridge).
+  ported from cortex's synthetic-env config bridge). All newly-typed auth vars
+  are registered in `env_registry.rs` with their `[mcp.auth]` destinations and
+  flow into the generated `docs/ENV.md` / `config.soma.toml` / `.env.example`.
 
 ### Security
 
