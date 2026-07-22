@@ -89,6 +89,30 @@ runs:
         shims: ${{ inputs.enable-shims }}
         toolchain: ${{ inputs.toolchain }}
 
+    # GitHub release assets are MUTABLE: the version pin above pins the tag
+    # name, not the bytes — a compromised upstream account could swap the
+    # 0.8.19 asset in place. These hashes anchor the exact binaries validated
+    # 2026-07-21 (Linux hash independently cross-checked against a known-good
+    # local install; setup-soldr itself performs no checksum verification).
+    # On a soldr version bump: download the new release assets, extract, hash
+    # the soldr binaries, and update both values deliberately.
+    - name: Verify soldr binary integrity
+      shell: bash
+      run: |
+        set -euo pipefail
+        case "$(uname -s)" in
+          Linux) want="8dc4051fe83c498ded65f8aa245d7a5e5576f3998d971e0c6d501464e9f580ac" ;;
+          MINGW*|MSYS*|CYGWIN*) want="46c95c9e9bfa3ffd99da221ab5bdbcab2723ebc0c98f596905f058ddbb495ddd" ;;
+          *) echo "::warning::no pinned soldr hash for $(uname -s); skipping integrity check"; exit 0 ;;
+        esac
+        bin="$(command -v soldr)"
+        got="$(sha256sum "$bin" | cut -d' ' -f1)"
+        if [ "$got" != "$want" ]; then
+          echo "::error::soldr binary hash mismatch at $bin (got $got want $want) — possible swapped release asset; refusing to build"
+          exit 1
+        fi
+        echo "soldr binary integrity OK: $got"
+
     - name: Show Rust cache configuration
       shell: bash
       run: |
