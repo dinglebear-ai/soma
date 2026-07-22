@@ -13,7 +13,8 @@
 
 use chacha20poly1305::aead::{Aead, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
-use getrandom::fill;
+use getrandom::fill_uninit;
+use std::mem::MaybeUninit;
 
 /// ChaCha20-Poly1305 nonce length in bytes.
 pub(crate) const NONCE_LEN: usize = 12;
@@ -39,8 +40,11 @@ pub(crate) fn seal(
 ) -> Result<(Vec<u8>, [u8; NONCE_LEN]), AeadError> {
     let cipher = ChaCha20Poly1305::new_from_slice(key).map_err(|_| AeadError::Seal)?;
 
-    let mut nonce_bytes = [0u8; NONCE_LEN];
-    fill(&mut nonce_bytes).map_err(|_| AeadError::Seal)?;
+    let mut nonce_storage = [MaybeUninit::uninit(); NONCE_LEN];
+    let nonce_bytes: [u8; NONCE_LEN] = fill_uninit(&mut nonce_storage)
+        .map_err(|_| AeadError::Seal)?
+        .try_into()
+        .map_err(|_| AeadError::Seal)?;
     let nonce = Nonce::from(nonce_bytes);
 
     let ciphertext = cipher

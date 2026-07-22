@@ -1539,3 +1539,7 @@ fn add_column_if_missing(
 #[cfg(test)]
 #[path = "sqlite_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "sqlite_migration_tests.rs"]
+mod migration_tests;
