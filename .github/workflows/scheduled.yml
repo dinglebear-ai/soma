@@ -64,10 +64,41 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_audit }}
         run: cargo deny check all
 
-  # NOTE: the soldr compile store is now a persistent host bind mount on the
-  # runner farm (CACHE_MOUNTS soldr:/home/runner/.cache/soldr), shared across
-  # runners and repos. Bounding it is handled where it belongs — zccache's own
-  # LRU eviction plus the farm's host-side `prune-cache` — NOT a CI job. A
-  # weekly `rm -rf` from inside one runner would race live builds on the other
-  # runners and delete a cache shared by every repo. The earlier soldr-store-gc
-  # job was removed for that reason.
+  # ── soldr-store-gc: weekly cache-store size guard ────────────────────────────
+  # soldr/zccache auto-GC has been observed starting but never logging
+  # completion (dookie, 2026-07-21), and a bloated store caused staged-compile
+  # stalls (300s timeouts). Until GC is proven upstream, purge the runner's
+  # store whenever it exceeds the size cap. Purging only costs warm-cache
+  # state; a wedged store costs every build.
+  soldr-store-gc:
+    name: soldr store size guard
+    runs-on: [self-hosted, unraid]
+    timeout-minutes: 15
+    steps:
+      - name: Purge soldr store if oversized
+        shell: bash
+        run: |
+          set -euo pipefail
+          CAP_GB=20
+          # Workflow-level env supplies SOLDR_CACHE_DIR (same path every
+          # workflow uses); the fallback covers a future env removal.
+          store="${SOLDR_CACHE_DIR:-$HOME/.soldr/cache}"
+          # Refuse to delete anything that isn't a plausible cache dir —
+          # rm -rf on a path built from env deserves a seatbelt.
+          resolved="$(realpath -m "$store")"
+          case "$resolved" in
+            ""|/|"$HOME") echo "::error::refusing to purge suspicious path '$resolved'"; exit 1 ;;
+            *cache*|*.soldr*) ;;
+            *) echo "::error::refusing to purge non-cache-looking path '$resolved'"; exit 1 ;;
+          esac
+          if [ ! -d "$resolved" ]; then
+            echo "store $resolved does not exist yet — nothing to do"
+            exit 0
+          fi
+          size_gb=$(du -s --block-size=1G "$resolved" | cut -f1)
+          echo "soldr store: ${size_gb}G at $resolved (cap ${CAP_GB}G)"
+          if [ "$size_gb" -gt "$CAP_GB" ]; then
+            echo "over cap — purging (soldr is not installed in this job; deleting the store directly is equivalent to soldr purge for the on-disk state)"
+            rm -rf "$resolved"
+            echo "purged; next builds start with a cold cache"
+          fi
