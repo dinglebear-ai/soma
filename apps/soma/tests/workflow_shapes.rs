@@ -137,4 +137,10 @@ fn artifact_workflows_run_from_published_releases() {
         registry.contains("github.event_name == 'workflow_dispatch' && github.sha"),
         "manual recovery runs must use the current manifest while publishing the requested release tag"
     );
+    assert!(
+        docker.contains("retire_legacy_registry_name:")
+            && registry.contains("inputs.retire_legacy_registry_name")
+            && registry.contains("ai.dinglebear/soma-rmcp"),
+        "manual recovery runs must expose an explicit, scoped path to retire Soma's legacy Registry name"
+    );
 }

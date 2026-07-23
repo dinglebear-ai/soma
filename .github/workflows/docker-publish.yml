@@ -28,6 +28,11 @@ on:
       tag:
         description: Existing release tag to publish Docker/MCP artifacts for
         required: true
+      retire_legacy_registry_name:
+        description: Retire ai.dinglebear/soma-rmcp after publishing ai.dinglebear/soma
+        required: false
+        type: boolean
+        default: false
 
 env:
   # CUSTOMIZE: Replace "dinglebear-ai/soma" with "your-org/your-image-name"
@@ -232,6 +237,7 @@ jobs:
       - name: Publish to MCP Registry
         env:
           MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
+          RETIRE_LEGACY_REGISTRY_NAME: ${{ inputs.retire_legacy_registry_name || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${MCP_PRIVATE_KEY:-}" ]; then
@@ -242,3 +248,10 @@ jobs:
             --domain "${MCP_REGISTRY_DOMAIN}" \
             --private-key "${MCP_PRIVATE_KEY}"
           ./mcp-publisher publish
+          if [[ "${RETIRE_LEGACY_REGISTRY_NAME}" == "true" ]]; then
+            printf 'y\n' | ./mcp-publisher status \
+              --status deleted \
+              --all-versions \
+              --message "Renamed to ai.dinglebear/soma" \
+              ai.dinglebear/soma-rmcp
+          fi
