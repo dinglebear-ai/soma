@@ -103,6 +103,15 @@ runs:
         # cache-preset keeps cook on, so it must be opted out explicitly.
         # zccache compile caching (the actual point of soldr) is unaffected.
         prebuild-deps: none
+        # Persist the zccache compile store across runs the way the
+        # pre-migration sccache setup did: root the cache under the workspace.
+        # \$GITHUB_WORKSPACE is /_work/<repo>/<repo>, which the runner farm
+        # bind-mounts persistently per runner (/mnt/cache/runner/work/ci-runner-N).
+        # setup-soldr derives SOLDR_CACHE_DIR=<cache-dir>-soldr, so the compile
+        # store lands at /_work/<repo>/.soldr-soldr/cache/zccache: persistent AND
+        # per-runner, so there is no cross-runner shared binary (the #204 exec
+        # race) and no shared /mnt/cache mount to manage. Mirrors old SCCACHE_DIR.
+        cache-dir: ${{ github.workspace }}/../.soldr
 
     # GitHub release assets are MUTABLE: the version pin above pins the tag
     # name, not the bytes — a compromised upstream account could swap the
