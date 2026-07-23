@@ -57,6 +57,10 @@ Each plugin surface should agree on:
 
 Keep the plugin manifests thin. Runtime setup belongs in the service binary, not in manifest-specific shell code.
 
+Soma's canonical repository is `https://github.com/dinglebear-ai/soma`, and
+its OCI package is `ghcr.io/dinglebear-ai/soma`. Keep those identities aligned
+across every plugin and marketplace manifest.
+
 ## Claude Code
 
 Claude Code uses `plugins/soma/.claude-plugin/plugin.json`.

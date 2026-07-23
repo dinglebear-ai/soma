@@ -61,7 +61,7 @@ const providerSurfaces = [
 const trustSignals = [
   ["Package", "soma-rmcp"],
   ["Binary", "soma"],
-  ["Image", "ghcr.io/jmagar/soma:0.4.6"],
+  ["Image", "ghcr.io/dinglebear-ai/soma:0.4.6"],
   ["License", "MIT"],
   ["Publisher", "dinglebear.ai"],
   ["Surfaces", "MCP, CLI, REST, web, Docker, plugins"],
@@ -354,7 +354,7 @@ export default function LandingPage() {
               </p>
             </div>
             <Button asChild variant="ghost" size="sm">
-              <a href="https://github.com/jmagar/soma">GitHub source</a>
+              <a href="https://github.com/dinglebear-ai/soma">GitHub source</a>
             </Button>
           </div>
           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">

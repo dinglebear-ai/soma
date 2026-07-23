@@ -650,11 +650,11 @@ fn render_distribution_plugin(snapshot: &Value) -> Value {
             "name": "dinglebear.ai",
             "url": "https://dinglebear.ai"
         },
-        "repository": "https://github.com/jmagar/soma",
+        "repository": "https://github.com/dinglebear-ai/soma",
         "homepage": "https://soma.dinglebear.ai",
         "website": "https://soma.dinglebear.ai",
-        "support": "https://github.com/jmagar/soma/issues",
-        "security_policy": "https://github.com/jmagar/soma/security/policy",
+        "support": "https://github.com/dinglebear-ai/soma/issues",
+        "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
         "license": "MIT",
         "keywords": [
             "mcp",
@@ -686,7 +686,7 @@ fn render_distribution_plugin(snapshot: &Value) -> Value {
         },
         "packages": {
             "npm": "soma-rmcp",
-            "oci": "ghcr.io/jmagar/soma"
+            "oci": "ghcr.io/dinglebear-ai/soma"
         },
         "runtime": {
             "config_home": "~/.soma",
@@ -767,9 +767,9 @@ fn render_codex_marketplace() -> Value {
             "url": "https://dinglebear.ai"
         },
         "homepage": "https://soma.dinglebear.ai",
-        "repository": "https://github.com/jmagar/soma",
-        "support": "https://github.com/jmagar/soma/issues",
-        "security_policy": "https://github.com/jmagar/soma/security/policy",
+        "repository": "https://github.com/dinglebear-ai/soma",
+        "support": "https://github.com/dinglebear-ai/soma/issues",
+        "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
         "license": "MIT",
         "keywords": [
             "mcp",
@@ -812,7 +812,7 @@ fn render_codex_marketplace() -> Value {
             "metadata": {
                 "mcpServer": "server.json",
                 "nodePackage": "soma-rmcp",
-                "ociImage": "ghcr.io/jmagar/soma",
+                "ociImage": "ghcr.io/dinglebear-ai/soma",
                 "binary": "soma"
             }
         }]
@@ -829,9 +829,9 @@ fn render_claude_marketplace() -> Value {
             "url": "https://dinglebear.ai"
         },
         "homepage": "https://soma.dinglebear.ai",
-        "repository": "https://github.com/jmagar/soma",
-        "support": "https://github.com/jmagar/soma/issues",
-        "security_policy": "https://github.com/jmagar/soma/security/policy",
+        "repository": "https://github.com/dinglebear-ai/soma",
+        "support": "https://github.com/dinglebear-ai/soma/issues",
+        "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
         "license": "MIT",
         "plugins": [{
             "name": "soma",
@@ -841,7 +841,7 @@ fn render_claude_marketplace() -> Value {
             "metadata": {
                 "mcpServer": "server.json",
                 "nodePackage": "soma-rmcp",
-                "ociImage": "ghcr.io/jmagar/soma",
+                "ociImage": "ghcr.io/dinglebear-ai/soma",
                 "binary": "soma"
             }
         }]

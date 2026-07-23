@@ -8,7 +8,7 @@
     "soma-rmcp": "bin/soma-rmcp.js"
   },
   "bugs": {
-    "url": "https://github.com/jmagar/soma/issues"
+    "url": "https://github.com/dinglebear-ai/soma/issues"
   },
   "description": "Node launcher for Soma, a product-first RMCP runtime for provider-backed agent capabilities with CLI, REST, HTTP MCP, plugins, and derivative scaffold support.",
   "engines": {
@@ -51,7 +51,7 @@
   "repository": {
     "directory": "packages/soma-rmcp",
     "type": "git",
-    "url": "git+https://github.com/jmagar/soma.git"
+    "url": "git+https://github.com/dinglebear-ai/soma.git"
   },
   "version": "0.5.0",
   "scripts": {

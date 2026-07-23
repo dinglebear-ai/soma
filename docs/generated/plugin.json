@@ -7,11 +7,11 @@
     "name": "dinglebear.ai",
     "url": "https://dinglebear.ai"
   },
-  "repository": "https://github.com/jmagar/soma",
+  "repository": "https://github.com/dinglebear-ai/soma",
   "homepage": "https://soma.dinglebear.ai",
   "website": "https://soma.dinglebear.ai",
-  "support": "https://github.com/jmagar/soma/issues",
-  "security_policy": "https://github.com/jmagar/soma/security/policy",
+  "support": "https://github.com/dinglebear-ai/soma/issues",
+  "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
   "license": "MIT",
   "keywords": [
     "mcp",
@@ -43,7 +43,7 @@
   },
   "packages": {
     "npm": "soma-rmcp",
-    "oci": "ghcr.io/jmagar/soma"
+    "oci": "ghcr.io/dinglebear-ai/soma"
   },
   "runtime": {
     "config_home": "~/.soma",

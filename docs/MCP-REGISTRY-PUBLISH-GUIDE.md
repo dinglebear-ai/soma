@@ -98,7 +98,7 @@ The relevant workflow snippet:
   run: |
     VERSION="${GITHUB_REF_NAME#v}"
     jq --arg v "$VERSION" \
-       --arg img "ghcr.io/jmagar/soma-mcp:${VERSION}" \
+       --arg img "ghcr.io/dinglebear-ai/soma:${VERSION}" \
        '.version = $v | (.packages[] | select(.registryType == "oci").identifier) = $img | (.packages[].version) = $v' \
        server.json > server.tmp && mv server.tmp server.json
 
@@ -139,7 +139,7 @@ the MCP registry.
 
 You must authenticate for the domain or GitHub user that prefixes your server name.
 If your `name` is `dinglebear.ai/soma`, you must authenticate with DNS for
-`dinglebear.ai`. If your `name` is `github.com/jmagar/soma`, use GitHub OAuth.
+`dinglebear.ai`. If your `name` is `github.com/dinglebear-ai/soma`, use GitHub OAuth.
 
 ### "Invalid schema"
 

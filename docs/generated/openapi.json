@@ -10,7 +10,7 @@
     },
     "license": {
       "name": "MIT",
-      "url": "https://github.com/jmagar/soma/blob/main/LICENSE"
+      "url": "https://github.com/dinglebear-ai/soma/blob/main/LICENSE"
     }
   },
   "servers": [
@@ -31,7 +31,7 @@
   ],
   "externalDocs": {
     "description": "Soma documentation",
-    "url": "https://github.com/jmagar/soma/tree/main/docs"
+    "url": "https://github.com/dinglebear-ai/soma/tree/main/docs"
   },
   "tags": [
     {
@@ -774,9 +774,9 @@
       "url": "https://dinglebear.ai"
     },
     "homepage": "https://soma.dinglebear.ai",
-    "repository": "https://github.com/jmagar/soma",
-    "support": "https://github.com/jmagar/soma/issues",
-    "security_policy": "https://github.com/jmagar/soma/security/policy",
+    "repository": "https://github.com/dinglebear-ai/soma",
+    "support": "https://github.com/dinglebear-ai/soma/issues",
+    "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
     "keywords": [
       "mcp",
       "mcp-server",
@@ -800,7 +800,7 @@
     "binary": "soma",
     "server_binary": "soma",
     "node_package": "soma-rmcp",
-    "oci_image": "ghcr.io/jmagar/soma:0.5.0",
+    "oci_image": "ghcr.io/dinglebear-ai/soma:0.5.0",
     "mcp_registry": "server.json",
     "provider_directory_env": "SOMA_PROVIDER_DIR",
     "auth_modes": [

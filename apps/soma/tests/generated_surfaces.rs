@@ -84,7 +84,7 @@ fn installer_targets_real_soma_release() {
     let text = fs::read_to_string(root.join("install.sh")).expect("installer should read");
 
     assert!(!text.contains("your-org/soma-mcp"));
-    assert!(text.contains("REPO=\"jmagar/soma\""));
+    assert!(text.contains("REPO=\"dinglebear-ai/soma\""));
     assert!(text.contains("BINARY_NAME=\"soma\""));
     assert!(text.contains("soma serve"));
     assert!(text.contains("localhost:40060/health"));

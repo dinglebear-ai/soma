@@ -3,7 +3,7 @@
   "packageName": "soma-rmcp",
   "serviceName": "soma",
   "binary": "soma",
-  "repository": "https://github.com/jmagar/soma",
+  "repository": "https://github.com/dinglebear-ai/soma",
   "homepage": "https://soma.dinglebear.ai",
   "license": "MIT",
   "keywords": [

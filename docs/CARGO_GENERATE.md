@@ -31,7 +31,7 @@ manifest, generated report, and verification workflow.
 
 ```bash
 cargo generate \
-  --git https://github.com/jmagar/soma-mcp \
+  --git https://github.com/dinglebear-ai/soma \
   --name myservice-mcp
 cd myservice-mcp
 cargo run --quiet -p xtask -- cargo-generate-post "$PWD"
@@ -41,7 +41,7 @@ Useful non-interactive form:
 
 ```bash
 cargo generate \
-  --git https://github.com/jmagar/soma-mcp \
+  --git https://github.com/dinglebear-ai/soma \
   --name myservice-mcp \
   --define package_name=myservice-mcp \
   --define crate_prefix=myservice \

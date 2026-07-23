@@ -327,6 +327,10 @@ installation/client paths, runtime surfaces, MCP/CLI reference, credential
 boundaries, generated-vs-curated docs ownership, distribution contracts, and
 verification sections, plus the short related-server family section.
 
+The related-server catalog identifies Soma by its canonical
+`https://github.com/dinglebear-ai/soma` repository URL so generated README
+links do not fall back to the pre-organization owner.
+
 This is a fleet-alignment helper, not a full prose linter. It intentionally
 checks structure and obvious credential-in-arguments mistakes before a human
 does the final README pass.

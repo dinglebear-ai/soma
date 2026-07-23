@@ -48,7 +48,7 @@ fn server_info_includes_implementation_metadata() {
         "tools, prompts, and resources",
         "one action-dispatched `soma` tool",
         "Homepage: https://soma.dinglebear.ai",
-        "Repository: https://github.com/jmagar/soma",
+        "Repository: https://github.com/dinglebear-ai/soma",
         "Node package: soma-rmcp",
         "Binary: soma",
         "Config home: ~/.soma or SOMA_HOME",

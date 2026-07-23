@@ -39,10 +39,10 @@
       ],
       "node_package": "soma-rmcp",
       "provider_dir_env": "SOMA_PROVIDER_DIR",
-      "repository": "https://github.com/jmagar/soma",
-      "security_policy": "https://github.com/jmagar/soma/security/policy",
+      "repository": "https://github.com/dinglebear-ai/soma",
+      "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
       "server_binary": "soma",
-      "support_url": "https://github.com/jmagar/soma/issues",
+      "support_url": "https://github.com/dinglebear-ai/soma/issues",
       "surfaces": [
         "mcp",
         "cli",
@@ -66,8 +66,8 @@
         "environment": "docs/ENV.md",
         "quickstart": "docs/QUICKSTART.md",
         "readme": "README.md",
-        "security": "https://github.com/jmagar/soma/security/policy",
-        "support": "https://github.com/jmagar/soma/issues",
+        "security": "https://github.com/dinglebear-ai/soma/security/policy",
+        "support": "https://github.com/dinglebear-ai/soma/issues",
         "website": "https://soma.dinglebear.ai"
       },
       "publisher": {
@@ -83,14 +83,14 @@
       "sizes": [
         "512x512"
       ],
-      "src": "https://raw.githubusercontent.com/jmagar/soma/main/plugins/soma/assets/icon.png"
+      "src": "https://raw.githubusercontent.com/dinglebear-ai/soma/main/plugins/soma/assets/icon.png"
     },
     {
       "mimeType": "image/svg+xml",
       "sizes": [
         "any"
       ],
-      "src": "https://raw.githubusercontent.com/jmagar/soma/main/plugins/soma/assets/logo.svg",
+      "src": "https://raw.githubusercontent.com/dinglebear-ai/soma/main/plugins/soma/assets/logo.svg",
       "theme": "dark"
     }
   ],
@@ -170,7 +170,7 @@
   "repository": {
     "id": "1238227299",
     "source": "github",
-    "url": "https://github.com/jmagar/soma"
+    "url": "https://github.com/dinglebear-ai/soma"
   },
   "title": "Soma",
   "version": "0.5.0",

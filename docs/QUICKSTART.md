@@ -12,7 +12,7 @@
 ## 1. Run Soma
 
 ```bash
-git clone https://github.com/jmagar/soma
+git clone https://github.com/dinglebear-ai/soma
 cd soma
 cargo run --bin soma -- serve
 ```

@@ -98,7 +98,7 @@ preflight() {
 
 One-line install:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jmagar/soma-mcp/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/dinglebear-ai/soma/main/install.sh | bash
 ```
 
 After install: `soma doctor` to validate the environment.

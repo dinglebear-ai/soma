@@ -59,7 +59,7 @@ shipped `soma` command is the source of truth for product behavior.
 
 | Surface | Soma value | Generated-project pattern |
 |---|---|---|
-| Repository | `jmagar/soma` | `<service>-rmcp` or a documented product exception |
+| Repository | `dinglebear-ai/soma` | `<service>-rmcp` or a documented product exception |
 | Rust crate/package | `soma` | service-specific crate names |
 | Canonical binary | `soma` | usually `r<service>` or the product name |
 | npm package | `soma-rmcp` | `<service>-rmcp` |
@@ -154,7 +154,7 @@ Lower-level Cargo features are available when you need a custom shape:
 Run the product as-is:
 
 ```bash
-git clone https://github.com/jmagar/soma
+git clone https://github.com/dinglebear-ai/soma
 cd soma
 
 # Full platform mode: REST API + HTTP MCP + web fallback on :40060

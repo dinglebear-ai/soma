@@ -19,7 +19,7 @@ class RelatedServer:
 
 
 RELATED_SERVERS = (
-    RelatedServer("soma", "https://github.com/jmagar/soma", "RMCP runtime for provider-backed MCP servers."),
+    RelatedServer("soma", "https://github.com/dinglebear-ai/soma", "RMCP runtime for provider-backed MCP servers."),
     RelatedServer("unifi-rmcp", "https://github.com/jmagar/unifi-rmcp", "UniFi controller REST API bridge."),
     RelatedServer(
         "tailscale-rmcp",

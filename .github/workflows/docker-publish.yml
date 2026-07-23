@@ -14,8 +14,8 @@
 #   - release-please publishes a GitHub Release
 #   - manual workflow_dispatch for rerunning an existing tag
 #
-# Registry: ghcr.io/jmagar/<IMAGE_NAME>
-# CUSTOMIZE: Replace "jmagar" with your GitHub org/username.
+# Registry: ghcr.io/dinglebear-ai/<IMAGE_NAME>
+# CUSTOMIZE: Replace "dinglebear-ai" with your GitHub org/username.
 # =============================================================================
 
 name: Docker Publish
@@ -30,8 +30,8 @@ on:
         required: true
 
 env:
-  # CUSTOMIZE: Replace "jmagar/soma" with "your-org/your-image-name"
-  IMAGE_NAME: ghcr.io/jmagar/soma
+  # CUSTOMIZE: Replace "dinglebear-ai/soma" with "your-org/your-image-name"
+  IMAGE_NAME: ghcr.io/dinglebear-ai/soma
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
   # Set this as a GitHub Actions repository variable instead of committing the
   # domain into Soma: gh variable set MCP_REGISTRY_DOMAIN --body <domain>
@@ -86,7 +86,10 @@ jobs:
             echo "packages/soma-rmcp/package.json version ${npm_version} does not match ${tag}" >&2
             exit 1
           fi
-          cargo xtask check-version-sync
+          # Keep this short validation build isolated from any stale shared-runner
+          # target entries while retaining soldr's compiler and zccache layers.
+          CARGO_TARGET_DIR="${RUNNER_TEMP}/soma-version-sync-target" \
+            cargo xtask check-version-sync
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
 
   docker:
@@ -160,7 +163,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           # CUSTOMIZE: Replace with your image name.
-          image-ref: ghcr.io/jmagar/soma:latest
+          image-ref: ghcr.io/dinglebear-ai/soma:latest
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH

@@ -20,7 +20,7 @@ Linux GitHub Actions jobs run on a Dockerized self-hosted runner on TOOTIE:
 runs-on: [self-hosted, tootie, rmcp-template]
 ```
 
-The runner is repo-scoped to `jmagar/soma` and mirrors the proven lab
+The runner is repo-scoped to `dinglebear-ai/soma` and mirrors the proven lab
 runner layout.
 
 ## Live Layout
@@ -46,7 +46,7 @@ Current runners:
 Verify from this repo:
 
 ```bash
-gh api repos/jmagar/soma/actions/runners \
+gh api repos/dinglebear-ai/soma/actions/runners \
   -q '.runners[] | [.name,.status,.busy,(.labels|map(.name)|join(","))] | @tsv'
 ```
 
@@ -65,11 +65,11 @@ services:
       - "281"
     working_dir: /home/runner
     environment:
-      - RUNNER_REPO=jmagar/soma
+      - RUNNER_REPO=dinglebear-ai/soma
       - RUNNER_NAME=tootie-soma-linux
       - RUNNER_LABELS=soma,tootie,self-hosted,linux,x64
       - RUNNER_WORKDIR=/home/runner/_work
-      - RUNNER_URL=https://github.com/jmagar/soma
+      - RUNNER_URL=https://github.com/dinglebear-ai/soma
       - RUNNER_USE_JIT=1
       - TMPDIR=/tmp
       - TMP=/tmp

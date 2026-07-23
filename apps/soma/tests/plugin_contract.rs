@@ -122,7 +122,7 @@ fn mcp_registry_manifest_advertises_rich_product_metadata() {
     assert_eq!(manifest["title"], "Soma");
     assert_eq!(
         manifest["repository"]["url"],
-        "https://github.com/jmagar/soma"
+        "https://github.com/dinglebear-ai/soma"
     );
     assert_eq!(manifest["repository"]["id"], "1238227299");
     assert_eq!(manifest["websiteUrl"], "https://soma.dinglebear.ai");
@@ -133,7 +133,7 @@ fn mcp_registry_manifest_advertises_rich_product_metadata() {
     );
     assert_eq!(
         manifest["_meta"]["ai.dinglebear.soma"]["support_url"],
-        "https://github.com/jmagar/soma/issues"
+        "https://github.com/dinglebear-ai/soma/issues"
     );
     assert!(
         manifest["_meta"]["ai.dinglebear.soma"]["keywords"]
@@ -219,7 +219,7 @@ fn npm_launcher_package_has_distribution_metadata() {
     assert_eq!(package["repository"]["directory"], "packages/soma-rmcp");
     assert_eq!(
         package["bugs"]["url"],
-        "https://github.com/jmagar/soma/issues"
+        "https://github.com/dinglebear-ai/soma/issues"
     );
     assert_eq!(package["bin"]["soma"], "bin/soma-rmcp.js");
     assert_eq!(package["bin"]["soma-rmcp"], "bin/soma-rmcp.js");
@@ -232,7 +232,7 @@ fn generated_openapi_carries_product_metadata() {
     assert_eq!(openapi["info"]["license"]["name"], "MIT");
     assert_eq!(
         openapi["externalDocs"]["url"],
-        "https://github.com/jmagar/soma/tree/main/docs"
+        "https://github.com/dinglebear-ai/soma/tree/main/docs"
     );
     assert_eq!(openapi["x-soma"]["binary"], "soma");
     assert_eq!(openapi["x-soma"]["node_package"], "soma-rmcp");

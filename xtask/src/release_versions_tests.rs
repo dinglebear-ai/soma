@@ -85,14 +85,14 @@ version = "0.1.0"
 
 #[test]
 fn oci_identifier_version_uses_tag_suffix() {
-    let content = r#"{"packages":[{"identifier":"ghcr.io/jmagar/soma:0.4.1"}]}"#;
+    let content = r#"{"packages":[{"identifier":"ghcr.io/dinglebear-ai/soma:0.4.1"}]}"#;
     assert_eq!(
         read_oci_identifier_version(content, Some("/packages/0/identifier")).unwrap(),
         "0.4.1"
     );
     let updated =
         replace_oci_identifier_version(content, Some("/packages/0/identifier"), "0.4.2").unwrap();
-    assert!(updated.contains("ghcr.io/jmagar/soma:0.4.2"));
+    assert!(updated.contains("ghcr.io/dinglebear-ai/soma:0.4.2"));
 }
 
 #[test]
