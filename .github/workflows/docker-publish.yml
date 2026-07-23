@@ -247,11 +247,12 @@ jobs:
           ./mcp-publisher login dns \
             --domain "${MCP_REGISTRY_DOMAIN}" \
             --private-key "${MCP_PRIVATE_KEY}"
-          ./mcp-publisher publish
           if [[ "${RETIRE_LEGACY_REGISTRY_NAME}" == "true" ]]; then
             printf 'y\n' | ./mcp-publisher status \
               --status deleted \
               --all-versions \
               --message "Renamed to ai.dinglebear/soma" \
               ai.dinglebear/soma-rmcp
+          else
+            ./mcp-publisher publish
           fi
