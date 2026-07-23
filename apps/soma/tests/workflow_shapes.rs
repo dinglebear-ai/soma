@@ -143,4 +143,8 @@ fn artifact_workflows_run_from_published_releases() {
             && registry.contains("ai.dinglebear/soma-rmcp"),
         "manual recovery runs must expose an explicit, scoped path to retire Soma's legacy Registry name"
     );
+    assert!(
+        registry.contains("else\n            ./mcp-publisher publish\n          fi"),
+        "legacy retirement mode must not republish an already-existing canonical version"
+    );
 }
