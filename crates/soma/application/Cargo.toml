@@ -21,7 +21,7 @@ observability = ["dep:metrics", "soma-client/observability"]
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-base64 = "0.22"
+base64 = "0.23"
 jsonschema = "0.47"
 metrics = { version = "0.24", optional = true }
 serde = { version = "1", features = ["derive"] }
