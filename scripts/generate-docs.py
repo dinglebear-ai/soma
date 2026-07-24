@@ -315,6 +315,18 @@ def env_purpose(spec: EnvSpec) -> str:
         "SOMA_MCP_ALLOWED_HOSTS": "Extra accepted Host header values, comma-separated.",
         "SOMA_MCP_ALLOWED_ORIGINS": "Extra CORS origins, comma-separated.",
         "SOMA_MCP_TRACE_HEADERS": "Trusted inbound HTTP trace-header extraction: `off`, `trusted`, or `trusted-with-baggage`. Enable only behind a transport-level trust boundary; see `docs/TRACE_CONTEXT.md`.",
+        "SOMA_MCP_STATIC_TOKEN_WRITE": "Grant the static bearer token `soma:write` in addition to `soma:read`. Read-only by default.",
+        "SOMA_MCP_AUTH_BOOTSTRAP_SECRET": "Native-flow bootstrap secret for the desktop/CLI OAuth poll flow.",
+        "SOMA_MCP_AUTH_SQLITE_PATH": "Auth SQLite DB path. Unset uses the built-in default under the data dir.",
+        "SOMA_MCP_AUTH_KEY_PATH": "Ed25519 JWT signing key path. Unset uses the built-in default under the data dir.",
+        "SOMA_MCP_AUTH_ACCESS_TOKEN_TTL_SECS": "Access-token lifetime in seconds. Unset uses the built-in auth default.",
+        "SOMA_MCP_AUTH_REFRESH_TOKEN_TTL_SECS": "Refresh-token lifetime in seconds. Unset uses the built-in auth default.",
+        "SOMA_MCP_AUTH_CODE_TTL_SECS": "Authorization-code lifetime in seconds. Unset uses the built-in auth default.",
+        "SOMA_MCP_AUTH_REGISTER_REQUESTS_PER_MINUTE": "Per-IP `/register` rate limit. Unset uses the built-in auth default.",
+        "SOMA_MCP_AUTH_AUTHORIZE_REQUESTS_PER_MINUTE": "Per-IP `/authorize` rate limit. Unset uses the built-in auth default.",
+        "SOMA_MCP_AUTH_MAX_PENDING_OAUTH_STATES": "Cap on pending OAuth state rows (DoS bound). Unset uses the built-in auth default.",
+        "SOMA_MCP_AUTH_ALLOWED_REDIRECT_URIS": "Comma-separated allowlist of dynamic-client redirect URIs.",
+        "SOMA_MCP_TOKEN_ENCRYPTION_KEY": "At-rest encryption key for stored provider refresh tokens (64-hex or 43-char base64url). Keep secret.",
     }
     return purposes.get(spec.key, "CUSTOMIZE: document this environment variable.")
 
@@ -506,8 +518,6 @@ def render_config_example() -> str:
     host = default_string("default_mcp_host")
     port = default_int("default_mcp_port")
     server_name = default_string("default_server_name")
-    sqlite_path = default_string("default_auth_sqlite_path")
-    key_path = default_string("default_auth_key_path")
     return f"""# =============================================================================
 # config.soma.toml - generated non-secret config sample
 #
@@ -542,13 +552,18 @@ mode = "bearer"
 # provider are runtime-only environment variables; see docs/ENV.md.
 admin_email = ""
 allowed_emails = []
-sqlite_path = "{sqlite_path}"
-key_path = "{key_path}"
-access_token_ttl_secs = 3600
-refresh_token_ttl_secs = 2592000
-auth_code_ttl_secs = 300
-register_rpm = 10
-authorize_rpm = 60
+# Storage paths, token TTLs, and rate limits are optional. When unset the
+# built-in auth defaults apply (source of truth: crates/shared/auth). Set
+# these via [mcp.auth] or the matching SOMA_MCP_AUTH_* env vars to override;
+# see docs/ENV.md.
+# sqlite_path = "/path/to/auth.db"
+# key_path = "/path/to/auth-jwt.key"
+# access_token_ttl_secs = 3600
+# refresh_token_ttl_secs = 2592000
+# auth_code_ttl_secs = 300
+# register_rpm = 20
+# authorize_rpm = 60
+# max_pending_oauth_states = 1024
 allowed_client_redirect_uris = []
 """
 

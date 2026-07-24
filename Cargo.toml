@@ -78,6 +78,9 @@ rmcp = { version = "=2.2.0", default-features = false }
 # (`package =` cannot be combined with `workspace = true` on the member side).
 # Keep the version in sync with `rmcp` above.
 rmcp-client = { package = "rmcp", version = "=2.2.0", default-features = false }
+# Security primitives. One pin so every crate that wipes key material on drop
+# agrees on the same zeroize semantics.
+zeroize = { version = "1", features = ["zeroize_derive"] }
 
 # Shared crates
 rmcp-traces = { path = "crates/shared/traces" }

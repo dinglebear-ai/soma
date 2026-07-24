@@ -17,7 +17,7 @@ layer = "product-integration"
 default = []
 # Product auth default mapping (env prefix, scopes, cookie name) with no
 # outbound-OAuth transport stack.
-auth = ["dep:soma-auth"]
+auth = ["dep:soma-auth", "dep:soma-config"]
 # Gateway-to-auth bridge: translates soma-auth's upstream OAuth runtime into
 # soma-gateway's generic `UpstreamOAuthRuntime`/`UpstreamOAuthProvider`/
 # `UpstreamOAuthManager` traits.
@@ -36,6 +36,7 @@ serde_json = "1"
 soma-application = { workspace = true }
 soma-auth = { workspace = true, optional = true }
 soma-codemode = { workspace = true }
+soma-config = { workspace = true, optional = true }
 soma-domain = { workspace = true }
 soma-gateway = { workspace = true, features = ["protected-routes"] }
 mcp-client = { workspace = true, optional = true, features = ["oauth"] }

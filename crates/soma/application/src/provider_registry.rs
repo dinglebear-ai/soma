@@ -433,7 +433,7 @@ impl ProviderRegistry {
     }
 
     pub async fn dispatch(&self, mut call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
-        let (snapshot, core_registry, provider, tool, capabilities) = {
+        let (snapshot, core_registry, provider, tool, capabilities, provider_kind) = {
             let state = self
                 .state
                 .read()
@@ -458,11 +458,11 @@ impl ProviderRegistry {
                     "Reload providers and retry.",
                 )
             })?;
-            let capabilities = snapshot
+            let (capabilities, provider_kind) = snapshot
                 .catalogs
                 .iter()
                 .find(|catalog| catalog.provider.name == provider_name)
-                .map(|catalog| catalog.capabilities.clone())
+                .map(|catalog| (catalog.capabilities.clone(), catalog.provider.kind))
                 .expect("core provider index must reference an active catalog");
             (
                 snapshot,
@@ -470,6 +470,7 @@ impl ProviderRegistry {
                 provider,
                 tool,
                 capabilities,
+                provider_kind,
             )
         };
 
@@ -486,7 +487,7 @@ impl ProviderRegistry {
                     let mut call = pre_input_call;
                     call.provider.clone_from(&invocation.provider);
                     call.snapshot_id.clone_from(&invocation.snapshot_id);
-                    enforce_pre_input(&pre_input_tool, &call)
+                    enforce_pre_input(&pre_input_tool, &call, provider_kind)
                 },
                 move |_, invocation| {
                     let mut call = invocation_call;

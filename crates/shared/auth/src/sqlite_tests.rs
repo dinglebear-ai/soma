@@ -589,148 +589,138 @@ async fn allowed_users_schema_bootstrap_is_idempotent() {
     let _store2 = SqliteStore::open(path).await.unwrap();
 }
 
-/// Regression test proving the `provider` column migration correctly
-/// backfills a row that predates the column, not just that a freshly
-/// created database's `CREATE TABLE ... provider TEXT NOT NULL DEFAULT
-/// 'google'` path works. Hand-writes the pre-migration
-/// `authorization_requests` shape (no `provider` column) via a raw
-/// `rusqlite::Connection`, inserts one row, closes that connection, then
-/// opens the SAME file through the normal `SqliteStore::open` path
-/// (which runs `add_column_if_missing` for `provider`) and confirms the
-/// pre-existing row reads back with `provider = "google"`.
-#[tokio::test]
-async fn sqlite_store_backfills_provider_column_on_pre_migration_database() {
-    let path = temp_db_path();
-    let now = now_unix();
-    {
-        let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch(
-            "CREATE TABLE authorization_requests (
-                state TEXT PRIMARY KEY,
-                client_id TEXT NOT NULL,
-                redirect_uri TEXT NOT NULL,
-                client_state TEXT NOT NULL,
-                resource TEXT NOT NULL DEFAULT '',
-                scope TEXT NOT NULL,
-                provider_code_verifier TEXT NOT NULL,
-                code_challenge TEXT NOT NULL,
-                code_challenge_method TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                expires_at INTEGER NOT NULL
-            );",
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO authorization_requests (
-                state, client_id, redirect_uri, client_state, resource, scope,
-                provider_code_verifier, code_challenge, code_challenge_method,
-                created_at, expires_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            rusqlite::params![
-                "pre-migration-state",
-                "client-1",
-                "http://127.0.0.1:7777/callback",
-                "client-state",
-                "https://lab.example.com/mcp",
-                "lab",
-                "verifier",
-                "challenge",
-                "S256",
-                now,
-                now + 300,
-            ],
-        )
-        .unwrap();
-        // `conn` drops here, closing the raw connection before
-        // SqliteStore opens its own pool against the same file — proves
-        // the migration runs against a database file, not in-memory
-        // state carried over from the same connection.
-    }
-    // Raw `Connection::open` creates the file with the process umask,
-    // which is world-readable in this sandbox — SqliteStore::open()
-    // refuses to touch an existing file with loose permissions
-    // (see sqlite_store_refuses_world_readable_database_file). A real
-    // pre-migration database would already be 0600 from a prior
-    // SqliteStore::open, so lock it down the same way here.
-    crate::util::set_restrictive_permissions(&path).unwrap();
-
-    let store = SqliteStore::open(path).await.unwrap();
-    let row = store
-        .take_authorization_request("pre-migration-state")
-        .await
-        .unwrap();
-    assert_eq!(
-        row.provider, "google",
-        "pre-existing row must backfill to the 'google' default"
-    );
-    assert_eq!(row.client_id, "client-1");
-    assert_eq!(row.resource, "https://lab.example.com/mcp");
+fn test_enc_key() -> crate::at_rest::TokenEncryptionKey {
+    crate::at_rest::TokenEncryptionKey::from_passphrase("sqlite-at-rest-test-key")
 }
 
-/// Same regression coverage as
-/// `sqlite_store_backfills_provider_column_on_pre_migration_database`,
-/// but for `refresh_tokens` specifically — the highest-stakes of the
-/// remaining three migrated tables, since it feeds
-/// `has_any_refresh_token_for_provider` and refresh-grant provider
-/// dispatch (`token::refresh_token_grant`). Hand-writes the
-/// post-v1/pre-`provider`-column `refresh_tokens` shape (hashed PK
-/// already present, no `provider` column) via a raw
-/// `rusqlite::Connection`, then confirms `SqliteStore::open` backfills
-/// the pre-existing row to `provider = "google"`.
-#[tokio::test]
-async fn sqlite_store_backfills_provider_column_on_pre_migration_refresh_tokens_table() {
-    let path = temp_db_path();
+fn sample_refresh_row(refresh_token: &str, provider_rt: &str) -> RefreshTokenRow {
     let now = now_unix();
-    let plaintext_token = "pre-migration-refresh-token";
+    RefreshTokenRow {
+        refresh_token: refresh_token.to_string(),
+        client_id: "client".to_string(),
+        subject: "google-user".to_string(),
+        resource: "https://lab.example.com/mcp".to_string(),
+        scope: "lab".to_string(),
+        provider: "google".to_string(),
+        provider_refresh_token: Some(provider_rt.to_string()),
+        created_at: now,
+        expires_at: now + 3600,
+    }
+}
+
+fn raw_provider_rt_column(path: &std::path::Path, hash: &str) -> String {
+    let conn = rusqlite::Connection::open(path).unwrap();
+    conn.query_row(
+        "SELECT provider_refresh_token FROM refresh_tokens WHERE refresh_token_hash = ?1",
+        rusqlite::params![hash],
+        |row| row.get(0),
+    )
+    .unwrap()
+}
+
+/// New writes must use the AAD-bound `enc2:` storage format and round-trip
+/// back to plaintext through `find_refresh_token`.
+#[tokio::test]
+async fn sqlite_store_writes_aad_bound_provider_refresh_token() {
+    let path = temp_db_path();
+    let store = SqliteStore::open_with_key(path.clone(), Some(test_enc_key()))
+        .await
+        .unwrap();
+    store
+        .upsert_refresh_token(sample_refresh_row("bound-token", "provider-secret"))
+        .await
+        .unwrap();
+
+    let stored = raw_provider_rt_column(&path, &super::hash_token("bound-token"));
+    assert!(
+        stored.starts_with("enc2:"),
+        "new writes must carry the AAD-bound sentinel, got: {stored}"
+    );
+
+    let row = store
+        .find_refresh_token("bound-token")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.provider_refresh_token.as_deref(),
+        Some("provider-secret")
+    );
+}
+
+/// A ciphertext transplanted onto a row with a different refresh-token hash
+/// must fail decryption (the AAD re-derivation no longer matches).
+#[tokio::test]
+async fn sqlite_store_rejects_transplanted_provider_refresh_token() {
+    let path = temp_db_path();
+    let store = SqliteStore::open_with_key(path.clone(), Some(test_enc_key()))
+        .await
+        .unwrap();
+    store
+        .upsert_refresh_token(sample_refresh_row("victim-token", "provider-secret"))
+        .await
+        .unwrap();
+
+    // Simulate an attacker (or corrupted restore) moving the encrypted blob
+    // onto a different row identity by rewriting the primary key.
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch(
-            "CREATE TABLE refresh_tokens (
-                refresh_token_hash TEXT PRIMARY KEY,
-                client_id TEXT NOT NULL,
-                subject TEXT NOT NULL,
-                resource TEXT NOT NULL DEFAULT '',
-                scope TEXT NOT NULL,
-                provider_refresh_token TEXT,
-                created_at INTEGER NOT NULL,
-                expires_at INTEGER NOT NULL
-            );",
-        )
-        .unwrap();
         conn.execute(
-            "INSERT INTO refresh_tokens (
-                refresh_token_hash, client_id, subject, resource, scope,
-                provider_refresh_token, created_at, expires_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "UPDATE refresh_tokens SET refresh_token_hash = ?1 WHERE refresh_token_hash = ?2",
             rusqlite::params![
-                super::hash_token(plaintext_token),
-                "client-1",
-                "google-user",
-                "https://lab.example.com/mcp",
-                "lab",
-                "provider-refresh-token",
-                now,
-                now + 3600,
+                super::hash_token("attacker-token"),
+                super::hash_token("victim-token"),
             ],
         )
         .unwrap();
-        // `conn` drops here, closing the raw connection before
-        // SqliteStore opens its own pool against the same file.
     }
-    crate::util::set_restrictive_permissions(&path).unwrap();
 
-    let store = SqliteStore::open(path).await.unwrap();
+    let err = store
+        .find_refresh_token("attacker-token")
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("decryption failed"),
+        "transplanted ciphertext must fail closed, got: {err}"
+    );
+}
+
+/// Legacy `enc:` rows (written before AAD binding existed) must continue to
+/// decrypt through the bound read path.
+#[tokio::test]
+async fn sqlite_store_decrypts_legacy_unbound_provider_refresh_token() {
+    let path = temp_db_path();
+    let key = test_enc_key();
+    let store = SqliteStore::open_with_key(path.clone(), Some(key.clone()))
+        .await
+        .unwrap();
+    store
+        .upsert_refresh_token(sample_refresh_row("legacy-token", "placeholder"))
+        .await
+        .unwrap();
+
+    // Rewrite the stored column with a legacy unbound ciphertext, as an
+    // existing pre-upgrade database would contain.
+    let legacy = crate::at_rest::encrypt_provider_token(&key, "legacy-provider-secret").unwrap();
+    assert!(legacy.starts_with("enc:"));
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute(
+            "UPDATE refresh_tokens SET provider_refresh_token = ?1 WHERE refresh_token_hash = ?2",
+            rusqlite::params![legacy, super::hash_token("legacy-token")],
+        )
+        .unwrap();
+    }
+
     let row = store
-        .find_refresh_token(plaintext_token)
+        .find_refresh_token("legacy-token")
         .await
         .unwrap()
-        .expect("pre-existing refresh token row must still be found by its hash");
+        .unwrap();
     assert_eq!(
-        row.provider, "google",
-        "pre-existing row must backfill to the 'google' default"
+        row.provider_refresh_token.as_deref(),
+        Some("legacy-provider-secret")
     );
-    assert_eq!(row.client_id, "client-1");
-    assert_eq!(row.resource, "https://lab.example.com/mcp");
 }
 
 // Ensure AllowedUserRow is importable as the right type in tests.

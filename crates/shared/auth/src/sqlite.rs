@@ -8,7 +8,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use tracing::warn;
 
-use crate::at_rest::{TokenEncryptionKey, maybe_decrypt, maybe_encrypt};
+use crate::at_rest::{TokenEncryptionKey, maybe_decrypt_bound, maybe_encrypt_bound};
 use crate::error::AuthError;
 use crate::types::{
     AllowedUserRow, AuthorizationCodeRow, AuthorizationRequestRow, BrowserLoginStateRow,
@@ -282,7 +282,7 @@ impl SqliteStore {
         let encrypted_provider_rt = token
             .provider_refresh_token
             .as_deref()
-            .map(|raw| maybe_encrypt(self.enc_key.as_deref(), raw))
+            .map(|raw| maybe_encrypt_bound(self.enc_key.as_deref(), raw, &refresh_token_aad(&hash)))
             .transpose()?;
         self.with_conn(move |conn| {
             conn.execute(
@@ -339,7 +339,9 @@ impl SqliteStore {
         let encrypted_provider_rt = new_token
             .provider_refresh_token
             .as_deref()
-            .map(|raw| maybe_encrypt(self.enc_key.as_deref(), raw))
+            .map(|raw| {
+                maybe_encrypt_bound(self.enc_key.as_deref(), raw, &refresh_token_aad(&new_hash))
+            })
             .transpose()?;
         self.with_conn(move |conn| {
             conn.execute_batch("BEGIN").map_err(sqlite_error)?;
@@ -438,12 +440,19 @@ impl SqliteStore {
                 .map_err(sqlite_error)?;
 
             // Decrypt provider_refresh_token if present and an enc key is
-            // configured.  maybe_decrypt is a no-op for plaintext values, so
-            // this is safe to call unconditionally once a row is found.
+            // configured.  maybe_decrypt_bound is a no-op for plaintext
+            // values, so this is safe to call unconditionally once a row is
+            // found.  The AAD re-derives the row identity from the same hash
+            // used for the lookup, so a ciphertext transplanted onto a
+            // different row fails authentication here.
             match row {
                 Some(mut r) => {
                     if let Some(raw) = r.provider_refresh_token.as_deref() {
-                        r.provider_refresh_token = Some(maybe_decrypt(enc_key.as_deref(), raw)?);
+                        r.provider_refresh_token = Some(maybe_decrypt_bound(
+                            enc_key.as_deref(),
+                            raw,
+                            &refresh_token_aad(&hash),
+                        )?);
                     }
                     Ok(Some(r))
                 }
@@ -571,6 +580,13 @@ impl SqliteStore {
         .await
     }
 
+    /// Run an arbitrary SQL batch against the store — test fixtures only.
+    ///
+    /// Gated behind `cfg(any(test, debug_assertions))` (deliberately not a
+    /// Cargo feature, mirroring `upstream::cache`'s test seam) so an
+    /// arbitrary-SQL execution method can never ship in
+    /// `--all-features --release` artifacts.
+    #[cfg(any(test, debug_assertions))]
     pub async fn execute_test_statement(&self, sql: &str) -> Result<(), AuthError> {
         let sql = sql.to_string();
         self.with_conn(move |conn| conn.execute_batch(&sql).map_err(sqlite_error))
@@ -1453,6 +1469,17 @@ fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
 /// The raw token (24+ bytes of random entropy) has sufficient pre-image
 /// resistance for SHA-256 to be appropriate here — Argon2 would add
 /// per-request latency without a meaningful security benefit.
+/// AAD binding an encrypted `provider_refresh_token` to its row identity.
+///
+/// The refresh-token hash is the table's primary key and is derivable at
+/// both encrypt time (upsert/rotate hash the plaintext token before insert)
+/// and decrypt time (lookup is keyed by the same hash), so a ciphertext
+/// copied onto a row with a different hash fails authentication.  Mirrors
+/// the `key=value` AAD shape used by `upstream::store::credential_aad`.
+fn refresh_token_aad(refresh_token_hash: &str) -> Vec<u8> {
+    format!("refresh_token_hash={refresh_token_hash}").into_bytes()
+}
+
 fn hash_token(token: &str) -> String {
     let digest = Sha256::digest(token.as_bytes());
     let mut hex = String::with_capacity(64);
@@ -1512,3 +1539,7 @@ fn add_column_if_missing(
 #[cfg(test)]
 #[path = "sqlite_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "sqlite_migration_tests.rs"]
+mod migration_tests;

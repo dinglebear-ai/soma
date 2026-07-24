@@ -78,6 +78,9 @@ tokio = { version = "1", features = ["net"] }
 typify = { version = "0.7", default-features = false }
 schemars = "0.8"
 serde_json = "1"
+# prettyplease 0.3 pretty-prints via syn 3's `File` type, so the build-script
+# parser must be on syn 3 too — otherwise `prettyplease::unparse` receives a
+# syn 2 `File` and fails to compile (E0308). Keep these two majors in lockstep.
 prettyplease = "0.3"
 syn = { version = "3", features = ["full"] }
 

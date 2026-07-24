@@ -173,7 +173,7 @@ pub(crate) async fn stdio_state() -> Result<AppState> {
     };
     let gateway = gateway_product_state_from_env()?;
     #[cfg(feature = "oauth")]
-    configure_gateway_upstream_oauth_from_env(&gateway).await?;
+    configure_gateway_upstream_oauth_from_config(&gateway, &config.mcp.auth).await?;
     let runtime = runtime_for_components(service, provider_registry, gateway);
     Ok(AppState::new(
         config.mcp,
@@ -192,7 +192,7 @@ pub(crate) async fn http_state() -> Result<AppState> {
     let provider_registry = soma_application::dynamic_provider_registry(service.clone())?;
     let gateway = gateway_product_state_from_env()?;
     #[cfg(feature = "oauth")]
-    configure_gateway_upstream_oauth_for_policy(&gateway, &auth_policy).await?;
+    configure_gateway_upstream_oauth_for_policy(&gateway, &auth_policy, &config.mcp.auth).await?;
     let runtime = runtime_for_components(service, provider_registry, gateway);
     Ok(AppState::new(
         config.mcp,
@@ -206,6 +206,7 @@ pub(crate) async fn http_state() -> Result<AppState> {
 async fn configure_gateway_upstream_oauth_for_policy(
     gateway: &soma_runtime::server::GatewayProductState,
     auth_policy: &AuthPolicy,
+    auth: &soma_config::AuthConfig,
 ) -> Result<()> {
     if !gateway_has_oauth_upstreams(gateway) {
         return Ok(());
@@ -216,21 +217,20 @@ async fn configure_gateway_upstream_oauth_for_policy(
     {
         return configure_gateway_upstream_oauth(gateway, auth_state.config.as_ref()).await;
     }
-    let auth_config = soma_integrations::auth::soma_auth_config_builder()
-        .build_from_sources(std::env::vars())
+    let auth_config = soma_integrations::auth::soma_auth_config(auth)
         .map_err(|error| anyhow::anyhow!("Gateway upstream OAuth config error: {error}"))?;
     configure_gateway_upstream_oauth(gateway, &auth_config).await
 }
 
 #[cfg(all(feature = "oauth", feature = "mcp-stdio"))]
-async fn configure_gateway_upstream_oauth_from_env(
+async fn configure_gateway_upstream_oauth_from_config(
     gateway: &soma_runtime::server::GatewayProductState,
+    auth: &soma_config::AuthConfig,
 ) -> Result<()> {
     if !gateway_has_oauth_upstreams(gateway) {
         return Ok(());
     }
-    let auth_config = soma_integrations::auth::soma_auth_config_builder()
-        .build_from_sources(std::env::vars())
+    let auth_config = soma_integrations::auth::soma_auth_config(auth)
         .map_err(|error| anyhow::anyhow!("Gateway upstream OAuth config error: {error}"))?;
     configure_gateway_upstream_oauth(gateway, &auth_config).await
 }
@@ -272,8 +272,7 @@ async fn http_auth_policy(config: &Config) -> Result<AuthPolicy> {
         AuthPolicyKind::TrustedGatewayUnscoped => Ok(AuthPolicy::TrustedGatewayUnscoped),
         AuthPolicyKind::MountedBearer => Ok(mounted_bearer_policy()),
         AuthPolicyKind::MountedOAuth => {
-            let auth_cfg = soma_integrations::auth::soma_auth_config_builder()
-                .build_from_sources(std::env::vars())
+            let auth_cfg = soma_integrations::auth::soma_auth_config(&config.mcp.auth)
                 .map_err(|e| anyhow::anyhow!("OAuth config error: {e}"))?;
             let auth_state = soma_auth::state::AuthState::new(auth_cfg)
                 .await

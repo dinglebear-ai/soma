@@ -4,6 +4,7 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(deprecated)]
 
+pub(crate) mod aead;
 pub mod at_rest;
 #[cfg(feature = "http-axum")]
 pub mod auth_context;
