@@ -3279,7 +3279,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "getrandom 0.2.17",
  "http",
@@ -5801,9 +5801,9 @@ dependencies = [
 
 [[package]]
 name = "sse-stream"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39f24a9b78c40b90817bbcd1821c74ddfd74916aadd29403d001532a9195532d"
+checksum = "c123f296ade4ec4b8b0f6162116e6629f5146922ca5ab40ca9d3c2e73ab4761e"
 dependencies = [
  "bytes",
  "futures-util",
