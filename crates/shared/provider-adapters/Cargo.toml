@@ -39,7 +39,7 @@ tracing = "0.1"
 
 # ai-sdk / python / sidecar / wasm
 tokio = { version = "1", features = ["io-util", "process", "rt", "time"], optional = true }
-wasmtime = { version = "46.0.1", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"], optional = true }
+wasmtime = { version = "47.0.2", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"], optional = true }
 
 # codemode bridge
 soma-codemode = { workspace = true, optional = true }
