@@ -39,10 +39,10 @@
       ],
       "node_package": "soma-rmcp",
       "provider_dir_env": "SOMA_PROVIDER_DIR",
-      "repository": "https://github.com/jmagar/soma",
-      "security_policy": "https://github.com/jmagar/soma/security/policy",
+      "repository": "https://github.com/dinglebear-ai/soma",
+      "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
       "server_binary": "soma",
-      "support_url": "https://github.com/jmagar/soma/issues",
+      "support_url": "https://github.com/dinglebear-ai/soma/issues",
       "surfaces": [
         "mcp",
         "cli",
@@ -58,16 +58,15 @@
     },
     "io.modelcontextprotocol.registry/publisher-provided": {
       "distribution": {
-        "npm": "soma-rmcp@0.5.0",
-        "nodePackage": "soma-rmcp"
+        "ociImage": "ghcr.io/dinglebear-ai/soma:0.5.0"
       },
       "documentation": {
         "configuration": "docs/CONFIG.md",
         "environment": "docs/ENV.md",
         "quickstart": "docs/QUICKSTART.md",
         "readme": "README.md",
-        "security": "https://github.com/jmagar/soma/security/policy",
-        "support": "https://github.com/jmagar/soma/issues",
+        "security": "https://github.com/dinglebear-ai/soma/security/policy",
+        "support": "https://github.com/dinglebear-ai/soma/issues",
         "website": "https://soma.dinglebear.ai"
       },
       "publisher": {
@@ -83,46 +82,38 @@
       "sizes": [
         "512x512"
       ],
-      "src": "https://raw.githubusercontent.com/jmagar/soma/main/plugins/soma/assets/icon.png"
+      "src": "https://raw.githubusercontent.com/dinglebear-ai/soma/main/plugins/soma/assets/icon.png"
     },
     {
       "mimeType": "image/svg+xml",
       "sizes": [
         "any"
       ],
-      "src": "https://raw.githubusercontent.com/jmagar/soma/main/plugins/soma/assets/logo.svg",
+      "src": "https://raw.githubusercontent.com/dinglebear-ai/soma/main/plugins/soma/assets/logo.svg",
       "theme": "dark"
     }
   ],
-  "name": "ai.dinglebear/soma-rmcp",
+  "name": "ai.dinglebear/soma",
   "packages": [
     {
       "environmentVariables": [
         {
-          "description": "Optional absolute path to the installed soma binary. When unset, the npm launcher runs soma from PATH.",
-          "format": "filepath",
-          "isRequired": false,
-          "isSecret": false,
-          "name": "SOMA_BIN",
-          "placeholder": "/home/me/.local/bin/soma"
-        },
-        {
-          "default": "~/.soma",
-          "description": "Runtime data directory for local stdio/CLI runs.",
+          "default": "/data",
+          "description": "Runtime data directory inside the Soma container.",
           "format": "filepath",
           "isRequired": false,
           "isSecret": false,
           "name": "SOMA_HOME",
-          "placeholder": "~/.soma"
+          "placeholder": "/data"
         },
         {
-          "default": "providers",
+          "default": "/data/providers",
           "description": "Directory scanned for drop-in provider manifests and modules.",
           "format": "filepath",
           "isRequired": false,
           "isSecret": false,
           "name": "SOMA_PROVIDER_DIR",
-          "placeholder": "providers"
+          "placeholder": "/data/providers"
         },
         {
           "description": "Optional deployed platform API or upstream API base URL used by the SomaClient compatibility layer. Leave unset for local provider/runtime mode.",
@@ -145,32 +136,24 @@
           "name": "RUST_LOG"
         }
       ],
-      "identifier": "soma-rmcp",
+      "identifier": "ghcr.io/dinglebear-ai/soma:0.5.0",
       "packageArguments": [
         {
           "type": "positional",
           "value": "mcp"
         }
       ],
-      "registryBaseUrl": "https://registry.npmjs.org",
-      "registryType": "npm",
-      "runtimeArguments": [
-        {
-          "type": "positional",
-          "value": "-y"
-        }
-      ],
-      "runtimeHint": "npx",
+      "registryType": "oci",
+      "runtimeHint": "docker",
       "transport": {
         "type": "stdio"
-      },
-      "version": "0.5.0"
+      }
     }
   ],
   "repository": {
     "id": "1238227299",
     "source": "github",
-    "url": "https://github.com/jmagar/soma"
+    "url": "https://github.com/dinglebear-ai/soma"
   },
   "title": "Soma",
   "version": "0.5.0",

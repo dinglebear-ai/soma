@@ -7,7 +7,7 @@ authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "Standalone, fully-typed async Rust client for the Codex CLI's app-server v2 JSON-RPC protocol."
 homepage = "https://soma.dinglebear.ai"
 license = "MIT"
-repository = "https://github.com/jmagar/soma"
+repository = "https://github.com/dinglebear-ai/soma"
 publish = false
 
 [package.metadata.soma-architecture]

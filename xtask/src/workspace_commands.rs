@@ -98,6 +98,17 @@ pub(crate) fn dist() -> Result<()> {
 /// `--strict` flag enforces `RUSTDOCFLAGS=-D warnings` (what CI and
 /// `cargo xtask ci` use); without it warnings are surfaced but non-fatal so a
 /// stray doc-link doesn't block a local `cargo xtask doc --open`.
+///
+/// `--docsrs-cfg` appends `--cfg docsrs` to RUSTDOCFLAGS so the
+/// `#![cfg_attr(docsrs, feature(doc_auto_cfg))]` attributes in feature-gated
+/// crates activate and rustdoc renders per-item feature-requirement badges.
+/// `doc_auto_cfg` is a nightly rustdoc feature, so this flag needs a nightly
+/// toolchain (e.g. `RUSTUP_TOOLCHAIN=nightly cargo xtask doc --docsrs-cfg`);
+/// the stable CI doc gate never passes it and is unaffected.
+///
+/// After a successful build the doc root also gets a landing `index.html`
+/// (workspace crate listing) plus `openapi.html`/`openapi.json` (Redoc) — see
+/// `doc_site::emit`.
 pub(crate) fn doc(args: &[String]) -> Result<()> {
     let mut cargo_args = vec![
         "doc".to_owned(),
@@ -108,6 +119,7 @@ pub(crate) fn doc(args: &[String]) -> Result<()> {
     let mut all_features = true;
     let mut open = false;
     let mut strict = false;
+    let mut docsrs_cfg = false;
     let mut packages: Vec<String> = Vec::new();
     let mut document_private_items = false;
 
@@ -116,6 +128,7 @@ pub(crate) fn doc(args: &[String]) -> Result<()> {
         match arg.as_str() {
             "--open" => open = true,
             "--strict" => strict = true,
+            "--docsrs-cfg" => docsrs_cfg = true,
             "--no-all-features" => all_features = false,
             "--document-private-items" => document_private_items = true,
             "--all-features" => all_features = true,
@@ -153,14 +166,28 @@ pub(crate) fn doc(args: &[String]) -> Result<()> {
         document_private_items,
         open,
         strict,
+        docsrs_cfg,
     );
 
     // Drive `cargo doc` directly rather than through `run_cargo` so we can set
     // RUSTDOCFLAGS on the child env. Mirrors `run_cargo`'s streaming behavior.
+    // Flags are appended to any RUSTDOCFLAGS already in the environment so an
+    // operator's own flags (or docs.yml's global -D warnings) survive.
     let mut cmd = Command::new("cargo");
     cmd.args(&cargo_args);
+    let mut rustdocflags: Vec<String> = std::env::var("RUSTDOCFLAGS")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .into_iter()
+        .collect();
     if strict {
-        cmd.env("RUSTDOCFLAGS", "-D warnings");
+        rustdocflags.push("-D warnings".to_owned());
+    }
+    if docsrs_cfg {
+        rustdocflags.push("--cfg docsrs".to_owned());
+    }
+    if !rustdocflags.is_empty() {
+        cmd.env("RUSTDOCFLAGS", rustdocflags.join(" "));
     }
     cmd.stdin(Stdio::null());
 
@@ -173,11 +200,16 @@ pub(crate) fn doc(args: &[String]) -> Result<()> {
 
     let target_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".into());
     let doc_root = std::path::Path::new(&target_dir).join("doc");
+
+    // Give the doc root an entry point: landing page + OpenAPI/Redoc assets.
+    // This is what .github/workflows/docs.yml deploys to GitHub Pages.
+    crate::doc_site::emit(&doc_root)?;
+
     println!();
     println!("==> Rustdoc generated under {doc_root:?}");
     if !open {
         println!(
-            "    Open {}/soma/index.html (or pass --open)",
+            "    Open {}/index.html (or pass --open)",
             doc_root.display()
         );
     }
@@ -216,6 +248,7 @@ fn print_doc_plan(
     document_private_items: bool,
     open: bool,
     strict: bool,
+    docsrs_cfg: bool,
 ) {
     println!("==> cargo xtask doc");
     println!(
@@ -243,6 +276,14 @@ fn print_doc_plan(
         "    strict (-D warn): {}",
         if strict { "yes" } else { "no" }
     );
+    println!(
+        "    docsrs cfg:      {}",
+        if docsrs_cfg {
+            "yes (--cfg docsrs; needs nightly rustdoc)"
+        } else {
+            "no"
+        }
+    );
 }
 
 const DOC_HELP: &str = "cargo xtask doc — generate Rust API documentation (rustdoc)
@@ -254,6 +295,9 @@ OPTIONS:
       --open                    Open the generated docs in a browser
       --strict                  Treat rustdoc warnings as errors
                                 (RUSTDOCFLAGS=\"-D warnings\"; mirrors CI)
+      --docsrs-cfg              Append `--cfg docsrs` to RUSTDOCFLAGS so
+                                feature-requirement badges render
+                                (doc_auto_cfg; requires a nightly toolchain)
       --no-all-features         Document default features only (faster)
       --all-features            Document all features (default)
       --document-private-items  Include private items (internal/team docs)
@@ -264,13 +308,16 @@ OPTIONS:
 DEFAULTS:
   Public items only, no dependency docs, all features. These match the
   repo's documented cargo-doc posture and what `.github/workflows/docs.yml`
-  deploys to GitHub Pages.
+  deploys to GitHub Pages. Every run also writes target/doc/index.html (a
+  landing page listing all workspace crates) plus openapi.html/openapi.json
+  (the REST contract rendered with Redoc).
 
 EXAMPLES:
   cargo xtask doc                     # full workspace API docs
   cargo xtask doc --open              # ...and open in a browser
   cargo xtask doc -p soma-application # one crate only
-  cargo xtask doc --strict            # CI-grade (warnings are errors)";
+  cargo xtask doc --strict            # CI-grade (warnings are errors)
+  RUSTUP_TOOLCHAIN=nightly cargo xtask doc --docsrs-cfg  # feature badges";
 
 pub(crate) fn ci() -> Result<()> {
     println!("==> [1/15] cargo fmt --check");

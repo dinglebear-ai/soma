@@ -25,7 +25,7 @@ install -m 755 target/release/soma ~/.local/bin/soma
 Or use the install script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jmagar/soma-mcp/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/dinglebear-ai/soma/main/install.sh | bash
 ```
 
 The binary installs to `~/.local/bin/`. Verify it's in `$PATH`:

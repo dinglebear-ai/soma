@@ -1,0 +1,123 @@
+apiVersion: soma.dev/v1
+kind: RiskRegister
+risks:
+- id: R-001
+  risk: Axon size and hidden live orchestration
+  impact: High
+  mitigation: Trace actual call paths and start with local vertical slice; do not copy crates mechanically.
+  owner: Architecture owner
+  status: open
+- id: R-002
+  risk: Duplicate canonical types emerge
+  impact: High
+  mitigation: primitives/domain ownership registry and xtask duplicate-type checks.
+  owner: Contract owner
+  status: open
+- id: R-003
+  risk: soma-rag becomes an internal monolith
+  impact: High
+  mitigation: Internal modules, narrow traits, optional features, public API review, compile-time feature matrix.
+  owner: RAG owner
+  status: open
+- id: R-004
+  risk: primitives becomes new axon-api/core
+  impact: High
+  mitigation: Strict line/dependency responsibility review; no storage/providers/product DTOs.
+  owner: Contract owner
+  status: open
+- id: R-005
+  risk: Jobs retain Axon domain dependencies
+  impact: High
+  mitigation: Extract runtime mechanics only; product runners in Soma.
+  owner: Runtime owner
+  status: open
+- id: R-006
+  risk: Vectorize too much operational data
+  impact: High
+  mitigation: Selective projection policy, outbox metrics, retrieval value evaluation.
+  owner: Observation/RAG owners
+  status: open
+- id: R-007
+  risk: Dead citations after retention
+  impact: High
+  mitigation: Retention cleanup debt, promotion contract, dead-evidence checks.
+  owner: Storage owner
+  status: open
+- id: R-008
+  risk: Entity resolution merges unrelated things
+  impact: High
+  mitigation: Deterministic IDs first, ambiguity preservation, review, reversible projections.
+  owner: Graph owner
+  status: open
+- id: R-009
+  risk: Current versus deployed state confusion
+  impact: High
+  mitigation: Temporal/versioned graph, artifact/commit/config snapshots, query tests.
+  owner: Graph/product owners
+  status: open
+- id: R-010
+  risk: Authorization leaks through vector/graph lanes
+  impact: Critical
+  mitigation: Pre-retrieval filtering, sensitivity inheritance, adversarial E2E.
+  owner: Security owner
+  status: open
+- id: R-011
+  risk: TEI/Qdrant outage blocks logs
+  impact: Critical
+  mitigation: Transactional semantic outbox and degraded-mode tests.
+  owner: Runtime owner
+  status: open
+- id: R-012
+  risk: Crawler SSRF/scope escape
+  impact: Critical
+  mitigation: URL policy, DNS/redirect checks, network sandbox, security fixtures.
+  owner: Crawler owner
+  status: open
+- id: R-013
+  risk: Secret leakage from logs/sessions
+  impact: Critical
+  mitigation: sanitize at every boundary, secret corpus, vector/citation scans.
+  owner: Security owner
+  status: open
+- id: R-014
+  risk: Donor behavior drifts during migration
+  impact: Medium
+  mitigation: Pinned SHAs and explicit rebaseline process.
+  owner: Migration owner
+  status: open
+- id: R-015
+  risk: Crate publication freezes poor APIs
+  impact: High
+  mitigation: Publish after Soma use, external consumer, API/semver review.
+  owner: Release owner
+  status: open
+- id: R-016
+  risk: Web product gets blocked on backend churn
+  impact: Medium
+  mitigation: Stable application contracts, mock fixtures, vertical page delivery.
+  owner: Web owner
+  status: open
+- id: R-017
+  risk: SQLite growth/throughput exceeds appliance
+  impact: Medium
+  mitigation: Budgets, retention, partition option behind store interfaces, benchmarks.
+  owner: Storage owner
+  status: open
+- id: R-018
+  risk: GraphRAG adds cost without quality
+  impact: High
+  mitigation: Ablation evaluation and basic hybrid fallback.
+  owner: Context owner
+  status: open
+- id: R-019
+  risk: Scope expands into autonomous agents
+  impact: High
+  mitigation: ADR 0001, CI schema check for forbidden concepts, separate future program.
+  owner: Program owner
+  status: open
+- id: R-020
+  risk: One long migration branch becomes unmergeable
+  impact: High
+  mitigation: PR train and WIP limit.
+  owner: Program owner
+  status: open

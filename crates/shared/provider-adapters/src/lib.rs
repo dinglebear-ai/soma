@@ -1,3 +1,7 @@
+// Render per-item feature-requirement badges when rustdoc runs on nightly with
+// `--cfg docsrs` (docs.rs posture; locally via `cargo xtask doc --docsrs-cfg`).
+// Inert under the stable CI doc gate: stable rustdoc never sets `docsrs`.
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 //! Reusable, product-neutral implementations of `soma-provider-core`
 //! contracts, plus feature-gated bridges onto other shared engines
 //! (`soma-openapi`, `soma-codemode`, `soma-gateway`). See plan section 3.9

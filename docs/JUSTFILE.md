@@ -41,7 +41,7 @@ last_reviewed: "2026-06-18"
 | `just fmt` | Format Rust and TOML. |
 | `just fmt-check` | Check formatting (CI). |
 | `just lint` | `cargo clippy -- -D warnings`. |
-| `just test` | `cargo nextest run`. |
+| `just test` | `cargo nextest run` plus `cargo test --doc --workspace` (nextest cannot execute doctests). |
 | `just test-ci` | `cargo nextest run --profile ci`. |
 | `just fmt-toml` | `taplo format`. |
 | `just check-toml` | `taplo check` (CI). |

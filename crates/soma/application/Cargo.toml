@@ -45,3 +45,6 @@ url = "2"
 soma-config = { workspace = true }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

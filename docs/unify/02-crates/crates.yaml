@@ -1,0 +1,378 @@
+apiVersion: soma.dev/v1
+kind: SharedCrateCatalog
+metadata:
+  name: soma-context-v1
+  status: proposed
+  auditDate: '2026-07-21'
+  note: Package names use the fixed soma-<one-word> convention; crates.io availability and fallback names remain to be verified.
+crates:
+- name: soma-primitives
+  path: crates/shared/context/primitives
+  phase: Foundation
+  purpose: Small transport-neutral vocabulary shared by knowledge, observation, graph, memory, and retrieval
+    crates.
+  source:
+  - 'Axon: axon-api source/document/generation DTOs'
+  - 'Axon: axon-error diagnostic projection patterns'
+  - 'Cortex: graph and observation contracts'
+  dependsOn: []
+  features:
+  - serde
+  - schema
+  - chrono
+  - uuid
+  consumers:
+  - soma-route
+  - soma-sources
+  - soma-ledger
+  - soma-rag
+  - soma-observations
+  - soma-graph
+  - Soma product context modules
+  publication: Publishable leaf crate after crates.io availability review.
+- name: soma-sanitize
+  path: crates/shared/context/sanitize
+  phase: Foundation
+  purpose: Configurable, bounded, secret-safe transformation primitives for untrusted data.
+  source:
+  - 'Cortex: ingest_metadata.rs and safe excerpts'
+  - 'Cortex: URL and subprocess diagnostic redaction'
+  - 'Axon: redaction and payload guards'
+  dependsOn: []
+  features:
+  - json
+  - url
+  - regex
+  consumers:
+  - all ingestion and provider crates
+  - soma-process
+  - soma-rag
+  - soma-graph
+  - Soma API error projection
+  publication: Publishable leaf crate.
+- name: soma-process
+  path: crates/shared/runtime/process
+  phase: Foundation
+  purpose: Runtime-neutral bounded child-process execution with cancellation, streaming, and safe diagnostics.
+  source:
+  - 'Cortex: bounded process execution and deployment commands'
+  - 'Axon: Git, Gemini, YouTube and browser subprocess patterns'
+  dependsOn:
+  - soma-sanitize
+  features:
+  - tokio
+  - streaming
+  - serde
+  consumers:
+  - soma-crawl
+  - soma-sources
+  - soma-llm
+  - future deployment adapters
+  - Soma runtime
+  publication: Publishable.
+- name: soma-route
+  path: crates/shared/knowledge/route
+  phase: Knowledge foundation
+  purpose: Parse, canonicalize, validate, and classify heterogeneous source targets without performing
+    acquisition.
+  source:
+  - 'Axon: axon-route'
+  dependsOn:
+  - soma-primitives
+  features:
+  - serde
+  - schema
+  consumers:
+  - soma-sources
+  - Soma knowledge application
+  publication: Publishable.
+- name: soma-sources
+  path: crates/shared/knowledge/sources
+  phase: Knowledge ingestion
+  purpose: One feature-gated adapter SDK and implementations for Axon's refreshable source families.
+  source:
+  - 'Axon: axon-adapters'
+  - 'Axon: selected vertical normalization from axon-extract'
+  dependsOn:
+  - soma-primitives
+  - soma-route
+  - soma-sanitize
+  - soma-process
+  - soma-transcript
+  - soma-crawl optional
+  features:
+  - local
+  - git
+  - github
+  - feed
+  - youtube
+  - reddit
+  - crates-io
+  - npm
+  - pypi
+  - sessions
+  - upload
+  - tools
+  - web
+  - all
+  consumers:
+  - Soma knowledge application and job runners
+  publication: Publishable, with minimal default features.
+- name: soma-crawl
+  path: crates/shared/knowledge/crawl
+  phase: Knowledge ingestion
+  purpose: Independent bounded web crawling and capture engine usable without RAG.
+  source:
+  - 'Axon: Spider-based web_engine and crawl/scrape code'
+  - 'Axon: browser bootstrap, screenshots, sitemaps and manifests'
+  dependsOn:
+  - soma-process
+  - soma-sanitize
+  features:
+  - http
+  - spider
+  - chrome
+  - screenshots
+  - warc
+  - sitemap
+  - serde
+  - schema
+  consumers:
+  - soma-sources web feature
+  - future monitoring and archiving applications
+  publication: Publishable.
+- name: soma-ledger
+  path: crates/shared/knowledge/ledger
+  phase: Knowledge foundation
+  purpose: Authoritative source-generation state machine with manifest diffing, leases, publication fences,
+    and cleanup debt.
+  source:
+  - 'Axon: axon-ledger'
+  dependsOn:
+  - soma-primitives
+  features:
+  - memory
+  - sqlite
+  - serde
+  - schema
+  consumers:
+  - Soma knowledge application
+  - soma-jobs product runners
+  publication: Publishable.
+- name: soma-jobs
+  path: crates/shared/runtime/jobs
+  phase: Runtime
+  purpose: Generic durable asynchronous job runtime, independent of knowledge and observation domains.
+  source:
+  - 'Axon: axon-jobs'
+  - 'Cortex: background writer/supervisor health patterns'
+  dependsOn:
+  - soma-primitives
+  features:
+  - runtime
+  - sqlite
+  - scheduler
+  - serde
+  - schema
+  consumers:
+  - Soma knowledge refresh
+  - semantic projection workers
+  - observation maintenance
+  - graph rebuilds
+  - memory jobs
+  publication: Publishable after product runners are fully removed.
+- name: soma-llm
+  path: crates/shared/semantic/llm
+  phase: Semantic
+  purpose: Provider-neutral completion and streaming contracts for RAG synthesis, extraction, summarization,
+    and future product use.
+  source:
+  - 'Axon: axon-llm'
+  - 'Cortex: assessment-provider execution patterns'
+  dependsOn:
+  - soma-sanitize optional
+  features:
+  - streaming
+  - serde
+  - schema
+  - openai-compatible-adapter
+  - gemini-cli-adapter
+  - codex-adapter
+  consumers:
+  - soma-rag
+  - soma-memory
+  - Soma product synthesis and extraction
+  publication: Publishable.
+- name: soma-rag
+  path: crates/shared/semantic/rag
+  phase: Semantic
+  purpose: Coarse, reusable end-to-end RAG engine over normalized documents.
+  source:
+  - 'Axon: axon-document'
+  - 'Axon: axon-parse'
+  - 'Axon: axon-embedding'
+  - 'Axon: axon-vectors'
+  - 'Axon: axon-retrieval'
+  - 'Axon: synthesis and live orchestration mined from axon-services'
+  dependsOn:
+  - soma-primitives
+  - soma-sanitize
+  - soma-llm optional
+  features:
+  - markdown
+  - code
+  - structured
+  - transcript
+  - tree-sitter-rust
+  - tree-sitter-python
+  - tree-sitter-javascript
+  - tree-sitter-typescript
+  - tei
+  - qdrant
+  - fts
+  - rerank
+  - synthesis
+  - all
+  consumers:
+  - Soma knowledge application
+  - observation semantic projector
+  - memory recall
+  publication: Publishable flagship crate, minimal defaults and backend features.
+- name: soma-transcript
+  path: crates/shared/context/transcript
+  phase: Cross-domain
+  purpose: One typed, provider-neutral model and parser family for AI sessions.
+  source:
+  - 'Axon: AI-session adapters and decoders'
+  - 'Cortex: Claude/Codex/Gemini scanners and tool/skill/hook evidence extraction'
+  dependsOn:
+  - soma-primitives
+  - soma-sanitize
+  features:
+  - claude
+  - codex
+  - gemini
+  - discovery
+  - render
+  - all
+  consumers:
+  - soma-sources sessions
+  - soma-collectors sessions
+  - soma-rag
+  - soma-graph
+  publication: Publishable high-priority convergence crate.
+- name: soma-memory
+  path: crates/shared/knowledge/memory
+  phase: Knowledge intelligence
+  purpose: Evidence-backed durable memory lifecycle and recall engine.
+  source:
+  - 'Axon: axon-memory'
+  dependsOn:
+  - soma-primitives
+  - soma-rag traits or narrow retrieval port
+  - soma-llm optional
+  features:
+  - sqlite
+  - embedding
+  - llm-extraction
+  - serde
+  - schema
+  consumers:
+  - Soma context broker
+  - Soma knowledge application
+  publication: Publishable after RAG contracts stabilize.
+- name: soma-observations
+  path: crates/shared/observations/model
+  phase: Observation foundation
+  purpose: Neutral canonical observation model and store interfaces for time-oriented operational data.
+  source:
+  - 'Cortex: db/log models, heartbeat, inventory, graph source records'
+  - 'Cortex: retention and source identity contracts'
+  dependsOn:
+  - soma-primitives
+  - soma-sanitize
+  features:
+  - serde
+  - schema
+  consumers:
+  - soma-ingest
+  - soma-collectors
+  - soma-graph
+  - Soma observations application
+  publication: Publishable.
+- name: soma-ingest
+  path: crates/shared/observations/ingest
+  phase: Observation runtime
+  purpose: Generic reliable stream/batch ingestion engine with acknowledgement, checkpointing, backpressure,
+    and semantic outbox.
+  source:
+  - 'Cortex: batched SQLite writer'
+  - 'Cortex: file-tail/checkpoint supervision'
+  - 'Cortex: receiver backpressure and shutdown'
+  - 'Cortex: retry/health transition patterns'
+  dependsOn:
+  - soma-observations
+  - soma-primitives
+  features:
+  - runtime
+  - sqlite
+  - outbox
+  - serde
+  consumers:
+  - soma-collectors
+  - Soma observation runtime
+  publication: Publishable.
+- name: soma-collectors
+  path: crates/shared/observations/collectors
+  phase: Observation ingestion
+  purpose: Feature-gated receivers, collectors, and normalizers for Cortex's operational sources.
+  source:
+  - 'Cortex: receiver/syslog'
+  - 'Cortex: filetail'
+  - 'Cortex: docker_ingest'
+  - 'Cortex: OTLP'
+  - 'Cortex: heartbeat'
+  - 'Cortex: inventory'
+  - 'Cortex: shell history and AI-session operational evidence'
+  dependsOn:
+  - soma-observations
+  - soma-ingest
+  - soma-transcript
+  - soma-sanitize
+  - soma-process optional
+  features:
+  - syslog
+  - file-tail
+  - docker
+  - otlp
+  - heartbeat
+  - inventory
+  - shell-history
+  - sessions
+  - journald
+  - all
+  consumers:
+  - Soma observation runtime
+  publication: Publishable with no default heavy adapters.
+- name: soma-graph
+  path: crates/shared/context/graph
+  phase: Context intelligence
+  purpose: Evidence-first temporal graph kernel joining knowledge, infrastructure, sessions, tools, and
+    observations.
+  source:
+  - 'Axon: axon-graph'
+  - 'Cortex: investigation graph contracts, entity resolver, trust/confidence and explanations'
+  dependsOn:
+  - soma-primitives
+  - soma-sanitize
+  features:
+  - sqlite
+  - algorithms
+  - communities
+  - serde
+  - schema
+  consumers:
+  - Soma context broker
+  - knowledge and observation projectors
+  - soma-memory
+  publication: Publishable flagship crate after shared vocabulary seam is proven.

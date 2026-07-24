@@ -294,6 +294,10 @@ fn replacements(values: &Values) -> Vec<(String, String)> {
             values.github_url.clone(),
         ),
         (
+            "https://github.com/dinglebear-ai/soma".into(),
+            values.github_url.clone(),
+        ),
+        (
             "https://github.com/jmagar/soma".into(),
             values.github_url.clone(),
         ),
@@ -302,9 +306,14 @@ fn replacements(values: &Values) -> Vec<(String, String)> {
             values.github_url.clone(),
         ),
         (
+            "github.com:dinglebear-ai/soma.git".into(),
+            values.github_ssh.clone(),
+        ),
+        (
             "github.com:jmagar/soma-mcp.git".into(),
             values.github_ssh.clone(),
         ),
+        ("dinglebear-ai/soma".into(), values.github_slug.clone()),
         ("jmagar/soma".into(), values.github_slug.clone()),
         ("jmagar/soma-mcp".into(), values.github_slug.clone()),
         (

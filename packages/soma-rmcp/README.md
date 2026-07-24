@@ -59,7 +59,7 @@ shipped `soma` command is the source of truth for product behavior.
 
 | Surface | Soma value | Generated-project pattern |
 |---|---|---|
-| Repository | `jmagar/soma` | `<service>-rmcp` or a documented product exception |
+| Repository | `dinglebear-ai/soma` | `<service>-rmcp` or a documented product exception |
 | Rust crate/package | `soma` | service-specific crate names |
 | Canonical binary | `soma` | usually `r<service>` or the product name |
 | npm package | `soma-rmcp` | `<service>-rmcp` |
@@ -154,7 +154,7 @@ Lower-level Cargo features are available when you need a custom shape:
 Run the product as-is:
 
 ```bash
-git clone https://github.com/jmagar/soma
+git clone https://github.com/dinglebear-ai/soma
 cd soma
 
 # Full platform mode: REST API + HTTP MCP + web fallback on :40060
@@ -593,11 +593,11 @@ Samples:
 
 Provider callback paths default to `/auth/google/callback`,
 `/auth/authelia/callback`, and `/auth/github/callback`; callback and scope
-overrides are listed in `docs/ENV.md` in the source repository. GitHub OAuth
-Apps do not provide an upstream refresh token, so GitHub-authenticated sessions
-do not receive a local refresh token and must sign in again after their access
-token expires. See `docs/AUTH.md` in the source repository for provider
-selection and security details.
+overrides are listed in [docs/ENV.md](docs/ENV.md). GitHub OAuth Apps do not
+provide an upstream refresh token, so GitHub-authenticated sessions do not
+receive a local refresh token and must sign in again after their access token
+expires. See [docs/AUTH.md](docs/AUTH.md) for provider selection and security
+details.
 
 ## Development
 

@@ -177,3 +177,10 @@ apps/web/.env*.local
 
 # Local binary artifacts
 /bin/
+
+# soldr/cargo per-repo cache pollution (.cargo/config.toml IS meant to be tracked)
+/.cargo/*
+!/.cargo/config.toml
+
+# agent session plan artifacts
+/.zcode/

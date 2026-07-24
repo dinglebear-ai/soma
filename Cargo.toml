@@ -48,8 +48,17 @@ resolver = "2"
 authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "Batteries-included RMCP runtime and scaffold for provider-backed Rust MCP servers with CLI, REST, HTTP MCP, and plugins."
 homepage = "https://soma.dinglebear.ai"
-repository = "https://github.com/jmagar/soma"
+repository = "https://github.com/dinglebear-ai/soma"
 keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
+
+# ── workspace lints ──────────────────────────────────────────────────────────
+# Shared lint policy. Crates OPT IN explicitly with `[lints] workspace = true`;
+# nothing changes for crates that don't. missing_docs is "warn" here, but CI's
+# clippy job runs with `-D warnings`, so opting in is a commitment: a crate
+# must be fully documented (every public item) before it takes the lint table.
+# Rollout state: soma-domain, soma-application, and soma-client are opted in.
+[workspace.lints.rust]
+missing_docs = "warn"
 
 # ── workspace dependencies ───────────────────────────────────────────────────
 # Single source of truth for consumed internal crate paths and the exact rmcp

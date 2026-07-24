@@ -55,6 +55,7 @@ mod cargo_generate;
 mod cargo_generate_post;
 mod ci_paths;
 mod codex_schema;
+mod doc_site;
 mod generated_surfaces;
 mod mcp_registry;
 mod no_mcp;

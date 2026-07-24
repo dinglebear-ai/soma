@@ -10,10 +10,11 @@ use crate::provider_http::build_authorize_url;
 
 const AUTHELIA_HTTP_TIMEOUT: Duration = Duration::from_secs(30);
 /// Authelia's OpenID Connect 1.0 Provider mounts its endpoints at these
-/// fixed paths off the issuer — they are not configurable per-deployment.
+/// fixed paths off the issuer. The JWKS document is served at `/jwks.json`,
+/// matching the provider's `jwks_uri` discovery metadata.
 const AUTHELIA_AUTHORIZE_PATH: &str = "api/oidc/authorization";
 const AUTHELIA_TOKEN_PATH: &str = "api/oidc/token";
-const AUTHELIA_JWKS_PATH: &str = "api/oidc/jwks";
+const AUTHELIA_JWKS_PATH: &str = "jwks.json";
 
 #[derive(Clone)]
 pub struct AutheliaProvider {
@@ -242,6 +243,41 @@ mod tests {
             provider.token_endpoint().as_str(),
             "https://example.com/authelia/api/oidc/token"
         );
+    }
+
+    /// Authelia advertises its signing keys at `<issuer>/jwks.json`. Keep the
+    /// provider's default endpoint aligned with the discovery document so a
+    /// normal, non-test provider can verify the ID token returned by the
+    /// token endpoint.
+    #[tokio::test]
+    async fn authelia_default_jwks_endpoint_matches_discovery_document() {
+        let server = MockServer::start().await;
+        let issuer = Url::parse(&server.uri()).unwrap();
+        Mock::given(method("POST"))
+            .and(path("/api/oidc/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "authelia-access-token",
+                "expires_in": 3600,
+                "id_token": signed_test_id_token(&issuer, "client-id"),
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/jwks.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(test_jwks()))
+            .mount(&server)
+            .await;
+
+        let provider = AutheliaProvider::new(
+            issuer,
+            "client-id".to_string(),
+            "client-secret".to_string(),
+            Url::parse("https://soma.example.com/auth/authelia/callback").unwrap(),
+        )
+        .unwrap();
+
+        let exchange = provider.exchange_code("code", "verifier").await.unwrap();
+        assert_eq!(exchange.subject, "authelia-subject-123");
     }
 
     #[tokio::test]

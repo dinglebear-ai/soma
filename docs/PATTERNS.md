@@ -857,7 +857,7 @@ CMD ["serve"]
 ```yaml
 services:
   soma-mcp:
-    image: ghcr.io/jmagar/soma-mcp:${VERSION:-latest}
+    image: ghcr.io/dinglebear-ai/soma:${VERSION:-latest}
     build:
       context: .
       dockerfile: config/Dockerfile
@@ -1646,23 +1646,24 @@ Or via GitHub OAuth:
 ```json
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "dinglebear.ai/soma",
+  "name": "ai.dinglebear/soma",
   "title": "Soma",
   "description": "One-line description of what the server does.",
   "repository": {
-    "url": "https://github.com/jmagar/soma",
+    "url": "https://github.com/dinglebear-ai/soma",
     "source": "github"
   },
   "version": "0.1.0",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/jmagar/soma:0.1.0",
-      "version": "0.1.0",
+      "identifier": "ghcr.io/dinglebear-ai/soma:0.1.0",
       "transport": {
-        "type": "streamable-http",
-        "url": "http://127.0.0.1:40060/mcp"
+        "type": "stdio"
       },
+      "packageArguments": [
+        { "type": "positional", "value": "mcp" }
+      ],
       "environmentVariables": [
         {
           "name": "SOMA_API_URL",
@@ -1710,7 +1711,7 @@ The `release.yml` workflow updates `server.json` version automatically on tag:
   run: |
     VERSION="${GITHUB_REF_NAME#v}"
     jq --arg v "$VERSION" \
-       --arg img "ghcr.io/jmagar/soma-mcp:${VERSION}" \
+       --arg img "ghcr.io/dinglebear-ai/soma:${VERSION}" \
        '.version = $v | .packages[0].identifier = $img | .packages[0].version = $v' \
        server.json > server.tmp && mv server.tmp server.json
 ```

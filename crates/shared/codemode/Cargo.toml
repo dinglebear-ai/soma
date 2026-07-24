@@ -42,7 +42,7 @@ thiserror = "2"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 tracing = "0.1"
-ulid = "1"
+ulid = "3"
 url = "2"
 
 [target.'cfg(unix)'.dependencies]

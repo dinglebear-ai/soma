@@ -14,8 +14,8 @@
 #   - release-please publishes a GitHub Release
 #   - manual workflow_dispatch for rerunning an existing tag
 #
-# Registry: ghcr.io/jmagar/<IMAGE_NAME>
-# CUSTOMIZE: Replace "jmagar" with your GitHub org/username.
+# Registry: ghcr.io/dinglebear-ai/<IMAGE_NAME>
+# CUSTOMIZE: Replace "dinglebear-ai" with your GitHub org/username.
 # =============================================================================
 
 name: Docker Publish
@@ -28,10 +28,15 @@ on:
       tag:
         description: Existing release tag to publish Docker/MCP artifacts for
         required: true
+      retire_legacy_registry_name:
+        description: Retire ai.dinglebear/soma-rmcp after publishing ai.dinglebear/soma
+        required: false
+        type: boolean
+        default: false
 
 env:
-  # CUSTOMIZE: Replace "jmagar/soma" with "your-org/your-image-name"
-  IMAGE_NAME: ghcr.io/jmagar/soma
+  # CUSTOMIZE: Replace "dinglebear-ai/soma" with "your-org/your-image-name"
+  IMAGE_NAME: ghcr.io/dinglebear-ai/soma
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
   # Set this as a GitHub Actions repository variable instead of committing the
   # domain into Soma: gh variable set MCP_REGISTRY_DOMAIN --body <domain>
@@ -51,6 +56,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Install Rust and soldr
+        uses: ./.github/actions/setup-rust-soldr
 
       - name: Validate release tag
         id: validate
@@ -83,7 +91,10 @@ jobs:
             echo "packages/soma-rmcp/package.json version ${npm_version} does not match ${tag}" >&2
             exit 1
           fi
-          cargo xtask check-version-sync
+          # Keep this short validation build isolated from any stale shared-runner
+          # target entries while retaining soldr's compiler and zccache layers.
+          CARGO_TARGET_DIR="${RUNNER_TEMP}/soma-version-sync-target" \
+            cargo xtask check-version-sync
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
 
   docker:
@@ -134,7 +145,9 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            io.modelcontextprotocol.server.name=ai.dinglebear/soma
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -157,7 +170,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           # CUSTOMIZE: Replace with your image name.
-          image-ref: ghcr.io/jmagar/soma:latest
+          image-ref: ghcr.io/dinglebear-ai/soma:latest
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
@@ -181,7 +194,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ needs.validate-release-tag.outputs.release_tag }}
+          # A manual run is the recovery path for an existing tag. Use the
+          # current manifest/workflow fixes while the image build still checks
+          # out the immutable release source above.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || needs.validate-release-tag.outputs.release_tag }}
 
       - name: Install mcp-publisher
         run: |
@@ -203,18 +219,17 @@ jobs:
           image = f"{os.environ['IMAGE_NAME']}:{version}"
           data["version"] = version
           for package in data.get("packages", []):
-              package["version"] = version
               if package.get("registryType") == "oci":
                   package["identifier"] = image
+                  package.pop("version", None)
+                  package.pop("registryBaseUrl", None)
+              else:
+                  package["version"] = version
           publisher = data.get("_meta", {}).get("io.modelcontextprotocol.registry/publisher-provided", {})
           distribution = publisher.get("distribution")
           if isinstance(distribution, dict):
-              package_name = distribution.get("nodePackage") or "soma-rmcp"
-              existing_npm = distribution.get("npm")
-              if isinstance(existing_npm, str) and "@" in existing_npm:
-                  package_name = existing_npm.rsplit("@", 1)[0]
-              distribution["npm"] = f"{package_name}@{version}"
-              distribution.pop("ociImage", None)
+              distribution.clear()
+              distribution["ociImage"] = image
 
           path.write_text(json.dumps(data, indent=2) + "\n")
           PY
@@ -222,6 +237,7 @@ jobs:
       - name: Publish to MCP Registry
         env:
           MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
+          RETIRE_LEGACY_REGISTRY_NAME: ${{ inputs.retire_legacy_registry_name || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${MCP_PRIVATE_KEY:-}" ]; then
@@ -231,4 +247,12 @@ jobs:
           ./mcp-publisher login dns \
             --domain "${MCP_REGISTRY_DOMAIN}" \
             --private-key "${MCP_PRIVATE_KEY}"
-          ./mcp-publisher publish
+          if [[ "${RETIRE_LEGACY_REGISTRY_NAME}" == "true" ]]; then
+            printf 'y\n' | ./mcp-publisher status \
+              --status deleted \
+              --all-versions \
+              --message "Renamed to ai.dinglebear/soma" \
+              ai.dinglebear/soma-rmcp
+          else
+            ./mcp-publisher publish
+          fi

@@ -6,8 +6,8 @@
 #   BINARY_NAME → your binary name from Cargo.toml [[bin]] (e.g. "myservice")
 #
 # This workflow runs on every push and PR to main.
-# Jobs: actionlint, fmt, clippy, test (nextest), web, native builds, MCP smoke,
-# compose/container smoke, toml, Soma checks, version sync, deny
+# Jobs: actionlint, fmt, clippy, test (nextest + doctests), web, native builds,
+# MCP smoke, compose/container smoke, toml, Soma checks, version sync, deny
 #
 # All jobs must pass before merging. Adjust the matrix rust-version to match
 # your Cargo.toml `rust-version` field.
@@ -209,6 +209,12 @@ jobs:
 
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
+
+      # nextest does not execute doctests (cargo-nextest#16), so ///-example
+      # code would otherwise never be compiled or run anywhere in CI. Keep this
+      # step directly after the nextest run so both share the same cache/env.
+      - name: cargo test --doc
+        run: cargo test --doc --workspace --locked
 
       - name: soma-gateway all-features tests
         run: cargo test -p soma-gateway --all-features

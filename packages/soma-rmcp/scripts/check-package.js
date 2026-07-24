@@ -130,8 +130,6 @@ function checkMetadata() {
   if (npmPackage) {
     assert(npmPackage.identifier === packageJson.name, "server.json npm package identifier must match package name");
     assert(npmPackage.version === packageJson.version, "server.json npm package version must match package version");
-  } else {
-    fail("server.json must include an npm package entry");
   }
 
   const publisherMeta = serverJson._meta && serverJson._meta["io.modelcontextprotocol.registry/publisher-provided"];

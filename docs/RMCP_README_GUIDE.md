@@ -79,7 +79,7 @@ action gates, runtime-surface honesty, and distribution/version contracts.
 | [axon](https://github.com/jmagar/axon) | Separate current production contract from future pipeline goals; document setup flow, Docker stack, config home, notable capabilities, and troubleshooting. |
 | [labby](https://github.com/jmagar/labby) | Treat topic docs and generated catalogs as authoritative; include a contents map and do not hand-maintain generated action/env inventories in the README. |
 | [agentcast](https://github.com/jmagar/agentcast) | Separate current implementation from target contract; document product boundaries and trust assumptions for untrusted MCP metadata. |
-| [soma](https://github.com/jmagar/soma) | Include scaffold profiles, generated action table, auth policies, adaptation checklist, docs map, and verification gates. |
+| [soma](https://github.com/dinglebear-ai/soma) | Include scaffold profiles, generated action table, auth policies, adaptation checklist, docs map, and verification gates. |
 
 ## Golden Example
 
@@ -762,7 +762,7 @@ Keep this section short: one line per sibling server or adjacent project, and
 omit the current repo. Use linked product or repository names rather than
 implementation trivia.
 
-- [soma](https://github.com/jmagar/soma) - RMCP runtime for provider-backed MCP servers.
+- [soma](https://github.com/dinglebear-ai/soma) - RMCP runtime for provider-backed MCP servers.
 - [unifi-rmcp](https://github.com/jmagar/unifi-rmcp) - UniFi controller REST API bridge.
 - [tailscale-rmcp](https://github.com/jmagar/tailscale-rmcp) - Tailscale API bridge for devices, users, and tailnet operations.
 - [unraid-rmcp](https://github.com/jmagar/unraid-rmcp) - Unraid GraphQL bridge for NAS and server management.

@@ -21,16 +21,16 @@ fn manifest_models_single_soma_component() {
         .iter()
         .any(|file| file.kind == VersionKind::JsonNoVersion));
     assert!(component.version_files.iter().any(|file| {
-        file.kind == VersionKind::JsonVersion
+        file.kind == VersionKind::OciIdentifierVersion
             && file.path == "server.json"
-            && file.json_pointer.as_deref() == Some("/packages/0/version")
+            && file.json_pointer.as_deref() == Some("/packages/0/identifier")
     }));
     assert!(component.version_files.iter().any(|file| {
-        file.kind == VersionKind::NpmIdentifierVersion
+        file.kind == VersionKind::OciIdentifierVersion
             && file.path == "server.json"
             && file.json_pointer.as_deref()
                 == Some(
-                    "/_meta/io.modelcontextprotocol.registry~1publisher-provided/distribution/npm",
+                    "/_meta/io.modelcontextprotocol.registry~1publisher-provided/distribution/ociImage",
                 )
     }));
 }
@@ -85,14 +85,14 @@ version = "0.1.0"
 
 #[test]
 fn oci_identifier_version_uses_tag_suffix() {
-    let content = r#"{"packages":[{"identifier":"ghcr.io/jmagar/soma:0.4.1"}]}"#;
+    let content = r#"{"packages":[{"identifier":"ghcr.io/dinglebear-ai/soma:0.4.1"}]}"#;
     assert_eq!(
         read_oci_identifier_version(content, Some("/packages/0/identifier")).unwrap(),
         "0.4.1"
     );
     let updated =
         replace_oci_identifier_version(content, Some("/packages/0/identifier"), "0.4.2").unwrap();
-    assert!(updated.contains("ghcr.io/jmagar/soma:0.4.2"));
+    assert!(updated.contains("ghcr.io/dinglebear-ai/soma:0.4.2"));
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn release_please_manifest_sync_updates_all_version_files() {
 
     let server = fs::read_to_string(fixture.path("server.json")).unwrap();
     assert!(server.contains(r#""version": "0.4.2""#));
-    assert!(server.contains("soma-rmcp@0.4.2"));
+    assert!(server.contains("ghcr.io/dinglebear-ai/soma:0.4.2"));
     assert!(fs::read_to_string(fixture.path("apps/soma/Cargo.toml"))
         .unwrap()
         .contains(r#"version = "0.4.2""#));
@@ -136,7 +136,7 @@ fn parity_checks_registry_openapi_and_plugin_no_version() {
     let fixture = Fixture::new();
     fs::write(
         fixture.path("server.json"),
-        r#"{"version":"0.4.0","_meta":{"io.modelcontextprotocol.registry/publisher-provided":{"distribution":{"npm":"soma-rmcp@0.4.1","nodePackage":"soma-rmcp"}}},"packages":[{"identifier":"soma-rmcp","version":"0.4.1"}]}"#,
+        r#"{"version":"0.4.0","_meta":{"io.modelcontextprotocol.registry/publisher-provided":{"distribution":{"ociImage":"ghcr.io/dinglebear-ai/soma:0.4.1"}}},"packages":[{"identifier":"ghcr.io/dinglebear-ai/soma:0.4.1","registryType":"oci"}]}"#,
     )
     .unwrap();
     fs::write(
@@ -301,7 +301,7 @@ version = "0.4.1"
         );
         write(
             &self.path("server.json"),
-            r#"{"version":"0.4.1","_meta":{"io.modelcontextprotocol.registry/publisher-provided":{"distribution":{"npm":"soma-rmcp@0.4.1","nodePackage":"soma-rmcp"}}},"packages":[{"identifier":"soma-rmcp","version":"0.4.1"}]}"#,
+            r#"{"version":"0.4.1","_meta":{"io.modelcontextprotocol.registry/publisher-provided":{"distribution":{"ociImage":"ghcr.io/dinglebear-ai/soma:0.4.1"}}},"packages":[{"identifier":"ghcr.io/dinglebear-ai/soma:0.4.1","registryType":"oci"}]}"#,
         );
         write(
             &self.path("docs/generated/openapi.json"),

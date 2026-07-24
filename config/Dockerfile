@@ -111,14 +111,14 @@ ARG SOMA_VERSION=0.4.6
 LABEL org.opencontainers.image.title="Soma" \
       org.opencontainers.image.description="Batteries-included RMCP runtime for drop-in provider-backed agent capabilities" \
       org.opencontainers.image.url="https://soma.dinglebear.ai" \
-      org.opencontainers.image.source="https://github.com/jmagar/soma" \
-      org.opencontainers.image.documentation="https://github.com/jmagar/soma/tree/main/docs" \
+      org.opencontainers.image.source="https://github.com/dinglebear-ai/soma" \
+      org.opencontainers.image.documentation="https://github.com/dinglebear-ai/soma/tree/main/docs" \
       org.opencontainers.image.ref.name="soma" \
       org.opencontainers.image.vendor="dinglebear.ai" \
       org.opencontainers.image.authors="dinglebear.ai" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${SOMA_VERSION}" \
-      io.modelcontextprotocol.server.name="dinglebear.ai/soma"
+      io.modelcontextprotocol.server.name="ai.dinglebear/soma"
 
 # CUSTOMIZE: Add other default env vars your binary needs.
 # ENV SOMA_MCP_HOST=0.0.0.0

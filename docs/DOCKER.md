@@ -70,7 +70,7 @@ CMD ["serve"]
 ```yaml
 services:
   soma-mcp:
-    image: ghcr.io/jmagar/soma-mcp:${VERSION:-latest}
+    image: ghcr.io/dinglebear-ai/soma:${VERSION:-latest}
     build:
       context: .
       dockerfile: config/Dockerfile

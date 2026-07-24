@@ -545,7 +545,7 @@ fn response_paging_options() -> ResponsePagingOptions {
 const SERVER_INSTRUCTIONS: &str = "\
 Soma is a batteries-included RMCP runtime for shipping provider-backed MCP servers. \
 It exposes one action-dispatched `soma` tool plus first-class MCP prompt and resource surfaces. \
-Homepage: https://soma.dinglebear.ai. Repository: https://github.com/jmagar/soma. \
+Homepage: https://soma.dinglebear.ai. Repository: https://github.com/dinglebear-ai/soma. \
 Node package: soma-rmcp. Binary: soma. \
 Config home: ~/.soma or SOMA_HOME. License: MIT. Author: dinglebear.ai. \
 Use drop-in providers to add tools, prompts, and resources without rewriting transport, auth, \

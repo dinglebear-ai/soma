@@ -115,7 +115,7 @@ committed `.cargo/config.toml`.
 
 The active runner is:
 
-- GitHub repo: `jmagar/soma`
+- GitHub repo: `dinglebear-ai/soma`
 - Runner name: `soma-windows-1`
 - Runner path: `C:\Users\jmaga\actions-runner\soma`
 - Labels: `self-hosted`, `Windows`, `X64`, `soma`, `steamy`

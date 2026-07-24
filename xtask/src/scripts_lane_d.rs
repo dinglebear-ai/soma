@@ -477,7 +477,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
             },
             "license": {
                 "name": "MIT",
-                "url": "https://github.com/jmagar/soma/blob/main/LICENSE"
+                "url": "https://github.com/dinglebear-ai/soma/blob/main/LICENSE"
             }
         },
         "servers": [
@@ -495,7 +495,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
         ],
         "externalDocs": {
             "description": "Soma documentation",
-            "url": "https://github.com/jmagar/soma/tree/main/docs"
+            "url": "https://github.com/dinglebear-ai/soma/tree/main/docs"
         },
         "tags": [
             {"name":"health","description":"Unauthenticated runtime probes"},
@@ -520,9 +520,9 @@ fn render_openapi(root: &Path) -> Result<Value> {
                 "url": "https://dinglebear.ai"
             },
             "homepage": "https://soma.dinglebear.ai",
-            "repository": "https://github.com/jmagar/soma",
-            "support": "https://github.com/jmagar/soma/issues",
-            "security_policy": "https://github.com/jmagar/soma/security/policy",
+            "repository": "https://github.com/dinglebear-ai/soma",
+            "support": "https://github.com/dinglebear-ai/soma/issues",
+            "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
             "keywords": [
                 "mcp",
                 "mcp-server",
@@ -546,7 +546,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
             "binary": "soma",
             "server_binary": "soma",
             "node_package": "soma-rmcp",
-            "oci_image": format!("ghcr.io/jmagar/soma:{version}"),
+            "oci_image": format!("ghcr.io/dinglebear-ai/soma:{version}"),
             "mcp_registry": "server.json",
             "provider_directory_env": "SOMA_PROVIDER_DIR",
             "auth_modes": ["loopback-dev", "bearer", "oauth", "trusted-gateway"],

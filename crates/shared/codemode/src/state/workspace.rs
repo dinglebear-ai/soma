@@ -220,7 +220,7 @@ impl StateWorkspace {
                 message: "state temp directory is not a directory".to_string(),
             });
         }
-        Ok(dir.join(format!("{}.tmp", ulid::Ulid::new())))
+        Ok(dir.join(format!("{}.tmp", ulid::Ulid::generate())))
     }
 
     pub(crate) async fn check_write_quota(

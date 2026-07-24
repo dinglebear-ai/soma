@@ -2,7 +2,7 @@
   "name": "soma",
   "description": "Soma is a batteries-included RMCP runtime for drop-in provider-backed agent capabilities.",
   "homepage": "https://soma.dinglebear.ai",
-  "repository": "https://github.com/jmagar/soma",
+  "repository": "https://github.com/dinglebear-ai/soma",
   "license": "MIT",
   "keywords": [
     "mcp",

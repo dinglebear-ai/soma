@@ -43,7 +43,7 @@ jobs:
       - name: Fetch rmcp crate metadata
         run: |
           curl -fsSL \
-            -H "User-Agent: jmagar/soma rmcp-release-monitor" \
+            -H "User-Agent: dinglebear-ai/soma rmcp-release-monitor" \
             https://crates.io/api/v1/crates/rmcp \
             -o rmcp-crate.json
 

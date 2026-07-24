@@ -11,8 +11,7 @@ permissions:
 jobs:
   auto-merge:
     name: Auto-merge patch/minor updates
-    # GitHub-hosted: this job only calls the GitHub API and needs `gh`,
-    # which the self-hosted runners do not provide.
+    # This job only calls the GitHub API; the Unraid runner provides `gh`.
     runs-on: [self-hosted, unraid]
     if: github.actor == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
@@ -22,11 +21,27 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check repository auto-merge setting
+        id: settings
+        run: |
+          enabled="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.allow_auto_merge')"
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Enable auto-merge for patch and minor updates
         if: |
-          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-          steps.meta.outputs.update-type == 'version-update:semver-minor'
+          steps.settings.outputs.enabled == 'true' &&
+          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor')
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Leave update for manual green-gated merge
+        if: |
+          steps.settings.outputs.enabled != 'true' &&
+          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor')
+        run: echo "::notice::Repository auto-merge is disabled; leaving this update for a manual merge after required checks pass."

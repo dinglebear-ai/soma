@@ -1,0 +1,28 @@
+{
+  "observationId": "observation:01J4EXAMPLE",
+  "kind": "docker_event",
+  "eventTime": "2026-07-21T14:31:11Z",
+  "receivedAt": "2026-07-21T14:31:11.120Z",
+  "severity": "warning",
+  "source": {
+    "adapter": "docker",
+    "instance": "tootie",
+    "transportPeer": null,
+    "claimedHost": "tootie"
+  },
+  "subjects": [
+    "host:tootie",
+    "service:labby",
+    "container:labby-abc123"
+  ],
+  "message": "Container health transitioned from healthy to unhealthy",
+  "template": "Container health transitioned from {state} to {state}",
+  "attributes": {
+    "action": "health_status",
+    "from": "healthy",
+    "to": "unhealthy"
+  },
+  "contentHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "retentionClass": "standard",
+  "sensitivity": "internal"
+}

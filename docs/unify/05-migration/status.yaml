@@ -1,0 +1,36 @@
+apiVersion: soma.dev/v1
+kind: ConvergenceStatus
+updatedAt: '2026-07-21T00:00:00Z'
+overall: proposed
+phases:
+- phase: 1
+  status: not_started
+- phase: 2
+  status: not_started
+- phase: 3
+  status: not_started
+- phase: 4
+  status: not_started
+- phase: 5
+  status: not_started
+- phase: 6
+  status: not_started
+- phase: 7
+  status: not_started
+- phase: 8
+  status: not_started
+- phase: 9
+  status: not_started
+- phase: 10
+  status: not_started
+- phase: 11
+  status: not_started
+- phase: 12
+  status: not_started
+- phase: 13
+  status: not_started
+- phase: 14
+  status: not_started
+blockedBy:
+- Complete and stabilize the current Soma gateway and Aurora product shell before
+  context implementation begins.

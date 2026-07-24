@@ -12,7 +12,8 @@ using the `server.json` manifest at the repo root.
 
 ## Prerequisites
 
-- You own the domain used in the `name` field (e.g. `dinglebear.ai` in `dinglebear.ai/soma`)
+- You own the domain represented by the reverse-DNS namespace in `name`
+  (for example, `ai.dinglebear` represents `dinglebear.ai` in `ai.dinglebear/soma`)
 - Your Docker image is published to a container registry (e.g. `ghcr.io`)
 - Your GitHub repo is public
 
@@ -24,11 +25,11 @@ Edit `server.json` in the repo root. Every field marked `CUSTOMIZE:` must be rep
 
 | Field | Replace with |
 |---|---|
-| `name` | `yourdomain.com/your-service-mcp` (you must own the domain) |
+| `name` | Reverse-DNS namespace plus service, such as `com.example/your-service-mcp` |
 | `title` | Human-readable display name, e.g. "My Service MCP" |
 | `description` | One sentence about what your server does |
 | `repository.url` | Your GitHub repo URL |
-| `packages[].identifier` | Your package identifiers, for example `ghcr.io/org/repo:version` and `soma-rmcp` |
+| `packages[].identifier` | Your package identifier, for example `ghcr.io/org/repo:version` |
 | `environmentVariables[].name` | Your service's actual env var names |
 | `environmentVariables[].description` | User-visible descriptions for registry UI |
 | `remotes[0].url` | Your hosted `/mcp` endpoint (or remove `remotes` if not hosting publicly) |
@@ -60,8 +61,9 @@ For other platforms, check the
   --private-key "$MCP_PRIVATE_KEY"
 ```
 
-The private key must correspond to a DNS TXT record you publish at
-`_mcp.<yourdomain.com>`. See the registry docs for the exact TXT record format.
+The private key must correspond to an MCP DNS TXT record published at the
+domain apex (`yourdomain.com`), not under an `_mcp` selector. See the registry
+docs for the exact TXT record format.
 
 ### Option B: GitHub OAuth
 
@@ -69,8 +71,8 @@ The private key must correspond to a DNS TXT record you publish at
 ./mcp-publisher login github
 ```
 
-This grants you the `github.com/<your-username>/` namespace automatically,
-e.g. `github.com/jmagar/soma-mcp`.
+This grants you the `io.github.<your-username>/` namespace automatically,
+for example `io.github.jmagar/soma-mcp`.
 
 ---
 
@@ -98,8 +100,8 @@ The relevant workflow snippet:
   run: |
     VERSION="${GITHUB_REF_NAME#v}"
     jq --arg v "$VERSION" \
-       --arg img "ghcr.io/jmagar/soma-mcp:${VERSION}" \
-       '.version = $v | (.packages[] | select(.registryType == "oci").identifier) = $img | (.packages[].version) = $v' \
+       --arg img "ghcr.io/dinglebear-ai/soma:${VERSION}" \
+       '.version = $v | (.packages[] | select(.registryType == "oci")) |= (.identifier = $img | del(.version, .registryBaseUrl))' \
        server.json > server.tmp && mv server.tmp server.json
 
 - name: Publish to MCP registry
@@ -138,8 +140,8 @@ the MCP registry.
 ### "Name not in your namespace"
 
 You must authenticate for the domain or GitHub user that prefixes your server name.
-If your `name` is `dinglebear.ai/soma`, you must authenticate with DNS for
-`dinglebear.ai`. If your `name` is `github.com/jmagar/soma`, use GitHub OAuth.
+If your `name` is `ai.dinglebear/soma`, you must authenticate with DNS for
+`dinglebear.ai`. If your `name` is `io.github.dinglebear-ai/soma`, use GitHub OAuth.
 
 ### "Invalid schema"
 
@@ -160,8 +162,5 @@ Push to GHCR first, then publish to the registry.
 
 | Namespace format | Auth method |
 |---|---|
-| `yourdomain.com/<name>` | DNS TXT record proof |
-| `github.com/<org>/<name>` | GitHub OAuth |
-| `tv.tootie/<name>` | DNS TXT record (author's domain — do not use) |
-
-<!-- CUSTOMIZE: Remove the tv.tootie row from the table above if you don't own that domain. -->
+| `com.example/<name>` | DNS TXT record proof for `example.com` |
+| `io.github.<org>/<name>` | GitHub OAuth |
