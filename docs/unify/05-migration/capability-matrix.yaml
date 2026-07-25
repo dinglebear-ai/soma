@@ -1,0 +1,215 @@
+apiVersion: soma.dev/v1
+kind: ConvergenceCapabilityMatrix
+metadata:
+  name: soma-context-v1
+  status: proposed
+  auditDate: '2026-07-21'
+capabilities:
+- id: contracts.context_v1
+  phase: 1
+  requires: []
+  donors:
+  - axon reference contracts
+  - cortex graph/ingest contracts
+  targets:
+  - xtask
+  - soma-primitives
+  surfaces: []
+  done: Schemas, fixtures, drift checks, and dependency gates pass.
+- id: knowledge.local
+  phase: 3
+  requires:
+  - contracts.context_v1
+  donors:
+  - axon-route
+  - axon-adapters/local
+  - axon-document
+  - axon-parse
+  - axon-ledger
+  - axon-embedding
+  - axon-vectors
+  - axon-retrieval
+  targets:
+  - soma-route
+  - soma-sources
+  - soma-ledger
+  - soma-rag
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Local repository can be added, refreshed, indexed, and searched with citations.
+- id: jobs.durable
+  phase: 4
+  requires:
+  - knowledge.local
+  donors:
+  - axon-jobs
+  targets:
+  - soma-jobs
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Refresh/index operations are durable, observable, cancellable, and recover after restart.
+- id: sessions.unified
+  phase: 5
+  requires:
+  - knowledge.local
+  donors:
+  - axon session adapters
+  - cortex scanner/transcript ingest
+  targets:
+  - soma-transcript
+  - soma-sources
+  - soma-collectors
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Claude, Codex, and Gemini sessions are semantically searchable and operationally queryable.
+- id: knowledge.web
+  phase: 6
+  requires:
+  - jobs.durable
+  donors:
+  - axon Spider web engine
+  - axon web adapter/extract
+  targets:
+  - soma-crawl
+  - soma-sources
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Page/site/docs crawl uses the same document/RAG pipeline and durable jobs.
+- id: knowledge.remaining_sources
+  phase: 7
+  requires:
+  - knowledge.local
+  - jobs.durable
+  donors:
+  - axon adapters
+  targets:
+  - soma-sources
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: GitHub, feeds, YouTube, Reddit, registries, uploads, and tool outputs pass adapter contracts.
+- id: observations.core
+  phase: 8
+  requires:
+  - contracts.context_v1
+  donors:
+  - cortex db/ingest/receiver/filetail
+  targets:
+  - soma-observations
+  - soma-ingest
+  - soma-collectors
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: File-tail and syslog persist canonically to SQLite/FTS with health and retention.
+- id: observations.remaining_sources
+  phase: 9
+  requires:
+  - observations.core
+  donors:
+  - cortex docker/otlp/heartbeat/inventory/shell history
+  targets:
+  - soma-collectors
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: All required Cortex observation families use one observation contract.
+- id: observations.semantic_projection
+  phase: 10
+  requires:
+  - observations.core
+  - knowledge.local
+  donors:
+  - new convergence behavior
+  targets:
+  - soma-ingest
+  - soma-rag
+  surfaces:
+  - api
+  - mcp
+  - web
+  done: Selective observation windows are projected asynchronously into Qdrant with live citations.
+- id: graph.evidence
+  phase: 11
+  requires:
+  - knowledge.local
+  - observations.core
+  - sessions.unified
+  donors:
+  - axon-graph
+  - cortex investigation graph
+  targets:
+  - soma-graph
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Knowledge and operational projectors produce one evidence-first temporal graph.
+- id: context.graphrag
+  phase: 12
+  requires:
+  - graph.evidence
+  - observations.semantic_projection
+  donors:
+  - axon retrieval
+  - cortex graph queries
+  - new product broker
+  targets:
+  - Soma application/runtime context modules
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Hybrid, entity-local, and temporal queries return cited ContextBundles.
+- id: memory.v1
+  phase: 13
+  requires:
+  - context.graphrag
+  donors:
+  - axon-memory
+  targets:
+  - soma-memory
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Evidence-backed memory lifecycle and recall are integrated with context queries.
+- id: cutover.v1
+  phase: 14
+  requires:
+  - knowledge.remaining_sources
+  - observations.remaining_sources
+  - context.graphrag
+  - memory.v1
+  donors:
+  - axon
+  - cortex
+  targets:
+  - Soma product
+  surfaces:
+  - cli
+  - api
+  - mcp
+  - web
+  done: Parity, migration, backup, performance, and north-star evaluation gates pass.

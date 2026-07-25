@@ -81,30 +81,15 @@ jobs:
           key: ${{ github.repository }}-rustdoc-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ github.repository }}-rustdoc-
 
-      # Public items only, no dependency docs, all features — matches the
-      # posture documented in CLAUDE.md and the `cargo xtask doc` defaults.
-      # RUSTDOCFLAGS=-D warnings (set above) makes this the rustdoc gate.
-      - name: cargo doc --workspace --no-deps --all-features
-        run: cargo doc --workspace --no-deps --all-features
-
-      # rustdoc emits one directory per crate (target/doc/soma/, target/doc/soma-application/,
-      # ...). Add a landing index.html that redirects to the canonical product
-      # crate so the Pages root isn't a bare directory listing.
-      - name: Write redirect index
-        run: |
-          cat > target/doc/index.html <<'HTML'
-          <!DOCTYPE html>
-          <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta http-equiv="refresh" content="0; url=soma/index.html">
-              <title>Soma API docs</title>
-            </head>
-            <body>
-              Redirecting to the <a href="soma/index.html"><code>soma</code> crate docs</a>…
-            </body>
-          </html>
-          HTML
+      # Public items only, no dependency docs, all features — the documented
+      # doc-build posture. `--strict` is the rustdoc gate (RUSTDOCFLAGS
+      # -D warnings; the env above keeps that true for any direct cargo doc
+      # invocations too). Beyond the rustdoc build, xtask also writes the
+      # Pages entry points: target/doc/index.html (workspace crate landing
+      # page) and target/doc/openapi.{html,json} (REST contract rendered
+      # with Redoc) — no workflow-side HTML here.
+      - name: cargo xtask doc --strict
+        run: cargo xtask doc --strict
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

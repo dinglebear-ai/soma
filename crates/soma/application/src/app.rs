@@ -22,6 +22,11 @@ use crate::{
 #[path = "app_tests.rs"]
 mod tests;
 
+/// Shared use-case facade every surface (MCP, REST, CLI) calls into.
+///
+/// Wraps the legacy [`SomaService`] and [`ProviderRegistry`] plus the outbound
+/// [`ApplicationPorts`] (gateway, code mode, OpenAPI), exposing one method per
+/// application operation.
 pub struct SomaApplication {
     legacy_service: Arc<SomaService>,
     legacy_registry: Arc<ProviderRegistry>,
@@ -29,6 +34,7 @@ pub struct SomaApplication {
 }
 
 impl SomaApplication {
+    /// Assemble the facade from its service, provider registry, and outbound ports.
     pub fn new(
         legacy_service: Arc<SomaService>,
         legacy_registry: Arc<ProviderRegistry>,
@@ -41,6 +47,7 @@ impl SomaApplication {
         }
     }
 
+    /// Dispatch an action through the provider registry and return its output.
     pub async fn execute_action(
         &self,
         request: ExecuteActionRequest,
@@ -70,6 +77,7 @@ impl SomaApplication {
         })
     }
 
+    /// Build the greeting for the elicited-name demo from the collected outcome.
     pub fn elicited_name_greeting(&self, outcome: ElicitedName) -> Value {
         match outcome {
             ElicitedName::Accepted(name) => self
@@ -90,6 +98,7 @@ impl SomaApplication {
         }
     }
 
+    /// Normalize elicited scaffold requirements into the JSON handoff contract.
     pub fn scaffold_intent(
         &self,
         request: ScaffoldIntentRequest,
@@ -116,10 +125,12 @@ impl SomaApplication {
             .map_err(|error| ApplicationError::service(&error))
     }
 
+    /// Return a snapshot of the currently loaded provider catalog.
     pub fn catalog_snapshot(&self) -> CatalogSnapshot {
         catalog_snapshot(self.legacy_registry.snapshot().as_ref())
     }
 
+    /// Resolve a CLI command name to its backing action, or a not-found error.
     pub fn resolve_cli_action(&self, command: &str) -> Result<String, ApplicationError> {
         self.legacy_registry
             .snapshot()
@@ -128,12 +139,14 @@ impl SomaApplication {
             .ok_or_else(|| ApplicationError::not_found("CLI command", command))
     }
 
+    /// Report whether the action is destructive and requires explicit confirmation.
     pub fn action_requires_confirmation(&self, action: &str) -> bool {
         self.legacy_registry
             .snapshot()
             .action_requires_confirmation(action)
     }
 
+    /// Return the name of the provider that owns the given action, if any.
     pub fn provider_for_action(&self, action: &str) -> Option<String> {
         self.legacy_registry
             .snapshot()
@@ -141,14 +154,17 @@ impl SomaApplication {
             .map(ToOwned::to_owned)
     }
 
+    /// Return the provider validation summary for the loaded catalog.
     pub fn provider_validation_summary(&self) -> Value {
         self.legacy_registry.snapshot().validation_summary()
     }
 
+    /// Return the detailed provider inspection report for the loaded catalog.
     pub fn provider_inspection_report(&self) -> Value {
         self.legacy_registry.snapshot().inspection_report()
     }
 
+    /// Resolve an HTTP method and path to its backing action, if a route matches.
     pub fn resolve_rest_route(&self, method: &str, path: &str) -> Option<String> {
         self.legacy_registry
             .snapshot()
@@ -156,6 +172,7 @@ impl SomaApplication {
             .map(ToOwned::to_owned)
     }
 
+    /// Return the runtime OpenAPI document assembled from the provider catalog.
     pub fn openapi_document(&self) -> Result<Value, ApplicationError> {
         serde_json::from_slice(&self.legacy_registry.snapshot().cached_openapi_bytes).map_err(
             |error| {
@@ -169,11 +186,13 @@ impl SomaApplication {
         )
     }
 
+    /// Reload file-backed providers and return the resulting catalog snapshot.
     pub fn refresh_providers(&self) -> Result<CatalogSnapshot, ApplicationError> {
         self.refresh_providers_in_place()?;
         Ok(self.catalog_snapshot())
     }
 
+    /// Reload file-backed providers without returning a snapshot.
     pub fn refresh_providers_in_place(&self) -> Result<(), ApplicationError> {
         self.legacy_registry
             .refresh_file_providers()
@@ -189,6 +208,7 @@ impl SomaApplication {
             })
     }
 
+    /// Read a provider resource by URI and return its text or blob content.
     pub async fn read_resource(
         &self,
         request: ReadResourceRequest,
@@ -216,6 +236,7 @@ impl SomaApplication {
         })
     }
 
+    /// List the exact (non-templated) provider resources in the catalog.
     pub fn list_resources(&self) -> Vec<ProviderResource> {
         self.legacy_registry
             .snapshot()
@@ -224,6 +245,7 @@ impl SomaApplication {
             .collect()
     }
 
+    /// List the dynamic (URI-templated) provider resource templates in the catalog.
     pub fn list_resource_templates(&self) -> Vec<ResourceTemplateSpec> {
         self.legacy_registry
             .snapshot()
@@ -239,6 +261,7 @@ impl SomaApplication {
             .collect()
     }
 
+    /// List the servable provider prompts in the catalog.
     pub fn list_prompts(&self) -> Vec<ProviderPrompt> {
         self.legacy_registry
             .snapshot()
@@ -250,6 +273,7 @@ impl SomaApplication {
             .collect()
     }
 
+    /// Fetch a servable prompt by name, enforcing scope visibility.
     pub fn get_prompt(
         &self,
         name: &str,
@@ -277,6 +301,7 @@ impl SomaApplication {
         Ok(prompt)
     }
 
+    /// Query the MCP gateway status via the gateway port.
     pub async fn gateway_status(
         &self,
         context: ExecutionContext,
@@ -285,6 +310,7 @@ impl SomaApplication {
         operation_response(output, &context)
     }
 
+    /// Reload the MCP gateway configuration via the gateway port.
     pub async fn gateway_reload(
         &self,
         request: GatewayReloadRequest,
@@ -294,6 +320,7 @@ impl SomaApplication {
         operation_response(output, &context)
     }
 
+    /// Execute a gateway operation via the gateway port.
     pub async fn gateway_execute(
         &self,
         request: GatewayExecuteRequest,
@@ -303,6 +330,7 @@ impl SomaApplication {
         operation_response(output, &context)
     }
 
+    /// List MCP tools exposed through the gateway, optionally filtered by scope.
     pub async fn gateway_mcp_tools(
         &self,
         scope: Option<&GatewayRouteScope>,
@@ -311,6 +339,7 @@ impl SomaApplication {
         Ok(self.ports.gateway.list_mcp_tools(scope, context).await?)
     }
 
+    /// Call an MCP tool through the gateway, returning its result if routed.
     pub async fn gateway_call_mcp_tool(
         &self,
         name: &str,
@@ -325,6 +354,7 @@ impl SomaApplication {
             .await?)
     }
 
+    /// List MCP resources exposed through the gateway, optionally filtered by scope.
     pub async fn gateway_mcp_resources(
         &self,
         scope: Option<&GatewayRouteScope>,
@@ -337,6 +367,7 @@ impl SomaApplication {
             .await?)
     }
 
+    /// Read an MCP resource through the gateway, returning its content if routed.
     pub async fn gateway_read_mcp_resource(
         &self,
         uri: &str,
@@ -350,6 +381,7 @@ impl SomaApplication {
             .await?)
     }
 
+    /// List MCP prompts exposed through the gateway, optionally filtered by scope.
     pub async fn gateway_mcp_prompts(
         &self,
         scope: Option<&GatewayRouteScope>,
@@ -358,6 +390,7 @@ impl SomaApplication {
         Ok(self.ports.gateway.list_mcp_prompts(scope, context).await?)
     }
 
+    /// Fetch an MCP prompt through the gateway, returning its content if routed.
     pub async fn gateway_get_mcp_prompt(
         &self,
         name: &str,
@@ -372,6 +405,7 @@ impl SomaApplication {
             .await?)
     }
 
+    /// Execute a Code Mode request via the code mode port.
     pub async fn codemode_execute(
         &self,
         request: CodeModeExecuteRequest,
@@ -381,6 +415,7 @@ impl SomaApplication {
         operation_response(output, &context)
     }
 
+    /// Execute an OpenAPI-backed request via the OpenAPI port.
     pub async fn openapi_execute(
         &self,
         request: OpenApiExecuteRequest,
@@ -390,6 +425,7 @@ impl SomaApplication {
         operation_response(output, &context)
     }
 
+    /// Return the upstream service status.
     pub async fn status(&self) -> Result<Value, ApplicationError> {
         self.legacy_service
             .status()
@@ -397,6 +433,7 @@ impl SomaApplication {
             .map_err(|error| ApplicationError::legacy("status", error))
     }
 
+    /// Probe upstream readiness; `Ok(())` when the dependency is reachable.
     pub async fn readiness(&self) -> Result<(), ApplicationError> {
         self.legacy_service
             .ready()
@@ -404,6 +441,7 @@ impl SomaApplication {
             .map_err(|error| ApplicationError::legacy("readiness", error))
     }
 
+    /// Run readiness and status probes and collect them into a diagnostic report.
     pub async fn doctor(&self) -> DoctorReport {
         let mut problems = Vec::new();
         let ready = match self.readiness().await {

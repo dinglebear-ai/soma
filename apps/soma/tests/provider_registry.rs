@@ -658,6 +658,80 @@ async fn provider_action_scopes_are_enforced_by_registry() {
         .expect("write scope should allow dispatch");
 }
 
+fn catalog_with_kind(
+    provider: &str,
+    kind: ProviderKind,
+    tools: Vec<ProviderTool>,
+) -> ProviderCatalog {
+    let mut manifest = catalog(provider, tools);
+    manifest.provider.kind = kind;
+    manifest
+}
+
+#[tokio::test]
+async fn network_egress_provider_kinds_require_write_scope_affinity() {
+    // The tool itself declares `soma:read`, but the openapi kind's
+    // network-egress safety class floors the required scope at `soma:write`
+    // for Mounted callers regardless of the tool manifest.
+    let provider = Arc::new(EchoProvider {
+        catalog: catalog_with_kind("api", ProviderKind::Openapi, vec![tool("fetch_data")]),
+        delay: Duration::ZERO,
+        started: None,
+    });
+    let registry = ProviderRegistry::new(vec![provider]).expect("registry");
+
+    let error = registry
+        .dispatch(call("fetch_data", json!({})))
+        .await
+        .expect_err("read-only principal must not satisfy network-egress affinity");
+    assert_eq!(&*error.code, "insufficient_scope");
+    assert!(
+        error.message.contains("denied.scope_missing"),
+        "message should carry the stable authz reason, got: {}",
+        error.message
+    );
+
+    let mut write_call = call("fetch_data", json!({}));
+    write_call.principal.scopes.push("soma:write".to_owned());
+    registry
+        .dispatch(write_call)
+        .await
+        .expect("write scope satisfies network-egress affinity");
+}
+
+#[tokio::test]
+async fn local_runtime_provider_kinds_require_local_trust_for_mounted_callers() {
+    let provider = Arc::new(EchoProvider {
+        catalog: catalog_with_kind("scripts", ProviderKind::AiSdk, vec![tool("run_script")]),
+        delay: Duration::ZERO,
+        started: None,
+    });
+    let registry = ProviderRegistry::new(vec![provider]).expect("registry");
+
+    let mut write_call = call("run_script", json!({}));
+    write_call.principal.scopes.push("soma:write".to_owned());
+    let error = registry
+        .dispatch(write_call)
+        .await
+        .expect_err("remote token must not execute local-runtime handlers even with write scope");
+    assert_eq!(&*error.code, "local_trust_required");
+    assert!(
+        error
+            .message
+            .contains("denied.affinity_requires_local_trust"),
+        "message should carry the stable authz reason, got: {}",
+        error.message
+    );
+
+    let mut loopback_call = call("run_script", json!({}));
+    loopback_call.auth_mode = ProviderAuthMode::LoopbackDev;
+    loopback_call.principal = ProviderPrincipal::anonymous();
+    registry
+        .dispatch(loopback_call)
+        .await
+        .expect("loopback caller is trusted-local and bypasses affinity");
+}
+
 #[tokio::test]
 async fn destructive_provider_actions_require_confirmation() {
     let mut destructive_tool = tool("delete_note");

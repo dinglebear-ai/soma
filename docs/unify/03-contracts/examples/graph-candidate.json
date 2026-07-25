@@ -1,0 +1,67 @@
+{
+  "candidateId": "graph_candidate:labby-deployment-42",
+  "producer": "soma-collectors/docker",
+  "producerVersion": "0.1.0",
+  "entities": [
+    {
+      "key": "service:labby",
+      "kind": "service",
+      "canonicalName": "Labby",
+      "aliases": [
+        "labby"
+      ],
+      "attributes": {}
+    },
+    {
+      "key": "host:tootie",
+      "kind": "host",
+      "canonicalName": "TOOTIE",
+      "aliases": [
+        "tootie"
+      ],
+      "attributes": {}
+    }
+  ],
+  "relationships": [
+    {
+      "sourceKey": "service:labby",
+      "targetKey": "host:tootie",
+      "kind": "RUNS_ON",
+      "directed": true,
+      "validFrom": "2026-07-21T14:00:00Z",
+      "validUntil": null,
+      "evidenceIds": [
+        "evidence:docker-event-42"
+      ],
+      "attributes": {}
+    }
+  ],
+  "claims": [],
+  "evidence": [
+    {
+      "evidenceId": "evidence:docker-event-42",
+      "canonical": {
+        "store": "observations",
+        "recordType": "docker_event",
+        "recordId": "42",
+        "version": null,
+        "contentHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "observedAt": "2026-07-21T14:31:11Z",
+        "locator": {
+          "kind": "record",
+          "start": "42",
+          "end": null,
+          "path": "observations.db",
+          "label": "docker_event"
+        }
+      },
+      "authority": "runtime_observed",
+      "trust": "high",
+      "polarity": "supports",
+      "confidenceContribution": 0.95,
+      "safeExcerpt": "Labby container observed on TOOTIE",
+      "reasonCode": "docker.container.host",
+      "metadataPath": null
+    }
+  ]
+}

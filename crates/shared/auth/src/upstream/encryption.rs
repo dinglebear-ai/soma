@@ -1,20 +1,23 @@
 //! chacha20poly1305 AEAD wrapper for token-at-rest encryption.
 //!
+//! The cipher operations live in the shared crate-internal `aead` core (one
+//! implementation for both at-rest stacks); this module owns key loading
+//! from `{PREFIX}_OAUTH_ENCRYPTION_KEY` and the upstream error taxonomy.
+//!
 //! Every `seal()` call generates a **fresh random 12-byte nonce**. Callers
 //! MUST store the returned nonce alongside the ciphertext and MUST NOT reuse
 //! it. The upsert path in `store.rs` always replaces the stored nonce with
 //! the one returned by `seal()`.
 
-use chacha20poly1305::{
-    ChaCha20Poly1305, Key, KeyInit, Nonce,
-    aead::{Aead, Payload},
-};
-use getrandom::fill;
 use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// A loaded 32-byte encryption key ready for `seal` / `open`.
-#[derive(Clone)]
-pub struct EncryptionKey(Key);
+use crate::aead::{self, AeadError};
+
+/// A loaded 32-byte encryption key ready for `seal` / `open`.  Wiped from
+/// memory on drop.
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+pub struct EncryptionKey([u8; 32]);
 
 impl std::fmt::Debug for EncryptionKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -33,25 +36,38 @@ pub enum EncryptionError {
     EncryptionFailed,
 }
 
+impl From<AeadError> for EncryptionError {
+    fn from(error: AeadError) -> Self {
+        match error {
+            AeadError::Seal => Self::EncryptionFailed,
+            AeadError::Open => Self::DecryptionFailed,
+        }
+    }
+}
+
 /// Load a 32-byte key from a base64-encoded string (e.g. `{PREFIX}_OAUTH_ENCRYPTION_KEY`).
 ///
 /// Returns an error (not a panic) so callers can surface a clear operator message at
 /// startup and refuse to proceed rather than silently using a bad key.
 pub fn load_key(base64_str: &str) -> Result<EncryptionKey, EncryptionError> {
-    let bytes = base64::Engine::decode(
+    let mut bytes = base64::Engine::decode(
         &base64::engine::general_purpose::STANDARD,
         base64_str.trim(),
     )
     .map_err(|e| EncryptionError::InvalidKey(format!("base64 decode error: {e}")))?;
 
     if bytes.len() != 32 {
+        bytes.zeroize();
         return Err(EncryptionError::InvalidKey(format!(
             "expected 32 bytes, got {}",
             bytes.len()
         )));
     }
 
-    Ok(EncryptionKey(*Key::from_slice(&bytes)))
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&bytes);
+    bytes.zeroize();
+    Ok(EncryptionKey(key))
 }
 
 /// Encrypt `plaintext` under `key`, returning `(ciphertext, nonce)`.
@@ -68,21 +84,7 @@ pub fn seal_with_aad(
     plaintext: &[u8],
     aad: &[u8],
 ) -> Result<(Vec<u8>, Vec<u8>), EncryptionError> {
-    let cipher = ChaCha20Poly1305::new(&key.0);
-    let mut nonce_bytes = [0u8; 12];
-    fill(&mut nonce_bytes).map_err(|_| EncryptionError::EncryptionFailed)?;
-    let nonce = Nonce::from_slice(&nonce_bytes);
-
-    let ciphertext = cipher
-        .encrypt(
-            nonce,
-            Payload {
-                msg: plaintext,
-                aad,
-            },
-        )
-        .map_err(|_| EncryptionError::EncryptionFailed)?;
-
+    let (ciphertext, nonce_bytes) = aead::seal(&key.0, plaintext, aad)?;
     Ok((ciphertext, nonce_bytes.to_vec()))
 }
 
@@ -106,20 +108,7 @@ pub fn open_with_aad(
     nonce: &[u8],
     aad: &[u8],
 ) -> Result<Vec<u8>, EncryptionError> {
-    if nonce.len() != 12 {
-        return Err(EncryptionError::DecryptionFailed);
-    }
-    let cipher = ChaCha20Poly1305::new(&key.0);
-    let nonce = Nonce::from_slice(nonce);
-    cipher
-        .decrypt(
-            nonce,
-            Payload {
-                msg: ciphertext,
-                aad,
-            },
-        )
-        .map_err(|_| EncryptionError::DecryptionFailed)
+    aead::open(&key.0, nonce, ciphertext, aad).map_err(EncryptionError::from)
 }
 
 #[cfg(test)]
@@ -180,6 +169,21 @@ mod tests {
     #[test]
     fn invalid_base64_rejected() {
         assert!(load_key("not-valid-base64!!!").is_err());
+    }
+
+    #[test]
+    fn key_debug_is_redacted() {
+        let key = test_key();
+        let debug = format!("{key:?}");
+        assert_eq!(debug, "EncryptionKey(<redacted>)");
+    }
+
+    #[test]
+    fn decrypt_failure_maps_to_decryption_failed() {
+        let key = test_key();
+        let (ct, nonce) = seal_with_aad(&key, b"secret", b"alice").unwrap();
+        let err = open_with_aad(&key, &ct, &nonce, b"bob").unwrap_err();
+        assert!(matches!(err, EncryptionError::DecryptionFailed));
     }
 
     #[test]

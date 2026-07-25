@@ -30,7 +30,7 @@ layer = "legacy"
 #           These are the only deps needed for the four required commands.
 #           Add more only if a new command truly requires it.
 anyhow = "1"
-jsonschema = "0.47"
+jsonschema = "0.48"
 soma-application = { workspace = true }
 soma-client = { workspace = true }
 soma-config = { workspace = true }

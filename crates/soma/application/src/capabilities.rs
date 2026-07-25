@@ -1,3 +1,5 @@
+//! Capability brokering: the [`CapabilityBroker`] decides which host
+//! capabilities a provider dispatch may use, defaulting to deny.
 use soma_provider_core::{
     BrowserCapability, CapabilityGrant, EnvCapability, FilesystemCapability, GitHubCapability,
     HostCapabilities, NetworkCapability, TerminalCapability,
@@ -5,20 +7,26 @@ use soma_provider_core::{
 
 use crate::provider_errors::ProviderError;
 
+/// Checks provider-requested host capabilities against a fixed set of policy
+/// grants, denying any capability that is not explicitly allowed.
 #[derive(Debug, Clone, Default)]
 pub struct CapabilityBroker {
     grants: Vec<CapabilityGrant>,
 }
 
 impl CapabilityBroker {
+    /// Builds a broker backed by the given policy grants.
     pub fn new(grants: Vec<CapabilityGrant>) -> Self {
         Self { grants }
     }
 
+    /// Builds a broker with no grants, denying every host capability.
     pub fn default_deny() -> Self {
         Self::default()
     }
 
+    /// Authorizes a provider action's requested host capabilities, returning
+    /// an error for the first requested capability no grant covers.
     pub fn authorize(
         &self,
         provider: &str,

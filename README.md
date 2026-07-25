@@ -1,5 +1,10 @@
 # Soma
 
+[![Docs](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml/badge.svg)](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml)
+[**API docs**](https://dinglebear-ai.github.io/soma/) — rustdoc for every
+workspace crate plus the Redoc-rendered OpenAPI reference, deployed to GitHub
+Pages from `main`.
+
 `Soma` is a batteries-included RMCP server runtime and shipping binary
 for bringing new agent capabilities online with as little custom Rust as
 possible. It locks in the production patterns that every server in the family

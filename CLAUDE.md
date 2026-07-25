@@ -98,7 +98,7 @@ For actions with parameters, extract them with `string_arg(&args, "param_name")`
 | `AuthPolicy::LoopbackDev` | `no_auth=true` or host is loopback (`localhost`, `127.*`, `::1`) via `McpConfig::is_loopback()` | No auth middleware; scope checks bypassed |
 | `AuthPolicy::TrustedGatewayUnscoped` | `SOMA_NOAUTH=true` on non-loopback behind an authz-enforcing gateway | No auth middleware; scope checks bypassed |
 | `AuthPolicy::Mounted { auth_state: None }` | Default non-loopback | Static bearer token required |
-| `AuthPolicy::Mounted { auth_state: Some(_) }` | `auth_mode = "oauth"` | Google, Authelia, and/or GitHub login + RS256 JWT issuance |
+| `AuthPolicy::Mounted { auth_state: Some(_) }` | `auth_mode = "oauth"` | Google, Authelia, and/or GitHub login + EdDSA/Ed25519 JWT issuance |
 
 Auth is selected in `build_auth_policy()` in `main.rs`. Scopes are `soma:read` and `soma:write` (write satisfies read). `help` requires no scope. Unknown actions get `DENY_SCOPE`.
 
@@ -112,6 +112,7 @@ Auth is selected in `build_auth_policy()` in `main.rs`. Scopes are `soma:read` a
 | `SOMA_MCP_PORT` | `40060` | Bind port |
 | `SOMA_MCP_NO_AUTH` | `false` | Disable auth (loopback only) |
 | `SOMA_MCP_TOKEN` | — | Static bearer token |
+| `SOMA_MCP_STATIC_TOKEN_WRITE` | `false` | Grant the static bearer token `soma:write` in addition to `soma:read` (read-only by default) |
 | `SOMA_MCP_ALLOWED_HOSTS` | — | Extra comma-separated Host header values |
 | `SOMA_MCP_ALLOWED_ORIGINS` | — | Extra comma-separated CORS origins |
 | `SOMA_MCP_TRACE_HEADERS` | `off` | Trusted inbound HTTP trace extraction; non-`off` requires loopback or a header-sanitizing trusted gateway. See `docs/TRACE_CONTEXT.md`. |
@@ -128,13 +129,18 @@ Auth is selected in `build_auth_policy()` in `main.rs`. Scopes are `soma:read` a
 | `SOMA_MCP_AUTH_ADMIN_EMAIL` | — | OAuth admin email |
 | `RUST_LOG` | `info` | Log filter |
 
-`SOMA_MCP_AUTHELIA_*`, `SOMA_MCP_GITHUB_*`, and `SOMA_MCP_AUTH_DEFAULT_PROVIDER`
-are read directly from process env by `soma_auth::AuthConfigBuilder` (via
-`crates/soma/integrations/src/auth.rs`'s `soma_auth_config_builder()`, called
-from `http_auth_policy()`/`bootstrap.rs` when `auth_mode=oauth`) — not through
-`crates/soma/config::Config`'s typed struct, which has no matching fields.
-Both are legitimate env var sources in this codebase; auth config in
-particular bypasses the typed `Config` layer.
+All OAuth env vars (`SOMA_MCP_AUTHELIA_*`, `SOMA_MCP_GITHUB_*`,
+`SOMA_MCP_GOOGLE_CALLBACK_PATH`/`_SCOPES`, `SOMA_MCP_AUTH_DEFAULT_PROVIDER`,
+the auth TTL/rate-limit/token-encryption keys, `SOMA_MCP_AUTH_SQLITE_PATH`,
+`SOMA_MCP_AUTH_KEY_PATH`) now flow through `crates/soma/config`'s typed
+`AuthConfig` struct. `crates/soma/integrations/src/auth.rs`'s
+`soma_auth_config()` synthesizes a `{PREFIX}_*` var list from that typed
+config and hands it to `soma_auth::AuthConfigBuilder::build_from_sources()` —
+so `soma_auth` no longer reads process env in Soma's OAuth path (the
+synthetic-env pattern cortex uses). Var names, defaults (which still live in
+`crates/shared/auth/src/config.rs` — unset fields are omitted so the builder
+applies them), and `[mcp.auth]` config.toml keys are unchanged; provider
+settings can now also be set in `config.toml`.
 
 Optional per-provider overrides not shown above (defaults match
 `crates/shared/auth/src/config.rs`): `SOMA_MCP_GOOGLE_CALLBACK_PATH`,

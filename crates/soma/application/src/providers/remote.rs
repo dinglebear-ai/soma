@@ -12,6 +12,8 @@ use crate::{
     SomaService,
 };
 
+/// Provider serving a catalog sourced from a remote inspection report and
+/// dispatching calls through the service's REST action path.
 #[derive(Clone)]
 pub struct RemoteCatalogProvider {
     service: SomaService,
@@ -19,6 +21,7 @@ pub struct RemoteCatalogProvider {
 }
 
 impl RemoteCatalogProvider {
+    /// Builds the provider over the given service and remote catalog.
     pub fn new(service: SomaService, catalog: ProviderCatalog) -> Self {
         Self { service, catalog }
     }
@@ -39,6 +42,8 @@ impl Provider for RemoteCatalogProvider {
     }
 }
 
+/// Parses a remote inspection report's `providers` array into one catalog
+/// per provider entry.
 pub fn catalogs_from_inspection(report: &Value) -> Result<Vec<ProviderCatalog>> {
     let providers = report
         .get("providers")

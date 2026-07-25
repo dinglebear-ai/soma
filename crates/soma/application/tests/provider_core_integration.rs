@@ -1,3 +1,6 @@
+//! Integration tests exercising the provider registry against a fake
+//! provider-core adapter: dispatch, catalog snapshots, and resource reads.
+
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;

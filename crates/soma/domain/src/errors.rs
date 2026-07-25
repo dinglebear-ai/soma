@@ -13,19 +13,29 @@ use serde_json::{json, Value};
 
 use crate::actions::{action_names, ActionValidationError};
 
+/// High-level category of a service/tool failure, driving HTTP status,
+/// retryability, and the `kind` field rendered to REST and MCP clients.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ServiceErrorKind {
+    /// Input failed validation (bad or missing arguments).
     Validation,
+    /// The operation exceeded its time budget.
     Timeout,
+    /// The caller or upstream hit a rate limit.
     RateLimited,
+    /// Authentication or authorization was rejected.
     AuthRejected,
+    /// A required upstream dependency was unreachable or unavailable.
     UpstreamUnavailable,
+    /// The tool ran but failed for an unclassified execution reason.
     Execution,
+    /// An internal server defect not attributable to the caller.
     Internal,
 }
 
 impl ServiceErrorKind {
+    /// Returns the stable snake_case string identifier for this kind.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Validation => "validation",
@@ -38,6 +48,7 @@ impl ServiceErrorKind {
         }
     }
 
+    /// Maps this kind to the HTTP status code used for REST responses.
     pub fn http_status_code(self) -> u16 {
         match self {
             Self::Validation => 400,
@@ -48,6 +59,7 @@ impl ServiceErrorKind {
         }
     }
 
+    /// Returns `true` when a client may reasonably retry this class of error.
     pub fn retryable(self) -> bool {
         matches!(
             self,
@@ -56,27 +68,40 @@ impl ServiceErrorKind {
     }
 }
 
+/// Structured error DTO shared by REST and MCP rendering surfaces.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ToolError {
+    /// Version of the error payload schema.
     pub schema_version: u8,
+    /// High-level failure category.
     pub kind: ServiceErrorKind,
+    /// Stable machine-readable error code.
     pub code: String,
+    /// Human-readable error message.
     pub message: String,
+    /// Whether the caller may retry the operation.
     pub retryable: bool,
+    /// Actionable guidance for resolving the error.
     pub remediation: String,
+    /// Offending input field, when the error is field-specific.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field: Option<String>,
+    /// The rejected value, when a specific value caused the failure.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bad_value: Option<String>,
+    /// Expected pattern the input should have matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_pattern: Option<String>,
+    /// Sub-classification of an execution failure (the underlying kind).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason_kind: Option<String>,
+    /// Valid action names to suggest to the caller.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub available_actions: Vec<&'static str>,
 }
 
 impl ToolError {
+    /// Builds a `Validation`-kind error from a code, message, and remediation.
     pub fn validation(
         code: impl Into<String>,
         message: impl Into<String>,
@@ -97,10 +122,14 @@ impl ToolError {
         }
     }
 
+    /// Builds a validation error from an [`ActionValidationError`], using the
+    /// full set of known action names as suggestions.
     pub fn from_action_validation(error: &ActionValidationError) -> Self {
         Self::from_action_validation_with_actions(error, action_names())
     }
 
+    /// Builds a validation error from an [`ActionValidationError`] with an
+    /// explicit list of available action names.
     pub fn from_action_validation_with_actions(
         error: &ActionValidationError,
         available_actions: Vec<&'static str>,
@@ -116,6 +145,8 @@ impl ToolError {
         tool_error
     }
 
+    /// Builds an execution error, classifying the underlying `anyhow` error
+    /// into a [`ServiceErrorKind`] and setting retryability accordingly.
     pub fn execution(error: &anyhow::Error) -> Self {
         let reason_kind = classify_execution_error(error);
         Self {
@@ -133,30 +164,36 @@ impl ToolError {
         }
     }
 
+    /// Sets the offending input field and returns `self`.
     pub fn with_field(mut self, field: impl Into<String>) -> Self {
         self.field = Some(field.into());
         self
     }
 
+    /// Sets the rejected value and returns `self`.
     pub fn with_bad_value(mut self, bad_value: impl Into<String>) -> Self {
         self.bad_value = Some(bad_value.into());
         self
     }
 
+    /// Sets the expected input pattern and returns `self`.
     pub fn with_expected_pattern(mut self, expected_pattern: impl Into<String>) -> Self {
         self.expected_pattern = Some(expected_pattern.into());
         self
     }
 
+    /// Sets the list of suggested action names and returns `self`.
     pub fn with_available_actions(mut self, available_actions: Vec<&'static str>) -> Self {
         self.available_actions = available_actions;
         self
     }
 
+    /// Returns the HTTP status code for this error's kind.
     pub fn http_status_code(&self) -> u16 {
         self.kind.http_status_code()
     }
 
+    /// Renders this error as a REST response JSON payload.
     pub fn to_rest_payload(&self) -> Value {
         let mut payload = json!({
             "error": self.message,
@@ -171,6 +208,8 @@ impl ToolError {
         payload
     }
 
+    /// Renders this error as an MCP tool-error JSON payload, tagged with the
+    /// originating tool and optional action.
     pub fn to_mcp_payload(&self, tool: &str, action: Option<&str>) -> Value {
         let mut payload = json!({
             "kind": "mcp_tool_error",
@@ -206,8 +245,11 @@ impl ToolError {
     }
 }
 
+/// Alias for [`ToolError`] used where the error is framed as a service error.
 pub type ServiceError = ToolError;
 
+/// Classifies an execution error into a [`ServiceErrorKind`] by scanning its
+/// message for known failure signatures (timeout, rate limit, auth, upstream).
 pub fn classify_execution_error(error: &anyhow::Error) -> ServiceErrorKind {
     let text = error.to_string().to_ascii_lowercase();
     if text.contains("timeout") || text.contains("timed out") {

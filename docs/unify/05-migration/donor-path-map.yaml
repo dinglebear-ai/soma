@@ -1,0 +1,135 @@
+apiVersion: soma.dev/v1
+kind: DonorPathMap
+metadata:
+  status: proposed
+axon:
+- source: axon-adapters
+  target: soma-sources; soma-crawl; Soma knowledge runtime
+  disposition: Split adapter SDK/source implementations from crawling and product orchestration.
+- source: axon-api
+  target: "soma-primitives plus domain-owned types; Soma API fa\xE7ade"
+  disposition: Dissolve. Do not recreate a giant shared API crate.
+- source: axon-authz
+  target: Existing Soma auth/application policy
+  disposition: Do not migrate surface/product scope vocabulary.
+- source: axon-cli
+  target: Existing Soma CLI
+  disposition: Do not migrate.
+- source: axon-core
+  target: soma-sanitize; soma-process; crate-owned types; Soma config/runtime
+  disposition: Dismantle. No `soma-core` dumping ground.
+- source: axon-document
+  target: soma-rag
+  disposition: Port preparation, routing, chunking, citations and processing identity.
+- source: axon-embedding
+  target: soma-rag
+  disposition: Port provider contracts/batching; keep concrete providers optional.
+- source: axon-error
+  target: crate-owned errors plus soma-primitives diagnostics
+  disposition: Port classifications, not one universal error enum.
+- source: axon-extract
+  target: soma-sources; soma-crawl; soma-rag structured normalization
+  disposition: Split vertical extraction behavior by responsibility.
+- source: axon-graph
+  target: soma-graph
+  disposition: Merge with Cortex evidence/trust/temporal behavior.
+- source: axon-jobs
+  target: soma-jobs
+  disposition: Purify from adapters, LLM, ledger, graph, and product runners.
+- source: axon-ledger
+  target: soma-ledger
+  disposition: Direct strong extraction with neutral DTOs.
+- source: axon-llm
+  target: soma-llm
+  disposition: Reuse existing Soma Codex client through an adapter.
+- source: axon-mcp
+  target: Existing Soma MCP
+  disposition: Do not migrate.
+- source: axon-memory
+  target: soma-memory
+  disposition: Extract after RAG/context contracts stabilize.
+- source: axon-observe
+  target: Existing Soma observability plus job/provider metrics
+  disposition: No replacement crate.
+- source: axon-parse
+  target: soma-rag
+  disposition: Port parser registry, facts, code/structured parsing and graph candidates.
+- source: axon-prune
+  target: soma-ledger cleanup debt plus Soma retention use cases
+  disposition: Do not create a separate crate initially.
+- source: axon-retrieval
+  target: soma-rag plus Soma context broker
+  disposition: Port hybrid mechanics; graph-aware orchestration belongs to product broker.
+- source: axon-route
+  target: soma-route
+  disposition: Direct extraction.
+- source: axon-services
+  target: Soma application/runtime knowledge modules
+  disposition: Mine live orchestration; do not publish `axon-services` under a new name.
+- source: axon-vectors
+  target: soma-rag
+  disposition: Port vector contracts, payload policy, BM42/hybrid and Qdrant adapter.
+- source: axon-web
+  target: Existing Soma Aurora web application
+  disposition: Do not migrate.
+cortex:
+- source: src/ingest.rs; src/db/*
+  target: soma-observations; soma-ingest
+  disposition: Canonical models, writer, FTS, batching, retention and query behavior.
+- source: src/ingest_metadata.rs
+  target: soma-sanitize
+  disposition: Bounded metadata and redaction.
+- source: src/receiver/*
+  target: soma-collectors
+  disposition: Syslog codec/receiver and peer-vs-claimed identity.
+- source: src/filetail/*
+  target: soma-collectors; soma-ingest
+  disposition: File identity, rotation/truncation, checkpoints and source supervision.
+- source: src/docker_ingest/*
+  target: soma-collectors
+  disposition: Docker logs/events normalization.
+- source: src/otlp/*
+  target: soma-collectors
+  disposition: OTLP log conversion and optional receiver.
+- source: src/heartbeat*
+  target: soma-collectors
+  disposition: Host telemetry snapshots and collection contracts.
+- source: src/inventory/*
+  target: soma-collectors; soma-graph
+  disposition: Inventory models/collectors and topology projection.
+- source: src/shell_history_ingest.rs; src/command_log.rs
+  target: soma-collectors
+  disposition: Shell history and command evidence.
+- source: src/scanner/*; src/ai_*; src/agent_command_ingest.rs
+  target: soma-transcript; source/observation adapters
+  disposition: One typed session model with document and operational projections.
+- source: src/enrich/*; src/normalize.rs
+  target: soma-collectors
+  disposition: Log parsing, templates, severity and enrichment.
+- source: Cortex investigation graph tables/contracts
+  target: soma-graph
+  disposition: Trust, confidence, temporal evidence, resolver and explanation paths.
+- source: src/assessment/*
+  target: soma-llm or later Soma product analysis
+  disposition: Only generic provider execution/contracts migrate in v1.
+- source: src/compose/*
+  target: observation adapters and product inventory/config snapshot modules
+  disposition: Ingest and graph active Compose state; mutation/repair is not a v1 context requirement.
+- source: src/deploy/*; src/agent_deploy*
+  target: Existing Soma self-update or deferred product operations
+  disposition: Not part of Agent/Incus work and not required to merge context planes.
+- source: src/update.rs
+  target: Existing soma-self-update adoption
+  disposition: No new extraction.
+- source: src/notifications/*
+  target: Existing integrations or later notification product work
+  disposition: Not required for v1 context merger.
+- source: src/api/*; src/mcp/*; src/cli/*; src/surfaces/*; src/web_app.rs
+  target: Existing Soma surfaces
+  disposition: Do not migrate.
+- source: src/config.rs; src/app/*; src/runtime/*; src/setup/*
+  target: Soma product config/runtime composition
+  disposition: Mine behavior only where needed.
+- source: src/logging/*; src/observability*
+  target: Existing Soma observability and traces
+  disposition: Do not create a competing stack.

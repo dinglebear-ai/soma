@@ -1,0 +1,21 @@
+{
+  "target": "https://github.com/dinglebear-ai/soma",
+  "kind": "github_repository",
+  "scope": {
+    "include": [
+      "**/*.rs",
+      "docs/**/*.md"
+    ],
+    "exclude": [
+      "target/**"
+    ]
+  },
+  "options": {
+    "issues": true,
+    "pullRequests": true,
+    "releases": true
+  },
+  "labels": {
+    "project": "soma"
+  }
+}

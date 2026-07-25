@@ -13,6 +13,8 @@ use crate::{
     SomaService,
 };
 
+/// Provider exposing Soma's built-in Rust actions (from `ACTION_SPECS`) as a
+/// catalog and dispatching calls through the shared `SomaService`.
 #[derive(Clone)]
 pub struct StaticRustProvider {
     service: SomaService,
@@ -20,6 +22,7 @@ pub struct StaticRustProvider {
 }
 
 impl StaticRustProvider {
+    /// Builds the provider over the given service with the built-in catalog.
     pub fn new(service: SomaService) -> Self {
         Self {
             service,
@@ -27,6 +30,7 @@ impl StaticRustProvider {
         }
     }
 
+    /// Returns the built-in action catalog without constructing a provider.
     pub fn catalog_static() -> ProviderCatalog {
         static_catalog()
     }

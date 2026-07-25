@@ -25,8 +25,11 @@ use super::{Provider, ProviderAuthMode, ProviderPrincipal, ProviderRegistry, Reg
 #[derive(Debug, Clone)]
 pub struct DynamicResourceTemplate {
     pub(crate) path: ResourcePath,
+    /// Human-readable template name advertised via MCP.
     pub name: String,
+    /// Human-readable description of what the template resolves.
     pub description: String,
+    /// MIME type of the resolved content, if known.
     pub mime_type: Option<String>,
     /// Scope required to invoke this template, enforced the same way
     /// `ProviderResource::scope` is enforced for static resources — see
@@ -74,12 +77,18 @@ impl DynamicResourceTemplate {
 /// `ResourceContents::text`/`::blob`.
 #[derive(Debug)]
 pub enum ResourceReadOutput {
+    /// Text content, becoming an MCP `ResourceContents::text`.
     Text {
+        /// The resolved text content.
         text: String,
+        /// MIME type of the content, if known.
         mime_type: Option<String>,
     },
+    /// Binary content, becoming an MCP `ResourceContents::blob`.
     Blob {
+        /// Base64-encoded binary content.
         blob_base64: String,
+        /// MIME type of the content, if known.
         mime_type: Option<String>,
     },
 }

@@ -1,0 +1,18 @@
+# Replace every placeholder with the full 40-character commit before implementation.
+format_version = 1
+generated_at = "2026-07-21"
+
+[soma]
+repository = "https://github.com/dinglebear-ai/soma"
+short_commit = "0418156"
+commit = "<resolve-full-sha>"
+
+[axon]
+repository = "https://github.com/dinglebear-ai/axon"
+short_commit = "1ab47e4"
+commit = "<resolve-full-sha>"
+
+[cortex]
+repository = "https://github.com/dinglebear-ai/cortex"
+short_commit = "9633fc3"
+commit = "<resolve-full-sha>"

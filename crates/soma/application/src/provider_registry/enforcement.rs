@@ -1,7 +1,8 @@
 //! Soma-specific policy layered around provider-core dispatch.
 
 use soma_domain::actions::scopes_satisfy;
-use soma_provider_core::{HostCapabilities, ProviderTool};
+use soma_domain::authz::{self, CallerContext};
+use soma_provider_core::{HostCapabilities, ProviderKind, ProviderTool};
 
 use crate::{capabilities::CapabilityBroker, provider_errors::ProviderError};
 
@@ -10,7 +11,9 @@ use super::{ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal, P
 pub(super) fn enforce_pre_input(
     tool: &ProviderTool,
     call: &ProviderCall,
+    provider_kind: ProviderKind,
 ) -> Result<(), ProviderError> {
+    enforce_authz(provider_kind, call)?;
     enforce_scope(tool, call)?;
     enforce_admin(tool, call)?;
     enforce_destructive(tool, call)?;
@@ -34,6 +37,76 @@ pub(crate) fn provider_tool_surface_enabled(tool: &ProviderTool, surface: Provid
         ProviderSurface::Cli => soma_provider_core::ProviderSurface::Cli,
         ProviderSurface::Palette => soma_provider_core::ProviderSurface::Palette,
     })
+}
+
+/// Builds the domain [`CallerContext`] from what dispatch already knows.
+/// Only the LoopbackDev and TrustedGateway auth modes — the two modes whose
+/// scope checks were already bypassed before this layer existed — yield a
+/// trusted-local caller; a Mounted (remote token) caller can never claim
+/// local trust regardless of the scopes it presents.
+fn caller_context(call: &ProviderCall) -> CallerContext {
+    match call.auth_mode {
+        ProviderAuthMode::LoopbackDev | ProviderAuthMode::TrustedGateway => {
+            CallerContext::trusted_local_caller(call.principal.subject.clone())
+        }
+        ProviderAuthMode::Mounted => {
+            if call.principal.scopes.is_empty() {
+                CallerContext::anonymous()
+            } else {
+                CallerContext::remote_scoped(
+                    call.principal.subject.clone(),
+                    call.principal.scopes.clone(),
+                )
+            }
+        }
+    }
+}
+
+/// Safety-class affinity check for dynamic provider dispatch. Runs before
+/// the per-tool declared-scope check: the class affinity is a floor derived
+/// from what the provider's handler *kind* can do, independent of what the
+/// tool manifest claims.
+fn enforce_authz(provider_kind: ProviderKind, call: &ProviderCall) -> Result<(), ProviderError> {
+    let decision = authz::authorize_provider_kind(&caller_context(call), provider_kind.as_str());
+    for warning in &decision.warnings {
+        tracing::debug!(
+            provider = %call.provider,
+            action = %call.action,
+            reason = decision.reason,
+            %warning,
+            "provider authz warning"
+        );
+    }
+    if decision.allowed {
+        return Ok(());
+    }
+    let (code, remediation) = match decision.reason {
+        authz::reasons::DENIED_SCOPE_MISSING => (
+            "insufficient_scope",
+            "Authenticate with a token whose scopes satisfy this provider kind's safety-class affinity.",
+        ),
+        authz::reasons::DENIED_AFFINITY_REQUIRES_LOCAL_TRUST => (
+            "local_trust_required",
+            "Invoke this action from the CLI/loopback surface or behind an explicitly trusted gateway; remote tokens cannot execute local-runtime providers.",
+        ),
+        _ => (
+            "unclassified_provider_kind",
+            "Add a safety classification for this provider kind before exposing it to dispatch.",
+        ),
+    };
+    Err(ProviderError::new(
+        code,
+        &call.provider,
+        Some(call.action.clone()),
+        format!(
+            "action `{}` on provider `{}` (kind `{}`) denied by authorization policy: {}",
+            call.action,
+            call.provider,
+            provider_kind.as_str(),
+            decision.reason
+        ),
+        remediation,
+    ))
 }
 
 fn enforce_scope(tool: &ProviderTool, call: &ProviderCall) -> Result<(), ProviderError> {

@@ -25,35 +25,62 @@ pub struct SomaService {
     client: SomaClient,
 }
 
+/// Elicited requirements for scaffolding a new Soma-based project.
+///
+/// Collected from the operator (via MCP elicitation) and normalized by
+/// [`SomaService::scaffold_intent`] into the JSON handoff contract.
 #[derive(Debug, Clone)]
 pub struct ScaffoldIntent {
+    /// Human-readable project display name.
     pub display_name: String,
+    /// Cargo crate name (kebab-case identifier).
     pub crate_name: String,
+    /// Binary/executable name (kebab-case identifier).
     pub binary_name: String,
+    /// Server category selector (e.g. `upstream-client` or `application-platform`).
     pub server_category: String,
+    /// Uppercase environment-variable prefix (e.g. `UNRAID`).
     pub env_prefix: String,
+    /// Upstream authentication kind (`none`, `api-key`, `bearer`, `oauth`, `both`).
     pub auth_kind: String,
+    /// Bind host for the generated server.
     pub host: String,
+    /// Bind port for the generated server.
     pub port: u16,
+    /// MCP transport selection (`stdio`, `http`, or `dual`).
     pub mcp_transport: String,
+    /// Comma-separated MCP primitives to enable (`tools`, `resources`, `prompts`, `elicitation`).
     pub mcp_primitives: String,
+    /// Deployment target (`systemd`, `docker`, or `none`).
     pub deployment: String,
+    /// Comma-separated plugin targets (`claude`, `codex`, `gemini`).
     pub plugins: String,
+    /// Whether to publish MCP registry metadata for the project.
     pub publish_mcp: bool,
+    /// Comma-separated documentation URLs to crawl for context.
     pub crawl_urls: String,
+    /// Comma-separated repositories to crawl for context.
     pub crawl_repos: String,
+    /// Comma-separated search topics to crawl for context.
     pub crawl_search_topics: String,
 }
 
+/// Outcome of the elicited-name demo, mirroring the MCP elicitation result states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ElicitedNameOutcome<'a> {
+    /// The user submitted a name.
     Accepted(&'a str),
+    /// The user accepted but provided no name.
     NoInput,
+    /// The user declined to share a name.
     Declined,
+    /// The user cancelled the elicitation.
     Cancelled,
+    /// The MCP client does not support elicitation.
     Unsupported,
 }
 
+/// Validation failure for a [`ScaffoldIntent`], carrying a stable code and remediation hint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScaffoldIntentValidationError {
     code: &'static str,
@@ -84,18 +111,22 @@ impl ScaffoldIntentValidationError {
         self
     }
 
+    /// Stable machine-readable error code.
     pub fn code(&self) -> &'static str {
         self.code
     }
 
+    /// Offending field name, when the failure is attributable to one.
     pub fn field(&self) -> Option<&'static str> {
         self.field
     }
 
+    /// Human-facing remediation guidance.
     pub fn remediation(&self) -> &'static str {
         self.remediation
     }
 
+    /// Expected value pattern (regex), when the failure is a format mismatch.
     pub fn expected_pattern(&self) -> Option<&'static str> {
         self.expected_pattern
     }
@@ -110,6 +141,7 @@ impl std::fmt::Display for ScaffoldIntentValidationError {
 impl std::error::Error for ScaffoldIntentValidationError {}
 
 impl SomaService {
+    /// Construct a service over the given transport client.
     pub fn new(client: SomaClient) -> Self {
         Self { client }
     }

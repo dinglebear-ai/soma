@@ -25,7 +25,7 @@
 #
 # NOT in pre-commit (too slow / too blocking for rapid commits):
 #   - cargo clippy    → runs in CI (.github/workflows/ci.yml)
-#   - cargo test      → runs in CI
+#   - cargo test      → runs in CI (includes `cargo test --doc`; nextest skips doctests)
 #   - cargo nextest   → runs in CI
 #   - cargo fmt       → run manually with `cargo fmt`; CI catches violations
 #   - cargo check     → too slow for every commit; use `just check` manually

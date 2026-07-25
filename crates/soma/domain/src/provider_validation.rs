@@ -24,6 +24,8 @@ const RESERVED_CLI_COMMANDS: &[&str] = &[
     "help",
 ];
 
+/// Validates a raw manifest JSON value against schema and Soma policy,
+/// returning the deserialized [`ProviderManifest`] on success.
 pub fn validate_provider_manifest_value(
     value: &Value,
 ) -> Result<ProviderManifest, ProviderValidationError> {
@@ -35,10 +37,13 @@ pub fn validate_provider_manifest_value(
     Ok(manifest)
 }
 
+/// Validates a manifest JSON value against the provider-core schema.
 pub fn validate_manifest_schema(value: &Value) -> Result<(), ProviderValidationError> {
     soma_provider_core::validate_manifest_schema(value)
 }
 
+/// Validates a manifest through provider-core, then applies Soma-specific
+/// policy: reserved CLI verbs and rejection of `SOMA_`/`LAB_`-prefixed env.
 pub fn validate_provider_manifest(
     manifest: &ProviderManifest,
 ) -> Result<(), ProviderValidationError> {

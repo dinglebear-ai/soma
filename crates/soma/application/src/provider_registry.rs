@@ -1,3 +1,5 @@
+//! Provider dispatch registry: the [`ProviderRegistry`] resolves actions to
+//! providers, builds catalog snapshots, and indexes resources and prompts.
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
@@ -27,12 +29,18 @@ use refresh::ProviderRefreshEvent;
 use resources::ResourceIndex;
 pub use resources::{DynamicResourceTemplate, ResourceReadOutput};
 pub use soma_provider_core::{Provider as CoreProvider, ProviderOutput};
+/// Product-neutral provider call shape (`soma_provider_core::ProviderCall`),
+/// as handed to the shared core registry once auth/scope fields are stripped.
 pub type ProviderInvocation = CoreProviderCall;
 
+/// A loaded provider: exposes a catalog and dispatches action calls, with
+/// optional MCP resource-read support layered on top.
 #[async_trait]
 pub trait Provider: Send + Sync {
+    /// The provider's catalog — its tools, prompts, resources, and metadata.
     fn catalog(&self) -> ProviderCatalog;
 
+    /// Executes one provider action call and returns its output.
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError>;
 
     /// Dynamic resource templates this provider serves. Every provider
@@ -74,16 +82,22 @@ pub trait Provider: Send + Sync {
     }
 }
 
+/// The Soma-facing surface a provider call arrives on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProviderSurface {
+    /// MCP tool/resource/prompt surface.
     Mcp,
+    /// REST HTTP surface.
     Rest,
+    /// Command-line surface.
     Cli,
+    /// Command palette surface.
     Palette,
 }
 
 impl ProviderSurface {
+    /// The lowercase string identifier for this surface.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Mcp => "mcp",
@@ -103,20 +117,29 @@ impl ProviderSurface {
     }
 }
 
+/// How the caller authenticated, governing whether scope checks apply.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderAuthMode {
+    /// Loopback development mode; scope checks bypassed.
     LoopbackDev,
+    /// Non-loopback behind an authz-enforcing gateway; scope checks bypassed.
     TrustedGateway,
+    /// Mounted auth middleware; scope checks enforced.
     Mounted,
 }
 
+/// The authenticated caller: its subject identity and granted scopes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPrincipal {
+    /// Subject identifier for the caller.
     pub subject: String,
+    /// Scopes granted to the caller.
     pub scopes: Vec<String>,
 }
 
 impl ProviderPrincipal {
+    /// The synthetic principal used in loopback development mode, granted the
+    /// read scope.
     pub fn loopback_dev() -> Self {
         Self {
             subject: "loopback-dev".to_owned(),
@@ -124,6 +147,7 @@ impl ProviderPrincipal {
         }
     }
 
+    /// An anonymous principal with no scopes.
     pub fn anonymous() -> Self {
         Self {
             subject: "anonymous".to_owned(),
@@ -132,9 +156,12 @@ impl ProviderPrincipal {
     }
 }
 
+/// Byte-size ceilings enforced on a provider call's input and response.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProviderRequestLimits {
+    /// Maximum accepted request input size in bytes.
     pub max_input_bytes: usize,
+    /// Maximum permitted response size in bytes.
     pub max_response_bytes: usize,
 }
 
@@ -147,20 +174,32 @@ impl Default for ProviderRequestLimits {
     }
 }
 
+/// A fully-resolved provider action invocation, carrying auth, scope, surface,
+/// and limit context alongside the action and its parameters.
 #[derive(Debug, Clone)]
 pub struct ProviderCall {
+    /// Target provider name.
     pub provider: String,
+    /// Action to invoke on the provider.
     pub action: String,
+    /// Action parameters as JSON.
     pub params: Value,
+    /// Authenticated caller.
     pub principal: ProviderPrincipal,
+    /// Authentication mode governing scope enforcement.
     pub auth_mode: ProviderAuthMode,
+    /// Surface the call arrived on.
     pub surface: ProviderSurface,
+    /// Whether the caller confirmed a destructive action.
     pub destructive_confirmed: bool,
+    /// Byte-size limits applied to this call.
     pub limits: ProviderRequestLimits,
+    /// Registry snapshot id this call is bound to.
     pub snapshot_id: String,
 }
 
 impl ProviderCall {
+    /// Strips this call down to the product-neutral core invocation shape.
     pub fn provider_invocation(&self) -> ProviderInvocation {
         ProviderInvocation {
             provider: self.provider.clone(),
@@ -171,6 +210,7 @@ impl ProviderCall {
         }
     }
 
+    /// Builds the serializable execution envelope describing this call.
     pub fn execution_envelope(&self) -> ProviderExecutionEnvelope {
         ProviderExecutionEnvelope {
             schema_version: 1,
@@ -182,51 +222,73 @@ impl ProviderCall {
         }
     }
 
+    /// Serializes the execution envelope to JSON bytes.
     pub fn execution_payload(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(&self.execution_envelope())
     }
 }
 
+/// The serializable record of a provider action invocation, emitted for
+/// downstream execution/audit consumers.
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderExecutionEnvelope {
+    /// Envelope schema version.
     pub schema_version: u32,
+    /// Target provider name.
     pub provider: String,
+    /// Action invoked.
     pub action: String,
+    /// Action parameters as JSON.
     pub params: Value,
+    /// Surface the call arrived on.
     pub surface: ProviderSurface,
+    /// Registry snapshot id the call is bound to.
     pub snapshot_id: String,
 }
 
+/// An immutable, fingerprinted view of the loaded providers: their catalogs,
+/// routing/resource indexes, and cached derived artifacts.
 #[derive(Clone)]
 pub struct RegistrySnapshot {
+    /// Snapshot identifier (equal to the fingerprint).
     pub id: String,
+    /// Content fingerprint of the loaded provider set.
     pub fingerprint: String,
+    /// Catalogs for every loaded provider.
     pub catalogs: Vec<ProviderCatalog>,
     core: Arc<CoreRegistrySnapshot>,
     exact_resources: HashMap<String, (String, ProviderResource)>,
     dynamic_resources: Vec<(String, DynamicResourceTemplate)>,
+    /// Number of JSON schema validators compiled for this snapshot.
     pub compiled_validator_count: usize,
+    /// Cached, pre-serialized OpenAPI document bytes.
     pub cached_openapi_bytes: Arc<Vec<u8>>,
+    /// Cached catalog summary JSON.
     pub cached_catalog_summary: Arc<Value>,
 }
 
 impl RegistrySnapshot {
+    /// The names of every action in this snapshot.
     pub fn action_names(&self) -> Vec<&str> {
         self.core.action_names().collect()
     }
 
+    /// Resolves a REST method+path to its action name, if routed.
     pub fn route_action(&self, method: &str, path: &str) -> Option<&str> {
         self.core.route_action(method, path)
     }
 
+    /// Resolves a CLI command to its action name, if routed.
     pub fn cli_action(&self, command: &str) -> Option<&str> {
         self.core.cli_action(command)
     }
 
+    /// The primitive kind (tool/prompt/resource) for a named primitive.
     pub fn primitive_kind(&self, name: &str) -> Option<&str> {
         self.core.primitive_kind(name)
     }
 
+    /// Whether the action is marked destructive and requires confirmation.
     pub fn action_requires_confirmation(&self, action: &str) -> bool {
         self.core
             .tool(action)
@@ -234,12 +296,14 @@ impl RegistrySnapshot {
             .unwrap_or(false)
     }
 
+    /// The provider that owns the given action.
     pub fn provider_for_action(&self, action: &str) -> Option<&str> {
         self.core
             .tool(action)
             .map(|entry| entry.provider_id().as_str())
     }
 
+    /// Borrows the underlying product-neutral core snapshot.
     pub fn core_snapshot(&self) -> &CoreRegistrySnapshot {
         &self.core
     }
@@ -249,6 +313,8 @@ impl RegistrySnapshot {
     }
 }
 
+/// Thread-safe registry of loaded providers backing every Soma surface,
+/// holding the active snapshot and supporting hot-reload from a file source.
 #[derive(Clone)]
 pub struct ProviderRegistry {
     state: Arc<RwLock<RegistryState>>,
@@ -265,10 +331,13 @@ struct RegistryState {
 }
 
 impl ProviderRegistry {
+    /// Builds a registry from the given providers with a default-deny
+    /// capability broker.
     pub fn new(providers: Vec<Arc<dyn Provider>>) -> Result<Self, ProviderValidationError> {
         Self::with_capabilities(providers, CapabilityBroker::default_deny())
     }
 
+    /// Builds a registry from the given providers and capability broker.
     pub fn with_capabilities(
         providers: Vec<Arc<dyn Provider>>,
         capabilities: CapabilityBroker,
@@ -287,6 +356,8 @@ impl ProviderRegistry {
         })
     }
 
+    /// Builds a registry from the given base providers plus dynamic providers
+    /// loaded from a file source, enabling later hot-reloads.
     pub fn with_file_source(
         providers: Vec<Arc<dyn Provider>>,
         capabilities: CapabilityBroker,
@@ -315,6 +386,7 @@ impl ProviderRegistry {
         })
     }
 
+    /// Returns the currently active registry snapshot.
     pub fn snapshot(&self) -> Arc<RegistrySnapshot> {
         self.state
             .read()
@@ -408,6 +480,8 @@ impl ProviderRegistry {
         self.snapshot()
     }
 
+    /// Builds and validates a snapshot from the given providers without
+    /// installing it, for pre-flight checking a candidate reload.
     pub fn validate_reload(
         &self,
         providers: Vec<Arc<dyn Provider>>,
@@ -416,6 +490,8 @@ impl ProviderRegistry {
         Ok(snapshot)
     }
 
+    /// Atomically replaces the loaded providers and active snapshot,
+    /// clearing any file fingerprint.
     pub fn reload(
         &self,
         providers: Vec<Arc<dyn Provider>>,
@@ -432,8 +508,11 @@ impl ProviderRegistry {
         Ok(snapshot)
     }
 
+    /// Routes a provider call to its owning provider, enforcing pre-input
+    /// checks, declared capabilities, and the response size limit around the
+    /// provider's own `call`.
     pub async fn dispatch(&self, mut call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
-        let (snapshot, core_registry, provider, tool, capabilities) = {
+        let (snapshot, core_registry, provider, tool, capabilities, provider_kind) = {
             let state = self
                 .state
                 .read()
@@ -458,11 +537,11 @@ impl ProviderRegistry {
                     "Reload providers and retry.",
                 )
             })?;
-            let capabilities = snapshot
+            let (capabilities, provider_kind) = snapshot
                 .catalogs
                 .iter()
                 .find(|catalog| catalog.provider.name == provider_name)
-                .map(|catalog| catalog.capabilities.clone())
+                .map(|catalog| (catalog.capabilities.clone(), catalog.provider.kind))
                 .expect("core provider index must reference an active catalog");
             (
                 snapshot,
@@ -470,6 +549,7 @@ impl ProviderRegistry {
                 provider,
                 tool,
                 capabilities,
+                provider_kind,
             )
         };
 
@@ -486,7 +566,7 @@ impl ProviderRegistry {
                     let mut call = pre_input_call;
                     call.provider.clone_from(&invocation.provider);
                     call.snapshot_id.clone_from(&invocation.snapshot_id);
-                    enforce_pre_input(&pre_input_tool, &call)
+                    enforce_pre_input(&pre_input_tool, &call, provider_kind)
                 },
                 move |_, invocation| {
                     let mut call = invocation_call;
@@ -535,6 +615,8 @@ fn provider_map(
 pub struct SharedAdapter(Arc<dyn soma_provider_core::Provider>);
 
 impl SharedAdapter {
+    /// Wraps a shared core provider so it satisfies this crate's `Provider`
+    /// trait.
     pub fn wrap(inner: Arc<dyn soma_provider_core::Provider>) -> Arc<dyn Provider> {
         Arc::new(Self(inner))
     }

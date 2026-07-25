@@ -3,39 +3,63 @@ use soma_domain::errors::ServiceErrorKind;
 
 use crate::{PortError, ProviderError};
 
+/// Error type surfaced by the application layer, carrying a stable code,
+/// remediation guidance, and structured source-specific details.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ApplicationError {
+    /// Stable, machine-readable error code.
     pub code: String,
+    /// Human-readable, redacted description of the failure.
     pub message: String,
+    /// Whether retrying the operation might succeed.
     pub retryable: bool,
+    /// Suggested remediation the caller can act on.
     pub remediation: String,
+    /// Structured details describing where the error originated.
     pub details: Box<ApplicationErrorDetails>,
+    /// Internal diagnostics never serialized to callers.
     #[serde(skip)]
     private_diagnostics: Option<String>,
 }
 
+/// Source-specific detail attached to an [`ApplicationError`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "source", rename_all = "snake_case")]
 pub enum ApplicationErrorDetails {
+    /// No additional structured detail.
     Generic,
+    /// Error originating from a provider.
     Provider {
+        /// Version of the provider error schema.
         schema_version: u32,
+        /// Provider that produced the error.
         provider: String,
+        /// Action being invoked when the error occurred, if known.
         action: Option<String>,
+        /// Provider-specific error kind.
         provider_error_kind: String,
     },
+    /// Error originating from the service layer.
     Service {
+        /// Version of the service error schema.
         schema_version: u8,
+        /// Service-specific error kind.
         service_error_kind: String,
+        /// Field associated with the error, if any.
         field: Option<String>,
+        /// Offending value, if any.
         bad_value: Option<String>,
+        /// Expected value pattern, if any.
         expected_pattern: Option<String>,
+        /// Machine-readable reason kind, if any.
         reason_kind: Option<String>,
+        /// Actions available to the caller as recovery options.
         available_actions: Vec<String>,
     },
 }
 
 impl ApplicationError {
+    /// Builds a generic `ApplicationError` from its core fields.
     pub fn new(
         code: impl Into<String>,
         message: impl Into<String>,
@@ -52,11 +76,13 @@ impl ApplicationError {
         }
     }
 
+    /// Attaches structured details and returns the updated error.
     pub fn with_details(mut self, details: ApplicationErrorDetails) -> Self {
         self.details = Box::new(details);
         self
     }
 
+    /// Returns the internal diagnostics, which are never serialized to callers.
     pub fn private_diagnostics(&self) -> Option<&str> {
         self.private_diagnostics.as_deref()
     }
@@ -85,6 +111,8 @@ impl ApplicationError {
         }
     }
 
+    /// Returns the service error kind when the error came from the service
+    /// layer, otherwise `None`.
     pub fn service_error_kind(&self) -> Option<&str> {
         match self.details.as_ref() {
             ApplicationErrorDetails::Service {
@@ -94,6 +122,7 @@ impl ApplicationError {
         }
     }
 
+    /// Returns `true` when this error represents a validation failure.
     pub fn is_validation(&self) -> bool {
         self.service_error_kind() == Some(ServiceErrorKind::Validation.as_str())
     }

@@ -27,10 +27,12 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::http::{HeaderValue, Method, Request, header};
 use axum::response::{IntoResponse, Redirect, Response};
+use dashmap::DashMap;
 use subtle::ConstantTimeEq;
 use tower::{Layer, Service};
 
@@ -50,6 +52,52 @@ use crate::state::AuthState;
 /// The closure receives the JWT `sub` (or `"static-bearer"` /
 /// browser-session subject) and returns a per-request [`Arc<str>`] key.
 pub type ActorKeyDeriver = dyn Fn(&str) -> Option<Arc<str>> + Send + Sync;
+
+/// Warn-log window for rejected bearer tokens: at most one warn per token
+/// fingerprint per window.
+const FAILED_AUTH_LOG_WINDOW: Duration = Duration::from_secs(60);
+
+/// Cap on distinct fingerprints tracked. Under a many-token flood the log
+/// suppresses (rather than grows or floods) once the cap is hit.
+const FAILED_AUTH_LOG_MAX_ENTRIES: usize = 1024;
+
+/// Rate-limited observability for rejected bearer tokens (pattern ported
+/// from cortex's ingest auth): operators get a `warn` carrying a short
+/// SHA-256 fingerprint of the presented token — never the token itself —
+/// at most once per fingerprint per [`FAILED_AUTH_LOG_WINDOW`], making
+/// brute-force attempts visible without log flooding.
+struct FailedAuthLog {
+    entries: DashMap<String, Instant>,
+}
+
+impl FailedAuthLog {
+    fn new() -> Self {
+        Self {
+            entries: DashMap::new(),
+        }
+    }
+
+    /// Returns `true` when this rejection should be warn-logged.
+    fn should_log(&self, fingerprint: &str) -> bool {
+        let now = Instant::now();
+        if let Some(last) = self.entries.get(fingerprint)
+            && now.duration_since(*last) < FAILED_AUTH_LOG_WINDOW
+        {
+            return false;
+        }
+        if self.entries.len() >= FAILED_AUTH_LOG_MAX_ENTRIES
+            && !self.entries.contains_key(fingerprint)
+        {
+            self.entries
+                .retain(|_, seen| now.duration_since(*seen) < FAILED_AUTH_LOG_WINDOW);
+            if self.entries.len() >= FAILED_AUTH_LOG_MAX_ENTRIES {
+                return false;
+            }
+        }
+        self.entries.insert(fingerprint.to_string(), now);
+        true
+    }
+}
 
 /// Tower layer that authenticates inbound requests and writes
 /// [`AuthContext`] into request extensions.
@@ -81,6 +129,9 @@ struct AuthLayerInner {
     /// [`crate::config::AuthConfig::session_cookie_name`] when an
     /// `auth_state` is supplied; otherwise this is unused.
     session_cookie_name: String,
+    /// Shared rejected-bearer observability state. Deliberately behind its
+    /// own `Arc` so `Arc::make_mut` builder clones keep sharing one log.
+    failed_auth_log: Arc<FailedAuthLog>,
 }
 
 impl AuthLayer {
@@ -100,6 +151,7 @@ impl AuthLayer {
                 static_token_scopes: Vec::new(),
                 login_path: crate::config::DEFAULT_LOGIN_PATH.to_string(),
                 session_cookie_name: crate::config::DEFAULT_SESSION_COOKIE_NAME.to_string(),
+                failed_auth_log: Arc::new(FailedAuthLog::new()),
             }),
         }
     }
@@ -124,6 +176,7 @@ impl AuthLayer {
                 static_token_scopes,
                 login_path,
                 session_cookie_name,
+                failed_auth_log: Arc::new(FailedAuthLog::new()),
             }),
         }
     }
@@ -349,6 +402,22 @@ async fn authenticate(
             }
         }
 
+        // Rejected bearer: surface a rate-limited warn with a token
+        // fingerprint (never the token) so brute-force attempts are
+        // operator-visible. Peer address is logged when the consumer
+        // serves with `into_make_service_with_connect_info`.
+        let token_fp = crate::util::fingerprint(&token);
+        if layer.failed_auth_log.should_log(&token_fp) {
+            let peer = request
+                .extensions()
+                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                .map(|info| info.0.to_string());
+            tracing::warn!(
+                token_fp = %token_fp,
+                peer = peer.as_deref().unwrap_or("unknown"),
+                "rejected bearer token"
+            );
+        }
         return Err(auth_error_response(
             "invalid bearer token",
             layer.resource_url.as_deref(),
@@ -368,11 +437,12 @@ async fn authenticate(
                     *request.method(),
                     Method::GET | Method::HEAD | Method::OPTIONS
                 ) {
-                    let csrf = request
+                    let csrf_ok = request
                         .headers()
                         .get(session::BROWSER_CSRF_HEADER_NAME)
-                        .and_then(|value| value.to_str().ok());
-                    if csrf != Some(session.csrf_token.as_str()) {
+                        .and_then(|value| value.to_str().ok())
+                        .is_some_and(|csrf| tokens_equal(csrf, &session.csrf_token));
+                    if !csrf_ok {
                         return Err(csrf_error_response("missing or invalid csrf token"));
                     }
                 }
@@ -539,6 +609,20 @@ mod tests {
         assert!(tokens_equal("abc", "abc"));
         assert!(!tokens_equal("abc", "abd"));
         assert!(!tokens_equal("abc", "abcd"));
+    }
+
+    #[test]
+    fn failed_auth_log_rate_limits_per_fingerprint() {
+        let log = FailedAuthLog::new();
+        assert!(log.should_log("aaaaaaaaaaaa"));
+        assert!(
+            !log.should_log("aaaaaaaaaaaa"),
+            "second rejection of the same fingerprint inside the window must be suppressed"
+        );
+        assert!(
+            log.should_log("bbbbbbbbbbbb"),
+            "a different fingerprint gets its own window"
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -856,5 +940,136 @@ mod tests {
             .unwrap();
         // Must be 401 — static token blocked because OAuth is active.
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    /// Router that echoes `sub:via_session` from the injected AuthContext.
+    fn session_probe_app(layer: AuthLayer) -> Router {
+        Router::new()
+            .route(
+                "/probe",
+                get(
+                    |axum::Extension(ctx): axum::Extension<AuthContext>| async move {
+                        format!("{}:{}", ctx.sub, ctx.via_session)
+                    },
+                )
+                .post(
+                    |axum::Extension(ctx): axum::Extension<AuthContext>| async move {
+                        format!("{}:{}", ctx.sub, ctx.via_session)
+                    },
+                ),
+            )
+            .route_layer(layer)
+    }
+
+    async fn state_with_session() -> (Arc<AuthState>, crate::types::BrowserSessionRow) {
+        let state = Arc::new(test_auth_state().await);
+        let session = session::create_browser_session(&state, "cookie-user".to_string(), None)
+            .await
+            .expect("create session");
+        (state, session)
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn valid_session_cookie_authenticates_get_and_marks_via_session() {
+        let (state, session) = state_with_session().await;
+        let cookie = format!(
+            "{}={}",
+            state.config.session_cookie_name, session.session_id
+        );
+        let app = session_probe_app(AuthLayer::from_state(state).with_allow_session_cookie(true));
+
+        let response = app
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/probe")
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
+        assert_eq!(&body[..], b"cookie-user:true");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_cookie_post_without_csrf_header_is_rejected() {
+        let (state, session) = state_with_session().await;
+        let cookie = format!(
+            "{}={}",
+            state.config.session_cookie_name, session.session_id
+        );
+        let app = session_probe_app(AuthLayer::from_state(state).with_allow_session_cookie(true));
+
+        let response = app
+            .oneshot(
+                HttpRequest::builder()
+                    .method(Method::POST)
+                    .uri("/probe")
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_cookie_post_with_wrong_csrf_header_is_rejected() {
+        let (state, session) = state_with_session().await;
+        let cookie = format!(
+            "{}={}",
+            state.config.session_cookie_name, session.session_id
+        );
+        let app = session_probe_app(AuthLayer::from_state(state).with_allow_session_cookie(true));
+
+        let response = app
+            .oneshot(
+                HttpRequest::builder()
+                    .method(Method::POST)
+                    .uri("/probe")
+                    .header(header::COOKIE, cookie)
+                    .header(session::BROWSER_CSRF_HEADER_NAME, "not-the-csrf-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_cookie_post_with_matching_csrf_header_is_accepted() {
+        let (state, session) = state_with_session().await;
+        let cookie = format!(
+            "{}={}",
+            state.config.session_cookie_name, session.session_id
+        );
+        let app = session_probe_app(AuthLayer::from_state(state).with_allow_session_cookie(true));
+
+        let response = app
+            .oneshot(
+                HttpRequest::builder()
+                    .method(Method::POST)
+                    .uri("/probe")
+                    .header(header::COOKIE, cookie)
+                    .header(
+                        session::BROWSER_CSRF_HEADER_NAME,
+                        session.csrf_token.as_str(),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
+        assert_eq!(&body[..], b"cookie-user:true");
     }
 }

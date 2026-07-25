@@ -30,37 +30,58 @@ mod filesystem_uniqueness;
 #[path = "filesystem_wasm.rs"]
 mod filesystem_wasm;
 
+/// File-backed provider source rooted at a provider directory.
 #[derive(Debug, Clone)]
 pub struct FileProviderSource {
     root: PathBuf,
 }
 
+/// Result of a non-executing inspection of a provider directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderDirectoryInspection {
+    /// Root directory that was inspected.
     pub root: PathBuf,
+    /// Whether the root directory exists.
     pub exists: bool,
+    /// Per-file inspection results, sorted by file name.
     pub files: Vec<ProviderFileInspection>,
+    /// Number of files that would load as active providers.
     pub providers_loaded: usize,
+    /// Number of files that parsed but are disabled.
     pub providers_disabled: usize,
+    /// Number of files that failed to parse or validate.
     pub providers_invalid: usize,
+    /// Number of files skipped because inspecting them requires execution.
     pub providers_skipped: usize,
 }
 
+/// Inspection result for a single provider file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderFileInspection {
+    /// Absolute path to the file.
     pub path: PathBuf,
+    /// File name component of the path.
     pub file_name: String,
+    /// Inspection outcome for this file.
     pub status: ProviderFileInspectionStatus,
+    /// Provider name declared in the manifest, if parsed.
     pub provider_id: Option<String>,
+    /// Provider kind declared in the manifest, if known.
     pub provider_kind: Option<String>,
+    /// Tool/action names declared by the provider.
     pub actions: Vec<String>,
+    /// Error message when the file is invalid or skipped.
     pub error: Option<String>,
 }
 
+/// Outcome of inspecting a single provider file without executing it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderFileInspectionStatus {
+    /// Parsed and validated; would register as an active provider.
     Loaded,
+    /// Parsed and valid but explicitly disabled.
     Disabled,
+    /// Failed to parse or validate.
     Invalid,
     /// File extension requires executing code to introspect (currently just
     /// `.py`) — non-executing inspection deliberately does not load it.
@@ -68,10 +89,12 @@ pub enum ProviderFileInspectionStatus {
 }
 
 impl FileProviderSource {
+    /// Creates a source rooted at `root`.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
     }
 
+    /// Returns the root provider directory.
     pub fn root(&self) -> &Path {
         &self.root
     }
@@ -249,6 +272,8 @@ impl FileProviderSource {
         })
     }
 
+    /// Loads and builds every enabled provider (including resource-file
+    /// providers) from the directory, ready for registration.
     pub fn load(&self) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
         let mut providers = Vec::new();
         for path in self.provider_paths()? {
@@ -269,6 +294,8 @@ impl FileProviderSource {
         Ok(providers)
     }
 
+    /// Computes a stable SHA-256 fingerprint over all provider inputs, used to
+    /// detect changes to the provider directory.
     pub fn fingerprint(&self) -> Result<String, FileProviderLoadError> {
         let mut hasher = Sha256::new();
         for path in self.fingerprint_paths()? {
@@ -459,9 +486,12 @@ fn is_python_dependency_file(path: &Path) -> bool {
     )
 }
 
+/// Error raised while reading, parsing, or building a file-backed provider.
 #[derive(Debug)]
 pub struct FileProviderLoadError {
+    /// Path to the file or directory that caused the error.
     pub path: PathBuf,
+    /// Human-readable description of the failure.
     pub message: String,
 }
 

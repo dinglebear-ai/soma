@@ -3,6 +3,8 @@ use serde_json::{json, Value};
 use super::{provider_tool_surface_enabled, ProviderSurface, RegistrySnapshot};
 
 impl RegistrySnapshot {
+    /// A compact JSON summary confirming the snapshot validated: fingerprint,
+    /// provider/action/validator counts, and the action list.
     pub fn validation_summary(&self) -> Value {
         let actions = self.action_names();
         json!({
@@ -16,6 +18,9 @@ impl RegistrySnapshot {
         })
     }
 
+    /// A detailed JSON report of every provider in the snapshot — its
+    /// tools, prompts, resources, per-surface enablement, and runtime
+    /// security posture — for inspection endpoints.
     pub fn inspection_report(&self) -> Value {
         let providers = self
             .catalogs

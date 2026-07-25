@@ -15,6 +15,7 @@ mod execution;
 mod principal;
 
 pub mod actions;
+pub mod authz;
 pub mod errors;
 pub mod provider_validation;
 pub mod scopes;

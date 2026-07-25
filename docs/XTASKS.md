@@ -34,7 +34,7 @@ xtask/
 | `cargo xtask check-env` | Validate required environment before server start. |
 | `cargo xtask patterns` | Check static contracts derived from `docs/PATTERNS.md`. |
 | `cargo xtask generate-docs` | Regenerate volatile docs and metadata from canonical Rust specs. |
-| `cargo xtask doc` | Build Rust API docs (rustdoc) for the workspace. `--open` to browse, `--strict` to treat warnings as errors (mirrors CI), `-p <crate>` for one package. |
+| `cargo xtask doc` | Build Rust API docs (rustdoc) for the workspace plus the `target/doc/` landing page and Redoc OpenAPI page. `--open` to browse, `--strict` to treat warnings as errors (mirrors CI), `--docsrs-cfg` for nightly feature badges, `-p <crate>` for one package. |
 | `cargo xtask check-docs` | Fail when generated docs or metadata drift from canonical Rust specs. |
 | `cargo xtask check-stale-claims` | Fail when known stale hardcoded Soma claims reappear. |
 | `cargo xtask sync-web-source` | Copy editable `apps/web` source into `crates/soma/web/assets/source` with generated artifacts excluded. |
@@ -132,15 +132,36 @@ cargo xtask doc                     # full workspace API docs → target/doc/
 cargo xtask doc --open              # ...and open in a browser
 cargo xtask doc -p soma-application # one crate only
 cargo xtask doc --strict            # RUSTDOCFLAGS="-D warnings" (CI grade)
+RUSTUP_TOOLCHAIN=nightly cargo xtask doc --docsrs-cfg  # feature badges
 ```
 
 - `--strict` enforces the same `RUSTDOCFLAGS=-D warnings` gate that
   `cargo xtask ci` and `.github/workflows/docs.yml` use. Without it, a stray
   doc-link surfaces as a non-fatal warning rather than blocking a local
   `--open` browse.
+- `--docsrs-cfg` appends `--cfg docsrs` to `RUSTDOCFLAGS`, activating the
+  `#![cfg_attr(docsrs, feature(doc_auto_cfg))]` attribute that feature-gated
+  crates carry so rustdoc renders per-item "Available on crate feature X only"
+  badges. `doc_auto_cfg` is a **nightly** rustdoc feature — this is the same
+  posture docs.rs uses — so run it with a nightly toolchain. The stable CI doc
+  gate never passes the cfg and stays byte-for-byte unchanged; the attribute is
+  inert there.
 - `--no-all-features` documents default features only (faster local rebuild).
 - `--document-private-items` is an opt-in escape hatch for internal/team docs;
   the default public-only output is what gets deployed to GitHub Pages.
+
+Every run also gives `target/doc/` its entry points (see `xtask/src/doc_site.rs`):
+
+- `index.html` — landing page listing every workspace crate (name +
+  `description` from `cargo metadata`) with links into each crate's rustdoc.
+- `openapi.json` — copy of `docs/generated/openapi.json` so the doc site is
+  self-contained.
+- `openapi.html` — that contract rendered with the Redoc standalone bundle
+  (loaded from the Redoc CDN; the doc site's only external asset).
+
+`.github/workflows/docs.yml` runs `cargo xtask doc --strict` and deploys
+`target/doc/` to GitHub Pages on `main`, so the Pages root is this landing
+page.
 
 The `just doc` / `just doc-open` / `just doc-check` recipes delegate here.
 

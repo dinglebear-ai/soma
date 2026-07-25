@@ -20,6 +20,15 @@ use crate::sqlite::SqliteStore;
 
 const RATE_LIMIT_RETRY_AFTER_MS: u64 = 60_000;
 
+/// Hard cap on distinct per-IP buckets held in memory. Without a cap an
+/// attacker rotating IPv6 source addresses grows the map without bound
+/// (pattern ported from labby-auth's bounded limiter).
+const RATE_LIMIT_MAX_IP_BUCKETS: usize = 4096;
+
+/// Buckets untouched for this long are eligible for eviction. Any bucket
+/// idle this long has fully refilled, so dropping it loses no state.
+const RATE_LIMIT_BUCKET_IDLE_SECS: u64 = 600;
+
 /// Per-request parameters for rate-limiting. Each bucket is independent.
 struct RateLimiterInner {
     /// Tokens available in the bucket.
@@ -70,16 +79,28 @@ impl RateLimiterInner {
 #[derive(Clone)]
 struct PerIpRateLimiter {
     requests_per_minute: u32,
-    /// Per-IP buckets.  Entries accumulate over time; they are not evicted
-    /// (memory growth is bounded by the number of distinct client IPs).
+    /// Per-IP buckets. Bounded: when the map reaches `max_buckets`, idle
+    /// buckets are swept and, failing that, the least-recently-used bucket
+    /// is evicted before a new one is inserted.
     buckets: Arc<DashMap<IpAddr, Mutex<RateLimiterInner>>>,
+    /// Cap on `buckets` (constant in production; overridable in tests).
+    max_buckets: usize,
+    /// Serializes slow-path bucket creation so a burst of previously-unseen
+    /// IPs cannot race past the `max_buckets` cap.
+    maintenance: Arc<Mutex<()>>,
 }
 
 impl PerIpRateLimiter {
     fn new(requests_per_minute: u32) -> Self {
+        Self::with_max_buckets(requests_per_minute, RATE_LIMIT_MAX_IP_BUCKETS)
+    }
+
+    fn with_max_buckets(requests_per_minute: u32, max_buckets: usize) -> Self {
         Self {
             requests_per_minute,
             buckets: Arc::new(DashMap::new()),
+            max_buckets: max_buckets.max(1),
+            maintenance: Arc::new(Mutex::new(())),
         }
     }
 
@@ -89,11 +110,20 @@ impl PerIpRateLimiter {
         if let Some(bucket) = self.buckets.get(&ip) {
             return bucket.value().lock().await.try_acquire();
         }
-        // Slow path: insert a new bucket and immediately try.
-        self.buckets
-            .entry(ip)
-            .or_insert_with(|| Mutex::new(RateLimiterInner::new(self.requests_per_minute)));
-        // Safe unwrap: we just inserted the entry above.
+        // Slow path: create the bucket under the maintenance lock so
+        // concurrent new IPs cannot collectively exceed the cap.
+        let _guard = self.maintenance.lock().await;
+        if !self.buckets.contains_key(&ip) {
+            if self.buckets.len() >= self.max_buckets {
+                self.evict_one();
+            }
+            self.buckets.insert(
+                ip,
+                Mutex::new(RateLimiterInner::new(self.requests_per_minute)),
+            );
+        }
+        // Safe expect: inserted above (or by a racing task) and only
+        // `evict_one` removes entries, which runs under the same lock.
         self.buckets
             .get(&ip)
             .expect("bucket just inserted")
@@ -101,6 +131,36 @@ impl PerIpRateLimiter {
             .lock()
             .await
             .try_acquire()
+    }
+
+    /// Make room for one new bucket: drop every idle bucket, and if none
+    /// were idle, drop the least-recently-used one. Buckets whose mutex is
+    /// currently held are in active use and are never candidates. Must be
+    /// called while holding `maintenance`.
+    fn evict_one(&self) {
+        let now = Instant::now();
+        let mut stale: Vec<IpAddr> = Vec::new();
+        let mut oldest: Option<(IpAddr, Instant)> = None;
+        for entry in self.buckets.iter() {
+            let Ok(inner) = entry.value().try_lock() else {
+                continue;
+            };
+            let last_used = inner.last_refill;
+            if now.duration_since(last_used).as_secs() >= RATE_LIMIT_BUCKET_IDLE_SECS {
+                stale.push(*entry.key());
+            } else if oldest.is_none_or(|(_, t)| last_used < t) {
+                oldest = Some((*entry.key(), last_used));
+            }
+        }
+        if stale.is_empty() {
+            if let Some((ip, _)) = oldest {
+                self.buckets.remove(&ip);
+            }
+            return;
+        }
+        for ip in stale {
+            self.buckets.remove(&ip);
+        }
     }
 }
 
@@ -643,5 +703,32 @@ mod tests {
             state.provider("google").unwrap().callback_path(),
             "/gateway/auth/google/callback"
         );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn per_ip_rate_limiter_evicts_at_cap_instead_of_growing() {
+        let limiter = PerIpRateLimiter::with_max_buckets(60, 4);
+        for i in 0..4u8 {
+            assert!(limiter.try_acquire(IpAddr::from([10, 0, 0, i])).await);
+        }
+        assert_eq!(limiter.buckets.len(), 4);
+
+        // A fifth previously-unseen IP evicts an existing bucket (none are
+        // idle yet, so the least-recently-used one goes) rather than
+        // growing the map past the cap.
+        let newcomer = IpAddr::from([10, 0, 0, 200]);
+        assert!(limiter.try_acquire(newcomer).await);
+        assert_eq!(limiter.buckets.len(), 4);
+        assert!(limiter.buckets.contains_key(&newcomer));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn per_ip_rate_limiter_stays_bounded_under_address_churn() {
+        let limiter = PerIpRateLimiter::with_max_buckets(60, 8);
+        for i in 0..100u32 {
+            let ip = IpAddr::from([10, 1, (i / 256) as u8, (i % 256) as u8]);
+            assert!(limiter.try_acquire(ip).await);
+        }
+        assert!(limiter.buckets.len() <= 8);
     }
 }

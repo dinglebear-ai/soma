@@ -97,6 +97,12 @@ pub struct McpConfig {
     pub conformance_fixtures: bool,
     /// Static bearer token for simple auth (SOMA_MCP_TOKEN).
     pub api_token: Option<String>,
+    /// Grant the static bearer token `soma:write` in addition to the
+    /// default `soma:read` (SOMA_MCP_STATIC_TOKEN_WRITE). Off by default so
+    /// a leaked static token cannot perform write actions unless the
+    /// operator explicitly opted in (pattern ported from cortex's
+    /// `static_token_is_admin`).
+    pub static_token_write: bool,
     /// Additional allowed Host header values (comma-separated in env).
     pub allowed_hosts: Vec<String>,
     /// Additional allowed CORS origins (comma-separated in env).
@@ -135,23 +141,76 @@ impl McpConfig {
 }
 
 /// OAuth / JWT auth sub-config.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// This struct types every env var `soma_auth::AuthConfigBuilder` consumes
+/// (`SOMA_MCP_*`). Fields left unset (`None` / empty) are deliberately NOT
+/// given soma-side defaults: `soma_integrations::auth` synthesizes a var list
+/// from set fields only, so the auth crate's own defaults (see
+/// `crates/shared/auth/src/config.rs`) apply exactly as they would have when
+/// the builder read process env directly.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AuthConfig {
     pub mode: AuthMode,
+    /// Public base URL for OAuth metadata (SOMA_MCP_PUBLIC_URL).
     pub public_url: Option<String>,
+    /// Google OAuth client ID (SOMA_MCP_GOOGLE_CLIENT_ID).
     pub google_client_id: Option<String>,
+    /// Google OAuth client secret (SOMA_MCP_GOOGLE_CLIENT_SECRET).
     pub google_client_secret: Option<String>,
+    /// Google OAuth callback path override (SOMA_MCP_GOOGLE_CALLBACK_PATH).
+    pub google_callback_path: Option<String>,
+    /// Google OAuth scopes override (SOMA_MCP_GOOGLE_SCOPES, comma-separated in env).
+    pub google_scopes: Vec<String>,
+    /// Authelia OIDC issuer URL (SOMA_MCP_AUTHELIA_ISSUER_URL, must be https).
+    pub authelia_issuer_url: Option<String>,
+    /// Authelia OIDC client ID (SOMA_MCP_AUTHELIA_CLIENT_ID).
+    pub authelia_client_id: Option<String>,
+    /// Authelia OIDC client secret (SOMA_MCP_AUTHELIA_CLIENT_SECRET).
+    pub authelia_client_secret: Option<String>,
+    /// Authelia callback path override (SOMA_MCP_AUTHELIA_CALLBACK_PATH).
+    pub authelia_callback_path: Option<String>,
+    /// Authelia scopes override (SOMA_MCP_AUTHELIA_SCOPES, comma-separated in env).
+    pub authelia_scopes: Vec<String>,
+    /// GitHub OAuth App client ID (SOMA_MCP_GITHUB_CLIENT_ID).
+    pub github_client_id: Option<String>,
+    /// GitHub OAuth App client secret (SOMA_MCP_GITHUB_CLIENT_SECRET).
+    pub github_client_secret: Option<String>,
+    /// GitHub callback path override (SOMA_MCP_GITHUB_CALLBACK_PATH).
+    pub github_callback_path: Option<String>,
+    /// GitHub scopes override (SOMA_MCP_GITHUB_SCOPES, comma-separated in env;
+    /// must include `user:email`).
+    pub github_scopes: Vec<String>,
+    /// Default OAuth provider (SOMA_MCP_AUTH_DEFAULT_PROVIDER). Unset =
+    /// automatic priority: Google, Authelia, GitHub.
+    pub default_provider: Option<String>,
+    /// OAuth admin email (SOMA_MCP_AUTH_ADMIN_EMAIL).
     pub admin_email: String,
     pub allowed_emails: Vec<String>,
-    pub sqlite_path: String,
-    pub key_path: String,
-    pub access_token_ttl_secs: u64,
-    pub refresh_token_ttl_secs: u64,
-    pub auth_code_ttl_secs: u64,
-    pub register_rpm: u32,
-    pub authorize_rpm: u32,
+    /// Native-flow bootstrap secret (SOMA_MCP_AUTH_BOOTSTRAP_SECRET).
+    pub bootstrap_secret: Option<String>,
+    /// Auth SQLite DB path (SOMA_MCP_AUTH_SQLITE_PATH).
+    pub sqlite_path: Option<String>,
+    /// Ed25519 JWT signing key path (SOMA_MCP_AUTH_KEY_PATH).
+    pub key_path: Option<String>,
+    /// Access-token TTL in seconds (SOMA_MCP_AUTH_ACCESS_TOKEN_TTL_SECS).
+    pub access_token_ttl_secs: Option<u64>,
+    /// Refresh-token TTL in seconds (SOMA_MCP_AUTH_REFRESH_TOKEN_TTL_SECS).
+    pub refresh_token_ttl_secs: Option<u64>,
+    /// Auth-code TTL in seconds (SOMA_MCP_AUTH_CODE_TTL_SECS).
+    pub auth_code_ttl_secs: Option<u64>,
+    /// `/register` rate limit (SOMA_MCP_AUTH_REGISTER_REQUESTS_PER_MINUTE).
+    pub register_rpm: Option<u32>,
+    /// `/authorize` rate limit (SOMA_MCP_AUTH_AUTHORIZE_REQUESTS_PER_MINUTE).
+    pub authorize_rpm: Option<u32>,
+    /// Pending OAuth state cap (SOMA_MCP_AUTH_MAX_PENDING_OAUTH_STATES).
+    pub max_pending_oauth_states: Option<usize>,
+    /// Allowed dynamic-client redirect URIs (SOMA_MCP_AUTH_ALLOWED_REDIRECT_URIS,
+    /// comma-separated in env).
     pub allowed_client_redirect_uris: Vec<String>,
+    /// At-rest refresh-token encryption key (SOMA_MCP_TOKEN_ENCRYPTION_KEY,
+    /// 64 hex digits or 43 base64url chars — validated by soma-auth).
+    pub token_encryption_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -205,27 +264,6 @@ fn default_mcp_port() -> u16 {
 fn default_server_name() -> String {
     "soma".into()
 }
-fn default_auth_sqlite_path() -> String {
-    "/data/auth.db".into()
-}
-fn default_auth_key_path() -> String {
-    "/data/auth-jwt.pem".into()
-}
-fn default_access_token_ttl_secs() -> u64 {
-    3600
-}
-fn default_refresh_token_ttl_secs() -> u64 {
-    86400 * 30
-}
-fn default_auth_code_ttl_secs() -> u64 {
-    300
-}
-fn default_register_rpm() -> u32 {
-    10
-}
-fn default_authorize_rpm() -> u32 {
-    60
-}
 
 impl Default for McpConfig {
     fn default() -> Self {
@@ -237,31 +275,11 @@ impl Default for McpConfig {
             trusted_gateway: false,
             conformance_fixtures: false,
             api_token: None,
+            static_token_write: false,
             allowed_hosts: Vec::new(),
             allowed_origins: Vec::new(),
             trace_headers: TraceHeaderMode::default(),
             auth: AuthConfig::default(),
-        }
-    }
-}
-
-impl Default for AuthConfig {
-    fn default() -> Self {
-        Self {
-            mode: AuthMode::default(),
-            public_url: None,
-            google_client_id: None,
-            google_client_secret: None,
-            admin_email: String::new(),
-            allowed_emails: Vec::new(),
-            sqlite_path: default_auth_sqlite_path(),
-            key_path: default_auth_key_path(),
-            access_token_ttl_secs: default_access_token_ttl_secs(),
-            refresh_token_ttl_secs: default_refresh_token_ttl_secs(),
-            auth_code_ttl_secs: default_auth_code_ttl_secs(),
-            register_rpm: default_register_rpm(),
-            authorize_rpm: default_authorize_rpm(),
-            allowed_client_redirect_uris: Vec::new(),
         }
     }
 }
@@ -378,6 +396,10 @@ impl Config {
             &mut config.mcp.conformance_fixtures,
         )?;
         env_opt_str("SOMA_MCP_TOKEN", &mut config.mcp.api_token);
+        env_bool(
+            "SOMA_MCP_STATIC_TOKEN_WRITE",
+            &mut config.mcp.static_token_write,
+        )?;
         env_list("SOMA_MCP_ALLOWED_HOSTS", &mut config.mcp.allowed_hosts);
         env_list("SOMA_MCP_ALLOWED_ORIGINS", &mut config.mcp.allowed_origins);
         env_opt_str("SOMA_MCP_PUBLIC_URL", &mut config.mcp.auth.public_url);
@@ -392,6 +414,89 @@ impl Config {
         env_opt_str(
             "SOMA_MCP_GOOGLE_CLIENT_SECRET",
             &mut config.mcp.auth.google_client_secret,
+        );
+        env_opt_str(
+            "SOMA_MCP_GOOGLE_CALLBACK_PATH",
+            &mut config.mcp.auth.google_callback_path,
+        );
+        env_list("SOMA_MCP_GOOGLE_SCOPES", &mut config.mcp.auth.google_scopes);
+        env_opt_str(
+            "SOMA_MCP_AUTHELIA_ISSUER_URL",
+            &mut config.mcp.auth.authelia_issuer_url,
+        );
+        env_opt_str(
+            "SOMA_MCP_AUTHELIA_CLIENT_ID",
+            &mut config.mcp.auth.authelia_client_id,
+        );
+        env_opt_str(
+            "SOMA_MCP_AUTHELIA_CLIENT_SECRET",
+            &mut config.mcp.auth.authelia_client_secret,
+        );
+        env_opt_str(
+            "SOMA_MCP_AUTHELIA_CALLBACK_PATH",
+            &mut config.mcp.auth.authelia_callback_path,
+        );
+        env_list(
+            "SOMA_MCP_AUTHELIA_SCOPES",
+            &mut config.mcp.auth.authelia_scopes,
+        );
+        env_opt_str(
+            "SOMA_MCP_GITHUB_CLIENT_ID",
+            &mut config.mcp.auth.github_client_id,
+        );
+        env_opt_str(
+            "SOMA_MCP_GITHUB_CLIENT_SECRET",
+            &mut config.mcp.auth.github_client_secret,
+        );
+        env_opt_str(
+            "SOMA_MCP_GITHUB_CALLBACK_PATH",
+            &mut config.mcp.auth.github_callback_path,
+        );
+        env_list("SOMA_MCP_GITHUB_SCOPES", &mut config.mcp.auth.github_scopes);
+        env_opt_str(
+            "SOMA_MCP_AUTH_DEFAULT_PROVIDER",
+            &mut config.mcp.auth.default_provider,
+        );
+        env_opt_str(
+            "SOMA_MCP_AUTH_BOOTSTRAP_SECRET",
+            &mut config.mcp.auth.bootstrap_secret,
+        );
+        env_opt_str(
+            "SOMA_MCP_AUTH_SQLITE_PATH",
+            &mut config.mcp.auth.sqlite_path,
+        );
+        env_opt_str("SOMA_MCP_AUTH_KEY_PATH", &mut config.mcp.auth.key_path);
+        env_opt_parse(
+            "SOMA_MCP_AUTH_ACCESS_TOKEN_TTL_SECS",
+            &mut config.mcp.auth.access_token_ttl_secs,
+        )?;
+        env_opt_parse(
+            "SOMA_MCP_AUTH_REFRESH_TOKEN_TTL_SECS",
+            &mut config.mcp.auth.refresh_token_ttl_secs,
+        )?;
+        env_opt_parse(
+            "SOMA_MCP_AUTH_CODE_TTL_SECS",
+            &mut config.mcp.auth.auth_code_ttl_secs,
+        )?;
+        env_opt_parse(
+            "SOMA_MCP_AUTH_REGISTER_REQUESTS_PER_MINUTE",
+            &mut config.mcp.auth.register_rpm,
+        )?;
+        env_opt_parse(
+            "SOMA_MCP_AUTH_AUTHORIZE_REQUESTS_PER_MINUTE",
+            &mut config.mcp.auth.authorize_rpm,
+        )?;
+        env_opt_parse(
+            "SOMA_MCP_AUTH_MAX_PENDING_OAUTH_STATES",
+            &mut config.mcp.auth.max_pending_oauth_states,
+        )?;
+        env_list(
+            "SOMA_MCP_AUTH_ALLOWED_REDIRECT_URIS",
+            &mut config.mcp.auth.allowed_client_redirect_uris,
+        );
+        env_opt_str(
+            "SOMA_MCP_TOKEN_ENCRYPTION_KEY",
+            &mut config.mcp.auth.token_encryption_key,
         );
         if let Ok(v) = std::env::var("SOMA_MCP_AUTH_MODE") {
             if !v.is_empty() {
@@ -471,6 +576,18 @@ fn env_parse<T: std::str::FromStr>(key: &str, target: &mut T) -> anyhow::Result<
             *target = v
                 .parse()
                 .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn env_opt_parse<T: std::str::FromStr>(key: &str, target: &mut Option<T>) -> anyhow::Result<()> {
+    if let Ok(v) = std::env::var(key) {
+        if !v.is_empty() {
+            *target = Some(
+                v.parse()
+                    .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?,
+            );
         }
     }
     Ok(())

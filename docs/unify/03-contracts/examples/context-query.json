@@ -1,0 +1,33 @@
+{
+  "queryId": "context_query:labby-oauth",
+  "text": "Why did Labby's OAuth connector return 403 during dynamic client registration?",
+  "mode": "temporal_investigation",
+  "scopes": [
+    "knowledge",
+    "code",
+    "sessions",
+    "observations",
+    "infrastructure",
+    "graph",
+    "memory"
+  ],
+  "filters": {
+    "subjects": [
+      "project:labby"
+    ],
+    "kinds": [],
+    "sources": [],
+    "timeStart": "2026-07-21T14:00:00Z",
+    "timeEnd": "2026-07-21T15:00:00Z",
+    "severityAtLeast": "info",
+    "sensitivityMaximum": "sensitive"
+  },
+  "graphDepth": 3,
+  "budget": {
+    "maxItems": 80,
+    "maxBytes": 1048576,
+    "maxTokens": 60000
+  },
+  "requireCitations": true,
+  "synthesize": true
+}

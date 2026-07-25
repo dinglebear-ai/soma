@@ -1,3 +1,13 @@
+// Render per-item feature-requirement badges when rustdoc runs on nightly with
+// `--cfg docsrs` (docs.rs posture; locally via `cargo xtask doc --docsrs-cfg`).
+// Inert under the stable CI doc gate: stable rustdoc never sets `docsrs`.
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+//! Soma application layer.
+//!
+//! Hosts [`SomaApplication`], the shared use-case facade every surface (MCP,
+//! REST, CLI) calls into, along with the [`SomaService`] business layer, the
+//! provider registry, and the free functions that dispatch actions across
+//! surfaces with consistent observability.
 mod app;
 pub mod capabilities;
 mod context;
@@ -75,15 +85,20 @@ pub async fn dispatch_action(
     result
 }
 
+/// Build a registry backed solely by the built-in [`StaticRustProvider`].
 pub fn static_provider_registry(service: SomaService) -> anyhow::Result<ProviderRegistry> {
     ProviderRegistry::new(vec![std::sync::Arc::new(StaticRustProvider::new(service))])
         .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 
+/// Build a registry combining the static provider with file-backed providers
+/// loaded from the default provider directory (`SOMA_PROVIDER_DIR` or `providers`).
 pub fn dynamic_provider_registry(service: SomaService) -> anyhow::Result<ProviderRegistry> {
     dynamic_provider_registry_from_dir(service, default_provider_dir())
 }
 
+/// Build a registry combining the static provider with file-backed providers
+/// loaded from the given directory.
 pub fn dynamic_provider_registry_from_dir(
     service: SomaService,
     provider_dir: impl Into<std::path::PathBuf>,
@@ -96,6 +111,8 @@ pub fn dynamic_provider_registry_from_dir(
     .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 
+/// Build a registry of [`RemoteCatalogProvider`]s from a remote server's
+/// live provider catalog inspection.
 pub async fn remote_provider_registry(service: SomaService) -> anyhow::Result<ProviderRegistry> {
     let report = service.provider_catalog().await?;
     let providers = providers::remote::catalogs_from_inspection(&report)?
@@ -134,6 +151,11 @@ fn record_action_metric(surface: &str, action: &str, outcome: &str, elapsed_ms: 
 #[cfg(not(feature = "observability"))]
 fn record_action_metric(_surface: &str, _action: &str, _outcome: &str, _elapsed_ms: f64) {}
 
+/// Route a [`SomaAction`] to the matching [`SomaService`] method.
+///
+/// The lower-level dispatch seam without the timing/logging/metrics wrapper;
+/// prefer [`dispatch_action`] unless the caller already owns a span. Returns an
+/// error for MCP-only actions (`elicit_name`, `scaffold_intent`) that require a peer.
 pub async fn execute_service_action(
     service: &SomaService,
     action: &SomaAction,
@@ -152,10 +174,13 @@ pub async fn execute_service_action(
     }
 }
 
+/// Report whether the error classifies as a validation failure.
 pub fn is_validation_error(error: &anyhow::Error) -> bool {
     classify_service_error(error).kind == soma_domain::errors::ServiceErrorKind::Validation
 }
 
+/// Classify an arbitrary error into a structured [`ServiceError`] taxonomy,
+/// recognizing action-validation and scaffold-intent validation failures.
 pub fn classify_service_error(error: &anyhow::Error) -> ServiceError {
     if let Some(error) = action_validation_error(error) {
         return ToolError::from_action_validation(error);

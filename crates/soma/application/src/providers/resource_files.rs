@@ -45,6 +45,8 @@ enum ResourceFileKind {
     },
 }
 
+/// Provider for a single file discovered under `providers/resources/`,
+/// serving either static file bytes or a sandboxed TypeScript `read()` reader.
 #[derive(Debug, Clone)]
 pub struct ResourceFileProvider {
     provider_name: String,
@@ -169,6 +171,8 @@ impl ResourceFileProvider {
         })
     }
 
+    /// Same as [`from_file`](Self::from_file) but returns the provider boxed
+    /// as a shared `Arc<dyn Provider>` for registration.
     pub fn arc(
         absolute_path: PathBuf,
         relative_path: &Path,
@@ -182,8 +186,12 @@ impl ResourceFileProvider {
     }
 }
 
+/// Error raised while discovering or building a `ResourceFileProvider`.
 #[derive(Debug)]
-pub struct ResourceFileError(pub String);
+pub struct ResourceFileError(
+    /// Human-readable failure message.
+    pub String,
+);
 
 impl std::fmt::Display for ResourceFileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

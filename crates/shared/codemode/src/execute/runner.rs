@@ -76,7 +76,7 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
         .execution_id
         .as_deref()
         .map(ToOwned::to_owned)
-        .unwrap_or_else(|| ulid::Ulid::new().to_string());
+        .unwrap_or_else(|| ulid::Ulid::generate().to_string());
     let artifact_store = ArtifactStore::new(artifact_run_id)?;
     crate::artifacts::prune::prune_old_runs(&crate::soma_home().join("code-mode-artifacts"), 256)
         .await

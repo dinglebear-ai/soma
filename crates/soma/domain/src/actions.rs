@@ -18,13 +18,16 @@ use serde_json::{json, Value};
 
 // ── Action error types ────────────────────────────────────────────────────────
 
+/// Top-level error for action parsing and validation.
 #[derive(Debug, thiserror::Error)]
 pub enum ActionError {
+    /// A request failed input validation (missing/wrong-typed field, unknown action, etc.).
     #[error(transparent)]
     Validation(#[from] ActionValidationError),
 }
 
 impl ActionError {
+    /// Returns the inner [`ActionValidationError`] when this is a validation failure.
     pub fn as_validation(&self) -> Option<&ActionValidationError> {
         match self {
             Self::Validation(error) => Some(error),
@@ -32,25 +35,45 @@ impl ActionError {
     }
 }
 
+/// Structured validation failures produced while parsing an action request.
 #[derive(Debug, thiserror::Error)]
 pub enum ActionValidationError {
+    /// No `action` was supplied.
     #[error("action is required")]
     MissingAction,
+    /// A required field was absent or empty.
     #[error("`{field}` is required and must not be empty")]
-    MissingField { field: String },
+    MissingField {
+        /// Name of the missing field.
+        field: String,
+    },
+    /// A field was present but had the wrong JSON type (expected a string).
     #[error("`{field}` must be a string")]
-    WrongType { field: String },
+    WrongType {
+        /// Name of the wrongly-typed field.
+        field: String,
+    },
+    /// The action exists but is MCP-only and cannot be called over REST.
     #[error(
         "action={action} is not available over REST; use MCP or action=help for documentation"
     )]
-    NotAvailableOverRest { action: String },
+    NotAvailableOverRest {
+        /// The requested action name.
+        action: String,
+    },
+    /// The requested action name is not recognised.
     #[error("unknown soma action: {action}; use action=help for documentation")]
-    UnknownAction { action: String },
+    UnknownAction {
+        /// The unrecognised action name.
+        action: String,
+    },
 }
 
+/// Convenience alias for [`ActionValidationError`].
 pub type ValidationError = ActionValidationError;
 
 impl ActionValidationError {
+    /// Returns a stable machine-readable error code for this variant.
     pub fn code(&self) -> &'static str {
         match self {
             Self::MissingAction => "missing_action",
@@ -61,6 +84,7 @@ impl ActionValidationError {
         }
     }
 
+    /// Returns the name of the offending request field, if any.
     pub fn field(&self) -> Option<&str> {
         match self {
             Self::MissingAction => Some("action"),
@@ -69,6 +93,7 @@ impl ActionValidationError {
         }
     }
 
+    /// Returns the offending action name for action-related variants, if any.
     pub fn bad_value(&self) -> Option<&str> {
         match self {
             Self::NotAvailableOverRest { action } | Self::UnknownAction { action } => {
@@ -78,6 +103,7 @@ impl ActionValidationError {
         }
     }
 
+    /// Returns human-readable guidance for how to fix the request.
     pub fn remediation(&self) -> String {
         match self {
             Self::MissingAction => {
@@ -112,35 +138,47 @@ impl ActionValidationError {
 // imports scope names through the action-metadata path.
 pub use crate::scopes::{scopes_satisfy, DENY_SCOPE, READ_SCOPE, WRITE_SCOPE};
 
+/// Which transports an action is reachable over.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActionTransport {
+    /// Available over MCP, CLI, and REST.
     Any,
+    /// Available over MCP only (e.g. actions requiring client-side elicitation).
     McpOnly,
 }
 
 impl ActionTransport {
+    /// Whether the action is reachable over MCP.
     pub fn mcp(self) -> bool {
         matches!(self, Self::Any | Self::McpOnly)
     }
 
+    /// Whether the action is reachable over the CLI.
     pub fn cli(self) -> bool {
         matches!(self, Self::Any)
     }
 
+    /// Whether the action is reachable over REST.
     pub fn rest(self) -> bool {
         matches!(self, Self::Any)
     }
 }
 
+/// Relative cost / side-effect hint advertised for an action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActionCost {
+    /// Fast, cheap, and side-effect free.
     Cheap,
+    /// Moderately expensive to compute.
     Moderate,
+    /// Expensive (heavy compute or slow I/O).
     Expensive,
+    /// Performs a write / mutating operation.
     Write,
 }
 
 impl ActionCost {
+    /// Returns the lowercase string label for this cost tier.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Cheap => "cheap",
@@ -151,45 +189,75 @@ impl ActionCost {
     }
 }
 
+/// Static specification of a single action parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParamSpec {
+    /// Parameter name.
     pub name: &'static str,
+    /// JSON type of the parameter (e.g. `"string"`).
     pub ty: &'static str,
+    /// Whether the parameter is required.
     pub required: bool,
+    /// Human-readable description of the parameter.
     pub description: &'static str,
+    /// Maximum allowed length, when the parameter is length-bounded.
     pub max_len: Option<usize>,
+    /// Permitted values when the parameter is an enum; empty otherwise.
     pub enum_values: &'static [&'static str],
 }
 
+/// Static specification of a single CLI flag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CliFlagSpec {
+    /// Flag name (e.g. `--name`).
     pub name: &'static str,
+    /// Metavariable for the flag's value, if it takes one.
     pub value_name: Option<&'static str>,
+    /// Whether the flag is required.
     pub required: bool,
+    /// Human-readable description of the flag.
     pub description: &'static str,
 }
 
+/// Static specification of an action's CLI surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CliSpec {
+    /// Subcommand name.
     pub command: &'static str,
+    /// Usage string shown in help.
     pub usage: &'static str,
+    /// Flags accepted by the subcommand.
     pub flags: &'static [CliFlagSpec],
+    /// Human-readable description of the subcommand.
     pub description: &'static str,
 }
 
+/// Canonical, invariant metadata for a single Soma action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActionSpec {
+    /// Action name (the `action` dispatch key).
     pub name: &'static str,
+    /// Human-readable description of what the action does.
     pub description: &'static str,
+    /// Scope required to invoke the action, or `None` if public.
     pub required_scope: Option<&'static str>,
+    /// Transports the action is reachable over.
     pub transport: ActionTransport,
+    /// REST method for the action's direct route, if any.
     pub rest_method: Option<&'static str>,
+    /// REST path for the action's direct route, if any.
     pub rest_path: Option<&'static str>,
+    /// Whether the action is destructive and requires confirmation.
     pub destructive: bool,
+    /// Whether the action requires admin privileges.
     pub requires_admin: bool,
+    /// Advertised cost / side-effect tier.
     pub cost: ActionCost,
+    /// Parameter specifications.
     pub params: &'static [ParamSpec],
+    /// Name of the returned result type.
     pub returns: &'static str,
+    /// CLI surface for the action, if it has one.
     pub cli: Option<CliSpec>,
 }
 
@@ -225,6 +293,10 @@ const ECHO_CLI_FLAGS: &[CliFlagSpec] = &[CliFlagSpec {
     description: "Message to echo back. Must not be empty.",
 }];
 
+/// The canonical table of every Soma action and its invariant metadata.
+///
+/// This is the single source of truth for action names, scopes, and transport
+/// availability across REST, CLI, and MCP dispatch.
 pub const ACTION_SPECS: &[ActionSpec] = &[
     ActionSpec {
         name: "greet",
@@ -332,14 +404,17 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
     },
 ];
 
+/// Returns the names of every known action.
 pub fn action_names() -> Vec<&'static str> {
     ACTION_SPECS.iter().map(|spec| spec.name).collect()
 }
 
+/// Returns whether `action` is a known action name.
 pub fn is_known_action(action: &str) -> bool {
     ACTION_SPECS.iter().any(|spec| spec.name == action)
 }
 
+/// Returns the names of actions reachable over REST.
 pub fn rest_action_names() -> Vec<&'static str> {
     ACTION_SPECS
         .iter()
@@ -348,6 +423,7 @@ pub fn rest_action_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// Returns the names of actions that expose a CLI surface.
 pub fn cli_action_names() -> Vec<&'static str> {
     ACTION_SPECS
         .iter()
@@ -356,6 +432,7 @@ pub fn cli_action_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// Returns the CLI subcommand names for every action that has one.
 pub fn cli_commands() -> Vec<&'static str> {
     ACTION_SPECS
         .iter()
@@ -363,12 +440,14 @@ pub fn cli_commands() -> Vec<&'static str> {
         .collect()
 }
 
+/// Returns whether `action` is reachable over REST.
 pub fn is_rest_action(action: &str) -> bool {
     action_spec(action)
         .map(|spec| spec.transport.rest())
         .unwrap_or(false)
 }
 
+/// Returns the names of actions that are MCP-only.
 pub fn mcp_only_action_names() -> Vec<&'static str> {
     ACTION_SPECS
         .iter()
@@ -377,12 +456,16 @@ pub fn mcp_only_action_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// Returns the scope required to invoke `action`.
+///
+/// Unknown actions return [`DENY_SCOPE`] so they fail closed.
 pub fn required_scope_for_action(action: &str) -> Option<&'static str> {
     action_spec(action)
         .map(|spec| spec.required_scope)
         .unwrap_or(Some(DENY_SCOPE))
 }
 
+/// Looks up the [`ActionSpec`] for `action`, if it exists.
 pub fn action_spec(action: &str) -> Option<&'static ActionSpec> {
     ACTION_SPECS.iter().find(|spec| spec.name == action)
 }
@@ -423,57 +506,94 @@ pub fn require_confirmation_if_destructive(
     ))
 }
 
+/// Serializable flags describing which surfaces expose an action.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SurfaceAvailability {
+    /// Reachable over MCP.
     pub mcp: bool,
+    /// Reachable over the CLI.
     pub cli: bool,
+    /// Reachable over REST.
     pub rest: bool,
+    /// Reachable from the web UI.
     pub web_ui: bool,
 }
 
+/// Serializable documentation for a single action parameter.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ParamDoc {
+    /// Parameter name.
     pub name: String,
+    /// JSON type of the parameter.
     pub ty: String,
+    /// Whether the parameter is required.
     pub required: bool,
+    /// Human-readable description of the parameter.
     pub description: String,
+    /// Maximum allowed length, when length-bounded.
     pub max_len: Option<usize>,
+    /// Permitted values when the parameter is an enum.
     pub enum_values: Vec<String>,
 }
 
+/// Serializable, catalog-facing documentation for a single action.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ActionDoc {
+    /// Owning service name (always `"soma"`).
     pub service: String,
+    /// Action name.
     pub action: String,
+    /// Human-readable description of the action.
     pub description: String,
+    /// Whether the action is destructive.
     pub destructive: bool,
+    /// Whether the action requires admin privileges.
     pub requires_admin: bool,
+    /// Advertised cost tier label.
     pub cost: String,
+    /// Scope required to invoke the action, or `None` if public.
     pub required_scope: Option<String>,
+    /// Parameter documentation.
     pub params: Vec<ParamDoc>,
+    /// Name of the returned result type.
     pub returns: String,
+    /// Which surfaces expose the action.
     pub surface_availability: SurfaceAvailability,
+    /// Human-readable summary of the action's auth requirements.
     pub auth_posture: String,
+    /// Explanation of why the action is MCP-only, when applicable.
     pub mcp_only_exception: Option<String>,
+    /// CLI documentation for the action, if it has a CLI surface.
     pub cli: Option<CliDoc>,
 }
 
+/// Serializable documentation for a single CLI flag.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct CliFlagDoc {
+    /// Flag name.
     pub name: String,
+    /// Metavariable for the flag's value, if it takes one.
     pub value_name: Option<String>,
+    /// Whether the flag is required.
     pub required: bool,
+    /// Human-readable description of the flag.
     pub description: String,
 }
 
+/// Serializable documentation for an action's CLI surface.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct CliDoc {
+    /// Subcommand name.
     pub command: String,
+    /// Usage string shown in help.
     pub usage: String,
+    /// Human-readable description of the subcommand.
     pub description: String,
+    /// Flags accepted by the subcommand.
     pub flags: Vec<CliFlagDoc>,
 }
 
+/// Builds the serializable action catalog from [`ACTION_SPECS`].
 pub fn action_catalog() -> Vec<ActionDoc> {
     ACTION_SPECS
         .iter()
@@ -533,17 +653,31 @@ pub fn action_catalog() -> Vec<ActionDoc> {
         .collect()
 }
 
+/// A parsed, validated action request ready for dispatch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SomaAction {
-    Greet { name: Option<String> },
-    Echo { message: String },
+    /// Return a greeting, optionally addressed to `name`.
+    Greet {
+        /// Name to greet; greets the world when absent.
+        name: Option<String>,
+    },
+    /// Echo `message` back unchanged.
+    Echo {
+        /// Message to echo back.
+        message: String,
+    },
+    /// Return server status and configuration info.
     Status,
+    /// Show the action reference.
     Help,
+    /// Ask the MCP client to collect a name, then greet it (MCP-only).
     ElicitName,
+    /// Collect scaffold setup intent via MCP elicitation (MCP-only).
     ScaffoldIntent,
 }
 
 impl SomaAction {
+    /// Returns the canonical action name for this variant.
     pub fn name(&self) -> &'static str {
         match self {
             Self::Greet { .. } => "greet",
@@ -555,6 +689,7 @@ impl SomaAction {
         }
     }
 
+    /// Parses an action from an MCP tool-call argument object.
     pub fn from_mcp_args(args: &Value) -> anyhow::Result<Self> {
         let action = match args.get("action") {
             None => return Err(action_error(ValidationError::MissingAction)),
@@ -568,6 +703,7 @@ impl SomaAction {
         Self::from_params(action, args)
     }
 
+    /// Parses an action from a REST request, rejecting MCP-only actions.
     pub fn from_rest(action: &str, params: &Value) -> anyhow::Result<Self> {
         if action.is_empty() {
             return Err(action_error(ValidationError::MissingAction));
@@ -609,6 +745,7 @@ impl SomaAction {
     }
 }
 
+/// Builds the JSON help payload describing the REST surface and examples.
 pub fn rest_help() -> Value {
     json!({
         "actions": rest_action_names(),
@@ -638,6 +775,7 @@ fn action_error(error: ValidationError) -> anyhow::Error {
     error.into()
 }
 
+/// Extracts an [`ActionValidationError`] from a boxed [`anyhow::Error`], if present.
 pub fn action_validation_error(error: &anyhow::Error) -> Option<&ActionValidationError> {
     if let Some(error) = error.downcast_ref::<ActionError>() {
         return error.as_validation();
@@ -645,6 +783,7 @@ pub fn action_validation_error(error: &anyhow::Error) -> Option<&ActionValidatio
     error.downcast_ref::<ActionValidationError>()
 }
 
+/// Returns whether `error` is (or wraps) an action validation error.
 pub fn is_validation_error(error: &anyhow::Error) -> bool {
     action_validation_error(error).is_some()
 }

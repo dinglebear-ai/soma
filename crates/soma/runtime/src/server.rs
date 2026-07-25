@@ -362,11 +362,18 @@ impl AppState {
 
 /// Build a [`soma_auth::AuthLayer`] from an [`AuthPolicy`], or `None` when the trust
 /// boundary is outside the mounted HTTP auth layer.
+///
+/// The static bearer token is read-only (`soma:read`) unless
+/// `static_token_write` (SOMA_MCP_STATIC_TOKEN_WRITE) grants `soma:write`.
+/// Both bearer-only and OAuth-hybrid deployments flow through this single
+/// call site, so the static-token scope grant can never drift between the
+/// two modes (the parity bug cortex fixed separately in each of its paths).
 #[cfg(feature = "auth")]
 pub fn build_auth_layer(
     policy: &AuthPolicy,
     static_token: Option<Arc<str>>,
     resource_url: Option<Arc<str>>,
+    static_token_write: bool,
 ) -> Option<soma_auth::AuthLayer> {
     match policy {
         AuthPolicy::LoopbackDev | AuthPolicy::TrustedGatewayUnscoped => None,
@@ -377,11 +384,15 @@ pub fn build_auth_layer(
                      all requests will be rejected; set SOMA_MCP_TOKEN or configure OAuth"
                 );
             }
+            let mut static_token_scopes = vec![soma_domain::actions::READ_SCOPE.to_string()];
+            if static_token_write {
+                static_token_scopes.push(soma_domain::actions::WRITE_SCOPE.to_string());
+            }
             Some(
                 soma_auth::AuthLayer::new()
                     .with_static_token(static_token)
                     .with_auth_state(auth_state.clone())
-                    .with_static_token_scopes(vec![soma_domain::actions::READ_SCOPE.into()])
+                    .with_static_token_scopes(static_token_scopes)
                     .with_resource_url(resource_url)
                     .with_allow_session_cookie(false),
             )
@@ -394,6 +405,7 @@ pub fn build_auth_layer(
     _policy: &AuthPolicy,
     _static_token: Option<Arc<str>>,
     _resource_url: Option<Arc<str>>,
+    _static_token_write: bool,
 ) -> Option<()> {
     None
 }

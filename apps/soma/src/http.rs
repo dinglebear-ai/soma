@@ -118,6 +118,7 @@ pub fn router(state: AppState) -> Router {
         &state.auth_policy,
         state.config.api_token.as_deref().map(Arc::<str>::from),
         resource_url,
+        state.config.static_token_write,
     );
 
     let mcp_state = mcp_state_for_state(&state);

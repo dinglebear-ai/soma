@@ -101,8 +101,11 @@ fmt-check:
     cargo fmt -- --check
 
 # Run the full test suite using cargo-nextest (faster, better output than cargo test)
+# nextest cannot execute doctests (cargo-nextest#16), so chase it with the
+# dedicated doctest runner — same pair CI's test job runs.
 test:
     cargo nextest run
+    cargo test --doc --workspace
 
 # Run tests with the CI profile (fail-fast, 2 retries — mirrors CI)
 test-ci:
