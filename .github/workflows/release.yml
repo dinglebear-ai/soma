@@ -257,6 +257,7 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
+          pattern: ${{ env.BINARY_NAME }}-*
           path: artifacts/
           merge-multiple: true
 
@@ -367,6 +368,7 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
+          pattern: ${{ env.BINARY_NAME }}-*
           path: artifacts/
           merge-multiple: true
 
