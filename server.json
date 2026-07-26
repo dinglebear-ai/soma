@@ -58,7 +58,7 @@
     },
     "io.modelcontextprotocol.registry/publisher-provided": {
       "distribution": {
-        "ociImage": "ghcr.io/dinglebear-ai/soma:0.6.0"
+        "ociImage": "ghcr.io/dinglebear-ai/soma:0.6.1"
       },
       "documentation": {
         "configuration": "docs/CONFIG.md",
@@ -136,7 +136,7 @@
           "name": "RUST_LOG"
         }
       ],
-      "identifier": "ghcr.io/dinglebear-ai/soma:0.6.0",
+      "identifier": "ghcr.io/dinglebear-ai/soma:0.6.1",
       "packageArguments": [
         {
           "type": "positional",
