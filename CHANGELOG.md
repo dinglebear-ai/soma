@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.6.0](https://github.com/dinglebear-ai/soma/compare/v0.5.0...v0.6.0) (2026-07-23)
+
+
+### Added
+
+* **xtask:** add gated rustdoc builds via cargo xtask doc ([363e182](https://github.com/dinglebear-ai/soma/commit/363e182e861f919177d6e8f7a7fbd76a9d35a96a))
+
+
+### Fixed
+
+* **auth:** use Authelia JWKS discovery path ([#206](https://github.com/dinglebear-ai/soma/issues/206)) ([064f995](https://github.com/dinglebear-ai/soma/commit/064f9956eddec64b0eb43ff3864c74672e680c2e))
+* reject unsafe self-update executable modes ([#173](https://github.com/dinglebear-ai/soma/issues/173)) ([24ddec2](https://github.com/dinglebear-ai/soma/commit/24ddec29dbb39e2dab7653ce0fbd1aaffc6ee0d4))
+* **release:** make registry retirement status-only ([#213](https://github.com/dinglebear-ai/soma/issues/213)) ([6c6a928](https://github.com/dinglebear-ai/soma/commit/6c6a9283a4b3d64a09e170ab937f6e3eeabfd8d2))
+* **release:** publish Soma from dinglebear-ai ([#209](https://github.com/dinglebear-ai/soma/issues/209)) ([39887c0](https://github.com/dinglebear-ai/soma/commit/39887c062080165707685c7e7f95dd4949c0bf8b))
+* **release:** publish Soma registry from OCI ([#211](https://github.com/dinglebear-ai/soma/issues/211)) ([ef75b67](https://github.com/dinglebear-ai/soma/commit/ef75b67358c8023d612d43e9abb1516d256040d7))
+* **release:** retire legacy Soma registry name ([#212](https://github.com/dinglebear-ai/soma/issues/212)) ([7a12df6](https://github.com/dinglebear-ai/soma/commit/7a12df650b7e55c1fc0ee75a2e10b831986af914))
+* **security:** resolve CodeQL alerts — ReDoS in method encoder, release.yml perms ([#201](https://github.com/dinglebear-ai/soma/issues/201)) ([a4c70bd](https://github.com/dinglebear-ai/soma/commit/a4c70bdaf0bd86021f75b57dedc7ba95b9e5a707))
+* **web:** override vulnerable transitive deps flagged by pnpm audit ([374f919](https://github.com/dinglebear-ai/soma/commit/374f919de46efd42a2a1c55306ef55c6fa97a90a))
+
+
+### Dependencies
+
+* **deps-dev:** bump @biomejs/biome from 2.5.3 to 2.5.5 in /apps/web ([#192](https://github.com/dinglebear-ai/soma/issues/192)) ([659892c](https://github.com/dinglebear-ai/soma/commit/659892c3c89d9266214a0e3b9ff10f87b55d0348))
+* **deps-dev:** bump @tailwindcss/postcss in /apps/web ([#185](https://github.com/dinglebear-ai/soma/issues/185)) ([55f4e24](https://github.com/dinglebear-ai/soma/commit/55f4e246477bc67be38f8047d7540f07d2cc4c9d))
+* **deps-dev:** bump tailwindcss from 4.3.2 to 4.3.3 in /apps/web ([#187](https://github.com/dinglebear-ai/soma/issues/187)) ([cbd20a9](https://github.com/dinglebear-ai/soma/commit/cbd20a9fd5813ac2971564152268e4d9e641e46e))
+* **deps-dev:** bump vite from 8.1.4 to 8.1.5 in /apps/web ([#190](https://github.com/dinglebear-ai/soma/issues/190)) ([a6bb22d](https://github.com/dinglebear-ai/soma/commit/a6bb22ddab25842474c0b8e457f32c443e7358a4))
+* **deps:** bump futures from 0.3.32 to 0.3.33 ([#191](https://github.com/dinglebear-ai/soma/issues/191)) ([e7885f8](https://github.com/dinglebear-ai/soma/commit/e7885f8a43e4cb4fe70132bba5fb84bac674dc2d))
+* **deps:** bump futures-core from 0.3.32 to 0.3.33 ([#181](https://github.com/dinglebear-ai/soma/issues/181)) ([9a59e54](https://github.com/dinglebear-ai/soma/commit/9a59e54d7ce53cc0b13ece928fc25b1d9051a21c))
+* **deps:** bump jdx/mise-action from 4.2.0 to 4.2.1 ([#178](https://github.com/dinglebear-ai/soma/issues/178)) ([3b24d94](https://github.com/dinglebear-ai/soma/commit/3b24d94a0bfc30d8a7027666d9b4c562f74d1d3f))
+* **deps:** bump postcss from 8.5.19 to 8.5.21 in /apps/web ([#184](https://github.com/dinglebear-ai/soma/issues/184)) ([133da14](https://github.com/dinglebear-ai/soma/commit/133da14b453f239f248a1f527687f612cc5bda60))
+* **deps:** bump prettyplease from 0.2.37 to 0.3.0 ([#183](https://github.com/dinglebear-ai/soma/issues/183)) ([95ca6cd](https://github.com/dinglebear-ai/soma/commit/95ca6cdf684eb652e6b0c7c01743a8a7d85eed5b))
+* **deps:** bump sha2 from 0.10.9 to 0.11.0 ([#186](https://github.com/dinglebear-ai/soma/issues/186)) ([97a4148](https://github.com/dinglebear-ai/soma/commit/97a4148d98c62ae722117bbbff446fd22714af96))
+* **deps:** bump syn from 2.0.119 to 3.0.3 ([#193](https://github.com/dinglebear-ai/soma/issues/193)) ([a6af269](https://github.com/dinglebear-ai/soma/commit/a6af269bd97c05d47602e96356f103bb3a9a8da9))
+* **deps:** bump the github-actions group across 1 directory with 5 updates ([#203](https://github.com/dinglebear-ai/soma/issues/203)) ([66ce17d](https://github.com/dinglebear-ai/soma/commit/66ce17df8c57537fb8cfa761d1199a4c8632a275))
+* **deps:** bump the radix group across 1 directory with 8 updates ([#182](https://github.com/dinglebear-ai/soma/issues/182)) ([babfe63](https://github.com/dinglebear-ai/soma/commit/babfe632fa3c41ca2029d81d3f3950707a4c1f15))
+* **deps:** bump the serde group across 1 directory with 2 updates ([#174](https://github.com/dinglebear-ai/soma/issues/174)) ([38c8aa3](https://github.com/dinglebear-ai/soma/commit/38c8aa3c72ff13ecb6dfceea2b6aff20df177f2e))
+* **deps:** bump the tokio group across 1 directory with 3 updates ([#198](https://github.com/dinglebear-ai/soma/issues/198)) ([ce2d79f](https://github.com/dinglebear-ai/soma/commit/ce2d79f38159921887f8de5712c0f0a79dbed8e8))
+* **deps:** bump thiserror from 2.0.18 to 2.0.19 ([#189](https://github.com/dinglebear-ai/soma/issues/189)) ([da946e2](https://github.com/dinglebear-ai/soma/commit/da946e2ac418e0acdd29c72b435ec4da82f8f7b0))
+
 ## [0.5.0](https://github.com/jmagar/soma/compare/v0.4.7...v0.5.0) (2026-07-19)
 
 

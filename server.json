@@ -58,7 +58,7 @@
     },
     "io.modelcontextprotocol.registry/publisher-provided": {
       "distribution": {
-        "ociImage": "ghcr.io/dinglebear-ai/soma:0.5.0"
+        "ociImage": "ghcr.io/dinglebear-ai/soma:0.6.0"
       },
       "documentation": {
         "configuration": "docs/CONFIG.md",
@@ -136,7 +136,7 @@
           "name": "RUST_LOG"
         }
       ],
-      "identifier": "ghcr.io/dinglebear-ai/soma:0.5.0",
+      "identifier": "ghcr.io/dinglebear-ai/soma:0.6.0",
       "packageArguments": [
         {
           "type": "positional",
@@ -156,6 +156,6 @@
     "url": "https://github.com/dinglebear-ai/soma"
   },
   "title": "Soma",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "websiteUrl": "https://soma.dinglebear.ai"
 }

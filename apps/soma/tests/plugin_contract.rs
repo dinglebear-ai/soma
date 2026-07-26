@@ -162,7 +162,10 @@ fn mcp_registry_manifest_advertises_rich_product_metadata() {
         .iter()
         .find(|package| package["registryType"] == "oci")
         .expect("missing OCI package metadata");
-    assert_eq!(oci["identifier"], "ghcr.io/dinglebear-ai/soma:0.5.0");
+    assert_eq!(
+        oci["identifier"],
+        format!("ghcr.io/dinglebear-ai/soma:{}", env!("CARGO_PKG_VERSION"))
+    );
     assert_eq!(oci["runtimeHint"], "docker");
     assert_eq!(oci["transport"]["type"], "stdio");
     assert!(
