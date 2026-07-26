@@ -1111,10 +1111,9 @@ Use this when creating a new server from soma:
 ## 21. Release Artifact Distribution
 
 Version tags build release binaries and attach them to the GitHub Release. The
-soma release workflow also has an explicit Git LFS write-back job for
-plugin install compatibility. Treat that as a release-only exception to audit or
-disable in derived repos. Local `dist` recipes are operator conveniences for
-preparing artifacts, not a separate CI write-back path.
+GitHub Release is the sole published binary distribution channel. Local `dist`
+recipes build into Cargo's target directory for operator testing and never
+write generated artifacts into the repository.
 
 ---
 
@@ -1484,7 +1483,6 @@ Runs when release-please publishes a GitHub Release, plus manual dispatch for an
 - Build release binaries for linux/amd64 and windows/amd64
 - Publish `soma-rmcp` to npm with provenance/trusted publishing support
 - Attach binary assets to the existing GitHub Release
-- Optionally commit Git LFS binary pointers back to `main`; audit this write-back before reusing it
 
 ### Maintenance workflows
 
@@ -1541,7 +1539,7 @@ Key `.gitignore` rules:
 - `target/` ignored
 - `*.db`, `*.db-shm`, `*.db-wal` ignored
 - AI tooling dirs ignored (`.claude/`, `.omc/`, `.lavra/`, etc.)
-- `bin/` NOT ignored (LFS-tracked binaries are committed)
+- `bin/` ignored (local/generated binaries are never committed)
 
 Key `.dockerignore` rules:
 - `target/` excluded (built inside container)

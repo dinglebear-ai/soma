@@ -60,9 +60,8 @@ safe.
 Build the release binary into the Cargo target directory.
 
 1. Runs `cargo build --release --locked`
-2. Copies the binary to `bin/<binary-name>` (creating `bin/` if needed)
-3. Sets executable permissions on Unix
-4. Prints the `git add` / `git commit` / `git push` instructions
+2. Verifies the release binary exists
+3. Prints the artifact path and local install command
 
 ```bash
 cargo xtask dist
@@ -70,7 +69,8 @@ cargo xtask dist
 just dist
 ```
 
-Respects `CARGO_TARGET_DIR` if set. After running, commit the updated `bin/` pointer and push to update LFS.
+Respects `CARGO_TARGET_DIR` if set. Published binaries are produced by the
+release workflow and attached to the matching GitHub Release.
 
 **CUSTOMIZE**: Update `BINARY_NAME` in `xtask/src/main.rs` to match the `[[bin]] name` in your `Cargo.toml`.
 

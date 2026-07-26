@@ -11,14 +11,8 @@
 #
 # What this does:
 #   1. Builds release binaries for linux/amd64 and windows/amd64
-#   2. Copies binaries to bin/ and commits via Git LFS
+#   2. Uploads versioned archives and checksums to the existing GitHub Release
 #   3. Publishes the soma-rmcp npm launcher package
-#   4. Creates a GitHub Release with binaries as downloadable assets
-#   5. The commit in step 2 updates the LFS pointer so plugin install.sh
-#      can `git lfs pull` the binary without building from source
-#
-# CUSTOMIZE: After creating your first real release, update install.sh to
-#           reference the correct GitHub release download URL pattern.
 # =============================================================================
 
 name: Release
@@ -36,9 +30,7 @@ env:
   # CUSTOMIZE: Replace "soma" with your binary name.
   BINARY_NAME: soma
   CARGO_INCREMENTAL: "0"
-  # Release builds route through soldr (cargo tool shims); soldr's own
-  # RUSTC_WRAPPER keeps the dev-only scripts/cargo-rustc-wrapper overridden so
-  # it cannot auto-sync binaries into ./bin before the release packaging step.
+  # Release builds route through soldr (cargo tool shims) and its compiler cache.
   SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
 
@@ -222,78 +214,6 @@ jobs:
           name: ${{ env.BINARY_NAME }}-${{ matrix.arch }}
           path: artifacts/
 
-  # ── Commit binaries to bin/ via Git LFS ──────────────────────────────────────
-  #
-  # SECURITY NOTE: This job pushes directly to `main` from a
-  # tag-triggered workflow using GITHUB_TOKEN. This bypasses branch protection
-  # if your repo has it enabled. Options:
-  #   1. Disable this job if you distribute binaries via Release assets only.
-  #   2. Replace GITHUB_TOKEN with a narrowly-scoped PAT (repo:contents write).
-  #   3. Push to a dedicated `binaries` branch instead of `main`.
-  # The push is intentional — it updates LFS pointers so `git lfs pull` works
-  # in the Claude plugin install flow. Audit before enabling in production repos.
-  lfs-commit:
-    name: Commit binaries to bin/ (Git LFS)
-    needs: [validate-release-tag, build]
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 20
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: main
-          fetch-depth: 0
-          lfs: true
-          # Use a deploy key or token with write access to push the commit.
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Fast-forward main
-        run: |
-          git fetch --force --tags origin main
-          git merge --ff-only origin/main
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: ${{ env.BINARY_NAME }}-*
-          path: artifacts/
-          merge-multiple: true
-
-      - name: Copy binaries to bin/
-        run: |
-          set -euo pipefail
-          mkdir -p bin
-          BIN=${{ env.BINARY_NAME }}
-
-          # Each artifact dir is named <binary>-<arch> and contains one tarball.
-          # merge-multiple flattens all artifact contents into artifacts/ directly.
-          tar -xz -C bin -f artifacts/${BIN}-linux-x86_64.tar.gz
-          mv bin/${BIN} bin/${BIN}-linux-amd64
-
-          tar -xz -C bin -f artifacts/${BIN}-windows-x86_64.tar.gz
-          mv bin/${BIN}.exe bin/${BIN}-windows-amd64.exe
-
-          chmod +x bin/${BIN}-linux-amd64
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Commit LFS binaries
-        run: |
-          # bin/ is ignored for local build output; these two release files are
-          # the intentional exception and are stored as Git LFS pointers.
-          git add -f bin/
-          if git diff --staged --quiet; then
-            echo "No binary pointer changes to commit for ${{ needs.validate-release-tag.outputs.release_tag }}"
-          else
-            git commit -m "chore: release binaries ${{ needs.validate-release-tag.outputs.release_tag }}"
-            git push origin HEAD:main
-          fi
-
   # ── Publish npm launcher package ────────────────────────────────────────────
   npm:
     name: Publish soma-rmcp to npm
@@ -353,10 +273,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance
 
-  # ── Create GitHub Release ─────────────────────────────────────────────────────
+  # ── Upload GitHub Release assets ─────────────────────────────────────────────
   release:
-    name: Create GitHub Release
-    needs: [validate-release-tag, build, lfs-commit]
+    name: Upload GitHub Release assets
+    needs: [validate-release-tag, build]
     runs-on: [self-hosted, unraid]
     timeout-minutes: 20
     permissions:

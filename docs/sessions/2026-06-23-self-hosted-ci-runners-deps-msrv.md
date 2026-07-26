@@ -107,8 +107,7 @@ MSRV, and migrating every workflow to the runner.
   has no taplo prebuilt and its cargo-binstall fallback collides with the
   mise-provided `cargo-binstall` on PATH.
 - **`CARGO_BUILD_RUSTC_WRAPPER: ""` in every rust-building workflow**: the repo's
-  `scripts/cargo-rustc-wrapper` (bash) can't run as a rustc wrapper on Windows, and
-  in `release.yml` it auto-installs to `./bin` which `lfs-commit` would then commit.
+  `scripts/cargo-rustc-wrapper` (bash) can't run as a rustc wrapper on Windows.
 - **Raise MSRV to 1.96 rather than revert `rusqlite`**: the user chose to track the
   latest stable; consequently `msrv.yml` now checks the same toolchain as `Test`.
 - **`docker-publish` → `v*` tags only, amd64-only**: stop rebuilding `:latest` on
@@ -279,7 +278,7 @@ Existing open beads `soma-otd` (cancelled Docker Publish run), `-2qk`
   merged; MSRV 1.96; local default 1.96.
 - **Immediate**: resolve `soma-5yz` (Trivy upload / dependabot-auto-merge fate)
   and `soma-7f5` (runner setup script) before the next `v*` release.
-- **Watch**: the first `v*` tag will exercise `auto-tag` → `release` (LFS) →
+- **Watch**: the first `v*` tag will exercise `auto-tag` → `release` →
   `docker-publish` on dookie for the first time; verify the release pipeline end-to-end.
 - **Cleanup**: once out of the `lucid-perlman-6392e0` worktree,
   `git worktree remove .claude/worktrees/lucid-perlman-6392e0 && git branch -D

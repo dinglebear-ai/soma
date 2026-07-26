@@ -35,7 +35,6 @@ Ran an 8-agent parallel comprehensive review (code quality, architecture, securi
 - `src/config.rs:110` — default bind host was `0.0.0.0`; changed to `127.0.0.1` (SEC HIGH-1). This is the most impactful single-line security fix.
 - `src/mcp/rmcp_server.rs:280` — `check_scope()` had zero test coverage at any layer; scope bypass was entirely untested (TEST Critical). Added 8 scope satisfaction tests.
 - `.github/workflows/docker-publish.yml:99` — `aquasecurity/trivy-action@master` floating branch pin on a security scanner; no `exit-code: '1'` so Trivy never gated the build (CI Critical).
-- `.github/workflows/release.yml:134` — `lfs-commit` job pushed binaries directly to `main` from a tag-triggered workflow, bypassing branch protection (CI Critical).
 - `src/token_limit.rs:127` — `floor_char_boundary()` reimplemented what `str::floor_char_boundary` has been stable since Rust 1.86; deleted 15 lines (CODE H7).
 - `src/api.rs:93`, `src/mcp/rmcp_server.rs:281` — scope satisfaction predicate duplicated verbatim; extracted to `actions::scopes_satisfy()` as single source of truth (CODE H2).
 - `src/mcp/schemas.rs` — `tool_definitions()` rebuilt the static schema `Vec<Value>` on every `list_tools` call; cached with `OnceLock` (PERF M19).

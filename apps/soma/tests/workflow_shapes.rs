@@ -104,13 +104,13 @@ fn artifact_workflows_run_from_published_releases() {
         );
     }
     assert!(
-        release.contains("tag_name: ${{ needs.validate-release-tag.outputs.release_tag }}"),
+        release.contains("gh release upload")
+            && release.contains("\"${{ needs.validate-release-tag.outputs.release_tag }}\""),
         "release artifact workflow must attach files to the existing release tag"
     );
-    let lfs_commit = workflow_job_block(&release, "lfs-commit");
     assert!(
-        lfs_commit.contains("ref: main") && lfs_commit.contains("git merge --ff-only origin/main"),
-        "LFS binary commits must be made on top of current main, not from a detached release tag"
+        !release.contains("git push origin HEAD:main") && !release.contains("ref: main"),
+        "release artifact workflow must not write generated binaries back to main"
     );
     let npm = workflow_job_block(&release, "npm");
     assert!(
@@ -119,7 +119,7 @@ fn artifact_workflows_run_from_published_releases() {
     );
     assert!(
         release.contains("arch: linux-x86_64")
-            && release.contains("artifacts/${BIN}-linux-x86_64.tar.gz"),
+            && release.contains("artifacts/${{ env.BINARY_NAME }}-${{ matrix.arch }}.tar.gz",),
         "release assets must include the installer's linux-x86_64 naming convention"
     );
     assert!(

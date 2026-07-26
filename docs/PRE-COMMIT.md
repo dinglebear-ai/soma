@@ -114,7 +114,7 @@ Use the canonical `.gitignore` from cortex as the base:
 - `target/` ignored
 - `*.db`, `*.db-shm`, `*.db-wal` ignored
 - AI tooling dirs ignored (`.claude/`, `.omc/`, `.lavra/`, etc.)
-- `bin/` **NOT** ignored — LFS-tracked plugin binaries are committed
+- `bin/` ignored — local/generated binaries are never committed
 
 ## .dockerignore rules
 

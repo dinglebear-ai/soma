@@ -151,9 +151,8 @@ package with provenance/trusted publishing support, and uploads artifacts to the
 existing GitHub Release. Release Cargo builds use sccache through the same
 wrapper environment as CI. Linux release jobs cross-compile the Windows GNU
 target from the TOOTIE runner; the native Windows build is a PR-time `ci.yml`
-check, not the release packaging path. The LFS write-back job is intentionally
-isolated here because it can push to `main`; audit that behavior before reusing
-it in a derived repo.
+check, not the release packaging path. The workflow never commits generated
+binaries back to the repository.
 
 ### `.github/workflows/docker-publish.yml`
 
@@ -337,13 +336,10 @@ checks so derived files follow `.release-please-manifest.json`.
 
 Release-please-created version tags (`v*`) trigger the artifact workflows. The
 release workflow builds release binaries and attaches them to the GitHub
-Release. Soma still includes an
-explicit Git LFS write-back job that commits binary pointers to `bin/` on
-`main` for plugin install compatibility. Treat that as an auditable release-only
-exception: disable it in derived repos that distribute solely through GitHub
-Release assets. Local `just dist` / `cargo xtask dist` recipes are operator
-conveniences for preparing artifacts and should not become a separate CI
-write-back path.
+Release. GitHub Release assets are the sole published binary distribution
+channel. Local `just dist` / `cargo xtask dist` recipes build into Cargo's target
+directory for operator testing and never write generated artifacts into the
+repository.
 
 CI artifact naming convention:
 

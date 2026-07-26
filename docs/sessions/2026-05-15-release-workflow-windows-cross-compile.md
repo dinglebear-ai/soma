@@ -30,7 +30,7 @@ Added `x86_64-pc-windows-gnu` as a third build target to `.github/workflows/rele
 8. Verified MinGW was already installed locally; added `x86_64-pc-windows-gnu` Rust target
 9. Ran full cross-compile locally — succeeded in ~75 seconds, produced 33MB PE32+ exe
 10. Committed and pushed (`4ca2c53`)
-11. User requested arm64 removal; dropped matrix entry, install step, linker env var, and lfs-commit extraction block
+11. User requested arm64 removal; dropped its matrix entry, install step, linker env var, and artifact extraction logic
 12. Committed and pushed (`e3a7391`)
 
 ## Key Findings
@@ -55,7 +55,7 @@ Added `x86_64-pc-windows-gnu` as a third build target to `.github/workflows/rele
 
 | File | Change |
 |------|--------|
-| `.github/workflows/release.yml` | Added Windows GNU matrix entry; fixed upload-artifact version; fixed artifact names; added Windows linker env var; fixed lfs-commit extraction; added `fail-fast: false`; later removed arm64 |
+| `.github/workflows/release.yml` | Added Windows GNU matrix entry; fixed upload-artifact version and artifact names; added Windows linker env var and `fail-fast: false`; later removed arm64 |
 
 ## Commands Executed
 

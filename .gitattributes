@@ -1,3 +1,0 @@
-# Release binaries are the intentional exception to the ignored /bin/ directory.
-/bin/soma-linux-amd64 filter=lfs diff=lfs merge=lfs -text
-/bin/soma-windows-amd64.exe filter=lfs diff=lfs merge=lfs -text
