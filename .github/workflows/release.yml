@@ -283,7 +283,9 @@ jobs:
 
       - name: Commit LFS binaries
         run: |
-          git add bin/
+          # bin/ is ignored for local build output; these two release files are
+          # the intentional exception and are stored as Git LFS pointers.
+          git add -f bin/
           if git diff --staged --quiet; then
             echo "No binary pointer changes to commit for ${{ needs.validate-release-tag.outputs.release_tag }}"
           else
