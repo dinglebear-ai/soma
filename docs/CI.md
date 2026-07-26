@@ -65,21 +65,19 @@ not available for this private repo without GitHub Pro or making the repo
 public, so treat the live repository settings as manual state and keep docs
 focused on the required check names.
 
-The jobs run on self-hosted runners: path classifiers, aggregate gates, and
-Linux jobs use the TOOTIE Docker runner
-(`runs-on: [self-hosted, tootie, rmcp-template]`, see `docs/LINUX-RUNNER.md`),
-and Windows jobs use steamy (`runs-on: [self-hosted, Windows, rmcp-template, steamy]`,
-see `docs/WINDOWS-RUNNER.md`). The Rust jobs force `RUSTC_WRAPPER=sccache`,
-`CARGO_BUILD_RUSTC_WRAPPER=sccache`, and `CARGO_INCREMENTAL=0`; the local
-`.github/actions/setup-rust-sccache` action installs Rust plus sccache and prints
-the effective cache configuration. CI caches compilation only; binary artifact
-sync is an explicit recipe such as `just sync-bin` or `just build-plugin`.
+Path classifiers, aggregate gates, and Linux jobs use the self-hosted Unraid
+runner pool (`runs-on: [self-hosted, unraid]`, see `docs/LINUX-RUNNER.md`).
+The native Windows job uses GitHub-hosted Windows
+(`runs-on: windows-latest`, see `docs/WINDOWS-RUNNER.md`). Linux Rust builds
+route through soldr and its zccache-backed persistent cache; the native Windows
+job runs Cargo without a compile wrapper.
 
 Self-hosted jobs, including `changes`, `ci-gate`, `MSRV Changes`, and
 `MSRV Gate`, use a same-repository job guard. Pushes, schedules, manual runs,
-and same-repo PRs can use the TOOTIE and steamy runners; fork PRs do not
-allocate self-hosted runners. Add a GitHub-hosted fork fallback before accepting
-outside PRs that need CI feedback.
+and same-repo PRs can use the Unraid runners; fork PRs do not allocate them.
+The hosted Windows job still depends on the self-hosted `changes` and
+`frontend-assets` jobs, so add a complete GitHub-hosted fork fallback before
+accepting outside PRs that need CI feedback.
 
 Jobs:
 - `changes`: classifies changed files into CI routing categories
@@ -90,7 +88,7 @@ Jobs:
 - `test`: builds the stdio binary, runs `cargo nextest run --profile ci`, and uploads the JUnit report
 - `frontend-assets`: `pnpm install --frozen-lockfile`, `pnpm audit`, `pnpm lint`, `pnpm typecheck`, `pnpm build`
 - `build-linux`: native Linux release build, uploads `soma-linux-x86_64`
-- `build-windows`: native Windows release build and test on steamy, uploads `soma-windows-x86_64`
+- `build-windows`: native build and test on `windows-latest`, uploads `soma-windows-x86_64`
 - `mcp-smoke`: starts the HTTP MCP server and runs the mcporter smoke suite
 - `container-smoke`: validates compose files and builds the Docker image
 - `toml`: `taplo check`
@@ -104,10 +102,9 @@ The Linux and Windows build jobs are PR-time artifact checks. They prove the
 binary compiles natively before a release tag exists and give reviewers a
 downloadable artifact for manual smoke testing.
 
-The Windows job follows the Axon CI pattern: it builds on native Windows and
-sets explicit portable CPU flags so self-hosted runner config cannot leak
-`target-cpu=native` into published artifacts. See `docs/WINDOWS-RUNNER.md` for
-the full runner setup and audit process.
+The Windows job builds on GitHub-hosted native Windows and sets explicit
+portable CPU flags so artifacts remain broadly compatible. See
+`docs/WINDOWS-RUNNER.md` for the hosted-runner flow and smoke process.
 
 ### `.github/workflows/msrv.yml`
 

@@ -54,7 +54,7 @@ Use the right layer for the job:
 | `TRACE_CONTEXT.md` | Trace-header trust config, modes, CORS gating, outbound-propagation scope | The trace-header trust boundary, `SOMA_MCP_TRACE_HEADERS` modes, or outbound-propagation scope change |
 | `CI.md` | Workflow purpose, path-aware gates, runner trust model, release gates | GitHub Actions, required checks, or runner routing changes |
 | `LINUX-RUNNER.md` | TOOTIE Docker runner setup, isolation, cache, troubleshooting | Linux runner labels, volumes, compose path, cache, or security model changes |
-| `WINDOWS-RUNNER.md` | STEAMY native Windows runner setup and artifact checks | Windows runner labels, sccache, artifacts, or native build flow changes |
+| `WINDOWS-RUNNER.md` | GitHub-hosted native Windows CI and artifact checks | Windows runner image, artifacts, or native build flow changes |
 | `XTASKS.md` | `cargo xtask` automation reference | xtask commands or generated-doc gates change |
 | `MCP-REGISTRY-PUBLISH-GUIDE.md` | How to publish a derived server to the official MCP registry | The mcp-publisher CLI, registry schema, or CI publish workflow changes |
 | `CLAUDE.md` (this file) | Instructions for agents and contributors navigating this directory | The directory structure or doc authority changes |

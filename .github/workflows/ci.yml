@@ -37,11 +37,11 @@ env:
   # ./.github/actions/setup-rust-soldr). soldr sets RUSTC_WRAPPER for its cargo
   # child, which also keeps the dev-only scripts/cargo-rustc-wrapper (used by
   # sibling repos / user-level config) overridden in CI. The artifact store
-  # lives on the persistent self-hosted runner disk, same pattern as the old
-  # SCCACHE_DIR; the native Windows job runs without any compile wrapper.
+  # lives on the persistent self-hosted Linux runner disk, same pattern as the
+  # old SCCACHE_DIR; the GitHub-hosted native Windows job runs without any
+  # compile wrapper.
   SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
-  # Keep Windows artifacts portable even on self-hosted runners whose user-level
-  # Cargo config may contain target-cpu=native or machine-specific SIMD flags.
+  # Keep Windows artifacts portable and independent of runner image defaults.
   WINDOWS_PORTABLE_RUSTFLAGS: >-
     -C target-cpu=x86-64
     -C target-feature=-avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd,-avx512ifma,-avx512vbmi,-avx512vbmi2,-avx512vnni,-avx512bitalg,-avx512vpopcntdq
@@ -344,7 +344,7 @@ jobs:
 
   build-windows:
     name: Build Windows
-    runs-on: [self-hosted, Windows, rmcp-template, steamy]
+    runs-on: windows-latest
     needs: [changes, frontend-assets]
     if: ${{ always() && needs.changes.outputs.native == 'true' && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 60

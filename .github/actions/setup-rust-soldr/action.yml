@@ -73,10 +73,12 @@ runs:
         targets: ${{ inputs.targets }}
 
     # setup-soldr installs the soldr front door (zccache compilation caching).
-    # cache-preset: minimal — these are persistent self-hosted runners, so the
-    # zccache store persists on local disk (SOLDR_CACHE_DIR in workflow env,
-    # same pattern as the old SCCACHE_DIR) and the GitHub-cache save/restore
-    # layers would only add network overhead. Compile caching itself stays ON
+    # cache-preset: minimal — Linux builds use persistent self-hosted runners,
+    # so the zccache store persists on local disk (SOLDR_CACHE_DIR in workflow
+    # env, same pattern as the old SCCACHE_DIR) and GitHub cache save/restore
+    # layers would only add network overhead. The hosted native Windows job
+    # disables cargo shims and therefore does not depend on this persistent
+    # compile cache. Compile caching itself stays ON when shims are enabled
     # (do NOT use `cache: false` here — that umbrella switch exports
     # SOLDR_BUILD_CACHE_MODE=off and disables zccache entirely). With
     # shims: true, plain `cargo ...` steps trampoline into `soldr cargo ...`.

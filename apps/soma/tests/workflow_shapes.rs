@@ -49,6 +49,20 @@ fn ci_runs_release_version_gate_before_merge() {
 }
 
 #[test]
+fn native_windows_ci_uses_a_github_hosted_runner() {
+    let workflow = include_str!("../../../.github/workflows/ci.yml");
+    let windows = workflow_job_block(workflow, "build-windows");
+    assert!(
+        windows.contains("runs-on: windows-latest"),
+        "native Windows CI must run on GitHub-hosted Windows"
+    );
+    assert!(
+        !windows.contains("self-hosted") && !windows.contains("steamy"),
+        "native Windows CI must not depend on the Steamy self-hosted runner"
+    );
+}
+
+#[test]
 fn release_please_uses_ci_gated_release_pr_flow() {
     let workflow = include_str!("../../../.github/workflows/release-please.yml");
     let release_please = workflow_job_block(workflow, "release-please");

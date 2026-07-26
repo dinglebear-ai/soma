@@ -229,7 +229,7 @@ separate from Linux-to-Windows cross-compilation:
 
 - cross-compilation is useful for tag-time packaging when dependencies support it
 - native Windows CI catches Windows runtime, path, shell, and MSVC issues earlier
-- self-hosted Windows runners must be audited for user-level Cargo config
+- GitHub-hosted `windows-latest` avoids dependencies on machine-local runner state
 
 The Windows CI job sets explicit portable CPU flags:
 
@@ -245,8 +245,8 @@ not add this to repo or runner-wide config for artifacts that will be shared:
 rustflags = ["-C", "target-cpu=native"]
 ```
 
-For self-hosted runner setup, labels, required tools, artifact smoke testing,
-and Cargo config audits, see `docs/WINDOWS-RUNNER.md`.
+For the GitHub-hosted runner flow and artifact smoke testing, see
+`docs/WINDOWS-RUNNER.md`.
 
 ---
 

@@ -9,89 +9,57 @@ audience:
   - "agents"
 scope: "soma"
 source_of_truth: false
-last_reviewed: "2026-06-27"
+last_reviewed: "2026-07-26"
 ---
 
 # Windows CI Runner
 
-This guide explains the Linux + Windows build workflow and the Windows runner
-setup used by repos derived from `soma`.
+Soma runs its native Windows CI job on GitHub-hosted Windows:
 
-Soma can run on GitHub-hosted runners, but this repo's Windows job is
-currently wired to the steamy self-hosted runner:
+```yaml
+runs-on: windows-latest
+```
 
-- `build-linux`: `[self-hosted, tootie, rmcp-template]`, builds `target/release/soma` and `target/release/soma`
-- `build-windows`: `[self-hosted, Windows, rmcp-template, steamy]`, builds
-  `target/release/soma.exe` and `target/release/soma.exe`
+The `build-windows` job in `.github/workflows/ci.yml` runs when the path-aware
+`Changes` job marks native artifact checks as relevant. It builds and tests the
+MSVC target, then uploads `soma-windows-x86_64` for PR-time smoke testing.
+No self-hosted Windows runner or machine-specific labels are required.
 
-Both jobs are wired through `.github/workflows/ci.yml` and run when the
-path-aware `Changes` job marks native artifact checks as relevant. They upload
-artifacts named `soma-linux-x86_64` and `soma-windows-x86_64` so PR
-review can test the exact compiled binary before a release tag exists.
+Release packaging is separate: `.github/workflows/release.yml` cross-compiles
+the Windows GNU artifact on the self-hosted Unraid Linux runners.
 
 ## Why Native Windows Builds
 
-Rust MCP servers should prove Windows compatibility before release. Cross
-compiling from Linux can work for simple crates, but native Windows catches
-problems in:
+Native Windows CI catches behavior that Linux-to-Windows cross-compilation
+cannot exercise:
 
 - path parsing and drive-letter handling
-- shell quoting and process spawning
+- PowerShell quoting and process spawning
 - Windows TLS, DNS, and socket behavior
-- `windows-rs` or MSVC-specific dependency behavior
-- runner-level Cargo configuration that changes generated CPU instructions
-
-`release.yml` is the release-published packaging flow. The CI build jobs are earlier
-feedback: they run on native-relevant PRs and pushes and produce artifacts for
-smoke testing.
+- `windows-rs` and MSVC-specific dependency behavior
+- Windows process-tree and Job Object cleanup
 
 ## Workflow Shape
 
-The PR-time build path is:
+The PR-time Windows path:
 
-1. Run the path-aware `Changes` job.
-2. Check out the repo.
-3. Build `apps/web/out` with pnpm when web/native/MCP checks need embedded
-   static assets.
-4. Install Rust stable and sccache.
-5. Run Windows tests on the Windows job.
-6. Build the local-adapter and full server release binaries.
-7. Upload the compiled local-adapter binary as a workflow artifact.
+1. Runs the path classifier on the Unraid runner.
+2. Builds the shared web export on Unraid.
+3. Starts `build-windows` on `windows-latest`.
+4. Downloads the web export.
+5. Installs stable Rust and soldr without Cargo shims.
+6. Checks and tests the self-update surface.
+7. Runs the native Windows workspace tests.
+8. Builds the local-adapter and full release binaries.
+9. Uploads `target/release/soma.exe`.
 
-The Windows job also prints Rust CPU flag evidence:
-
-```powershell
-rustc -vV
-sccache --version
-"RUSTC_WRAPPER=$env:RUSTC_WRAPPER"
-"CARGO_BUILD_RUSTC_WRAPPER=$env:CARGO_BUILD_RUSTC_WRAPPER"
-"SCCACHE_DIR=$env:SCCACHE_DIR"
-"RUSTFLAGS=$env:RUSTFLAGS"
-rustc --print cfg | Select-String 'target_feature'
-cargo config get build.rustflags --merged
-cargo config get target.x86_64-pc-windows-msvc.rustflags --merged
-```
-
-This is intentional. On self-hosted runners, user-level Cargo config can silently
-add `target-cpu=native` or SIMD flags that make the artifact crash on other
-Windows machines.
-
-The Windows cargo steps use the same sccache wrapper environment as Linux:
-
-```yaml
-CARGO_INCREMENTAL: "0"
-RUSTC_WRAPPER: sccache
-CARGO_BUILD_RUSTC_WRAPPER: sccache
-SCCACHE_DIR: ${{ github.workspace }}/../.sccache
-```
-
-`sccache.exe` is expected to be in `PATH` on steamy. The workflow's local
-`.github/actions/setup-rust-sccache` action also installs sccache, so the job
-prints cache evidence even if the host PATH changes.
+The native job intentionally runs Cargo without a compile wrapper. It still
+installs soldr because the shared setup action owns Rust toolchain installation
+and integrity checks.
 
 ## Portable Windows CPU Flags
 
-`.github/workflows/ci.yml` sets:
+The workflow sets portable CPU flags explicitly:
 
 ```yaml
 WINDOWS_PORTABLE_RUSTFLAGS: >-
@@ -99,125 +67,25 @@ WINDOWS_PORTABLE_RUSTFLAGS: >-
   -C target-feature=-avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd,-avx512ifma,-avx512vbmi,-avx512vbmi2,-avx512vnni,-avx512bitalg,-avx512vpopcntdq
 ```
 
-The Windows `cargo test` and `cargo build --release` steps pass those flags via
-`RUSTFLAGS`. Keep this override when switching from `windows-latest` to a
-self-hosted Windows runner.
+The Windows check, test, and build steps pass these flags through `RUSTFLAGS`.
+Do not commit `target-cpu=native` or machine-specific SIMD flags for artifacts
+that will be shared.
 
-Long Windows cargo steps run through a PowerShell `Start-Process` wrapper that
-prints a heartbeat every 60 seconds. Keep this pattern for slow build or nextest
-steps; it prevents a quiet but healthy self-hosted job from looking hung.
+The long Cargo steps run through a PowerShell `Start-Process` wrapper that
+prints a heartbeat every 60 seconds. This keeps long hosted-runner builds
+observable without changing their exit status.
 
-Do not put `target-cpu=native` in repo config. If a developer wants local native
-optimizations, they belong in that developer's private environment, never in
-committed `.cargo/config.toml`.
+## GitHub-Hosted Environment
 
-## Current Steamy Runner
+`windows-latest` provides Git, PowerShell, the MSVC toolchain, Windows SDK,
+Python, and Node support. The workflow explicitly installs the Rust toolchain
+and selects Python with `actions/setup-python`, so it does not depend on
+machine-local state.
 
-The active runner is:
-
-- GitHub repo: `dinglebear-ai/soma`
-- Runner name: `soma-windows-1`
-- Runner path: `C:\Users\jmaga\actions-runner\soma`
-- Labels: `self-hosted`, `Windows`, `X64`, `soma`, `steamy`
-- Startup file:
-  `C:\Users\jmaga\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\soma-runner.vbs`
-
-The runner is nested under the existing Axon runner directory so all GitHub
-Actions runner state for steamy stays under `C:\Users\jmaga\actions-runner`.
-
-## GitHub-Hosted Runner Setup
-
-No repository configuration is required for `windows-latest`. GitHub provides
-Windows, MSVC, PowerShell, Node, and Rust installation support.
-
-Use the hosted runner when:
-
-- build time is acceptable
-- no private hardware, GPU, service, or desktop integration is required
-- artifacts only need general x86_64 Windows compatibility
-
-## Self-Hosted Windows Runner Setup
-
-Use a self-hosted runner when the repo needs persistent caches, private network
-access, specialized desktop testing, or a known Windows host.
-
-1. In GitHub, open the repo or organization settings.
-2. Go to `Actions` -> `Runners` -> `New self-hosted runner`.
-3. Choose Windows x64 and follow GitHub's generated download/config commands.
-4. Run the runner as a service so builds survive logouts.
-5. Add stable labels such as `self-hosted`, `Windows`, and a repo-family label
-   such as `soma`.
-
-Then change the Windows job:
-
-```yaml
-runs-on: [self-hosted, Windows, rmcp-template]
-```
-
-If Linux should also use a self-hosted runner, change the Linux job similarly:
-
-```yaml
-runs-on: [self-hosted, tootie, rmcp-template]
-```
-
-Keep labels repo-family-specific. Avoid labels tied to one machine name unless
-the workflow truly requires that exact machine.
-
-## Required Windows Tools
-
-Install these for a self-hosted Windows runner:
-
-- Git for Windows
-- Visual Studio Build Tools with the MSVC C++ toolchain
-- Windows SDK
-- Rustup and stable Rust
-- Node.js LTS
-- PowerShell 7 if the host does not already have it
-- `sccache.exe` in `PATH`
-
-Verify from the runner account, not from an administrator shell:
-
-```powershell
-git --version
-rustup show
-rustc -vV
-cargo -V
-node -v
-npm -v
-```
-
-The runner service account is the effective build user. If the runner service
-runs as `NETWORK SERVICE`, a local admin, or a named user, inspect that account's
-Cargo home and PATH.
-
-## Cargo Config Audit
-
-Before trusting self-hosted artifacts, inspect merged Cargo config from a
-workflow run or from the runner account:
-
-```powershell
-cargo config get build.rustflags --merged
-cargo config get target.x86_64-pc-windows-msvc.rustflags --merged
-cargo config get build.rustc-wrapper --merged
-sccache --version
-```
-
-Also inspect likely config files:
-
-```powershell
-$env:USERPROFILE\.cargo\config.toml
-$env:CARGO_HOME\config.toml
-.\.cargo\config.toml
-```
-
-Remove or override anything like:
-
-```toml
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-cpu=native"]
-```
-
-Those flags can produce binaries that work on the runner and crash elsewhere.
+GitHub updates the image behind `windows-latest`. If an image change causes a
+failure, inspect the run's `Set up job`, toolchain, and CPU-flag output before
+pinning an older image. Keep `windows-latest` as the default so CI continues to
+exercise a supported Windows environment.
 
 ## Artifact Smoke Test
 
@@ -228,7 +96,7 @@ gh run list --workflow CI --limit 5
 gh run download <run-id> --name soma-windows-x86_64 --dir /tmp/soma-win
 ```
 
-Then copy `soma.exe` to a Windows host and run:
+On Windows:
 
 ```powershell
 .\soma.exe --version
@@ -236,13 +104,13 @@ Then copy `soma.exe` to a Windows host and run:
 .\soma.exe doctor
 ```
 
-For MCP transport smoke testing:
+For MCP stdio:
 
 ```powershell
 .\soma.exe mcp
 ```
 
-For HTTP smoke testing:
+For HTTP:
 
 ```powershell
 $env:SOMA_MCP_HOST = "127.0.0.1"
@@ -250,7 +118,7 @@ $env:SOMA_MCP_NO_AUTH = "true"
 .\soma.exe serve
 ```
 
-Then from another shell:
+Then from another PowerShell:
 
 ```powershell
 Invoke-WebRequest http://127.0.0.1:40060/health
@@ -258,23 +126,14 @@ Invoke-WebRequest http://127.0.0.1:40060/health
 
 ## Troubleshooting
 
-If the Windows artifact crashes on another machine:
+If the Windows artifact fails:
 
-- Check the workflow's `Show Windows Rust CPU flags` step.
-- Recheck the self-hosted runner user's Cargo config.
-- Confirm `RUSTFLAGS` is set on both `cargo test` and `cargo build`.
-- Rebuild with `windows-latest` to separate repo issues from host issues.
-- Test `soma.exe --version` before testing MCP or HTTP behavior.
+- inspect the `Show Windows Rust CPU flags` step
+- confirm `RUSTFLAGS` reached every Cargo invocation
+- check the GitHub runner image listed in `Set up job`
+- reproduce with the same stable Rust toolchain on a local Windows host
+- test `soma.exe --version` before MCP or HTTP behavior
 
-If pnpm fails on Windows:
-
-- Confirm `apps/web/package.json` has a valid `packageManager`.
-- Confirm `node -p "require('./package.json').packageManager"` works in
-  `apps/web`.
-- Delete stale `apps/web/node_modules` and rerun the job.
-
-If Cargo cannot find MSVC:
-
-- Install Visual Studio Build Tools.
-- Include the Windows SDK and MSVC C++ build tools workloads.
-- Restart the runner service so PATH changes are visible.
+If Cargo cannot find MSVC, first check the hosted image status and the
+`windows-latest` software manifest. No repository-side runner installation or
+service repair should be necessary.

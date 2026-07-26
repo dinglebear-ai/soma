@@ -54,7 +54,7 @@ docs/
   │
   ├── CI.md                           ← GitHub workflows, nextest, taplo
   ├── LINUX-RUNNER.md                 ← TOOTIE self-hosted runner setup and trust boundary
-  ├── WINDOWS-RUNNER.md               ← STEAMY native Windows runner setup and artifacts
+  ├── WINDOWS-RUNNER.md               ← GitHub-hosted native Windows CI and artifacts
   ├── PRE-COMMIT.md                   ← lefthook hooks, taplo, env guard
   ├── TESTING.md                      ← test strategy, sidecars, mcporter
   ├── MCPORTER.md                     ← live MCP integration testing

@@ -1,7 +1,6 @@
 self-hosted-runner:
   labels:
     - rmcp-template
-    - steamy
     - tootie
     - unraid
     - dookie
