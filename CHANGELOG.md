@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.6.1](https://github.com/dinglebear-ai/soma/compare/v0.6.0...v0.6.1) (2026-07-26)
+
+
+### Fixed
+
+* **ci:** authenticate npm release publishing ([2d5aaca](https://github.com/dinglebear-ai/soma/commit/2d5aacae018003f2378efd9edd7af5016ab8f22e))
+* **ci:** checksum only release archives ([c4b3dd2](https://github.com/dinglebear-ai/soma/commit/c4b3dd2699eccacd6e561600eb3cb1024ea1ba90))
+* **ci:** install Rust before release validation ([e028c7f](https://github.com/dinglebear-ai/soma/commit/e028c7f268e4ae8bd93ef53de7c63fca5b1a1879))
+* **ci:** preserve MinGW compiler in release builds ([18d0160](https://github.com/dinglebear-ai/soma/commit/18d0160aa4086df90facec6b05be8c9400a64572))
+* **ci:** track release binaries with Git LFS ([86b1094](https://github.com/dinglebear-ai/soma/commit/86b10947700fec0c89b0dbf079cd57fa2e33bd0c))
+* **ci:** upload assets to existing releases ([e0e55fc](https://github.com/dinglebear-ai/soma/commit/e0e55fcb9a6250dd369e56d2397458319395fe72))
+
+
+### Changed
+
+* **release:** publish binaries only via GitHub Releases ([6fa9be8](https://github.com/dinglebear-ai/soma/commit/6fa9be8c71c718946125d066912f2da598e70717))
+
 ## [0.6.0](https://github.com/dinglebear-ai/soma/compare/v0.5.0...v0.6.0) (2026-07-23)
 
 
