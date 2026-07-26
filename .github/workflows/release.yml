@@ -378,9 +378,12 @@ jobs:
           sha256sum ./* > SHA256SUMS
           cat SHA256SUMS
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.validate-release-tag.outputs.release_tag }}
-          fail_on_unmatched_files: true
-          files: artifacts/*
+      - name: Upload assets to existing GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload \
+            "${{ needs.validate-release-tag.outputs.release_tag }}" \
+            artifacts/* \
+            --clobber \
+            --repo "${GITHUB_REPOSITORY}"
