@@ -173,7 +173,15 @@ jobs:
         if: matrix.target == 'x86_64-pc-windows-gnu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64
+          sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+          # setup-soldr exports target-specific CC/CXX values for the host
+          # compiler. Override them after setup so native dependencies such as
+          # aws-lc-sys are compiled with MinGW for the requested Windows target.
+          {
+            echo "CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc"
+            echo "CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++"
+            echo "AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar"
+          } >> "$GITHUB_ENV"
 
       # CUSTOMIZE: If you need OpenSSL, add it here:
       #   sudo apt-get install -y libssl-dev
