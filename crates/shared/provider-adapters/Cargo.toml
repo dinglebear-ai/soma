@@ -33,8 +33,10 @@ gateway = ["dep:rmcp", "dep:reqwest", "dep:rustls", "dep:url", "dep:tokio", "dep
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.11"
 soma-provider-core = { workspace = true }
 thiserror = "2"
+toml = "1.1"
 tracing = "0.1"
 
 # ai-sdk / python / sidecar / wasm

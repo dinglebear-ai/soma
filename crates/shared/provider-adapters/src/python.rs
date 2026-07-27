@@ -41,6 +41,8 @@ use crate::{
     },
 };
 
+pub mod environment;
+
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const DEFAULT_MAX_INPUT_BYTES: usize = 64 * 1024;
 const DEFAULT_MAX_OUTPUT_BYTES: usize = 256 * 1024;
