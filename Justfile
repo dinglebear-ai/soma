@@ -102,17 +102,17 @@ fmt-check:
 
 # Run the dependency-free embedded Python provider SDK unit tests
 test-python:
-    PYTHONPATH=crates/shared/provider-adapters/python python3 -m unittest discover -s crates/shared/provider-adapters/python/tests -p 'test_*.py' -v
+    PYTHONPATH=packages/python/python python3 -m unittest discover -s packages/python/tests -p 'test_*.py' -v
 
 # Build and install the public Python authoring SDK in an isolated environment
 test-python-package:
     #!/usr/bin/env bash
     set -euo pipefail
-    package_dir="crates/shared/provider-adapters/python"
+    package_dir="packages/python"
     dist_dir="$(mktemp -d)"
     venv_dir="$(mktemp -d)"
     trap 'rm -rf "$dist_dir" "$venv_dir"' EXIT
-    uv build --project "$package_dir" --out-dir "$dist_dir"
+    uv run --project "$package_dir" --frozen maturin build --manifest-path "$package_dir/Cargo.toml" --profile dev --out "$dist_dir"
     uv venv "$venv_dir"
     uv pip install --link-mode copy --python "$venv_dir/bin/python" "$dist_dir"/soma_provider-*.whl
     "$venv_dir/bin/python" -I "$package_dir/tests/verify_installed.py"

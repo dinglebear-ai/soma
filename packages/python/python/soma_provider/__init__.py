@@ -14,6 +14,18 @@ from dataclasses import dataclass
 from typing import Any, ParamSpec, Protocol, TypeVar, TypedDict, overload
 
 __version__ = "0.2.0"
+
+try:
+    from . import _soma_native as _native
+except ImportError:
+    _native = None
+else:
+    if _native.sdk_version() != __version__:
+        raise ImportError(
+            "soma-provider Python/native version mismatch: "
+            f"Python {__version__}, native {_native.sdk_version()}"
+        )
+
 __all__ = [
     "__version__",
     "CapabilityUnavailableError",
@@ -29,8 +41,11 @@ __all__ = [
     "State",
     "ToolMetadata",
     "json_schema",
+    "native_available",
+    "native_build",
     "provider",
     "tool",
+    "validate_manifest",
 ]
 
 _P = ParamSpec("_P")
@@ -47,6 +62,34 @@ class MetadataError(SomaProviderError, TypeError):
 
 class CapabilityUnavailableError(SomaProviderError):
     """Raised when a brokered host capability is unavailable in this runtime."""
+
+
+def native_available() -> bool:
+    """Return whether the matching private Rust extension is installed."""
+
+    return _native is not None
+
+
+def native_build() -> dict[str, Any] | None:
+    """Return native compatibility metadata without exposing the extension."""
+
+    if _native is None:
+        return None
+    return {
+        "sdk_version": _native.sdk_version(),
+        "provider_schema_version": _native.provider_schema_version(),
+    }
+
+
+def validate_manifest(manifest: str | Mapping[str, Any]) -> dict[str, Any]:
+    """Validate and normalize a provider manifest through provider-core."""
+
+    if _native is None:
+        raise CapabilityUnavailableError(
+            "native provider validation requires the installed soma-provider wheel"
+        )
+    document = manifest if isinstance(manifest, str) else json.dumps(manifest, allow_nan=False)
+    return typing.cast(dict[str, Any], json.loads(_native.validate_manifest_json(document)))
 
 
 class ProviderMetadata(TypedDict, total=False):

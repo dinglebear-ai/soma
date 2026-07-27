@@ -23,7 +23,7 @@ The canonical provider contract remains the Rust `provider-core`
 metadata is authoring input to that contract, not a second provider model.
 
 The initial authoring helper is a dependency-free module at
-`crates/shared/provider-adapters/python/soma_provider.py`. The Rust adapter embeds
+`packages/python/python/soma_provider/__init__.py`. The Rust adapter embeds
 it into the Python bridge and registers it as `sys.modules["soma_provider"]`
 before importing a provider. A drop-in file can therefore use
 `from soma_provider import tool` without a wheel, `PYTHONPATH`, or inherited

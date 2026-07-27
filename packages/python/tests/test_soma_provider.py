@@ -7,9 +7,17 @@ from soma_provider import (
     MetadataError,
     __version__,
     json_schema,
+    native_available,
+    native_build,
     provider,
     tool,
 )
+
+
+class NativeFallbackTests(unittest.TestCase):
+    def test_source_sdk_does_not_require_native_extension(self):
+        self.assertFalse(native_available())
+        self.assertIsNone(native_build())
 
 
 class ToolDecoratorTests(unittest.TestCase):

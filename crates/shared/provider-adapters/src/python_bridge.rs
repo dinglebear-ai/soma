@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
-pub(crate) const PYTHON_SDK: &str = include_str!("../python/soma_provider.py");
+pub(crate) const PYTHON_SDK: &str =
+    include_str!("../../../../packages/python/python/soma_provider/__init__.py");
 
 pub(crate) const PYTHON_BRIDGE: &str = r#"
 import asyncio

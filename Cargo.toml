@@ -40,6 +40,7 @@ members = [
   "crates/soma/runtime",
   "crates/soma/test-support",
   "crates/soma/web",
+  "packages/python",
   "xtask",
 ]
 resolver = "2"
@@ -78,6 +79,7 @@ rmcp = { version = "=2.2.0", default-features = false }
 # (`package =` cannot be combined with `workspace = true` on the member side).
 # Keep the version in sync with `rmcp` above.
 rmcp-client = { package = "rmcp", version = "=2.2.0", default-features = false }
+pyo3 = { version = "0.29", features = ["abi3-py311"] }
 # Security primitives. One pin so every crate that wipes key material on drop
 # agrees on the same zeroize semantics.
 zeroize = { version = "1", features = ["zeroize_derive"] }
