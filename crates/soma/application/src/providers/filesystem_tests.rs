@@ -862,3 +862,7 @@ fn failed_python_candidate_refresh_keeps_previous_snapshot_active() {
         Some("stable-provider")
     );
 }
+
+#[cfg(unix)]
+#[path = "filesystem_environment_tests.rs"]
+mod environment_integration;

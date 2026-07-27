@@ -125,3 +125,48 @@ PROVIDER = {"name": "pep", "kind": "python"}
         Some("disallow")
     );
 }
+
+#[test]
+fn warm_cache_reuse_never_invokes_uv() {
+    let (_temporary, spec, runner, provider) = fixture();
+    fs::write(&provider, "PROVIDER = {'name': 'warm', 'kind': 'python'}\n").unwrap();
+    let lifecycle = PythonEnvironmentLifecycle::with_runner("uv", spec, runner.clone());
+
+    let first = lifecycle.prepare_provider(&provider).unwrap();
+    let calls_after_first_prepare = runner.calls.lock().unwrap().len();
+    let second = lifecycle.prepare_provider(&provider).unwrap();
+
+    assert_eq!(first, second);
+    assert_eq!(calls_after_first_prepare, 3);
+    assert_eq!(
+        runner.calls.lock().unwrap().len(),
+        calls_after_first_prepare
+    );
+}
+
+#[derive(Clone, Copy)]
+struct RejectingUv;
+
+impl UvRunner for RejectingUv {
+    fn run(&self, _program: &Path, _args: &[OsString], _current_dir: &Path) -> Result<(), String> {
+        Err("uv must not run for a complete frozen cache".to_owned())
+    }
+}
+
+#[test]
+fn offline_restart_reopens_complete_cache_without_uv() {
+    let (_temporary, mut spec, runner, provider) = fixture();
+    fs::write(
+        &provider,
+        "PROVIDER = {'name': 'offline', 'kind': 'python'}\n",
+    )
+    .unwrap();
+    let online = PythonEnvironmentLifecycle::with_runner("uv", spec.clone(), runner);
+    let expected = online.prepare_provider(&provider).unwrap();
+
+    spec.offline = true;
+    let restarted = PythonEnvironmentLifecycle::with_runner("uv", spec, RejectingUv);
+    let prepared = restarted.prepare_provider(&provider).unwrap();
+
+    assert_eq!(prepared, expected);
+}
