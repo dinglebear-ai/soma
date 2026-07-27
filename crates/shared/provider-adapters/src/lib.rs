@@ -31,7 +31,7 @@ pub mod python;
 #[cfg(feature = "python")]
 mod python_bridge;
 #[cfg(feature = "python")]
-mod python_protocol;
+pub mod python_protocol;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;

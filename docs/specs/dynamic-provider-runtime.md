@@ -186,6 +186,19 @@ Responses must match the request version, ID, and mode. Envelope capture has
 bounded headroom, and extracted payloads remain subject to their configured byte
 limits.
 
+A separate persistent-runner protocol seam is versioned independently from that
+compatibility envelope. Its dedicated control channel uses a four-byte
+big-endian length followed by bounded UTF-8 JSON. The worker initiates a
+major/minor handshake; matching majors negotiate the lower minor and the
+intersection of advertised features. Typed messages cover `describe`, `invoke`,
+`cancel`, `health`, `drain`, `shutdown`, brokered `host.*` calls, stable
+invocation states, and redacted error codes. Invocation envelopes carry the
+request and invocation IDs, deadline, trace, actor/scopes, cancellation token,
+and generation required for at-most-once dispatch. Rust and dependency-free
+Python codecs consume shared golden fixtures. This seam is not the active
+execution engine yet; the one-shot bridge remains in place until the supervisor
+phase lands.
+
 Python provider files are trusted code, not inert configuration. Soma imports
 the module to derive the catalog, so top-level Python runs during provider
 refresh. The sidecar starts with a cleared environment and receives only
