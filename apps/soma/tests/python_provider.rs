@@ -473,6 +473,61 @@ def add(a: "UnresolvedAnnotation", b: "UnresolvedAnnotation") -> int:
 }
 
 #[tokio::test]
+async fn python_context_is_injected_and_excluded_from_public_schema() -> anyhow::Result<()> {
+    let temp = test_dir("context")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("context.py"),
+        r#"
+from soma_provider import Context, provider, tool
+
+PROVIDER = provider(name="context-python", kind="python")
+
+@tool(description="Inspect the runner-injected request context.")
+def inspect_context(message: str, ctx: Context) -> dict:
+    return {
+        "message": message,
+        "request_id": ctx.request.request_id,
+        "provider": ctx.request.provider,
+        "action": ctx.request.action,
+        "surface": ctx.request.surface,
+        "snapshot_id": ctx.request.snapshot_id,
+        "cancelled": ctx.cancelled,
+    }
+"#,
+    )?;
+
+    let registry = dynamic_provider_registry_from_dir(service()?, &providers)?;
+    let snapshot = registry.snapshot();
+    let catalog = snapshot
+        .catalogs
+        .iter()
+        .find(|catalog| catalog.provider.name == "context-python")
+        .expect("context Python catalog");
+    let tool = catalog
+        .tools
+        .iter()
+        .find(|tool| tool.name == "inspect_context")
+        .expect("context tool");
+    assert_eq!(
+        tool.input_schema["properties"],
+        json!({"message": {"type": "string"}})
+    );
+    assert_eq!(tool.input_schema["required"], json!(["message"]));
+
+    let output = dispatch(&registry, "inspect_context", json!({"message": "ready"})).await?;
+    assert_eq!(output["message"], "ready");
+    assert_eq!(output["request_id"], 0);
+    assert_eq!(output["provider"], "context-python");
+    assert_eq!(output["action"], "inspect_context");
+    assert_eq!(output["surface"], "mcp");
+    assert_eq!(output["snapshot_id"], snapshot.id);
+    assert_eq!(output["cancelled"], false);
+    Ok(())
+}
+
+#[tokio::test]
 async fn plain_python_provider_cli_dispatches_generated_tool() -> anyhow::Result<()> {
     let temp = test_dir("plain-cli")?;
     let providers = temp.join("providers");

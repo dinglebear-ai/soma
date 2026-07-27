@@ -3,7 +3,7 @@
 from importlib.metadata import version
 from importlib.util import find_spec
 
-from soma_provider import __version__, tool
+from soma_provider import Context, __version__, provider, tool
 
 
 def main() -> None:
@@ -18,6 +18,8 @@ def main() -> None:
         "schema_version": 1,
         "spec": {"name": "installed-echo", "meta": {"source": "wheel"}},
     }
+    assert provider(name="installed", kind="python")["name"] == "installed"
+    assert Context.__module__ == "soma_provider"
     assert find_spec("soma_runner_protocol") is None
 
 

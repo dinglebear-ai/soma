@@ -17,6 +17,8 @@ import types
 import typing
 from pathlib import Path
 
+import soma_provider
+
 MISSING = object()
 SOMA_TOOL_FIELDS = (
     "name",
@@ -328,6 +330,8 @@ def function_schema(tool):
         ):
             continue
         annotation = hints.get(name, parameter.annotation)
+        if soma_provider._is_context_annotation(annotation):
+            continue
         properties[name] = annotation_schema(annotation)
         if parameter.default is inspect._empty:
             required.append(name)
@@ -486,17 +490,37 @@ async def call_llamaindex(tool, params):
     raise RuntimeError("LlamaIndex tool is not callable")
 
 
-async def call_python(tool, params):
+def python_call_arguments(tool, params, payload):
+    arguments = dict(params)
+    hints = {}
+    try:
+        hints = typing.get_type_hints(tool)
+    except Exception:
+        # Invocation only needs to recognize Context. Preserve explicit-schema
+        # compatibility when unrelated forward annotations are unresolved.
+        hints = {}
+    for name, parameter in validate_python_signature(tool).parameters.items():
+        annotation = hints.get(name, parameter.annotation)
+        if soma_provider._is_context_annotation(annotation):
+            if name in arguments:
+                raise RuntimeError(
+                    f"Python tool context parameter {name!r} is runner-injected"
+                )
+            arguments[name] = soma_provider.Context._from_payload(payload)
+    return arguments
+
+
+async def call_python(tool, params, payload):
     if callable(tool):
-        return await maybe_await(tool(**params))
+        return await maybe_await(tool(**python_call_arguments(tool, params, payload)))
     raise RuntimeError("Python tool is not callable")
 
 
-async def execute(path, action, params):
+async def execute(path, action, params, payload):
     module = load_module(path)
     kind, tool = resolve_tool(module, action)
     if kind == "python":
-        return await call_python(tool, params)
+        return await call_python(tool, params, payload)
     if kind == "llamaindex":
         return await call_llamaindex(tool, params)
     return await call_langchain(tool, params)
@@ -518,7 +542,12 @@ async def main():
             }
         elif mode == "call":
             restrict_environment(payload.get("env_keys") or [])
-            result = await execute(payload["path"], payload["action"], payload.get("params") or {})
+            result = await execute(
+                payload["path"],
+                payload["action"],
+                payload.get("params") or {},
+                payload,
+            )
             response = {
                 "mode": "call",
                 "schema_version": 1,
@@ -548,8 +577,8 @@ pub(crate) fn python_bridge_program() -> &'static str {
                 "import sys as _soma_sys\n\
 import types as _soma_types\n\
 _soma_provider = _soma_types.ModuleType(\"soma_provider\")\n\
-exec({sdk_source}, _soma_provider.__dict__)\n\
 _soma_sys.modules[\"soma_provider\"] = _soma_provider\n\
+exec({sdk_source}, _soma_provider.__dict__)\n\
 {PYTHON_BRIDGE}"
             )
         })

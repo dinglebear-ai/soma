@@ -148,9 +148,9 @@ can optionally install the matching `soma-provider` package for development, IDE
 support, and unit tests; both modes expose the same import and metadata contract:
 
 ```python
-from soma_provider import tool
+from soma_provider import Context, provider, tool
 
-PROVIDER = {"name": "math-tools", "kind": "python"}
+PROVIDER = provider(name="math-tools", kind="python")
 
 @tool(
     name="sum-values",
@@ -168,8 +168,8 @@ PROVIDER = {"name": "math-tools", "kind": "python"}
     cli={"aliases": ["sum"]},
     meta={"owner": "platform"},
 )
-def add(a, b):
-    """Add two values."""
+def add(a: int, b: int, ctx: Context) -> int:
+    """Add two values. Context is supplied by Soma."""
     return a + b
 ```
 
@@ -187,6 +187,13 @@ Decorator metadata maps to the existing provider tool contract: `name`,
 `examples`, and `meta`. Rust validates the fully resolved manifest before the tool
 is registered. Legacy public-function discovery, explicit `TOOLS = []`, LangChain,
 and LlamaIndex providers remain unchanged.
+
+Use `provider(...)` to build a validated `PROVIDER` mapping. A parameter
+annotated as `soma_provider.Context` is omitted from the public input schema and
+injected during dispatch. Its immutable `request` carries the request ID,
+provider, action, surface, and snapshot. The current one-shot runner exposes
+explicit unavailable handles for HTTP, secrets, state, structured logging, and
+metrics until those calls are connected to the persistent capability broker.
 
 Python providers are trusted executable code. Environment clearing and bounded
 sidecar I/O are safety controls, not an OS sandbox; imported code retains the
@@ -257,5 +264,6 @@ including URI-matching precedence and ambiguity rules.
 
 ## Examples
 
-See `examples/providers/`, including `examples/providers/resources/` for the
-structured resources layout.
+See `examples/providers/`, including `examples/providers/python/` for minimal,
+decorated Context, async, Pydantic, LangChain, and LlamaIndex providers, plus
+`examples/providers/resources/` for the structured resources layout.
