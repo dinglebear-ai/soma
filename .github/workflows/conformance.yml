@@ -7,6 +7,8 @@ on:
       - ".github/workflows/conformance.yml"
       - "Justfile"
       - "conformance-baseline.yml"
+      - "conformance/**"
+      - "scripts/ci/mcp-conformance.sh"
       - "apps/soma/**"
       - "crates/**"
       - "Cargo.toml"
@@ -14,17 +16,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      suite:
-        description: "Conformance suite to run"
-        required: true
-        default: "active"
-        type: choice
-        options:
-          - active
-          - draft
-          - pending
-          - all
 
 permissions:
   contents: read
@@ -35,11 +26,10 @@ concurrency:
 
 jobs:
   conformance:
-    name: Official MCP Conformance
+    name: MCP 2026 full matrix
     runs-on: [self-hosted, unraid]
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
-      SUITE: ${{ github.event.inputs.suite || 'active' }}
       CARGO_INCREMENTAL: "0"
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
@@ -59,14 +49,14 @@ jobs:
         with:
           tool: just
 
-      - name: Run official conformance suite
-        run: just conformance "$SUITE" 41060
+      - name: Run pinned MCP conformance matrix
+        run: just conformance-matrix
 
       - name: Upload conformance results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mcp-conformance-${{ env.SUITE }}
-          path: results/
+          name: mcp-conformance-2026-07-28
+          path: target/mcp-conformance/
           if-no-files-found: ignore
           retention-days: 14

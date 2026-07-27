@@ -486,6 +486,15 @@ conformance suite="active" port="41060":
     npx -y @modelcontextprotocol/conformance server --url "${URL}" --suite {{suite}} \
         --expected-failures conformance-baseline.yml
 
+# Run the pinned 2026-07-28 server, Tasks, client, and extension matrix.
+conformance-matrix:
+    scripts/ci/mcp-conformance.sh
+
+# Compare pinned MCP specification and RMCP baselines with upstream.
+mcp-upstream-drift:
+    python3 scripts/ci/test_mcp_upstream_drift.py
+    python3 scripts/ci/mcp_upstream_drift.py
+
 # Summarize official conformance results/checks.json output.
 conformance-report:
     python3 scripts/conformance_report.py --results results
