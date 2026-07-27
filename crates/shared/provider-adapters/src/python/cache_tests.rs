@@ -219,3 +219,154 @@ fn rejects_symlink_roots_and_never_follows_symlink_entries() {
         .unwrap()
         .contains("symbolic link"));
 }
+
+#[test]
+fn prune_plan_is_a_dry_run_and_never_selects_ready_entries() {
+    let temporary = tempfile::tempdir().unwrap();
+    let cache_root = temporary.path();
+    let ready = write_ready_entry(cache_root, 2, "ready");
+    let version = cache_root.join("python/v2");
+    let incomplete = version.join("incomplete");
+    fs::create_dir_all(&incomplete).unwrap();
+    let invalid = version.join("invalid");
+    fs::create_dir_all(&invalid).unwrap();
+    fs::write(invalid.join(READY_FILE), "not-json").unwrap();
+    let staging = version.join(".candidate.tmp-1-0");
+    fs::create_dir_all(&staging).unwrap();
+
+    let cache = PythonEnvironmentCache::new(cache_root);
+    let plan = cache
+        .plan_prune(PythonEnvironmentPrunePolicy::conservative(u64::MAX))
+        .unwrap();
+
+    assert_eq!(plan.candidates.len(), 3);
+    assert!(plan
+        .candidates
+        .iter()
+        .all(|candidate| candidate.entry.state != PythonEnvironmentCacheState::Ready));
+    assert!(plan.reclaimable_size_bytes > 0);
+    assert!(ready.exists());
+    assert!(incomplete.exists());
+    assert!(invalid.exists());
+    assert!(staging.exists());
+}
+
+#[test]
+fn prune_plan_respects_the_stale_cutoff() {
+    let temporary = tempfile::tempdir().unwrap();
+    let cache_root = temporary.path();
+    let incomplete = cache_root.join("python/v2/incomplete");
+    fs::create_dir_all(&incomplete).unwrap();
+    let cache = PythonEnvironmentCache::new(cache_root);
+
+    let plan = cache
+        .plan_prune(PythonEnvironmentPrunePolicy::conservative(0))
+        .unwrap();
+
+    assert!(plan.candidates.is_empty());
+    assert!(incomplete.exists());
+}
+
+#[test]
+fn prune_apply_removes_only_unchanged_candidates() {
+    let temporary = tempfile::tempdir().unwrap();
+    let cache_root = temporary.path();
+    let ready = write_ready_entry(cache_root, 2, "ready");
+    let version = cache_root.join("python/v2");
+    let incomplete = version.join("incomplete");
+    fs::create_dir_all(&incomplete).unwrap();
+    fs::write(incomplete.join("partial"), "partial").unwrap();
+    let invalid = version.join("invalid");
+    fs::create_dir_all(&invalid).unwrap();
+    fs::write(invalid.join(READY_FILE), "not-json").unwrap();
+    let staging = version.join(".candidate.tmp-1-0");
+    fs::create_dir_all(&staging).unwrap();
+
+    let cache = PythonEnvironmentCache::new(cache_root);
+    let plan = cache
+        .plan_prune(PythonEnvironmentPrunePolicy::conservative(u64::MAX))
+        .unwrap();
+    fs::write(invalid.join("changed"), "changed after planning").unwrap();
+    fs::remove_dir_all(&staging).unwrap();
+
+    let report = cache.apply_prune(&plan).unwrap();
+
+    assert_eq!(report.removed, 1);
+    assert_eq!(report.changed, 1);
+    assert_eq!(report.missing, 1);
+    assert!(report.reclaimed_size_bytes > 0);
+    assert!(!incomplete.exists());
+    assert!(invalid.exists());
+    assert!(!staging.exists());
+    assert!(ready.exists());
+}
+
+#[test]
+fn prune_rejects_ready_candidates_and_foreign_roots() {
+    let temporary = tempfile::tempdir().unwrap();
+    let cache_root = temporary.path();
+    write_ready_entry(cache_root, 2, "ready");
+    let cache = PythonEnvironmentCache::new(cache_root);
+    let ready = cache
+        .inventory()
+        .unwrap()
+        .entries
+        .into_iter()
+        .find(|entry| entry.state == PythonEnvironmentCacheState::Ready)
+        .unwrap();
+    let policy = PythonEnvironmentPrunePolicy::conservative(u64::MAX);
+    let ready_plan = PythonEnvironmentPrunePlan {
+        root: cache.root().to_path_buf(),
+        policy,
+        reclaimable_size_bytes: ready.size_bytes,
+        reclaimable_file_count: ready.file_count,
+        candidates: vec![PythonEnvironmentPruneCandidate {
+            entry: ready,
+            reason: "malicious ready candidate".to_owned(),
+        }],
+    };
+    assert!(matches!(
+        cache.apply_prune(&ready_plan),
+        Err(PythonEnvironmentPruneError::ReadyEnvironment { .. })
+    ));
+
+    let foreign_plan = PythonEnvironmentPrunePlan {
+        root: temporary.path().join("foreign"),
+        policy,
+        candidates: Vec::new(),
+        reclaimable_size_bytes: 0,
+        reclaimable_file_count: 0,
+    };
+    assert!(matches!(
+        cache.apply_prune(&foreign_plan),
+        Err(PythonEnvironmentPruneError::RootMismatch { .. })
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn prune_removes_symlink_entry_without_touching_target() {
+    use std::os::unix::fs::symlink;
+
+    let temporary = tempfile::tempdir().unwrap();
+    let cache_root = temporary.path().join("cache");
+    let version = cache_root.join("python/v2");
+    fs::create_dir_all(&version).unwrap();
+    let outside = temporary.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    let secret = outside.join("secret");
+    fs::write(&secret, "preserve me").unwrap();
+    let linked_entry = version.join("linked-entry");
+    symlink(&outside, &linked_entry).unwrap();
+    let cache = PythonEnvironmentCache::new(&cache_root);
+    let plan = cache
+        .plan_prune(PythonEnvironmentPrunePolicy::conservative(u64::MAX))
+        .unwrap();
+
+    let report = cache.apply_prune(&plan).unwrap();
+
+    assert_eq!(report.removed, 1);
+    assert!(!linked_entry.exists());
+    assert!(secret.is_file());
+    assert_eq!(fs::read_to_string(secret).unwrap(), "preserve me");
+}

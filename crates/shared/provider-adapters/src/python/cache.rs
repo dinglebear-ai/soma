@@ -19,6 +19,13 @@ use super::{
     materializer::{ReadyMarker, READY_FILE, READY_SCHEMA_VERSION},
 };
 
+#[path = "cache_prune.rs"]
+mod prune;
+pub use prune::{
+    PythonEnvironmentPruneCandidate, PythonEnvironmentPruneError, PythonEnvironmentPruneOutcome,
+    PythonEnvironmentPrunePlan, PythonEnvironmentPrunePolicy, PythonEnvironmentPruneReport,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PythonEnvironmentCacheState {
@@ -191,7 +198,12 @@ fn inspect_entry(
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
-    if name.starts_with('.') && name.contains(".tmp-") {
+    if name.starts_with('.') && (name.contains(".tmp-") || name.contains(".prune-")) {
+        let issue = if name.contains(".prune-") {
+            "temporary prune quarantine"
+        } else {
+            "temporary materialization directory"
+        };
         return Ok(entry(
             directory,
             None,
@@ -199,7 +211,7 @@ fn inspect_entry(
             PythonEnvironmentCacheState::Staging,
             stats,
             None,
-            Some("temporary materialization directory".to_owned()),
+            Some(issue.to_owned()),
         ));
     }
 
