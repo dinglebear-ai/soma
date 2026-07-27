@@ -135,6 +135,51 @@ PROVIDER = {"name": "pep", "kind": "python"}
 }
 
 #[test]
+fn explicit_update_creates_candidate_without_replacing_current() {
+    let (_temporary, spec, runner, provider) = fixture();
+    let source = concat!(
+        "# /// script\r\n",
+        "# requires-python = \">=3.11\"\r\n",
+        "# dependencies = [\"anyio>=4\"]\r\n",
+        "# ///\r\n",
+        "PROVIDER = {\"name\": \"updated\", \"kind\": \"python\"}\r\n",
+    );
+    fs::write(&provider, source).unwrap();
+    let lifecycle = PythonEnvironmentLifecycle::with_runner("uv", spec, runner.clone());
+    let current = lifecycle.prepare_provider(&provider).unwrap();
+
+    let report = lifecycle.update_provider(&provider).unwrap();
+
+    assert_eq!(
+        report.outcome,
+        crate::python::materializer::PythonEnvironmentUpdateOutcome::Prepared
+    );
+    assert_eq!(report.current.as_ref(), Some(&current));
+    assert_eq!(report.candidate.plan_version, 3);
+    assert_ne!(report.candidate.directory, current.directory);
+    assert_eq!(
+        report.candidate.provider_source_sha256.as_deref(),
+        Some(normalized_source_sha256(source).as_str())
+    );
+    assert_eq!(
+        report.candidate.input_plan_key.as_deref(),
+        Some(current.key.as_str())
+    );
+    assert!(current.directory.is_dir());
+    assert_eq!(runner.calls.lock().unwrap().len(), 6);
+    let calls = runner.calls.lock().unwrap();
+    assert!(calls[3].iter().any(|arg| arg == "--upgrade"));
+}
+
+#[test]
+fn normalized_source_digest_ignores_line_ending_style() {
+    assert_eq!(
+        normalized_source_sha256("first\r\nsecond\rthird\n"),
+        normalized_source_sha256("first\nsecond\nthird\n")
+    );
+}
+
+#[test]
 fn incompatible_candidate_fails_before_uv_runs() {
     let (_temporary, spec, runner, provider) = fixture();
     fs::write(

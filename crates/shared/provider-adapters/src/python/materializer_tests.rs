@@ -40,6 +40,51 @@ impl UvRunner for RacingUv {
     }
 }
 
+struct UpdateUv {
+    calls: Mutex<Vec<Vec<OsString>>>,
+    lock_contents: String,
+    fail: bool,
+}
+
+impl UpdateUv {
+    fn new(lock_contents: impl Into<String>) -> Self {
+        Self {
+            calls: Mutex::new(Vec::new()),
+            lock_contents: lock_contents.into(),
+            fail: false,
+        }
+    }
+
+    fn failing(lock_contents: impl Into<String>) -> Self {
+        Self {
+            calls: Mutex::new(Vec::new()),
+            lock_contents: lock_contents.into(),
+            fail: true,
+        }
+    }
+}
+
+impl UvRunner for UpdateUv {
+    fn run(&self, _program: &Path, args: &[OsString], current_dir: &Path) -> Result<(), String> {
+        self.calls.lock().unwrap().push(args.to_vec());
+        if self.fail {
+            return Err("simulated update failure".to_owned());
+        }
+        match args.first().and_then(|arg| arg.to_str()) {
+            Some("lock") => fs::write(current_dir.join("uv.lock"), &self.lock_contents)
+                .map_err(|error| error.to_string()),
+            Some("sync") => {
+                let python = current_dir.join(".venv/bin/python");
+                fs::create_dir_all(python.parent().unwrap())
+                    .and_then(|()| fs::write(python, "python"))
+                    .map_err(|error| error.to_string())
+            }
+            Some("pip") => Ok(()),
+            other => Err(format!("unexpected uv operation: {other:?}")),
+        }
+    }
+}
+
 fn simulate_uv(args: &[OsString], current_dir: &Path) {
     match args.first().and_then(|arg| arg.to_str()) {
         Some("lock") => fs::write(current_dir.join("uv.lock"), "version = 1").unwrap(),
@@ -81,6 +126,17 @@ fn request(wheel: &Path, offline: bool) -> PythonMaterializationRequest<'_> {
         python_executable: Path::new("/usr/bin/python3"),
         sdk_wheel: wheel,
         offline,
+    }
+}
+
+fn update_request<'a>(
+    wheel: &'a Path,
+    source_sha256: &'a str,
+    offline: bool,
+) -> PythonEnvironmentUpdateRequest<'a> {
+    PythonEnvironmentUpdateRequest {
+        materialization: request(wheel, offline),
+        provider_source_sha256: source_sha256,
     }
 }
 
@@ -175,6 +231,214 @@ fn unsupported_readiness_schema_is_rejected() {
         Err(PythonMaterializationError::InvalidMarker(message))
             if message.contains("unsupported readiness schema version")
     ));
+}
+
+#[test]
+fn update_prepares_immutable_candidate_and_preserves_current() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    let baseline = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
+    let current = baseline.prepare(&plan, request(&wheel, false)).unwrap();
+    let source_sha256 = "c".repeat(64);
+    let updater = PythonEnvironmentMaterializer::with_runner(
+        "uv",
+        UpdateUv::new("version = 2\nresolved = true\n"),
+    );
+
+    let report = updater
+        .update(&plan, update_request(&wheel, &source_sha256, false))
+        .unwrap();
+
+    assert_eq!(report.outcome, PythonEnvironmentUpdateOutcome::Prepared);
+    assert_eq!(report.current.as_ref(), Some(&current));
+    assert_ne!(report.candidate.directory, current.directory);
+    assert_eq!(report.candidate.plan_version, 3);
+    assert_eq!(
+        report
+            .candidate
+            .directory
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str()),
+        Some("v3")
+    );
+    assert_eq!(
+        report.candidate.provider_source_sha256.as_deref(),
+        Some(source_sha256.as_str())
+    );
+    assert_eq!(
+        report.candidate.input_plan_key.as_deref(),
+        Some(plan.key.as_str())
+    );
+    assert!(current.directory.is_dir());
+    assert_eq!(baseline.open_frozen(&plan).unwrap(), current);
+
+    let calls = updater.runner.calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert_eq!(calls[0].first().and_then(|arg| arg.to_str()), Some("lock"));
+    assert!(calls[0].iter().any(|arg| arg == "--upgrade"));
+}
+
+#[test]
+fn identical_update_reuses_resolved_candidate() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default())
+        .prepare(&plan, request(&wheel, false))
+        .unwrap();
+    let source_sha256 = "c".repeat(64);
+    let updater = PythonEnvironmentMaterializer::with_runner(
+        "uv",
+        UpdateUv::new("version = 2\nresolved = true\n"),
+    );
+
+    let first = updater
+        .update(&plan, update_request(&wheel, &source_sha256, false))
+        .unwrap();
+    let second = updater
+        .update(&plan, update_request(&wheel, &source_sha256, false))
+        .unwrap();
+
+    assert_eq!(first.outcome, PythonEnvironmentUpdateOutcome::Prepared);
+    assert_eq!(second.outcome, PythonEnvironmentUpdateOutcome::Reused);
+    assert_eq!(first.candidate, second.candidate);
+    let calls = updater.runner.calls.lock().unwrap();
+    assert_eq!(calls.len(), 4);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|args| args.first().and_then(|arg| arg.to_str()) == Some("lock"))
+            .count(),
+        2
+    );
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|args| args.first().and_then(|arg| arg.to_str()) == Some("sync"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn source_or_resolved_lock_change_creates_distinct_candidate() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default())
+        .prepare(&plan, request(&wheel, false))
+        .unwrap();
+    let source_a = "c".repeat(64);
+    let source_b = "d".repeat(64);
+    let updater_a = PythonEnvironmentMaterializer::with_runner(
+        "uv",
+        UpdateUv::new("version = 2\nresolved = alpha\n"),
+    );
+
+    let first = updater_a
+        .update(&plan, update_request(&wheel, &source_a, false))
+        .unwrap();
+    let source_changed = updater_a
+        .update(&plan, update_request(&wheel, &source_b, false))
+        .unwrap();
+    let updater_b = PythonEnvironmentMaterializer::with_runner(
+        "uv",
+        UpdateUv::new("version = 2\nresolved = beta\n"),
+    );
+    let lock_changed = updater_b
+        .update(&plan, update_request(&wheel, &source_a, false))
+        .unwrap();
+
+    assert_ne!(first.candidate.key, source_changed.candidate.key);
+    assert_ne!(first.candidate.key, lock_changed.candidate.key);
+    assert_ne!(source_changed.candidate.key, lock_changed.candidate.key);
+    assert!(first.candidate.directory.is_dir());
+    assert!(source_changed.candidate.directory.is_dir());
+    assert!(lock_changed.candidate.directory.is_dir());
+}
+
+#[test]
+fn failed_or_invalid_update_preserves_current_generation() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    let baseline = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
+    let current = baseline.prepare(&plan, request(&wheel, false)).unwrap();
+    let source_sha256 = "c".repeat(64);
+    let updater =
+        PythonEnvironmentMaterializer::with_runner("uv", UpdateUv::failing("version = 2\n"));
+
+    assert!(matches!(
+        updater.update(&plan, update_request(&wheel, &source_sha256, false),),
+        Err(PythonEnvironmentUpdateError::Uv {
+            operation: "lock",
+            ..
+        })
+    ));
+    assert_eq!(baseline.open_frozen(&plan).unwrap(), current);
+    let v3 = plan
+        .directory
+        .parent()
+        .and_then(Path::parent)
+        .unwrap()
+        .join("v3");
+    if v3.is_dir() {
+        assert!(!v3.read_dir().unwrap().any(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains(".update-")));
+    }
+
+    let invalid = PythonEnvironmentMaterializer::with_runner("uv", UpdateUv::new("version = 2\n"));
+    assert!(matches!(
+        invalid.update(&plan, update_request(&wheel, "bad", false)),
+        Err(PythonEnvironmentUpdateError::InvalidSourceDigest)
+    ));
+    assert!(invalid.runner.calls.lock().unwrap().is_empty());
+    assert_eq!(baseline.open_frozen(&plan).unwrap(), current);
+}
+
+#[test]
+fn offline_update_forwards_offline_to_resolution_and_sync() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default())
+        .prepare(&plan, request(&wheel, false))
+        .unwrap();
+    let source_sha256 = "c".repeat(64);
+    let updater = PythonEnvironmentMaterializer::with_runner(
+        "uv",
+        UpdateUv::new("version = 2\nresolved = offline\n"),
+    );
+
+    updater
+        .update(&plan, update_request(&wheel, &source_sha256, true))
+        .unwrap();
+
+    let calls = updater.runner.calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    for args in &calls[..2] {
+        assert!(args.iter().any(|arg| arg == "--offline"));
+    }
+    assert!(calls[0].iter().any(|arg| arg == "--upgrade"));
+}
+
+#[cfg(unix)]
+#[test]
+fn update_rejects_symlinked_candidate_root_before_uv_runs() {
+    use std::os::unix::fs::symlink;
+
+    let (temporary, plan, wheel, _digest) = fixture();
+    PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default())
+        .prepare(&plan, request(&wheel, false))
+        .unwrap();
+    let python_root = plan.directory.parent().and_then(Path::parent).unwrap();
+    let outside = temporary.path().join("outside-v3");
+    fs::create_dir_all(&outside).unwrap();
+    symlink(&outside, python_root.join("v3")).unwrap();
+    let source_sha256 = "c".repeat(64);
+    let updater = PythonEnvironmentMaterializer::with_runner("uv", UpdateUv::new("version = 2\n"));
+
+    assert!(matches!(
+        updater.update(&plan, update_request(&wheel, &source_sha256, false),),
+        Err(PythonEnvironmentUpdateError::UnsafeCachePath { .. })
+    ));
+    assert!(updater.runner.calls.lock().unwrap().is_empty());
+    assert!(outside.read_dir().unwrap().next().is_none());
 }
 
 #[test]

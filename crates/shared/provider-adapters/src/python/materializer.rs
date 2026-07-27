@@ -17,13 +17,19 @@ use super::environment::{
 };
 
 pub(super) const READY_FILE: &str = "soma-environment.json";
-pub(super) const READY_SCHEMA_VERSION: u32 = 2;
+pub(super) const READY_SCHEMA_VERSION: u32 = 3;
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[path = "materializer_repair.rs"]
 mod repair;
 pub use repair::{
     PythonEnvironmentRepairError, PythonEnvironmentRepairOutcome, PythonEnvironmentRepairReport,
+};
+#[path = "materializer_update.rs"]
+mod update;
+pub use update::{
+    PythonEnvironmentUpdateError, PythonEnvironmentUpdateOutcome, PythonEnvironmentUpdateReport,
+    PythonEnvironmentUpdateRequest,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +45,8 @@ pub struct PreparedPythonEnvironment {
     pub sdk_wheel_sha256: String,
     pub uv_version: String,
     pub lock_sha256: String,
+    pub provider_source_sha256: Option<String>,
+    pub input_plan_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -102,6 +110,10 @@ pub(super) struct ReadyMarker {
     pub(super) sdk_wheel_sha256: String,
     pub(super) uv_version: String,
     pub(super) lock_sha256: String,
+    #[serde(default)]
+    pub(super) provider_source_sha256: Option<String>,
+    #[serde(default)]
+    pub(super) input_plan_key: Option<String>,
 }
 
 pub struct PythonEnvironmentMaterializer<R = SystemUvRunner> {
@@ -240,6 +252,8 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
             sdk_wheel_sha256: plan.sdk_wheel_sha256.clone(),
             uv_version: plan.uv_version.clone(),
             lock_sha256,
+            provider_source_sha256: None,
+            input_plan_key: None,
         };
         fs::write(
             staging.join(READY_FILE),
@@ -341,6 +355,8 @@ fn open_ready(
         sdk_wheel_sha256: plan.sdk_wheel_sha256.clone(),
         uv_version: plan.uv_version.clone(),
         lock_sha256,
+        provider_source_sha256: marker.provider_source_sha256,
+        input_plan_key: marker.input_plan_key,
     }))
 }
 

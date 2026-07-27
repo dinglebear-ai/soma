@@ -9,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use super::{
@@ -17,7 +18,8 @@ use super::{
         PythonRuntimeFingerprint,
     },
     materializer::{
-        PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonMaterializationError,
+        PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonEnvironmentUpdateError,
+        PythonEnvironmentUpdateReport, PythonEnvironmentUpdateRequest, PythonMaterializationError,
         PythonMaterializationRequest, SystemUvRunner, UvRunner,
     },
 };
@@ -96,6 +98,51 @@ impl<R: UvRunner> PythonEnvironmentLifecycle<R> {
             )
             .map_err(Into::into)
     }
+
+    /// Resolves dependencies into a new immutable candidate generation.
+    ///
+    /// The current prepared environment is never replaced or activated here.
+    pub fn update_provider(
+        &self,
+        provider_path: &Path,
+    ) -> Result<PythonEnvironmentUpdateReport, PythonEnvironmentLifecycleError> {
+        let source = fs::read_to_string(provider_path).map_err(|source| {
+            PythonEnvironmentLifecycleError::ReadSource {
+                path: provider_path.to_path_buf(),
+                source,
+            }
+        })?;
+        let metadata = parse_pep723_metadata(&source)?;
+        let plan = plan_python_environment(
+            &self.spec.cache_root,
+            metadata.as_ref(),
+            &self.spec.runtime,
+            &self.spec.sdk_wheel,
+            &self.spec.sdk_wheel_sha256,
+            &self.spec.uv_version,
+        )?;
+        let source_sha256 = normalized_source_sha256(&source);
+        self.materializer
+            .update(
+                &plan,
+                PythonEnvironmentUpdateRequest {
+                    materialization: PythonMaterializationRequest {
+                        metadata: metadata.as_ref(),
+                        python_executable: &self.spec.python_executable,
+                        sdk_wheel: &self.spec.sdk_wheel,
+                        offline: self.spec.offline,
+                    },
+                    provider_source_sha256: &source_sha256,
+                },
+            )
+            .map_err(Into::into)
+    }
+}
+
+fn normalized_source_sha256(source: &str) -> String {
+    let normalized = source.replace("\r\n", "\n").replace('\r', "\n");
+    let digest = Sha256::digest(normalized.as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 #[derive(Debug, Error)]
@@ -110,6 +157,8 @@ pub enum PythonEnvironmentLifecycleError {
     Environment(#[from] PythonEnvironmentError),
     #[error(transparent)]
     Materialization(#[from] PythonMaterializationError),
+    #[error(transparent)]
+    Update(#[from] PythonEnvironmentUpdateError),
 }
 
 #[cfg(test)]

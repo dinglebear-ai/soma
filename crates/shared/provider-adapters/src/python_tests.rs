@@ -50,6 +50,8 @@ fn prepared_interpreter_uses_materialized_python() {
         sdk_wheel_sha256: "a".repeat(64),
         uv_version: "0.11.31".to_owned(),
         lock_sha256: "b".repeat(64),
+        provider_source_sha256: None,
+        input_plan_key: None,
     };
 
     let interpreter = PythonInterpreter::prepared(&environment);

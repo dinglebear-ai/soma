@@ -46,6 +46,8 @@ pub struct PythonEnvironmentCacheMetadata {
     pub sdk_wheel_sha256: String,
     pub uv_version: String,
     pub lock_sha256: String,
+    pub provider_source_sha256: Option<String>,
+    pub input_plan_key: Option<String>,
 }
 
 impl From<ReadyMarker> for PythonEnvironmentCacheMetadata {
@@ -60,6 +62,8 @@ impl From<ReadyMarker> for PythonEnvironmentCacheMetadata {
             sdk_wheel_sha256: marker.sdk_wheel_sha256,
             uv_version: marker.uv_version,
             lock_sha256: marker.lock_sha256,
+            provider_source_sha256: marker.provider_source_sha256,
+            input_plan_key: marker.input_plan_key,
         }
     }
 }
@@ -199,12 +203,17 @@ fn inspect_entry(
         .and_then(|name| name.to_str())
         .unwrap_or_default();
     if name.starts_with('.')
-        && (name.contains(".tmp-") || name.contains(".prune-") || name.contains(".repair-"))
+        && (name.contains(".tmp-")
+            || name.contains(".prune-")
+            || name.contains(".repair-")
+            || name.contains(".update-"))
     {
         let issue = if name.contains(".prune-") {
             "temporary prune quarantine"
         } else if name.contains(".repair-") {
             "temporary repair quarantine"
+        } else if name.contains(".update-") {
+            "temporary update candidate"
         } else {
             "temporary materialization directory"
         };

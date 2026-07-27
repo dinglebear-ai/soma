@@ -35,6 +35,8 @@ fn write_ready_entry(cache_root: &Path, version: u32, key: &str) -> PathBuf {
         sdk_wheel_sha256: "a".repeat(64),
         uv_version: "0.11.31".to_owned(),
         lock_sha256: sha256_hex(lock),
+        provider_source_sha256: None,
+        input_plan_key: None,
     };
     fs::write(
         directory.join(READY_FILE),
@@ -142,6 +144,26 @@ fn inventories_ready_incomplete_invalid_and_staging_entries() {
         .unwrap();
     assert_eq!(staging_entry.state, PythonEnvironmentCacheState::Staging);
     assert!(staging_entry.key.is_none());
+}
+
+#[test]
+fn recognizes_abandoned_update_staging_directory() {
+    let temporary = tempfile::tempdir().unwrap();
+    let staging = temporary.path().join("python/v3/.input-key.update-123-0");
+    fs::create_dir_all(&staging).unwrap();
+    fs::write(staging.join("uv.lock"), "partial").unwrap();
+
+    let inventory = PythonEnvironmentCache::new(temporary.path())
+        .inventory()
+        .unwrap();
+
+    assert_eq!(inventory.summary.staging, 1);
+    assert_eq!(inventory.entries[0].directory, staging);
+    assert!(inventory.entries[0]
+        .issue
+        .as_deref()
+        .unwrap()
+        .contains("update candidate"));
 }
 
 #[test]
