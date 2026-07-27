@@ -1,9 +1,22 @@
-use std::fs;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use serde_json::json;
+use soma_provider_adapters::python::PythonInterpreter;
 use tempfile::tempdir;
 
-use super::{load_catalog, FileProviderSource, ProviderFileInspectionStatus};
+use crate::{capabilities::CapabilityBroker, provider_registry::ProviderRegistry};
+
+use super::{
+    load_catalog, FileProviderSource, ProviderFileInspectionStatus,
+    PythonProviderEnvironmentPreparer,
+};
 
 #[test]
 fn inspect_reports_loaded_disabled_and_invalid_files_without_executing_handlers() {
@@ -712,4 +725,140 @@ fn manifest_bytes(name: &str) -> Vec<u8> {
         ]
     }))
     .expect("manifest json")
+}
+
+#[derive(Clone)]
+struct StubPythonEnvironmentPreparer {
+    calls: Arc<AtomicUsize>,
+    result: Result<PythonInterpreter, &'static str>,
+}
+
+impl StubPythonEnvironmentPreparer {
+    fn prepared(interpreter: PythonInterpreter) -> Self {
+        Self {
+            calls: Arc::new(AtomicUsize::new(0)),
+            result: Ok(interpreter),
+        }
+    }
+
+    fn failing(message: &'static str) -> Self {
+        Self {
+            calls: Arc::new(AtomicUsize::new(0)),
+            result: Err(message),
+        }
+    }
+}
+
+impl PythonProviderEnvironmentPreparer for StubPythonEnvironmentPreparer {
+    fn prepare(&self, _provider_path: &Path) -> Result<PythonInterpreter, String> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        self.result.clone().map_err(str::to_owned)
+    }
+}
+
+#[test]
+fn python_environment_preparation_runs_before_catalog_introspection() {
+    let temp = tempdir().expect("tempdir");
+    fs::write(temp.path().join("candidate.py"), "not valid Python")
+        .expect("write Python candidate");
+    let preparer = StubPythonEnvironmentPreparer::failing("environment unavailable");
+    let calls = preparer.calls.clone();
+    let source =
+        FileProviderSource::new(temp.path()).with_python_environment_preparer(Arc::new(preparer));
+
+    let error = match source.load() {
+        Ok(_) => panic!("preparation should fail"),
+        Err(error) => error,
+    };
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert!(error
+        .to_string()
+        .contains("failed to prepare Python provider environment: environment unavailable"));
+    assert!(!error.to_string().contains("invalid Python provider"));
+}
+
+#[test]
+fn python_environment_preparer_selects_the_candidate_interpreter() {
+    let temp = tempdir().expect("tempdir");
+    let provider = temp.path().join("candidate.py");
+    fs::write(
+        &provider,
+        "PROVIDER = {'name': 'candidate', 'kind': 'python'}\n",
+    )
+    .expect("write Python candidate");
+    let expected = PythonInterpreter::Prepared(
+        PathBuf::from("cache")
+            .join(".venv")
+            .join("bin")
+            .join("python"),
+    );
+    let preparer = StubPythonEnvironmentPreparer::prepared(expected.clone());
+    let calls = preparer.calls.clone();
+    let source =
+        FileProviderSource::new(temp.path()).with_python_environment_preparer(Arc::new(preparer));
+
+    let selected = source
+        .python_interpreter(&provider)
+        .expect("select prepared interpreter");
+
+    assert_eq!(selected, expected);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn non_python_candidates_do_not_invoke_environment_preparation() {
+    let temp = tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("stable.json"),
+        tool_manifest("stable-provider", "stable_action", None),
+    )
+    .expect("write stable provider");
+    let preparer = StubPythonEnvironmentPreparer::failing("must not run");
+    let calls = preparer.calls.clone();
+    let source =
+        FileProviderSource::new(temp.path()).with_python_environment_preparer(Arc::new(preparer));
+
+    let providers = source.load().expect("load non-Python provider");
+
+    assert_eq!(providers.len(), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn failed_python_candidate_refresh_keeps_previous_snapshot_active() {
+    let temp = tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("stable.json"),
+        tool_manifest("stable-provider", "stable_action", None),
+    )
+    .expect("write stable provider");
+    let preparer = StubPythonEnvironmentPreparer::failing("candidate environment failed");
+    let calls = preparer.calls.clone();
+    let source =
+        FileProviderSource::new(temp.path()).with_python_environment_preparer(Arc::new(preparer));
+    let registry =
+        ProviderRegistry::with_file_source(Vec::new(), CapabilityBroker::default_deny(), source)
+            .expect("initial registry");
+    let previous = registry.snapshot();
+    let previous_actions = previous.action_names();
+
+    fs::write(
+        temp.path().join("candidate.py"),
+        "PROVIDER = {'name': 'candidate', 'kind': 'python'}\n",
+    )
+    .expect("write changed Python candidate");
+
+    let refreshed = registry
+        .refresh_file_providers()
+        .expect("refresh retains last valid snapshot");
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(refreshed.fingerprint, previous.fingerprint);
+    assert_eq!(refreshed.action_names(), previous_actions);
+    assert_eq!(registry.snapshot().fingerprint, previous.fingerprint);
+    assert_eq!(
+        refreshed.provider_for_action("stable_action"),
+        Some("stable-provider")
+    );
 }

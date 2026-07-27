@@ -34,7 +34,7 @@ pub use provider_registry::{
     DynamicResourceTemplate, ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal,
     ProviderRegistry, ProviderRequestLimits, ProviderSurface, RegistrySnapshot, ResourceReadOutput,
 };
-pub use providers::filesystem::FileProviderSource;
+pub use providers::filesystem::{FileProviderSource, PythonProviderEnvironmentPreparer};
 pub use providers::remote::RemoteCatalogProvider;
 pub use providers::static_rust::StaticRustProvider;
 pub use service::{

@@ -42,6 +42,7 @@ use crate::{
 };
 
 pub mod environment;
+pub mod lifecycle;
 pub mod materializer;
 
 /// Selects the Python interpreter used when no provider-level command override

@@ -1,13 +1,20 @@
 use std::{
     collections::BTreeSet,
-    fs,
+    fmt, fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use soma_domain::provider_validation::{validate_manifest_schema, validate_provider_manifest};
-use soma_provider_adapters::manifest_file;
+use soma_provider_adapters::{
+    manifest_file,
+    python::{
+        lifecycle::PythonEnvironmentLifecycle, materializer::UvRunner, PythonInterpreter,
+        PythonProvider,
+    },
+};
 use soma_provider_core::{ProviderCatalog, ProviderKind};
 
 use crate::{
@@ -30,10 +37,42 @@ mod filesystem_uniqueness;
 #[path = "filesystem_wasm.rs"]
 mod filesystem_wasm;
 
+/// Prepares an immutable Python environment before a provider candidate is
+/// imported for catalog discovery.
+pub trait PythonProviderEnvironmentPreparer: Send + Sync {
+    /// Returns the interpreter selected for `provider_path` after preparing its environment.
+    fn prepare(&self, provider_path: &Path) -> Result<PythonInterpreter, String>;
+}
+
+impl<R> PythonProviderEnvironmentPreparer for PythonEnvironmentLifecycle<R>
+where
+    R: UvRunner + 'static,
+{
+    fn prepare(&self, provider_path: &Path) -> Result<PythonInterpreter, String> {
+        self.prepare_provider(provider_path)
+            .map(|prepared| PythonInterpreter::prepared(&prepared))
+            .map_err(|error| error.to_string())
+    }
+}
+
 /// File-backed provider source rooted at a provider directory.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FileProviderSource {
     root: PathBuf,
+    python_environment_preparer: Option<Arc<dyn PythonProviderEnvironmentPreparer>>,
+}
+
+impl fmt::Debug for FileProviderSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FileProviderSource")
+            .field("root", &self.root)
+            .field(
+                "python_environment_preparer",
+                &self.python_environment_preparer.is_some(),
+            )
+            .finish()
+    }
 }
 
 /// Result of a non-executing inspection of a provider directory.
@@ -91,7 +130,20 @@ pub enum ProviderFileInspectionStatus {
 impl FileProviderSource {
     /// Creates a source rooted at `root`.
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self {
+            root: root.into(),
+            python_environment_preparer: None,
+        }
+    }
+
+    /// Configures immutable Python environment preparation for `.py`
+    /// candidates. Existing sources remain ambient unless this is called.
+    pub fn with_python_environment_preparer(
+        mut self,
+        preparer: Arc<dyn PythonProviderEnvironmentPreparer>,
+    ) -> Self {
+        self.python_environment_preparer = Some(preparer);
+        self
     }
 
     /// Returns the root provider directory.
@@ -277,11 +329,12 @@ impl FileProviderSource {
     pub fn load(&self) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
         let mut providers = Vec::new();
         for path in self.provider_paths()? {
-            let catalog = load_catalog(&path)?;
+            let interpreter = self.python_interpreter(&path)?;
+            let catalog = load_catalog_with_interpreter(&path, &interpreter)?;
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
-            providers.push(provider_for_catalog(path, catalog)?);
+            providers.push(provider_for_catalog(path, catalog, interpreter)?);
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
             let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
@@ -292,6 +345,23 @@ impl FileProviderSource {
             providers.push(provider);
         }
         Ok(providers)
+    }
+
+    fn python_interpreter(&self, path: &Path) -> Result<PythonInterpreter, FileProviderLoadError> {
+        if !is_python_provider_source(path) {
+            return Ok(PythonInterpreter::Ambient);
+        }
+        self.python_environment_preparer.as_ref().map_or(
+            Ok(PythonInterpreter::Ambient),
+            |preparer| {
+                preparer
+                    .prepare(path)
+                    .map_err(|source| FileProviderLoadError {
+                        path: path.to_path_buf(),
+                        message: format!("failed to prepare Python provider environment: {source}"),
+                    })
+            },
+        )
     }
 
     /// Computes a stable SHA-256 fingerprint over all provider inputs, used to
@@ -524,8 +594,20 @@ impl std::error::Error for FileProviderLoadError {}
 fn provider_for_catalog(
     path: PathBuf,
     catalog: ProviderCatalog,
+    interpreter: PythonInterpreter,
 ) -> Result<std::sync::Arc<dyn Provider>, FileProviderLoadError> {
     let kind = catalog.provider.kind;
+    if matches!(
+        kind,
+        ProviderKind::Python | ProviderKind::Langchain | ProviderKind::Llamaindex
+    ) {
+        return Ok(SharedAdapter::wrap(PythonProvider::arc_with_interpreter(
+            path,
+            catalog,
+            PROVIDER_ENV_PREFIX,
+            interpreter,
+        )));
+    }
     manifest_file::build_provider(path.clone(), catalog, PROVIDER_ENV_PREFIX)
         .map(SharedAdapter::wrap)
         .ok_or_else(|| FileProviderLoadError {
@@ -616,6 +698,13 @@ fn fingerprint_file(
 }
 
 fn load_catalog(path: &Path) -> Result<ProviderCatalog, FileProviderLoadError> {
+    load_catalog_with_interpreter(path, &PythonInterpreter::Ambient)
+}
+
+fn load_catalog_with_interpreter(
+    path: &Path,
+    interpreter: &PythonInterpreter,
+) -> Result<ProviderCatalog, FileProviderLoadError> {
     let extension = path.extension().and_then(|extension| extension.to_str());
     let catalog = match extension {
         Some("json") | Some("ts") | Some("wasm") | Some("md") => {
@@ -633,12 +722,15 @@ fn load_catalog(path: &Path) -> Result<ProviderCatalog, FileProviderLoadError> {
             // `validate_provider_manifest(&provider.catalog())` call, so
             // this does not skip that policy, just defers it to the same
             // place every other kind already goes through.
-            soma_provider_adapters::python::load_python_catalog(path, PROVIDER_ENV_PREFIX).map_err(
-                |source| FileProviderLoadError {
-                    path: path.to_path_buf(),
-                    message: format!("invalid Python provider: {source}"),
-                },
-            )?
+            soma_provider_adapters::python::load_python_catalog_with_interpreter(
+                path,
+                PROVIDER_ENV_PREFIX,
+                interpreter,
+            )
+            .map_err(|source| FileProviderLoadError {
+                path: path.to_path_buf(),
+                message: format!("invalid Python provider: {source}"),
+            })?
         }
         _ => {
             return Err(FileProviderLoadError {
