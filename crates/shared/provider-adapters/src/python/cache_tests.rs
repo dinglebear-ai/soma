@@ -181,6 +181,39 @@ fn detects_lock_marker_and_version_directory_mismatches() {
 
 #[cfg(unix)]
 #[test]
+fn accepts_uv_style_interpreter_symlink_with_regular_target() {
+    use std::os::unix::fs::symlink;
+
+    let temporary = tempfile::tempdir().unwrap();
+    let directory = write_ready_entry(temporary.path(), 2, "ready");
+    let python = directory.join(".venv/bin/python");
+    fs::remove_file(&python).unwrap();
+    let managed_python = temporary.path().join("managed-python");
+    fs::write(&managed_python, "python").unwrap();
+    symlink(&managed_python, &python).unwrap();
+
+    let inventory = PythonEnvironmentCache::new(temporary.path())
+        .inventory()
+        .unwrap();
+
+    assert_eq!(inventory.summary.ready, 1);
+    assert_eq!(inventory.summary.invalid, 0);
+
+    fs::remove_file(managed_python).unwrap();
+    let inventory = PythonEnvironmentCache::new(temporary.path())
+        .inventory()
+        .unwrap();
+    assert_eq!(inventory.summary.ready, 0);
+    assert_eq!(inventory.summary.invalid, 1);
+    assert!(inventory.entries[0]
+        .issue
+        .as_deref()
+        .unwrap()
+        .contains("interpreter is missing"));
+}
+
+#[cfg(unix)]
+#[test]
 fn rejects_symlink_roots_and_never_follows_symlink_entries() {
     use std::os::unix::fs::symlink;
 

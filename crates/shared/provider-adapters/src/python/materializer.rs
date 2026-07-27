@@ -20,6 +20,12 @@ pub(super) const READY_FILE: &str = "soma-environment.json";
 pub(super) const READY_SCHEMA_VERSION: u32 = 2;
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+#[path = "materializer_repair.rs"]
+mod repair;
+pub use repair::{
+    PythonEnvironmentRepairError, PythonEnvironmentRepairOutcome, PythonEnvironmentRepairReport,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedPythonEnvironment {
     pub key: String,
@@ -257,12 +263,19 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
 fn open_ready(
     plan: &PythonEnvironmentPlan,
 ) -> Result<Option<PreparedPythonEnvironment>, PythonMaterializationError> {
-    if !plan.directory.exists() {
-        return Ok(None);
+    let directory_metadata = match fs::symlink_metadata(&plan.directory) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    if directory_metadata.file_type().is_symlink() || !directory_metadata.is_dir() {
+        return Err(PythonMaterializationError::IncompleteCache(
+            "cache path is not a real directory".to_owned(),
+        ));
     }
     let marker_path = plan.directory.join(READY_FILE);
-    let marker_bytes = match fs::read(&marker_path) {
-        Ok(bytes) => bytes,
+    let marker_metadata = match fs::symlink_metadata(&marker_path) {
+        Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return Err(PythonMaterializationError::IncompleteCache(
                 "cache directory exists without readiness marker".to_owned(),
@@ -270,6 +283,12 @@ fn open_ready(
         }
         Err(error) => return Err(error.into()),
     };
+    if marker_metadata.file_type().is_symlink() || !marker_metadata.is_file() {
+        return Err(PythonMaterializationError::IncompleteCache(
+            "readiness marker is not a regular file".to_owned(),
+        ));
+    }
+    let marker_bytes = fs::read(&marker_path)?;
     let marker: ReadyMarker = serde_json::from_slice(&marker_bytes)
         .map_err(|error| PythonMaterializationError::InvalidMarker(error.to_string()))?;
     if marker.schema_version != READY_SCHEMA_VERSION {
@@ -284,10 +303,24 @@ fn open_ready(
         ));
     }
     let python = environment_python(&plan.directory);
-    let lockfile = plan.directory.join("uv.lock");
-    if !python.is_file() || !lockfile.is_file() {
+    if !python.is_file() {
         return Err(PythonMaterializationError::IncompleteCache(
-            "readiness marker exists without .venv Python and uv.lock".to_owned(),
+            "readiness marker exists without .venv Python".to_owned(),
+        ));
+    }
+    let lockfile = plan.directory.join("uv.lock");
+    let lock_metadata = match fs::symlink_metadata(&lockfile) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Err(PythonMaterializationError::IncompleteCache(
+                "readiness marker exists without uv.lock".to_owned(),
+            ));
+        }
+        Err(error) => return Err(error.into()),
+    };
+    if lock_metadata.file_type().is_symlink() || !lock_metadata.is_file() {
+        return Err(PythonMaterializationError::IncompleteCache(
+            "uv.lock is not a regular file".to_owned(),
         ));
     }
     let lock_sha256 = sha256_hex(&fs::read(&lockfile)?);

@@ -198,9 +198,13 @@ fn inspect_entry(
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
-    if name.starts_with('.') && (name.contains(".tmp-") || name.contains(".prune-")) {
+    if name.starts_with('.')
+        && (name.contains(".tmp-") || name.contains(".prune-") || name.contains(".repair-"))
+    {
         let issue = if name.contains(".prune-") {
             "temporary prune quarantine"
+        } else if name.contains(".repair-") {
+            "temporary repair quarantine"
         } else {
             "temporary materialization directory"
         };
@@ -308,7 +312,7 @@ fn validate_ready_entry(
         ));
     }
     let python = environment_python_path(directory);
-    let python_metadata = match fs::symlink_metadata(&python) {
+    let python_metadata = match fs::metadata(&python) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return Ok(Some("prepared Python interpreter is missing".to_owned()));
@@ -320,7 +324,7 @@ fn validate_ready_entry(
             });
         }
     };
-    if python_metadata.file_type().is_symlink() || !python_metadata.is_file() {
+    if !python_metadata.is_file() {
         return Ok(Some(
             "prepared Python interpreter is not a regular file".to_owned(),
         ));

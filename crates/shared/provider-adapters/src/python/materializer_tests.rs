@@ -178,6 +178,158 @@ fn unsupported_readiness_schema_is_rejected() {
 }
 
 #[test]
+fn repair_healthy_environment_is_a_noop() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    let manager = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
+    let expected = manager.prepare(&plan, request(&wheel, false)).unwrap();
+    let calls = manager.runner.calls.lock().unwrap().len();
+
+    let report = manager.repair(&plan, request(&wheel, false)).unwrap();
+
+    assert_eq!(report.outcome, PythonEnvironmentRepairOutcome::Healthy);
+    assert_eq!(report.environment, expected);
+    assert!(report.replaced_error.is_none());
+    assert!(report.cleanup_pending.is_none());
+    assert_eq!(manager.runner.calls.lock().unwrap().len(), calls);
+}
+
+#[test]
+fn repair_missing_environment_prepares_it() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    let manager = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
+
+    let report = manager.repair(&plan, request(&wheel, false)).unwrap();
+
+    assert_eq!(report.outcome, PythonEnvironmentRepairOutcome::Prepared);
+    assert!(report.environment.python.is_file());
+    assert_eq!(manager.runner.calls.lock().unwrap().len(), 3);
+}
+
+#[test]
+fn repair_rebuilds_corrupt_environment_atomically() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    let manager = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
+    let prepared = manager.prepare(&plan, request(&wheel, false)).unwrap();
+    fs::write(&prepared.lockfile, "tampered lock").unwrap();
+
+    let report = manager.repair(&plan, request(&wheel, false)).unwrap();
+
+    assert_eq!(report.outcome, PythonEnvironmentRepairOutcome::Rebuilt);
+    assert!(report
+        .replaced_error
+        .as_deref()
+        .unwrap()
+        .contains("uv.lock digest"));
+    assert!(report.cleanup_pending.is_none());
+    assert_eq!(manager.runner.calls.lock().unwrap().len(), 6);
+    manager.open_frozen(&plan).unwrap();
+    assert!(!plan
+        .directory
+        .parent()
+        .unwrap()
+        .read_dir()
+        .unwrap()
+        .any(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains(".repair-")));
+}
+
+#[test]
+fn failed_repair_restores_original_cache_entry() {
+    let (_temporary, plan, wheel, _digest) = fixture();
+    fs::create_dir_all(&plan.directory).unwrap();
+    let sentinel = plan.directory.join("sentinel");
+    fs::write(&sentinel, "original corrupt cache").unwrap();
+    let manager = PythonEnvironmentMaterializer::with_runner(
+        "uv",
+        FakeUv {
+            calls: Mutex::new(Vec::new()),
+            fail: true,
+        },
+    );
+
+    assert!(matches!(
+        manager.repair(&plan, request(&wheel, false)),
+        Err(PythonEnvironmentRepairError::Materialization(
+            PythonMaterializationError::Uv {
+                operation: "lock",
+                ..
+            }
+        ))
+    ));
+    assert_eq!(
+        fs::read_to_string(sentinel).unwrap(),
+        "original corrupt cache"
+    );
+    assert!(!plan
+        .directory
+        .parent()
+        .unwrap()
+        .read_dir()
+        .unwrap()
+        .any(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains(".repair-")));
+}
+
+#[test]
+fn offline_or_invalid_sdk_repair_never_mutates_corrupt_cache() {
+    let (_temporary, mut plan, wheel, _digest) = fixture();
+    fs::create_dir_all(&plan.directory).unwrap();
+    let sentinel = plan.directory.join("sentinel");
+    fs::write(&sentinel, "preserve").unwrap();
+    let manager = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
+
+    assert!(matches!(
+        manager.repair(&plan, request(&wheel, true)),
+        Err(PythonEnvironmentRepairError::Materialization(
+            PythonMaterializationError::OfflineCacheMiss(_)
+        ))
+    ));
+    assert_eq!(fs::read_to_string(&sentinel).unwrap(), "preserve");
+    assert!(manager.runner.calls.lock().unwrap().is_empty());
+
+    plan.sdk_wheel_sha256 = "b".repeat(64);
+    assert!(matches!(
+        manager.repair(&plan, request(&wheel, false)),
+        Err(PythonEnvironmentRepairError::Materialization(
+            PythonMaterializationError::SdkDigestMismatch
+        ))
+    ));
+    assert_eq!(fs::read_to_string(sentinel).unwrap(), "preserve");
+    assert!(manager.runner.calls.lock().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn frozen_open_accepts_interpreter_symlink_but_rejects_lock_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let (_temporary, plan, wheel, _digest) = fixture();
+    let manager = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
+    let prepared = manager.prepare(&plan, request(&wheel, false)).unwrap();
+    let managed_python = plan.directory.join("managed-python");
+    fs::write(&managed_python, "python").unwrap();
+    fs::remove_file(&prepared.python).unwrap();
+    symlink(&managed_python, &prepared.python).unwrap();
+    manager.open_frozen(&plan).unwrap();
+
+    let lock_copy = plan.directory.join("lock-copy");
+    fs::copy(&prepared.lockfile, &lock_copy).unwrap();
+    fs::remove_file(&prepared.lockfile).unwrap();
+    symlink(&lock_copy, &prepared.lockfile).unwrap();
+    assert!(matches!(
+        manager.open_frozen(&plan),
+        Err(PythonMaterializationError::IncompleteCache(message))
+            if message.contains("uv.lock is not a regular file")
+    ));
+}
+
+#[test]
 fn offline_miss_fails_without_creating_cache() {
     let (_temporary, plan, wheel, _digest) = fixture();
     let manager = PythonEnvironmentMaterializer::with_runner("uv", FakeUv::default());
