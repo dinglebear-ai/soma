@@ -91,8 +91,6 @@ impl<R: UvRunner> PythonEnvironmentLifecycle<R> {
                     metadata: metadata.as_ref(),
                     python_executable: &self.spec.python_executable,
                     sdk_wheel: &self.spec.sdk_wheel,
-                    sdk_wheel_sha256: &self.spec.sdk_wheel_sha256,
-                    uv_version: &self.spec.uv_version,
                     offline: self.spec.offline,
                 },
             )

@@ -12,16 +12,27 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-use super::environment::{Pep723Metadata, PythonEnvironmentPlan};
+use super::environment::{
+    Pep723Metadata, PythonEnvironmentPlan, PythonRuntimeFingerprint, PythonWheelTag,
+};
 
 const READY_FILE: &str = "soma-environment.json";
+const READY_SCHEMA_VERSION: u32 = 2;
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedPythonEnvironment {
+    pub key: String,
     pub directory: PathBuf,
     pub python: PathBuf,
     pub lockfile: PathBuf,
+    pub plan_version: u32,
+    pub dependency_count: usize,
+    pub runtime: PythonRuntimeFingerprint,
+    pub sdk_wheel_tag: PythonWheelTag,
+    pub sdk_wheel_sha256: String,
+    pub uv_version: String,
+    pub lock_sha256: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -29,8 +40,6 @@ pub struct PythonMaterializationRequest<'a> {
     pub metadata: Option<&'a Pep723Metadata>,
     pub python_executable: &'a Path,
     pub sdk_wheel: &'a Path,
-    pub sdk_wheel_sha256: &'a str,
-    pub uv_version: &'a str,
     pub offline: bool,
 }
 
@@ -76,12 +85,17 @@ impl UvRunner for SystemUvRunner {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ReadyMarker {
     schema_version: u32,
-    plan_key: String,
+    environment_key: String,
+    plan_version: u32,
+    dependency_count: usize,
+    runtime: PythonRuntimeFingerprint,
+    sdk_wheel_tag: PythonWheelTag,
     sdk_wheel_sha256: String,
     uv_version: String,
+    lock_sha256: String,
 }
 
 pub struct PythonEnvironmentMaterializer<R = SystemUvRunner> {
@@ -127,7 +141,7 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
                 plan.key.clone(),
             ));
         }
-        verify_sdk_digest(request.sdk_wheel, request.sdk_wheel_sha256)?;
+        verify_sdk_digest(request.sdk_wheel, &plan.sdk_wheel_sha256)?;
 
         let parent = plan.directory.parent().ok_or_else(|| {
             PythonMaterializationError::IncompleteCache("cache plan has no parent".to_owned())
@@ -203,16 +217,23 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
                 request.sdk_wheel.as_os_str().to_owned(),
             ],
         )?;
-        if !python.is_file() || !staging.join("uv.lock").is_file() {
+        let lockfile = staging.join("uv.lock");
+        if !python.is_file() || !lockfile.is_file() {
             return Err(PythonMaterializationError::IncompleteCache(
                 "uv did not create both .venv Python and uv.lock".to_owned(),
             ));
         }
+        let lock_sha256 = sha256_hex(&fs::read(&lockfile)?);
         let marker = ReadyMarker {
-            schema_version: 1,
-            plan_key: plan.key.clone(),
-            sdk_wheel_sha256: request.sdk_wheel_sha256.to_ascii_lowercase(),
-            uv_version: request.uv_version.to_owned(),
+            schema_version: READY_SCHEMA_VERSION,
+            environment_key: plan.key.clone(),
+            plan_version: plan.plan_version,
+            dependency_count: plan.dependency_count,
+            runtime: plan.runtime.clone(),
+            sdk_wheel_tag: plan.sdk_wheel_tag.clone(),
+            sdk_wheel_sha256: plan.sdk_wheel_sha256.clone(),
+            uv_version: plan.uv_version.clone(),
+            lock_sha256,
         };
         fs::write(
             staging.join(READY_FILE),
@@ -251,7 +272,13 @@ fn open_ready(
     };
     let marker: ReadyMarker = serde_json::from_slice(&marker_bytes)
         .map_err(|error| PythonMaterializationError::InvalidMarker(error.to_string()))?;
-    if marker.schema_version != 1 || marker.plan_key != plan.key {
+    if marker.schema_version != READY_SCHEMA_VERSION {
+        return Err(PythonMaterializationError::InvalidMarker(format!(
+            "unsupported readiness schema version {}; expected {READY_SCHEMA_VERSION}",
+            marker.schema_version
+        )));
+    }
+    if !marker_matches_plan(&marker, plan) {
         return Err(PythonMaterializationError::IncompleteCache(
             "readiness marker does not match the plan".to_owned(),
         ));
@@ -263,11 +290,35 @@ fn open_ready(
             "readiness marker exists without .venv Python and uv.lock".to_owned(),
         ));
     }
+    let lock_sha256 = sha256_hex(&fs::read(&lockfile)?);
+    if lock_sha256 != marker.lock_sha256 {
+        return Err(PythonMaterializationError::IncompleteCache(
+            "uv.lock digest does not match the readiness marker".to_owned(),
+        ));
+    }
     Ok(Some(PreparedPythonEnvironment {
+        key: plan.key.clone(),
         directory: plan.directory.clone(),
         python,
         lockfile,
+        plan_version: plan.plan_version,
+        dependency_count: plan.dependency_count,
+        runtime: plan.runtime.clone(),
+        sdk_wheel_tag: plan.sdk_wheel_tag.clone(),
+        sdk_wheel_sha256: plan.sdk_wheel_sha256.clone(),
+        uv_version: plan.uv_version.clone(),
+        lock_sha256,
     }))
+}
+
+fn marker_matches_plan(marker: &ReadyMarker, plan: &PythonEnvironmentPlan) -> bool {
+    marker.environment_key == plan.key
+        && marker.plan_version == plan.plan_version
+        && marker.dependency_count == plan.dependency_count
+        && marker.runtime == plan.runtime
+        && marker.sdk_wheel_tag == plan.sdk_wheel_tag
+        && marker.sdk_wheel_sha256 == plan.sdk_wheel_sha256
+        && marker.uv_version == plan.uv_version
 }
 
 fn verify_sdk_digest(path: &Path, expected: &str) -> Result<(), PythonMaterializationError> {

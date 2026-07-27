@@ -38,7 +38,7 @@ struct RawPep723Metadata {
 }
 
 /// Immutable identity of the selected Python runtime and wheel target.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PythonRuntimeFingerprint {
     pub implementation: String,
     pub version: String,
@@ -82,7 +82,7 @@ impl PythonRuntimeFingerprint {
 }
 
 /// One expanded compatibility tag selected from an SDK wheel filename.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PythonWheelTag {
     pub python: String,
     pub abi: String,
@@ -93,8 +93,12 @@ pub struct PythonWheelTag {
 pub struct PythonEnvironmentPlan {
     pub key: String,
     pub directory: PathBuf,
+    pub plan_version: u32,
     pub dependency_count: usize,
+    pub runtime: PythonRuntimeFingerprint,
     pub sdk_wheel_tag: PythonWheelTag,
+    pub sdk_wheel_sha256: String,
+    pub uv_version: String,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -230,8 +234,12 @@ pub fn plan_python_environment(
     Ok(PythonEnvironmentPlan {
         key,
         directory,
+        plan_version: ENVIRONMENT_PLAN_VERSION,
         dependency_count: metadata.dependencies.len(),
+        runtime: runtime.clone(),
         sdk_wheel_tag,
+        sdk_wheel_sha256,
+        uv_version,
     })
 }
 

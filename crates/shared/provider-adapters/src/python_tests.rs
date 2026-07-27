@@ -3,8 +3,9 @@ use std::path::PathBuf;
 use crate::python_protocol::PYTHON_PROTOCOL_HEADROOM_BYTES;
 
 use super::{
-    materializer::PreparedPythonEnvironment, protocol_output_limit, select_python_command,
-    PythonInterpreter,
+    environment::{PythonRuntimeFingerprint, PythonWheelTag},
+    materializer::PreparedPythonEnvironment,
+    protocol_output_limit, select_python_command, PythonInterpreter,
 };
 
 #[test]
@@ -28,9 +29,27 @@ fn prepared_interpreter_uses_materialized_python() {
         .join("bin")
         .join("python");
     let environment = PreparedPythonEnvironment {
+        key: "environment-key".to_owned(),
         directory: PathBuf::from("cache"),
         python: python.clone(),
         lockfile: PathBuf::from("cache").join("uv.lock"),
+        plan_version: 2,
+        dependency_count: 0,
+        runtime: PythonRuntimeFingerprint::new(
+            "cpython",
+            "3.12.4",
+            "linux-x86_64",
+            "manylinux_2_17_x86_64",
+        )
+        .unwrap(),
+        sdk_wheel_tag: PythonWheelTag {
+            python: "cp311".to_owned(),
+            abi: "abi3".to_owned(),
+            platform: "manylinux_2_17_x86_64".to_owned(),
+        },
+        sdk_wheel_sha256: "a".repeat(64),
+        uv_version: "0.11.31".to_owned(),
+        lock_sha256: "b".repeat(64),
     };
 
     let interpreter = PythonInterpreter::prepared(&environment);
