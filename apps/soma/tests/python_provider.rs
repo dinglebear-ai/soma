@@ -352,6 +352,127 @@ def _private() -> str:
 }
 
 #[tokio::test]
+async fn decorated_python_provider_imports_embedded_sdk_and_dispatches_renamed_tool(
+) -> anyhow::Result<()> {
+    let temp = test_dir("decorated")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("decorated_math.py"),
+        r#"
+from soma_provider import tool
+
+PROVIDER = {"name": "decorated-python", "kind": "python"}
+
+@tool(
+    name="sum-values",
+    title="Sum values",
+    description="Add two values through decorated metadata.",
+    input_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "a": {"type": "integer"},
+            "b": {"type": "integer"},
+        },
+        "required": ["a", "b"],
+    },
+    output_schema={"type": "integer"},
+    scope="math.read",
+    destructive=True,
+    requires_admin=False,
+    cost="cheap",
+    env=[{
+        "name": "OPTIONAL_TOKEN",
+        "required": False,
+        "sensitive": True,
+        "server_prefixed": True,
+    }],
+    limits={
+        "timeout_ms": 5000,
+        "max_response_bytes": 4096,
+        "max_input_bytes": 4096,
+    },
+    mcp={"enabled": True, "title": "Sum values"},
+    rest={"enabled": True, "method": "POST", "path": "/v1/sum-values"},
+    cli={"aliases": ["sum"], "about": "Add two values."},
+    palette={"enabled": True, "category": "Math"},
+    ui={"enabled": True, "categories": ["math"]},
+    examples=[{"title": "Small sum", "input": {"a": 2, "b": 3}, "output": 5}],
+    meta={
+        "owner": "python-platform",
+        "python": {"runtime_hint": "kept", "adapter": "cannot-spoof"},
+    },
+)
+def add(a: "UnresolvedAnnotation", b: "UnresolvedAnnotation") -> int:
+    return a + b
+"#,
+    )?;
+
+    let registry = dynamic_provider_registry_from_dir(service()?, &providers)?;
+    let snapshot = registry.snapshot();
+    let catalog = snapshot
+        .catalogs
+        .iter()
+        .find(|catalog| catalog.provider.name == "decorated-python")
+        .expect("decorated Python catalog");
+    assert_eq!(catalog.tools.len(), 1);
+    let tool = catalog
+        .tools
+        .iter()
+        .find(|tool| tool.name == "sum-values")
+        .expect("decorated tool name");
+    assert_eq!(tool.title.as_deref(), Some("Sum values"));
+    assert_eq!(
+        tool.description,
+        "Add two values through decorated metadata."
+    );
+    assert_eq!(tool.input_schema["required"], json!(["a", "b"]));
+    assert_eq!(
+        tool.output_schema.as_ref().expect("output schema")["type"],
+        "integer"
+    );
+    assert_eq!(tool.scope.as_deref(), Some("math.read"));
+    assert!(tool.destructive);
+    assert!(!tool.requires_admin);
+    assert_eq!(tool.cost.as_deref(), Some("cheap"));
+    assert_eq!(tool.env[0].name, "OPTIONAL_TOKEN");
+    assert_eq!(
+        tool.limits.as_ref().and_then(|limits| limits.timeout_ms),
+        Some(5000)
+    );
+    let cli = tool.cli.as_ref().expect("CLI overlay");
+    assert_eq!(cli.command.as_deref(), Some("sum-values"));
+    assert_eq!(cli.aliases, vec!["sum"]);
+    assert_eq!(cli.about.as_deref(), Some("Add two values."));
+    let mcp = tool.mcp.as_ref().expect("MCP overlay");
+    assert!(mcp.enabled);
+    assert_eq!(mcp.title.as_deref(), Some("Sum values"));
+    let rest = tool.rest.as_ref().expect("REST overlay");
+    assert!(rest.enabled);
+    assert_eq!(rest.method.as_deref(), Some("POST"));
+    assert_eq!(rest.path.as_deref(), Some("/v1/sum-values"));
+    let palette = tool.palette.as_ref().expect("palette overlay");
+    assert!(palette.enabled);
+    assert_eq!(palette.category.as_deref(), Some("Math"));
+    let ui = tool.ui.as_ref().expect("UI overlay");
+    assert!(ui.enabled);
+    assert_eq!(ui.categories, vec!["math"]);
+    assert_eq!(tool.examples.len(), 1);
+    let example = &tool.examples[0];
+    assert_eq!(example.title.as_deref(), Some("Small sum"));
+    assert_eq!(example.input.as_ref(), Some(&json!({"a": 2, "b": 3})));
+    assert_eq!(example.output.as_ref(), Some(&json!(5)));
+    assert_eq!(tool.meta["owner"], "python-platform");
+    assert_eq!(tool.meta["python"]["runtime_hint"], "kept");
+    assert_eq!(tool.meta["python"]["adapter"], "python");
+
+    let output = dispatch_confirmed(&registry, "sum-values", json!({"a": 2, "b": 3})).await?;
+    assert_eq!(output, json!(5));
+    Ok(())
+}
+
+#[tokio::test]
 async fn plain_python_provider_cli_dispatches_generated_tool() -> anyhow::Result<()> {
     let temp = test_dir("plain-cli")?;
     let providers = temp.join("providers");
@@ -481,6 +602,32 @@ def positional_only(value, /) -> str:
 }
 
 #[tokio::test]
+async fn python_provider_accepts_unicode_payload_within_canonical_limit() -> anyhow::Result<()> {
+    let temp = test_dir("unicode-limit")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("unicode_limit.py"),
+        r#"
+from soma_provider import tool
+
+PROVIDER = {"name": "unicode-limit-python", "kind": "python"}
+
+@tool(limits={"max_response_bytes": 4096})
+def unicode_payload(count: int) -> dict:
+    return {"value": chr(0x1F600) * count}
+"#,
+    )?;
+
+    let registry = dynamic_provider_registry_from_dir(service()?, &providers)?;
+    let output = dispatch(&registry, "unicode_payload", json!({"count": 1000})).await?;
+    let value = output["value"].as_str().expect("Unicode string output");
+    assert_eq!(value.chars().count(), 1000);
+    assert_eq!(value.len(), 4000);
+    Ok(())
+}
+
+#[tokio::test]
 async fn python_provider_rejects_oversized_stderr_output() -> anyhow::Result<()> {
     let temp = test_dir("stderr-cap")?;
     let providers = temp.join("providers");
@@ -569,6 +716,44 @@ def make_custom() -> object:
             .contains("python_provider_unserializable_output"),
         "unsupported output types should be surfaced as serialization errors: {error}"
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn python_provider_rejects_non_finite_float_outputs() -> anyhow::Result<()> {
+    let temp = test_dir("non-finite-output")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    fs::write(
+        providers.join("non_finite.py"),
+        r#"
+PROVIDER = {"name": "non-finite-python", "kind": "python"}
+
+def not_a_number() -> float:
+    """Return NaN, which JSON cannot represent."""
+    return float("nan")
+
+def positive_infinity() -> float:
+    """Return positive infinity, which JSON cannot represent."""
+    return float("inf")
+
+def negative_infinity() -> float:
+    """Return negative infinity, which JSON cannot represent."""
+    return float("-inf")
+"#,
+    )?;
+
+    let registry = dynamic_provider_registry_from_dir(service()?, &providers)?;
+    for action in ["not_a_number", "positive_infinity", "negative_infinity"] {
+        let result = dispatch(&registry, action, json!({})).await;
+        let error = result.expect_err("non-finite float output should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("python_provider_unserializable_output"),
+            "{action} should surface a serialization error: {error}"
+        );
+    }
     Ok(())
 }
 
@@ -885,6 +1070,23 @@ async fn dispatch(
     action: &str,
     params: serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
+    dispatch_with_confirmation(registry, action, params, false).await
+}
+
+async fn dispatch_confirmed(
+    registry: &soma_application::ProviderRegistry,
+    action: &str,
+    params: serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    dispatch_with_confirmation(registry, action, params, true).await
+}
+
+async fn dispatch_with_confirmation(
+    registry: &soma_application::ProviderRegistry,
+    action: &str,
+    params: serde_json::Value,
+    destructive_confirmed: bool,
+) -> anyhow::Result<serde_json::Value> {
     let output = registry
         .dispatch(ProviderCall {
             provider: String::new(),
@@ -893,7 +1095,7 @@ async fn dispatch(
             principal: ProviderPrincipal::loopback_dev(),
             auth_mode: ProviderAuthMode::LoopbackDev,
             surface: ProviderSurface::Mcp,
-            destructive_confirmed: false,
+            destructive_confirmed,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
         })

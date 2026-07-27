@@ -1,6 +1,6 @@
 //! The generic Python (/ LangChain / LlamaIndex) provider kind: introspects
 //! and executes a drop-in `.py` provider through a bounded Python sidecar
-//! running `python_bridge::PYTHON_BRIDGE`. Ported from
+//! running `python_bridge::python_bridge_program`. Ported from
 //! `soma-service::providers::python`.
 //!
 //! `load_python_catalog` here applies only *generic* manifest validation
@@ -20,7 +20,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::Value;
 use soma_provider_core::{
     validate_provider_manifest_value, Provider, ProviderCall, ProviderCatalog, ProviderError,
     ProviderOutput, ProviderTool,
@@ -29,7 +29,12 @@ use tokio::time::Instant as TokioInstant;
 
 use crate::{
     error::{redact_public, SidecarError},
-    python_bridge::PYTHON_BRIDGE,
+    python_bridge::python_bridge_program,
+    python_protocol::{
+        decode_python_response, encode_python_request, validate_python_response,
+        PythonProtocolError, PythonWorkerRequest, PythonWorkerResponse,
+        PYTHON_PROTOCOL_HEADROOM_BYTES,
+    },
     sidecar::{
         collect_provider_env, output_exceeded_message, resolve_sidecar_command,
         run_bounded_sidecar, sidecar_base_env,
@@ -39,6 +44,10 @@ use crate::{
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const DEFAULT_MAX_INPUT_BYTES: usize = 64 * 1024;
 const DEFAULT_MAX_OUTPUT_BYTES: usize = 256 * 1024;
+
+fn protocol_output_limit(payload_limit: usize) -> usize {
+    payload_limit.saturating_add(PYTHON_PROTOCOL_HEADROOM_BYTES)
+}
 
 #[derive(Clone)]
 pub struct PythonProvider {
@@ -75,7 +84,9 @@ impl Provider for PythonProvider {
         let tool = self.tool(&call)?;
         let runtime = PythonRuntime::from_tool(&self.catalog, tool, &call, &self.env_prefix)?;
         let source = self.path.display().to_string();
-        let input = python_execution_payload(&self.path, &call, &runtime.env).map_err(|error| {
+        let env_keys = runtime.env.iter().map(|(key, _)| key.clone()).collect();
+        let request = PythonWorkerRequest::call(&self.path, &call, env_keys);
+        let input = encode_python_request(&request).map_err(|error| {
             ProviderError::execution(&self.catalog.provider.name, "", error)
                 .with_provider_kind(self.catalog.provider.kind.as_str())
                 .with_source(source.clone())
@@ -100,11 +111,11 @@ impl Provider for PythonProvider {
         let started = TokioInstant::now();
         let sidecar = match run_bounded_sidecar(
             &runtime.command,
-            &["-c", PYTHON_BRIDGE],
+            &["-c", python_bridge_program()],
             runtime.env,
             &input,
             runtime.timeout_ms,
-            runtime.max_output_bytes,
+            protocol_output_limit(runtime.max_output_bytes),
         )
         .await
         {
@@ -141,7 +152,10 @@ impl Provider for PythonProvider {
             "Python provider sidecar completed"
         );
 
-        if sidecar.stdout_exceeded || sidecar.stderr_exceeded {
+        if sidecar.stdout_exceeded
+            || sidecar.stderr_exceeded
+            || output.stderr.len() > runtime.max_output_bytes
+        {
             let stream = if sidecar.stdout_exceeded {
                 "stdout"
             } else {
@@ -176,34 +190,67 @@ impl Provider for PythonProvider {
             .with_phase("execution"));
         }
 
-        let value = serde_json::from_slice(&output.stdout).map_err(|error| {
+        let response = decode_python_response(&output.stdout).map_err(|error| {
+            let code = match &error {
+                PythonProtocolError::Json(_) => "python_invalid_json_output",
+                _ => "python_protocol_mismatch",
+            };
             ProviderError::validation(
                 &self.catalog.provider.name,
                 &call.action,
-                "python_invalid_json_output",
+                code,
                 error.to_string(),
             )
             .with_provider_kind(self.catalog.provider.kind.as_str())
-            .with_source(source)
+            .with_source(source.clone())
             .with_phase("output-validation")
         })?;
+        validate_python_response(&request, &response).map_err(|error| {
+            ProviderError::validation(
+                &self.catalog.provider.name,
+                &call.action,
+                "python_protocol_mismatch",
+                error.to_string(),
+            )
+            .with_provider_kind(self.catalog.provider.kind.as_str())
+            .with_source(source.clone())
+            .with_phase("output-validation")
+        })?;
+        let value = match response {
+            PythonWorkerResponse::Call { output, .. } => output,
+            PythonWorkerResponse::Catalog { .. } => {
+                return Err(ProviderError::validation(
+                    &self.catalog.provider.name,
+                    &call.action,
+                    "python_protocol_mismatch",
+                    "Python worker returned a catalog response for a call request",
+                )
+                .with_provider_kind(self.catalog.provider.kind.as_str())
+                .with_source(source)
+                .with_phase("output-validation"));
+            }
+        };
+        let payload_size = serde_json::to_vec(&value)
+            .map_err(|error| {
+                ProviderError::execution(&self.catalog.provider.name, &call.action, error)
+                    .with_provider_kind(self.catalog.provider.kind.as_str())
+                    .with_source(source.clone())
+                    .with_phase("output-serialization")
+            })?
+            .len();
+        if payload_size > runtime.max_output_bytes {
+            return Err(ProviderError::validation(
+                &self.catalog.provider.name,
+                &call.action,
+                "python_output_too_large",
+                output_exceeded_message("stdout", runtime.max_output_bytes),
+            )
+            .with_provider_kind(self.catalog.provider.kind.as_str())
+            .with_source(source)
+            .with_phase("output-validation"));
+        }
         Ok(ProviderOutput::json(value))
     }
-}
-
-fn python_execution_payload(
-    path: &Path,
-    call: &ProviderCall,
-    env: &[(String, String)],
-) -> Result<Vec<u8>, serde_json::Error> {
-    let mut payload = serde_json::to_value(crate::sidecar::ExecutionEnvelope::new(call))?;
-    if let Some(object) = payload.as_object_mut() {
-        let env_keys: Vec<&str> = env.iter().map(|(key, _)| key.as_str()).collect();
-        object.insert("mode".to_owned(), json!("call"));
-        object.insert("path".to_owned(), json!(path.to_path_buf()));
-        object.insert("env_keys".to_owned(), json!(env_keys));
-    }
-    serde_json::to_vec(&payload)
 }
 
 impl PythonProvider {
@@ -231,13 +278,26 @@ impl PythonProvider {
 /// themselves — see the module docs above.
 pub fn load_python_catalog(path: &Path, env_prefix: &str) -> Result<ProviderCatalog, String> {
     let runtime = PythonRuntime::for_catalog(env_prefix);
-    let input = serde_json::to_vec(&json!({
-        "mode": "catalog",
-        "path": path,
-    }))
-    .map_err(|error| error.to_string())?;
+    let request = PythonWorkerRequest::catalog(path);
+    let input = encode_python_request(&request).map_err(|error| error.to_string())?;
     let output = run_catalog_sidecar(&runtime, &input)?;
-    let value: Value = serde_json::from_slice(&output).map_err(|error| error.to_string())?;
+    let response = decode_python_response(&output).map_err(|error| error.to_string())?;
+    validate_python_response(&request, &response).map_err(|error| error.to_string())?;
+    let value = match response {
+        PythonWorkerResponse::Catalog { catalog, .. } => catalog,
+        PythonWorkerResponse::Call { .. } => {
+            return Err("Python worker returned a call response for a catalog request".to_owned());
+        }
+    };
+    let payload_size = serde_json::to_vec(&value)
+        .map_err(|error| error.to_string())?
+        .len();
+    if payload_size > runtime.max_output_bytes {
+        return Err(format!(
+            "Python provider catalog {}",
+            output_exceeded_message("stdout", runtime.max_output_bytes)
+        ));
+    }
     validate_provider_manifest_value(&value).map_err(|error| error.to_string())
 }
 
@@ -344,7 +404,7 @@ fn default_python_command() -> &'static str {
 fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>, String> {
     let mut command = StdCommand::new(resolve_sidecar_command(&runtime.command));
     command
-        .args(["-c", PYTHON_BRIDGE])
+        .args(["-c", python_bridge_program()])
         .env_clear()
         .stdin(StdStdio::piped())
         .stdout(StdStdio::piped())
@@ -361,9 +421,9 @@ fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>,
         .stderr
         .take()
         .ok_or_else(|| "Python provider catalog stderr pipe was not captured".to_owned())?;
-    let max_output_bytes = runtime.max_output_bytes;
-    let stdout_task = thread::spawn(move || read_bounded_sync(stdout, max_output_bytes));
-    let stderr_task = thread::spawn(move || read_bounded_sync(stderr, max_output_bytes));
+    let capture_limit = protocol_output_limit(runtime.max_output_bytes);
+    let stdout_task = thread::spawn(move || read_bounded_sync(stdout, capture_limit));
+    let stderr_task = thread::spawn(move || read_bounded_sync(stderr, capture_limit));
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(input).map_err(|error| error.to_string())?;
@@ -379,7 +439,7 @@ fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>,
                 .join()
                 .map_err(|_| "Python provider catalog stderr reader panicked".to_owned())?
                 .map_err(|error| error.to_string())?;
-            if stdout_exceeded || stderr_exceeded {
+            if stdout_exceeded || stderr_exceeded || stderr.len() > runtime.max_output_bytes {
                 let stream = if stdout_exceeded { "stdout" } else { "stderr" };
                 return Err(format!(
                     "Python provider catalog {}",

@@ -207,6 +207,14 @@ jobs:
       - name: Build stdio test binary
         run: cargo build --bin soma
 
+      - name: Python provider SDK tests
+        run: |
+          PYTHONPATH=crates/shared/provider-adapters/python \
+            python3 -m unittest discover \
+            -s crates/shared/provider-adapters/python/tests \
+            -p 'test_*.py' \
+            -v
+
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
 

@@ -1,3 +1,7 @@
+use std::sync::OnceLock;
+
+pub(crate) const PYTHON_SDK: &str = include_str!("../python/soma_provider.py");
+
 pub(crate) const PYTHON_BRIDGE: &str = r#"
 import asyncio
 import contextlib
@@ -5,6 +9,7 @@ import dataclasses
 import importlib.util
 import inspect
 import json
+import math
 import os
 import re
 import sys
@@ -13,6 +18,26 @@ import typing
 from pathlib import Path
 
 MISSING = object()
+SOMA_TOOL_FIELDS = (
+    "name",
+    "description",
+    "title",
+    "input_schema",
+    "output_schema",
+    "scope",
+    "destructive",
+    "requires_admin",
+    "cost",
+    "env",
+    "limits",
+    "mcp",
+    "rest",
+    "cli",
+    "palette",
+    "ui",
+    "examples",
+    "meta",
+)
 
 
 def load_module(path):
@@ -34,11 +59,45 @@ def restrict_environment(allowed):
             del os.environ[key]
 
 
+def request_identity(payload):
+    schema_version = payload.get("schema_version")
+    if schema_version != 1:
+        raise RuntimeError(
+            f"python_protocol_mismatch: unsupported schema version {schema_version!r}; expected 1"
+        )
+    request_id = payload.get("request_id")
+    if isinstance(request_id, bool) or not isinstance(request_id, int):
+        raise RuntimeError("python_protocol_mismatch: request_id must be an integer")
+    return request_id
+
+
 def provider_config(module):
     value = getattr(module, "PROVIDER", None)
     if isinstance(value, dict):
         return dict(value)
     return {}
+
+
+def soma_tool_spec(tool):
+    metadata = getattr(tool, "__soma_tool__", None)
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise RuntimeError("Python tool __soma_tool__ metadata must be an object")
+    schema_version = metadata.get("schema_version")
+    if schema_version != 1:
+        raise RuntimeError(
+            f"unsupported Python tool metadata schema version {schema_version!r}; expected 1"
+        )
+    spec = metadata.get("spec")
+    if not isinstance(spec, dict):
+        raise RuntimeError("Python tool __soma_tool__.spec must be an object")
+    unexpected = sorted(set(spec) - set(SOMA_TOOL_FIELDS))
+    if unexpected:
+        raise RuntimeError(
+            f"unsupported Python tool metadata fields: {', '.join(unexpected)}"
+        )
+    return dict(spec)
 
 
 def slug(value):
@@ -97,7 +156,14 @@ def detect_kind(module, tools, config):
 
 
 def jsonable(value, strict=False):
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise TypeError(
+                "python_provider_unserializable_output: "
+                f"{value!r} is not a finite JSON number"
+            )
         return value
     if isinstance(value, list) or isinstance(value, tuple):
         return [jsonable(item, strict=strict) for item in value]
@@ -226,6 +292,18 @@ def annotation_schema(annotation):
     return {"type": schema_type} if schema_type else {}
 
 
+def validate_python_signature(tool):
+    signature = inspect.signature(tool)
+    for name, parameter in signature.parameters.items():
+        if parameter.kind is inspect.Parameter.POSITIONAL_ONLY:
+            tool_label = getattr(tool, "__name__", "<unknown>")
+            raise RuntimeError(
+                f"Python tool {tool_label!r} parameter {name!r} is positional-only; "
+                "plain Python provider parameters must be callable by JSON object key"
+            )
+    return signature
+
+
 def function_schema(tool):
     hints = {}
     try:
@@ -240,16 +318,10 @@ def function_schema(tool):
             ) from error
     properties = {}
     required = []
-    signature = inspect.signature(tool)
+    signature = validate_python_signature(tool)
     for name, parameter in signature.parameters.items():
         if name in ("self", "cls"):
             continue
-        if parameter.kind is inspect.Parameter.POSITIONAL_ONLY:
-            tool_label = getattr(tool, "__name__", "<unknown>")
-            raise RuntimeError(
-                f"Python tool {tool_label!r} parameter {name!r} is positional-only; "
-                "plain Python provider parameters must be callable by JSON object key"
-            )
         if parameter.kind in (
             inspect.Parameter.VAR_POSITIONAL,
             inspect.Parameter.VAR_KEYWORD,
@@ -270,6 +342,10 @@ def function_schema(tool):
 
 
 def tool_name(tool, kind):
+    if kind == "python":
+        spec = soma_tool_spec(tool)
+        if "name" in spec:
+            return spec["name"]
     if kind == "llamaindex":
         metadata = getattr(tool, "metadata", None)
         value = getattr(metadata, "name", None)
@@ -279,6 +355,10 @@ def tool_name(tool, kind):
 
 
 def tool_description(tool, kind):
+    if kind == "python":
+        spec = soma_tool_spec(tool)
+        if "description" in spec:
+            return spec["description"]
     if kind == "llamaindex":
         metadata = getattr(tool, "metadata", None)
         value = getattr(metadata, "description", None)
@@ -289,6 +369,10 @@ def tool_description(tool, kind):
 
 def tool_schema(tool, kind):
     if kind == "python":
+        spec = soma_tool_spec(tool)
+        if "input_schema" in spec:
+            validate_python_signature(tool)
+            return spec["input_schema"]
         return function_schema(tool)
     if kind == "llamaindex":
         return llamaindex_schema(tool)
@@ -322,13 +406,43 @@ def catalog(path):
         name = tool_name(tool, kind)
         if not name:
             raise RuntimeError("Python provider tool is missing a name")
-        output["tools"].append({
+        tool_spec = {
             "name": name,
             "description": tool_description(tool, kind),
             "input_schema": tool_schema(tool, kind),
             "cli": {"enabled": True, "command": name},
             "meta": {"python": {"adapter": kind}},
-        })
+        }
+        if kind == "python":
+            decorator_spec = soma_tool_spec(tool)
+            for key in SOMA_TOOL_FIELDS:
+                if key in decorator_spec and key not in (
+                    "name",
+                    "description",
+                    "input_schema",
+                    "cli",
+                    "meta",
+                ):
+                    tool_spec[key] = decorator_spec[key]
+
+            if "cli" in decorator_spec:
+                cli_overlay = decorator_spec["cli"]
+                if not isinstance(cli_overlay, dict):
+                    raise RuntimeError("Python tool cli metadata must be an object")
+                tool_spec["cli"].update(cli_overlay)
+
+            meta_overlay = decorator_spec.get("meta", {})
+            if not isinstance(meta_overlay, dict):
+                raise RuntimeError("Python tool meta metadata must be an object")
+            meta_overlay = dict(meta_overlay)
+            python_overlay = meta_overlay.get("python", {})
+            if not isinstance(python_overlay, dict):
+                raise RuntimeError("Python tool meta.python metadata must be an object")
+            python_overlay = dict(python_overlay)
+            python_overlay["adapter"] = kind
+            meta_overlay["python"] = python_overlay
+            tool_spec["meta"] = meta_overlay
+        output["tools"].append(tool_spec)
     return output
 
 
@@ -391,20 +505,56 @@ async def execute(path, action, params):
 async def main():
     payload = json.loads(sys.stdin.buffer.read().decode("utf-8") or "{}")
     mode = payload.get("mode")
+    request_id = request_identity(payload)
     with contextlib.redirect_stdout(sys.stderr):
         if mode == "catalog":
             restrict_environment([])
             result = catalog(payload["path"])
+            response = {
+                "mode": "catalog",
+                "schema_version": 1,
+                "request_id": request_id,
+                "catalog": jsonable(result),
+            }
         elif mode == "call":
             restrict_environment(payload.get("env_keys") or [])
             result = await execute(payload["path"], payload["action"], payload.get("params") or {})
+            response = {
+                "mode": "call",
+                "schema_version": 1,
+                "request_id": request_id,
+                "output": jsonable(result, strict=True),
+            }
         else:
             raise RuntimeError(f"unknown Python bridge mode {mode!r}")
-    sys.stdout.write(json.dumps(jsonable(result, strict=mode == "call"), separators=(",", ":")))
+    encoded_response = json.dumps(
+        response, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+    ).encode("utf-8")
+    sys.stdout.buffer.write(encoded_response + b"\n")
 
 
 asyncio.run(main())
 "#;
+
+static PYTHON_BRIDGE_PROGRAM: OnceLock<String> = OnceLock::new();
+
+pub(crate) fn python_bridge_program() -> &'static str {
+    PYTHON_BRIDGE_PROGRAM
+        .get_or_init(|| {
+            let sdk_source = serde_json::to_string(PYTHON_SDK).unwrap_or_else(|error| {
+                panic!("failed to serialize the embedded Python SDK: {error}")
+            });
+            format!(
+                "import sys as _soma_sys\n\
+import types as _soma_types\n\
+_soma_provider = _soma_types.ModuleType(\"soma_provider\")\n\
+exec({sdk_source}, _soma_provider.__dict__)\n\
+_soma_sys.modules[\"soma_provider\"] = _soma_provider\n\
+{PYTHON_BRIDGE}"
+            )
+        })
+        .as_str()
+}
 
 #[cfg(test)]
 #[path = "python_bridge_tests.rs"]

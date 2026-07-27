@@ -100,10 +100,15 @@ doc-check:
 fmt-check:
     cargo fmt -- --check
 
+# Run the dependency-free embedded Python provider SDK unit tests
+test-python:
+    PYTHONPATH=crates/shared/provider-adapters/python python3 -m unittest discover -s crates/shared/provider-adapters/python/tests -p 'test_*.py' -v
+
 # Run the full test suite using cargo-nextest (faster, better output than cargo test)
 # nextest cannot execute doctests (cargo-nextest#16), so chase it with the
 # dedicated doctest runner — same pair CI's test job runs.
 test:
+    just test-python
     cargo nextest run
     cargo test --doc --workspace
 

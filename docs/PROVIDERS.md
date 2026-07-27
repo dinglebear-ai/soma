@@ -139,6 +139,59 @@ curl -sS -X POST http://127.0.0.1:40060/v1/tools/my_provider_action \
   -d '{"message":"hello"}'
 ```
 
+## Python Providers
+
+Plain `.py` providers can keep using a raw `PROVIDER` dictionary plus public
+functions. Soma also embeds a dependency-free `soma_provider` helper, so no
+package install or `PYTHONPATH` configuration is needed:
+
+```python
+from soma_provider import tool
+
+PROVIDER = {"name": "math-tools", "kind": "python"}
+
+@tool(
+    name="sum-values",
+    title="Sum values",
+    input_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "a": {"type": "integer"},
+            "b": {"type": "integer"},
+        },
+        "required": ["a", "b"],
+    },
+    output_schema={"type": "integer"},
+    cli={"aliases": ["sum"]},
+    meta={"owner": "platform"},
+)
+def add(a, b):
+    """Add two values."""
+    return a + b
+```
+
+The decorator returns the original function. Explicit decorator fields win over
+function-name/docstring/annotation inference, which in turn wins over adapter
+defaults. A decorated `name` is the action used by catalog and dispatch. Explicit
+`input_schema` skips annotation resolution, while positional-only parameters remain
+invalid because JSON object keys are passed as keyword arguments. `cli` shallowly
+overlays the generated `{"enabled": true, "command": <name>}` value, and
+`meta.python.adapter` is reserved for the host.
+
+Decorator metadata maps to the existing provider tool contract: `name`,
+`description`, `title`, `input_schema`, `output_schema`, `scope`, `destructive`,
+`requires_admin`, `cost`, `env`, `limits`, `mcp`, `rest`, `cli`, `palette`, `ui`,
+`examples`, and `meta`. Rust validates the fully resolved manifest before the tool
+is registered. Legacy public-function discovery, explicit `TOOLS = []`, LangChain,
+and LlamaIndex providers remain unchanged.
+
+Python providers are trusted executable code. Environment clearing and bounded
+sidecar I/O are safety controls, not an OS sandbox; imported code retains the
+filesystem, network, and process authority of the Soma service account. See
+[ADR 0013](./adr/0013-python-provider-authoring-boundary.md) for the authoring and
+Python-to-WASM graduation boundary.
+
 ## MCP Providers
 
 `mcp` providers infer their transport from `meta.mcp`: `url` selects
