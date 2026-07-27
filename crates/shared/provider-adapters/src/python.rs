@@ -41,6 +41,7 @@ use crate::{
     },
 };
 
+pub mod cache;
 pub mod environment;
 pub mod lifecycle;
 pub mod materializer;

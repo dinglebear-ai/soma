@@ -16,8 +16,8 @@ use super::environment::{
     Pep723Metadata, PythonEnvironmentPlan, PythonRuntimeFingerprint, PythonWheelTag,
 };
 
-const READY_FILE: &str = "soma-environment.json";
-const READY_SCHEMA_VERSION: u32 = 2;
+pub(super) const READY_FILE: &str = "soma-environment.json";
+pub(super) const READY_SCHEMA_VERSION: u32 = 2;
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,16 +86,16 @@ impl UvRunner for SystemUvRunner {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct ReadyMarker {
-    schema_version: u32,
-    environment_key: String,
-    plan_version: u32,
-    dependency_count: usize,
-    runtime: PythonRuntimeFingerprint,
-    sdk_wheel_tag: PythonWheelTag,
-    sdk_wheel_sha256: String,
-    uv_version: String,
-    lock_sha256: String,
+pub(super) struct ReadyMarker {
+    pub(super) schema_version: u32,
+    pub(super) environment_key: String,
+    pub(super) plan_version: u32,
+    pub(super) dependency_count: usize,
+    pub(super) runtime: PythonRuntimeFingerprint,
+    pub(super) sdk_wheel_tag: PythonWheelTag,
+    pub(super) sdk_wheel_sha256: String,
+    pub(super) uv_version: String,
+    pub(super) lock_sha256: String,
 }
 
 pub struct PythonEnvironmentMaterializer<R = SystemUvRunner> {
