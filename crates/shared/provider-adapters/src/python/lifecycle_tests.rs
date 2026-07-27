@@ -48,7 +48,9 @@ fn fixture() -> (
     PathBuf,
 ) {
     let temporary = tempfile::tempdir().unwrap();
-    let wheel = temporary.path().join("soma_provider.whl");
+    let wheel = temporary
+        .path()
+        .join("soma_provider-0.2.0-cp311-abi3-manylinux_2_17_x86_64.whl");
     fs::write(&wheel, b"sdk wheel").unwrap();
     let digest = Sha256::digest(b"sdk wheel")
         .iter()
@@ -56,7 +58,13 @@ fn fixture() -> (
         .collect::<String>();
     let spec = PythonEnvironmentSpec {
         cache_root: temporary.path().join("cache"),
-        runtime: PythonRuntimeFingerprint::new("cpython", "3.12.4", "linux-x86_64").unwrap(),
+        runtime: PythonRuntimeFingerprint::new(
+            "cpython",
+            "3.12.4",
+            "linux-x86_64",
+            "manylinux_2_17_x86_64",
+        )
+        .unwrap(),
         python_executable: PathBuf::from("/usr/bin/python3"),
         sdk_wheel: wheel,
         sdk_wheel_sha256: digest,
@@ -124,6 +132,29 @@ PROVIDER = {"name": "pep", "kind": "python"}
         project["tool"]["uv"]["prerelease"].as_str(),
         Some("disallow")
     );
+}
+
+#[test]
+fn incompatible_candidate_fails_before_uv_runs() {
+    let (_temporary, spec, runner, provider) = fixture();
+    fs::write(
+        &provider,
+        r#"# /// script
+# requires-python = ">=3.13"
+# ///
+PROVIDER = {"name": "incompatible", "kind": "python"}
+"#,
+    )
+    .unwrap();
+    let lifecycle = PythonEnvironmentLifecycle::with_runner("uv", spec, runner.clone());
+
+    assert!(matches!(
+        lifecycle.prepare_provider(&provider),
+        Err(PythonEnvironmentLifecycleError::Environment(
+            PythonEnvironmentError::IncompatiblePython { .. }
+        ))
+    ));
+    assert!(runner.calls.lock().unwrap().is_empty());
 }
 
 #[test]

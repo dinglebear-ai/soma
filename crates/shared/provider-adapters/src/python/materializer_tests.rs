@@ -55,14 +55,19 @@ fn simulate_uv(args: &[OsString], current_dir: &Path) {
 
 fn fixture() -> (tempfile::TempDir, PythonEnvironmentPlan, PathBuf, String) {
     let temporary = tempfile::tempdir().unwrap();
-    let wheel = temporary.path().join("soma_provider.whl");
+    let wheel = temporary
+        .path()
+        .join("soma_provider-0.2.0-cp311-abi3-manylinux_2_17_x86_64.whl");
     fs::write(&wheel, b"sdk wheel").unwrap();
     let digest = sha256_hex(b"sdk wheel");
-    let runtime = PythonRuntimeFingerprint::new("cpython", "3.12.4", "linux-x86_64").unwrap();
+    let runtime =
+        PythonRuntimeFingerprint::new("cpython", "3.12.4", "linux-x86_64", "manylinux_2_17_x86_64")
+            .unwrap();
     let plan = plan_python_environment(
         &temporary.path().join("cache"),
         None,
         &runtime,
+        &wheel,
         &digest,
         "0.11.31",
     )

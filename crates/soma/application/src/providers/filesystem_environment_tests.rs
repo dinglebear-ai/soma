@@ -102,11 +102,19 @@ impl PreparedFixture {
         let temporary = tempdir().unwrap();
         let providers = temporary.path().join("providers");
         fs::create_dir(&providers).unwrap();
-        let wheel = temporary.path().join("soma_provider.whl");
+        let wheel = temporary
+            .path()
+            .join("soma_provider-0.2.0-cp311-abi3-manylinux_2_17_x86_64.whl");
         fs::write(&wheel, b"sdk wheel").unwrap();
         let spec = PythonEnvironmentSpec {
             cache_root: temporary.path().join("cache"),
-            runtime: PythonRuntimeFingerprint::new("cpython", "3.12.4", "linux-x86_64").unwrap(),
+            runtime: PythonRuntimeFingerprint::new(
+                "cpython",
+                "3.12.4",
+                "linux-x86_64",
+                "manylinux_2_17_x86_64",
+            )
+            .unwrap(),
             python_executable: PathBuf::from("python3"),
             sdk_wheel: wheel,
             sdk_wheel_sha256: sha256_hex(b"sdk wheel"),

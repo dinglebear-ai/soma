@@ -23,7 +23,7 @@ default = []
 sidecar = ["dep:tokio"]
 static-echo = []
 ai-sdk = ["sidecar", "dep:tokio"]
-python = ["sidecar", "dep:tokio"]
+python = ["sidecar", "dep:pep440_rs", "dep:tokio"]
 wasm = ["sidecar", "dep:wasmtime", "dep:tokio"]
 openapi = ["dep:reqwest", "dep:rustls", "dep:url", "dep:soma-openapi"]
 codemode = ["dep:soma-codemode", "dep:tokio"]
@@ -61,6 +61,7 @@ url = { version = "2", optional = true }
 # openapi bridge: dispatch delegates to soma-openapi's HTTP executor (see
 # openapi.rs module docs) instead of hand-rolling a second one.
 soma-openapi = { workspace = true, optional = true }
+pep440_rs = { version = "0.7.3", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

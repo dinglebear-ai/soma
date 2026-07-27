@@ -80,6 +80,7 @@ impl<R: UvRunner> PythonEnvironmentLifecycle<R> {
             &self.spec.cache_root,
             metadata.as_ref(),
             &self.spec.runtime,
+            &self.spec.sdk_wheel,
             &self.spec.sdk_wheel_sha256,
             &self.spec.uv_version,
         )?;
