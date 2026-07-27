@@ -1,10 +1,13 @@
 import inspect
 import unittest
 
-from soma_provider import tool
+from soma_provider import __version__, tool
 
 
 class ToolDecoratorTests(unittest.TestCase):
+    def test_public_version_is_stable(self):
+        self.assertEqual(__version__, "0.1.0")
+
     def test_bare_decorator_preserves_function_identity_and_shape(self):
         def echo(message: str) -> str:
             """Echo a message."""

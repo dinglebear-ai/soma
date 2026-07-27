@@ -104,6 +104,19 @@ fmt-check:
 test-python:
     PYTHONPATH=crates/shared/provider-adapters/python python3 -m unittest discover -s crates/shared/provider-adapters/python/tests -p 'test_*.py' -v
 
+# Build and install the public Python authoring SDK in an isolated environment
+test-python-package:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    package_dir="crates/shared/provider-adapters/python"
+    dist_dir="$(mktemp -d)"
+    venv_dir="$(mktemp -d)"
+    trap 'rm -rf "$dist_dir" "$venv_dir"' EXIT
+    uv build --project "$package_dir" --out-dir "$dist_dir"
+    uv venv "$venv_dir"
+    uv pip install --link-mode copy --python "$venv_dir/bin/python" "$dist_dir"/soma_provider-*.whl
+    "$venv_dir/bin/python" -I "$package_dir/tests/verify_installed.py"
+
 # Run the full test suite using cargo-nextest (faster, better output than cargo test)
 # nextest cannot execute doctests (cargo-nextest#16), so chase it with the
 # dedicated doctest runner — same pair CI's test job runs.

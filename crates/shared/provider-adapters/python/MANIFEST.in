@@ -1,0 +1,2 @@
+include soma_runner_protocol.py
+recursive-include tests *.py *.json

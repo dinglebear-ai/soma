@@ -7,8 +7,14 @@ without installing a wheel or configuring PYTHONPATH.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar, overload
 
-__all__ = ["tool"]
+__version__ = "0.1.0"
+__all__ = ["__version__", "tool"]
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 _TOOL_SPEC_FIELDS = frozenset(
     {
@@ -34,7 +40,7 @@ _TOOL_SPEC_FIELDS = frozenset(
 )
 
 
-def _normalize_spec(spec):
+def _normalize_spec(spec: dict[str, Any]) -> dict[str, Any]:
     unexpected = sorted(set(spec) - _TOOL_SPEC_FIELDS)
     if unexpected:
         names = ", ".join(unexpected)
@@ -45,7 +51,19 @@ def _normalize_spec(spec):
         raise TypeError(f"Soma tool metadata must be JSON-compatible: {error}") from error
 
 
-def tool(_function=None, /, **spec):
+@overload
+def tool(
+    _function: Callable[_P, _R], /, **spec: Any
+) -> Callable[_P, _R]: ...
+
+
+@overload
+def tool(
+    _function: None = None, /, **spec: Any
+) -> Callable[[Callable[_P, _R]], Callable[_P, _R]]: ...
+
+
+def tool(_function=None, /, **spec: Any):
     """Annotate a function with metadata for Soma's provider bridge.
 
     The original function is returned unchanged. When a field is omitted, the
@@ -54,7 +72,7 @@ def tool(_function=None, /, **spec):
 
     normalized = _normalize_spec(spec)
 
-    def decorate(function):
+    def decorate(function: Callable[_P, _R]) -> Callable[_P, _R]:
         if not callable(function):
             raise TypeError("@tool can only decorate a callable")
         function.__soma_tool__ = {

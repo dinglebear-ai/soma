@@ -142,8 +142,10 @@ curl -sS -X POST http://127.0.0.1:40060/v1/tools/my_provider_action \
 ## Python Providers
 
 Plain `.py` providers can keep using a raw `PROVIDER` dictionary plus public
-functions. Soma also embeds a dependency-free `soma_provider` helper, so no
-package install or `PYTHONPATH` configuration is needed:
+functions. Soma also embeds a dependency-free `soma_provider` helper, so deployed
+providers need no package install or `PYTHONPATH` configuration. Python projects
+can optionally install the matching `soma-provider` package for development, IDE
+support, and unit tests; both modes expose the same import and metadata contract:
 
 ```python
 from soma_provider import tool
