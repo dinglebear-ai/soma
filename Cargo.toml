@@ -72,12 +72,12 @@ missing_docs = "warn"
 # `rmcp-client` alias entry below — because TOML cannot reference another
 # entry's version; bump BOTH lines together or the workspace carries two
 # conflicting exact requirements and fails to resolve.
-rmcp = { version = "=2.2.0", default-features = false }
+rmcp = { version = "=3.0.0-beta.2", default-features = false }
 # soma-auth consumes rmcp under the `rmcp-client` alias; workspace inheritance
 # is keyed by the member-side dependency name, so the alias needs its own entry
 # (`package =` cannot be combined with `workspace = true` on the member side).
 # Keep the version in sync with `rmcp` above.
-rmcp-client = { package = "rmcp", version = "=2.2.0", default-features = false }
+rmcp-client = { package = "rmcp", version = "=3.0.0-beta.2", default-features = false }
 # Security primitives. One pin so every crate that wipes key material on drop
 # agrees on the same zeroize semantics.
 zeroize = { version = "1", features = ["zeroize_derive"] }

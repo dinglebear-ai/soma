@@ -16,6 +16,48 @@ use crate::upstream::types::OauthError;
 
 use super::{DynamicClientRegistrationUse, TokenRefreshState, UpstreamOauthManager, now_unix};
 
+fn should_use_client_metadata_document(
+    registration: &UpstreamOauthRegistration,
+    preference: Option<bool>,
+    server_supports_cimd: bool,
+) -> bool {
+    server_supports_cimd
+        && (matches!(registration, UpstreamOauthRegistration::Auto) || preference == Some(true))
+}
+
+fn dynamic_registration_bootstrap_config(redirect_uri: &str) -> OAuthClientConfig {
+    OAuthClientConfig::new("soma-registration-placeholder", redirect_uri)
+        .with_application_type("web")
+}
+
+fn generated_client_metadata_document_url(
+    redirect_uri: &str,
+    upstream_name: &str,
+) -> Result<Option<String>, OauthError> {
+    let mut client_id = url::Url::parse(redirect_uri).map_err(|error| {
+        OauthError::Internal(format!("invalid upstream OAuth redirect URI: {error}"))
+    })?;
+    if client_id.scheme() != "https" {
+        return Ok(None);
+    }
+    client_id.set_query(None);
+    client_id.set_fragment(None);
+    {
+        let mut segments = client_id.path_segments_mut().map_err(|_| {
+            OauthError::Internal(
+                "upstream OAuth redirect URI cannot host a client metadata document".to_string(),
+            )
+        })?;
+        segments
+            .clear()
+            .push("auth")
+            .push("upstream")
+            .push("client-metadata")
+            .push(upstream_name);
+    }
+    Ok(Some(client_id.to_string()))
+}
+
 impl UpstreamOauthManager {
     /// Return an `AuthClient` ready for use, proactively refreshing if near expiry.
     ///
@@ -348,11 +390,22 @@ impl UpstreamOauthManager {
         // clients `resolve_client_config` yields no secret, so this is a no-op.
         let scopes_owned = self.oauth_config()?.scopes.clone().unwrap_or_default();
         let scopes: Vec<&str> = scopes_owned.iter().map(String::as_str).collect();
+        let issuer = self
+            .metadata_cache
+            .read()
+            .await
+            .as_ref()
+            .and_then(|metadata| metadata.issuer.as_deref())
+            .map(|issuer| issuer.trim_end_matches('/').to_string())
+            .ok_or_else(|| {
+                OauthError::IssuerMismatch("authorization server issuer is unavailable".to_string())
+            })?;
         let client_cfg = self
             .resolve_client_config(
                 &mut manager,
                 subject,
                 &scopes,
+                &issuer,
                 DynamicClientRegistrationUse::StoredCredentials,
             )
             .await?;
@@ -382,6 +435,7 @@ impl UpstreamOauthManager {
         manager: &mut AuthorizationManager,
         subject: &str,
         scopes: &[&str],
+        issuer: &str,
         dynamic_registration_use: DynamicClientRegistrationUse,
     ) -> Result<OAuthClientConfig, OauthError> {
         let oauth_cfg = self.oauth_config()?;
@@ -410,7 +464,39 @@ impl UpstreamOauthManager {
                 cfg = cfg.with_scopes(scopes.iter().map(|s| s.to_string()).collect());
                 Ok(cfg)
             }
-            UpstreamOauthRegistration::Dynamic => {
+            UpstreamOauthRegistration::Auto | UpstreamOauthRegistration::Dynamic => {
+                let (supports_cimd, supports_dcr) = {
+                    let metadata = self.metadata_cache.read().await;
+                    let metadata = metadata.as_ref();
+                    (
+                        metadata
+                            .and_then(|metadata| {
+                                metadata
+                                    .additional_fields
+                                    .get("client_id_metadata_document_supported")
+                            })
+                            .and_then(serde_json::Value::as_bool)
+                            .unwrap_or(false),
+                        metadata
+                            .and_then(|metadata| metadata.registration_endpoint.as_deref())
+                            .is_some(),
+                    )
+                };
+                if should_use_client_metadata_document(
+                    &oauth_cfg.registration,
+                    oauth_cfg.prefer_client_metadata_document,
+                    supports_cimd,
+                ) && let Some(client_id) = generated_client_metadata_document_url(
+                    self.redirect_uri.as_str(),
+                    &self.upstream.name,
+                )? {
+                    return Ok(
+                        OAuthClientConfig::new(client_id, self.redirect_uri.as_str())
+                            .with_scopes(scopes.iter().map(|scope| scope.to_string()).collect())
+                            .with_application_type("web"),
+                    );
+                }
+
                 // Dynamic registration (RFC 7591) has two different lifetimes:
                 //   1. Stored credentials are durable and remain authoritative after
                 //      a successful token exchange for normal MCP calls.
@@ -427,6 +513,23 @@ impl UpstreamOauthManager {
                             .await
                             .map_err(|e| OauthError::Internal(e.to_string()))?
                         {
+                            if row.issuer.is_empty() || row.issuer != issuer {
+                                self.sqlite
+                                    .delete_upstream_oauth_credentials(&self.upstream.name, subject)
+                                    .await
+                                    .map_err(|e| OauthError::Internal(e.to_string()))?;
+                                self.sqlite
+                                    .delete_dynamic_client_registration(
+                                        &self.upstream.name,
+                                        subject,
+                                    )
+                                    .await
+                                    .map_err(|e| OauthError::Internal(e.to_string()))?;
+                                return Err(OauthError::NeedsReauth(format!(
+                                    "authorization server changed for upstream '{}'",
+                                    self.upstream.name
+                                )));
+                            }
                             let mut cfg =
                                 OAuthClientConfig::new(row.client_id, self.redirect_uri.as_str());
                             cfg = cfg.with_scopes(scopes.iter().map(|s| s.to_string()).collect());
@@ -443,14 +546,29 @@ impl UpstreamOauthManager {
                         // by the begin_authorization call. This keeps callbacks
                         // valid across process restarts and lets an explicit
                         // reauth flow replace stale stored credentials.
-                        if let Some(client_id) = self
+                        if let Some(registration) = self
                             .sqlite
                             .find_dynamic_client_registration(&self.upstream.name, subject)
                             .await
                             .map_err(|e| OauthError::Internal(e.to_string()))?
                         {
-                            let mut cfg =
-                                OAuthClientConfig::new(client_id, self.redirect_uri.as_str());
+                            if registration.issuer.is_empty() || registration.issuer != issuer {
+                                self.sqlite
+                                    .delete_dynamic_client_registration(
+                                        &self.upstream.name,
+                                        subject,
+                                    )
+                                    .await
+                                    .map_err(|e| OauthError::Internal(e.to_string()))?;
+                                return Err(OauthError::NeedsReauth(format!(
+                                    "authorization server changed for upstream '{}'",
+                                    self.upstream.name
+                                )));
+                            }
+                            let mut cfg = OAuthClientConfig::new(
+                                registration.client_id,
+                                self.redirect_uri.as_str(),
+                            );
                             cfg = cfg.with_scopes(scopes.iter().map(|s| s.to_string()).collect());
                             return Ok(cfg);
                         }
@@ -463,21 +581,42 @@ impl UpstreamOauthManager {
                     DynamicClientRegistrationUse::BeginAuthorization => {}
                 }
 
+                if !supports_dcr {
+                    return Err(OauthError::UnsupportedMethod(
+                        "authorization server supports neither a usable Client ID Metadata Document nor Dynamic Client Registration"
+                            .to_string(),
+                    ));
+                }
+
                 // Beginning a new flow: register with the AS every time there are
                 // no stored credentials. This self-heals when the upstream AS loses
                 // its dynamic-client DB while this process still has an old pending row.
+                manager
+                    .configure_client(dynamic_registration_bootstrap_config(
+                        self.redirect_uri.as_str(),
+                    ))
+                    .map_err(|e| {
+                        OauthError::Internal(format!(
+                            "configure dynamic registration application_type: {e}"
+                        ))
+                    })?;
                 let cfg = manager
                     .register_client("soma", self.redirect_uri.as_str(), scopes)
                     .await
                     .map_err(|e| OauthError::Internal(format!("dynamic registration: {e}")))?;
 
                 self.sqlite
-                    .save_dynamic_client_registration(&self.upstream.name, subject, &cfg.client_id)
+                    .save_dynamic_client_registration(
+                        &self.upstream.name,
+                        subject,
+                        &cfg.client_id,
+                        issuer,
+                    )
                     .await
                     .map_err(|e| OauthError::Internal(e.to_string()))?;
 
                 // Read back the persisted value to use the DB-canonical client_id.
-                let canonical_client_id = self
+                let canonical_registration = self
                     .sqlite
                     .find_dynamic_client_registration(&self.upstream.name, subject)
                     .await
@@ -488,8 +627,10 @@ impl UpstreamOauthManager {
                         )
                     })?;
 
-                let mut canonical_cfg =
-                    OAuthClientConfig::new(canonical_client_id, self.redirect_uri.as_str());
+                let mut canonical_cfg = OAuthClientConfig::new(
+                    canonical_registration.client_id,
+                    self.redirect_uri.as_str(),
+                );
                 canonical_cfg =
                     canonical_cfg.with_scopes(scopes.iter().map(|s| s.to_string()).collect());
                 Ok(canonical_cfg)
@@ -509,9 +650,74 @@ impl UpstreamOauthManager {
                     )));
                 }
                 let cfg = OAuthClientConfig::new(url.clone(), self.redirect_uri.as_str())
-                    .with_scopes(scopes.iter().map(|s| s.to_string()).collect());
+                    .with_scopes(scopes.iter().map(|s| s.to_string()).collect())
+                    .with_application_type("web");
                 Ok(cfg)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_prefers_cimd_only_when_the_server_advertises_it() {
+        assert!(should_use_client_metadata_document(
+            &UpstreamOauthRegistration::Auto,
+            None,
+            true,
+        ));
+        assert!(!should_use_client_metadata_document(
+            &UpstreamOauthRegistration::Auto,
+            None,
+            false,
+        ));
+    }
+
+    #[test]
+    fn explicit_dynamic_remains_dcr_unless_the_compatibility_override_is_enabled() {
+        assert!(!should_use_client_metadata_document(
+            &UpstreamOauthRegistration::Dynamic,
+            None,
+            true,
+        ));
+        assert!(should_use_client_metadata_document(
+            &UpstreamOauthRegistration::Dynamic,
+            Some(true),
+            true,
+        ));
+    }
+
+    #[test]
+    fn dynamic_registration_identifies_soma_as_a_web_client() {
+        let config =
+            dynamic_registration_bootstrap_config("https://soma.example/auth/upstream/callback");
+        assert_eq!(config.application_type.as_deref(), Some("web"));
+    }
+
+    #[test]
+    fn generated_cimd_url_uses_the_public_callback_origin() {
+        let url = generated_client_metadata_document_url(
+            "https://soma.example/auth/upstream/callback?ignored=yes",
+            "github",
+        )
+        .expect("metadata URL")
+        .expect("https callback should host CIMD");
+        assert_eq!(
+            url,
+            "https://soma.example/auth/upstream/client-metadata/github"
+        );
+    }
+
+    #[test]
+    fn generated_cimd_url_rejects_plain_http_so_auto_can_fall_back_to_dcr() {
+        let url = generated_client_metadata_document_url(
+            "http://127.0.0.1:40060/auth/upstream/callback",
+            "github",
+        )
+        .expect("valid callback URL");
+        assert!(url.is_none());
     }
 }

@@ -1,5 +1,5 @@
 use rmcp::{
-    model::{CallToolRequestParams, ErrorCode, Meta, ResourceContents},
+    model::{CacheScope, CallToolRequestParams, ErrorCode, Meta, ResourceContents},
     service::ServiceError,
     ServiceExt,
 };
@@ -14,12 +14,72 @@ use soma_provider_core::ProviderResource;
 use crate::{assert_result_has_no_meta, trace_resolution};
 
 use super::{
-    application_error_payload, resource_contents_from_output, resource_read_error,
-    rmcp_resource_from_catalog_resource, rmcp_tool_from_json, tool_error_result,
-    trace_context_from_meta, unknown_tool_error,
+    application_error_payload, private_dynamic_read_response, private_prompts_result,
+    private_resource_templates_result, private_resources_result, private_tools_result,
+    resource_contents_from_output, resource_read_error, rmcp_resource_from_catalog_resource,
+    rmcp_tool_from_json, tool_error_result, trace_context_from_meta, unknown_tool_error,
 };
 
 const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01";
+
+#[test]
+fn dynamic_catalog_results_are_private_and_immediately_stale() {
+    let tools = private_tools_result(Vec::new());
+    let resources = private_resources_result(Vec::new());
+    let templates = private_resource_templates_result(Vec::new());
+    let prompts = private_prompts_result(rmcp::model::ListPromptsResult::default());
+    let resource = match private_dynamic_read_response(
+        rmcp::model::ReadResourceResult::new(Vec::new()).into(),
+    ) {
+        rmcp::model::ReadResourceResponse::Complete(result) => result,
+        rmcp::model::ReadResourceResponse::InputRequired(_) => {
+            panic!("cache helper must preserve a complete resource response")
+        }
+        _ => panic!("unexpected future resource response variant"),
+    };
+
+    for (name, ttl_ms, cache_scope, wire) in [
+        (
+            "tools/list",
+            tools.ttl_ms,
+            tools.cache_scope,
+            serde_json::to_value(&tools).expect("serialize tools/list"),
+        ),
+        (
+            "resources/list",
+            resources.ttl_ms,
+            resources.cache_scope,
+            serde_json::to_value(&resources).expect("serialize resources/list"),
+        ),
+        (
+            "resources/templates/list",
+            templates.ttl_ms,
+            templates.cache_scope,
+            serde_json::to_value(&templates).expect("serialize resource templates"),
+        ),
+        (
+            "prompts/list",
+            prompts.ttl_ms,
+            prompts.cache_scope,
+            serde_json::to_value(&prompts).expect("serialize prompts/list"),
+        ),
+        (
+            "resources/read",
+            resource.ttl_ms,
+            resource.cache_scope,
+            serde_json::to_value(&resource).expect("serialize resources/read"),
+        ),
+    ] {
+        assert_eq!(ttl_ms, Some(0), "{name} must be immediately stale");
+        assert_eq!(
+            cache_scope,
+            Some(CacheScope::Private),
+            "{name} must remain user-private"
+        );
+        assert_eq!(wire["ttlMs"], 0, "{name} wire ttl");
+        assert_eq!(wire["cacheScope"], "private", "{name} wire scope");
+    }
+}
 
 #[test]
 fn valid_mcp_trace_metadata_becomes_application_trace_context() {
@@ -247,7 +307,7 @@ async fn call_tool_logs_safe_trace_summary_from_request_meta() {
     let mut request = CallToolRequestParams::new("soma").with_arguments(
         serde_json::Map::from_iter([("action".to_owned(), json!("status"))]),
     );
-    request.meta = Some(meta);
+    request.meta = Some(meta.into());
 
     let result = client
         .call_tool(request)
@@ -316,7 +376,7 @@ async fn call_tool_auth_failure_logs_without_trace_fields() {
     let mut request = CallToolRequestParams::new("soma").with_arguments(
         serde_json::Map::from_iter([("action".to_owned(), json!("status"))]),
     );
-    request.meta = Some(meta);
+    request.meta = Some(meta.into());
 
     let error = client
         .call_tool(request)
@@ -380,7 +440,7 @@ async fn call_tool_response_page_rejection_logs_without_trace_or_request_fields(
             ("_response_offset".to_owned(), json!(1)),
         ]),
     );
-    request.meta = Some(meta);
+    request.meta = Some(meta.into());
 
     let error = client
         .call_tool(request)

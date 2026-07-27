@@ -72,6 +72,14 @@ pub trait UpstreamOAuthManager: Send + Sync {
         subject: &'a str,
     ) -> BoxFuture<'a, Result<BeginAuthorization, UpstreamOAuthError>>;
 
+    fn complete_authorization<'a>(
+        &'a self,
+        subject: &'a str,
+        code: &'a str,
+        state: &'a str,
+        issuer: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>>;
+
     fn credential_status<'a>(
         &'a self,
         subject: &'a str,

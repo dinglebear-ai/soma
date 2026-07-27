@@ -2,82 +2,140 @@
 
 ## Status
 
-In progress. Tracked by beads epic `soma-b4q`.
+Implemented against `rmcp = 3.0.0-beta.2`.
 
-The upcoming MCP draft revision is dated 2026-07-28. It is not final until then,
-and the schema keeps changing. This document records the migration plan and which
-work is safe to do now versus blocked upstream.
+The requested draft URL currently identifies the integrated protocol revision as
+`2026-07-28`. Soma therefore negotiates and tests that exact revision rather than
+hard-coding the earlier working-date label. The migration retains compatibility
+with older MCP peers where the SDK can prove that a legacy lifecycle is required.
 
-## Key finding: most of the migration is blocked on rmcp
+## Runtime compatibility
 
-The defining draft changes are protocol-level and live inside the `rmcp` crate,
-version-gated by `ProtocolVersion`. As of 2026-06-21, rmcp draft support is
-effectively absent:
+| Protocol area | Soma status |
+|---|---|
+| Stateless Streamable HTTP lifecycle | Implemented. Modern HTTP requests do not create or require `Mcp-Session-Id`. |
+| `server/discover` | Implemented and exercised over a real TCP/HTTP round trip. |
+| Per-request `_meta` identity, version, and capabilities | Implemented by the rmcp 3 client lifecycle and validated by the server. |
+| Legacy `initialize` fallback | Retained for older upstream servers through `ClientLifecycleMode::Auto`; modern discovery is attempted first. |
+| `resultType` discriminators | Preserved for tools, prompts, resources, task results, and discovery responses. |
+| Multi-round-trip requests (`input_required`) | Implemented through the upstream pool, gateway, application port, product integration, and public MCP server. `inputResponses` and opaque `requestState` survive every proxy layer. |
+| Tasks extension (`io.modelcontextprotocol/tasks`) | Implemented for routed upstream tools. Soma rewrites native task IDs to opaque, subject-bound gateway task IDs and routes `tasks/get`, `tasks/update`, and `tasks/cancel`. |
+| `subscriptions/listen` | Implemented with authentication, acknowledgement, filtering, and cancellation. Soma currently advertises no change-notification producers, so the accepted filter is empty instead of claiming events it cannot emit. |
+| Modern resource-not-found error semantics | Delegated to rmcp's negotiated-version handling. |
+| Capability extensions | Implemented. Task-capable clients and the Soma server advertise the tasks extension explicitly. |
+| Discovery/result caching hints | Supported by rmcp models. Soma's discovery response remains private and non-cacheable by default; no broader cacheability claim is made. |
+| Authorization updates | Implemented. Soma emits and validates RFC 9207 `iss`, binds persisted credentials and dynamic registrations to the authorization-server issuer, serves Client ID Metadata Documents, prefers CIMD in automatic mode, retains DCR fallback with `application_type: web`, and exposes a public one-time upstream OAuth callback. |
+| MCP protocol headers and CORS | MCP protocol and routing headers are allowed by the HTTP surface and exercised by modern raw-request tests. |
 
-- crates.io tops out at rmcp 1.7.0 (our pin), which has no draft awareness.
-- `ProtocolVersion::V_2026_07_28` exists only on rmcp `main` / the unreleased
-  1.8.0 (release PR modelcontextprotocol/rust-sdk#850 is still open).
-- The only draft-gated behavior implemented upstream is SEP-2164 (the resource
-  not-found error code change -32002 to -32602, PR #899).
-- The defining draft features (stateless lifecycle, server/discover,
-  subscriptions/listen, MRTR / InputRequiredResult, resultType, CacheableResult,
-  capabilities.extensions) have no rmcp code, no merged PRs, and no tracking
-  issues. rmcp LATEST is deliberately still 2025-11-25.
+## Implementation notes
 
-So full protocol compatibility cannot be built today. The chosen approach is to
-land the non-protocol prep that is safe now and stage the protocol work behind an
-rmcp upgrade.
+### Modern client lifecycle
 
-## What the draft changes, and who owns each change
+Production upstream connections use discovery-first negotiation for HTTP, stdio,
+WebSocket, and OAuth-authenticated transports. Preferred versions are taken from
+`ProtocolVersion::KNOWN_VERSIONS` in newest-first order. Legacy initialization is
+used only after the peer returns method-not-found for `server/discover`.
 
-| Draft change | Owner | Status |
-|---|---|---|
-| Stateless lifecycle (drop initialize, per-request `_meta`) | rmcp | Blocked. We already run stateless-mode + json_response. |
-| Remove `Mcp-Session-Id` | rmcp | Blocked (rmcp-internal). |
-| `server/discover` RPC | rmcp (+ our handler hook) | Blocked. |
-| `subscriptions/listen` | rmcp | Blocked. Low impact: we have no resource subscriptions. |
-| `resultType` on all results | rmcp | Blocked. |
-| MRTR replaces `elicitation/create` | rmcp + us | Blocked. Our two `peer.elicit()` calls are the only server-initiated requests. |
-| Error renumbering -32020..-32099 | rmcp + us | Blocked. Our payloads use string `code`, insulated from numeric renumbering. |
-| RFC 9207 `iss` in auth responses | us | Done (b4q.3). |
-| `application_type` in DCR | us | Done (b4q.4). |
-| `Mcp-Method` / `Mcp-Name` / `x-mcp-header` headers | rmcp + us | CORS allow-list done (b4q.2); emission is rmcp's (SEP-2243, PR #907, open). |
-| Client ID Metadata Documents (CIMD) replacing DCR | us | Later / draft-coupled (b4q.9). |
-| OTel `_meta` trace-context propagation | us | Not started. |
+Outgoing pooled and manifest-driven clients advertise the tasks extension. The
+manifest-driven provider polls asynchronous tasks to a terminal state within its
+existing provider timeout. A task that requires interactive input returns an
+explicit provider interaction error because that provider surface has no client UI
+through which to satisfy elicitation, sampling, or roots requests.
 
-We use none of the deprecated features (Roots, Sampling, Logging, Tasks),
-`tools/list` order is already deterministic, and our error payloads are insulated
-from the numeric renumbering, so our real change surface is small.
+### Authorization and client registration
 
-## Done so far (safe deltas)
+Soma's inbound authorization server advertises and emits RFC 9207 `iss` on
+successful and failed authorization responses. Outbound upstream authorization
+persists the expected issuer and whether the upstream advertised issuer-response
+support in the one-time OAuth state row. The public
+`/auth/upstream/callback` endpoint recovers the upstream and subject from that
+opaque state, forwards the optional `iss` to rmcp, and validates it before the
+authorization code is redeemed. Provider errors and malformed callbacks consume
+the pending state and return static browser-safe responses without reflecting
+codes, state values, tokens, or provider descriptions.
 
-- RFC 9207 `iss` on OAuth authorization success and error responses (b4q.3).
-- `application_type` accepted, validated, and echoed in dynamic client
-  registration (b4q.4).
-- MCP protocol headers allowed in CORS preflight (b4q.2).
-- Conformance harness and baseline (b4q.1).
-- This documentation (b4q.5).
+Durable upstream credentials and dynamic client registrations are bound to the
+canonical authorization-server issuer. Legacy rows without an issuer and rows
+whose issuer no longer matches discovery are deleted and force a fresh
+authorization or registration flow. The issuer is also part of the encrypted
+credential associated data, so a row cannot be transplanted between issuers.
 
-## Blocked on rmcp upstream
+The `auto` registration strategy follows the draft preference order: use Soma's
+served Client ID Metadata Document when the authorization server advertises CIMD
+support, otherwise fall back to RFC 7591 Dynamic Client Registration. Explicit
+preregistered, explicit CIMD, and explicit dynamic strategies remain available for
+operator control and compatibility. DCR requests identify Soma as a web client via
+`application_type: web`.
 
-- Upgrade rmcp to >= 1.8.0 once released (b4q.6).
-- Migrate elicitation to MRTR / InputRequiredResult (b4q.7).
-- Adopt stateless lifecycle, server/discover, subscriptions/listen, resultType,
-  capabilities.extensions when rmcp implements them (b4q.8).
+### Multi-round-trip proxying
 
-## Draft schema reference
+Soma uses protocol-neutral outcome and continuation types between architectural
+layers. rmcp types are converted only at MCP transport boundaries. This prevents
+application and domain crates from depending on the SDK while preserving these
+wire outcomes exactly:
 
-The draft TypeScript schema is an upstream document, so it lives under the
-gitignored `docs/references/` tree (local-only, not committed) per the docs
-convention. Fetch a local copy from the `modelcontextprotocol/modelcontextprotocol`
-repository at `schema/draft/schema.ts` (revision 2026-07-28). The draft moves, so
-re-pull before relying on exact shapes:
+- complete tool, prompt, and resource results
+- `input_required` with keyed input requests
+- opaque `requestState`
+- keyed `inputResponses` on retries
+- task handles
+
+Malformed upstream result objects fail with structured proxy errors instead of
+being reported as successful structured content.
+
+### Task routing and isolation
+
+Native task IDs are scoped to an upstream server and may collide. The gateway
+therefore creates opaque public IDs and stores the originating upstream, native ID,
+and authorization subject. A task ID cannot be resolved by another subject, and
+gateway reload invalidates all in-memory task routes. Soma does not persist task
+routes across process restarts.
+
+### Subscriptions
+
+Soma accepts the modern `subscriptions/listen` lifecycle and relies on rmcp to
+intersect a requested filter with the server's advertised notification
+capabilities. The request stays open until cancellation and returns the draft's
+graceful completion result when the server closes it. No synthetic resource,
+tool-list, prompt-list, or resource-update events are emitted.
+
+### Deliberately absent protocol areas
+
+Roots, sampling, and logging are not newly added by this migration. They are
+deprecated on the draft track and remain absent unless a separate product
+requirement justifies them. The older manifest-driven provider transport stack is
+still tracked for consolidation into the pooled gateway client, but it now uses the
+same rmcp 3 lifecycle and task semantics and is not a protocol compatibility gap.
+
+## Verification
+
+The migration is covered by real transport and routing tests, including:
+
+- modern stateless HTTP discovery with negotiated protocol `2026-07-28`
+- absence of `Mcp-Session-Id` on modern requests
+- typed complete results
+- a two-round elicitation exchange that echoes `requestState` and keyed responses
+- live task creation, input-required polling, update, completion, and cancellation
+- opaque gateway task IDs, subject isolation, invalid-result rejection, and reload invalidation
+- task operations through Soma's public MCP server surface
+- modern subscription acknowledgement and cancellation over HTTP
+- RFC 9207 issuer state persistence and callback forwarding
+- issuer-bound credential rejection, deletion, and reauthorization behavior
+- public upstream callback error handling and generated CIMD metadata
+- CIMD-first automatic registration with DCR fallback and explicit-strategy preservation
+- legacy upstream initialization fixtures
+- the bare MCP feature profile and architecture boundaries
+
+Validated commands:
 
 ```bash
-mkdir -p docs/references
-gh api repos/modelcontextprotocol/modelcontextprotocol/contents/schema/draft/schema.ts \
-  --jq '.content' | base64 -d > docs/references/mcp-draft-2026-07-28-schema.ts
+cargo check --workspace --all-targets
+cargo test --workspace --all-targets
 ```
+
+The full workspace test suite passes. When Soldr's daemon is unavailable, put the
+real Rust toolchain directory first in `PATH` so architecture tests that spawn
+`cargo` inherit the direct toolchain rather than the Soldr cargo shim.
 
 ## Conformance harness
 
@@ -85,45 +143,20 @@ The official conformance suite (`@modelcontextprotocol/conformance`) validates a
 running server over Streamable HTTP. Run it locally with:
 
 ```bash
-just conformance                 # active suite, default port 41060
-just conformance active 41170    # explicit suite and port
-just conformance-report          # summarize results/**/checks.json
+just conformance
+just conformance active 41170
+just conformance-report
 ```
 
-Notes:
-
-- The recipe boots a no-auth loopback server, waits for `/health`, runs the
-  suite, and tears down. It defaults to port 41060 to avoid colliding with a live
-  server on the default 40060, pre-checks the port is free, and verifies our
-  process is the one answering.
-- The recipe sets `SOMA_MCP_CONFORMANCE_FIXTURES=true`. That advertises
-  the upstream reference tools/resources/prompts only for the conformance
-  process:
-  - tools: `test_simple_text`, `test_image_content`, `test_audio_content`,
-    `test_embedded_resource`, `test_multiple_content_types`,
-    `test_error_handling`
-  - resources: `test://static-text`, `test://static-binary`,
-    `test://soma/123/data`
-  - prompts: `test_simple_prompt`, `test_prompt_with_arguments`,
-    `test_prompt_with_embedded_resource`, `test_prompt_with_image`
-- Requires `npx` (Node.js).
-- `conformance-baseline.yml` fences known gaps so the recipe fails only on a new
-  regression (and flags a baselined scenario that starts passing as stale).
-- The dedicated `MCP Conformance` GitHub Actions workflow runs the same local
-  recipe, uses Node.js 22 to match the current upstream action default, and
-  uploads the official `results/` tree.
-- Current baseline: the core protocol scenarios and static fixture scenarios
-  should pass. Remaining expected failures are transport-mode mismatch for
-  multi-SSE in JSON-response mode, progress/elicitation reference fixtures that
-  require live notification/input round trips, and deprecated/removed logging,
-  sampling, and resource subscription scenarios.
-- Do not add roots, sampling, or logging support from the conformance suite.
-  Those protocol areas are deprecated/removed in the draft track and stay
-  intentionally absent from Soma.
+The recipe boots a no-auth loopback server, enables Soma's conformance fixtures,
+runs the upstream suite, and tears the server down. The committed baseline remains
+a regression fence and should be refreshed separately when the upstream suite or
+draft schema changes. Do not add deprecated roots, sampling, or logging behavior
+merely to satisfy legacy conformance cases.
 
 ## References
 
-- Draft spec: https://modelcontextprotocol.io/specification/draft
+- Draft specification: https://modelcontextprotocol.io/specification/draft
 - Draft changelog: https://modelcontextprotocol.io/specification/draft/changelog
+- Rust SDK: https://github.com/modelcontextprotocol/rust-sdk
 - Conformance suite: https://github.com/modelcontextprotocol/conformance
-- rmcp (Rust SDK): https://github.com/modelcontextprotocol/rust-sdk

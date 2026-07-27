@@ -220,6 +220,9 @@ pub struct BrowserLoginStateRow {
 pub struct UpstreamOauthCredentialRow {
     pub upstream_name: String,
     pub subject: String,
+    /// Canonical authorization-server issuer that minted these credentials.
+    /// Empty values are legacy rows and are never reusable.
+    pub issuer: String,
     pub client_id: String,
     pub granted_scopes_json: String,
     pub token_blob: Vec<u8>,
@@ -234,6 +237,7 @@ impl std::fmt::Debug for UpstreamOauthCredentialRow {
         f.debug_struct("UpstreamOauthCredentialRow")
             .field("upstream_name", &self.upstream_name)
             .field("subject", &"<redacted>")
+            .field("issuer", &self.issuer)
             .field("client_id", &self.client_id)
             .field("granted_scopes_json", &self.granted_scopes_json)
             .field("token_blob", &"<redacted>")
@@ -259,8 +263,22 @@ pub struct UpstreamOauthStateRow {
     pub subject: String,
     pub csrf_token: String,
     pub pkce_verifier: String,
+    /// RFC 9207 issuer recorded when the authorization request was created.
+    pub expected_issuer: Option<String>,
+    /// Whether the authorization server advertised mandatory issuer responses.
+    pub require_issuer: bool,
+    /// JSON-encoded scopes requested in this authorization round.
+    pub requested_scopes_json: String,
     pub created_at: i64,
     pub expires_at: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UpstreamOauthDynamicClientRow {
+    pub client_id: String,
+    /// Canonical authorization-server issuer that registered this client.
+    /// Empty values are legacy rows and are never reusable.
+    pub issuer: String,
 }
 
 /// A row from the `allowed_users` table.
@@ -282,6 +300,9 @@ impl std::fmt::Debug for UpstreamOauthStateRow {
             .field("subject", &"<redacted>")
             .field("csrf_token", &"<redacted>")
             .field("pkce_verifier", &"<redacted>")
+            .field("expected_issuer", &self.expected_issuer)
+            .field("require_issuer", &self.require_issuer)
+            .field("requested_scopes_json", &self.requested_scopes_json)
             .field("created_at", &self.created_at)
             .field("expires_at", &self.expires_at)
             .finish()

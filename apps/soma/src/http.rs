@@ -21,16 +21,15 @@
 
 use std::sync::Arc;
 
-#[cfg(feature = "observability")]
-use axum::http::StatusCode;
 use axum::{
-    extract::State,
-    http::{HeaderName, HeaderValue, Method},
+    extract::{Path, Query, State},
+    http::{HeaderName, HeaderValue, Method, StatusCode},
     middleware,
-    response::IntoResponse,
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use serde::Deserialize;
 use tracing::info;
 
 use crate::api::{
@@ -53,6 +52,152 @@ const MCP_BODY_LIMIT_BYTES: usize = 65_536;
 /// handler runs. Applied only to `/v1/palette/*` — every other route keeps
 /// the tighter [`MCP_BODY_LIMIT_BYTES`].
 const PALETTE_BODY_LIMIT_BYTES: usize = 256 * 1024;
+
+const OAUTH_SUCCESS_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Authorization complete</title></head><body><h1>Authorization complete</h1><p>You can close this window and return to Soma.</p></body></html>"#;
+const OAUTH_ERROR_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Authorization failed</title></head><body><h1>Authorization failed</h1><p>Return to Soma and start authorization again.</p></body></html>"#;
+
+#[derive(Debug, Deserialize)]
+struct UpstreamOauthCallbackQuery {
+    code: Option<String>,
+    #[serde(rename = "state")]
+    callback_state: Option<String>,
+    iss: Option<String>,
+    error: Option<String>,
+    #[serde(rename = "error_description")]
+    _error_description: Option<String>,
+}
+
+async fn upstream_oauth_callback(
+    State(state): State<AppState>,
+    Query(query): Query<UpstreamOauthCallbackQuery>,
+) -> Response {
+    let Some(callback_state) = query
+        .callback_state
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    else {
+        return (StatusCode::BAD_REQUEST, Html(OAUTH_ERROR_HTML)).into_response();
+    };
+    let auth_state = match &state.auth_policy {
+        AuthPolicy::Mounted {
+            auth_state: Some(auth_state),
+        } => auth_state.clone(),
+        _ => {
+            return (StatusCode::SERVICE_UNAVAILABLE, Html(OAUTH_ERROR_HTML)).into_response();
+        }
+    };
+    let now = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(duration) => duration.as_secs() as i64,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, Html(OAUTH_ERROR_HTML)).into_response();
+        }
+    };
+    let owner = match auth_state
+        .store
+        .find_upstream_oauth_state_owner(callback_state, now)
+        .await
+    {
+        Ok(owner) => owner,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, Html(OAUTH_ERROR_HTML)).into_response();
+        }
+    };
+    let Some((upstream, subject)) = owner else {
+        return (StatusCode::BAD_REQUEST, Html(OAUTH_ERROR_HTML)).into_response();
+    };
+
+    if query.error.is_some() {
+        let _ = auth_state
+            .store
+            .delete_upstream_oauth_state_by_csrf(callback_state, now)
+            .await;
+        return (StatusCode::BAD_REQUEST, Html(OAUTH_ERROR_HTML)).into_response();
+    }
+    let Some(code) = query.code.as_deref().filter(|value| !value.is_empty()) else {
+        let _ = auth_state
+            .store
+            .delete_upstream_oauth_state_by_csrf(callback_state, now)
+            .await;
+        return (StatusCode::BAD_REQUEST, Html(OAUTH_ERROR_HTML)).into_response();
+    };
+
+    match state
+        .complete_upstream_authorization(
+            &upstream,
+            &subject,
+            code,
+            callback_state,
+            query.iss.as_deref(),
+        )
+        .await
+    {
+        Ok(()) => (StatusCode::OK, Html(OAUTH_SUCCESS_HTML)).into_response(),
+        Err(_) => {
+            let _ = auth_state
+                .store
+                .delete_upstream_oauth_state_by_csrf(callback_state, now)
+                .await;
+            (StatusCode::BAD_REQUEST, Html(OAUTH_ERROR_HTML)).into_response()
+        }
+    }
+}
+
+async fn upstream_client_metadata(
+    State(state): State<AppState>,
+    Path(upstream): Path<String>,
+) -> Response {
+    let Some(upstream_config) = state.upstream_config(&upstream) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if upstream_config.oauth.is_none() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let Some(public_url) = state.config.auth.public_url.as_deref() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let mut client_id = match url::Url::parse(public_url) {
+        Ok(url) => url,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    if client_id.scheme() != "https" {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    client_id.set_query(None);
+    client_id.set_fragment(None);
+    let mut redirect_uri = client_id.clone();
+    {
+        let Ok(mut segments) = client_id.path_segments_mut() else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
+        segments
+            .clear()
+            .push("auth")
+            .push("upstream")
+            .push("client-metadata")
+            .push(&upstream);
+    }
+    {
+        let Ok(mut segments) = redirect_uri.path_segments_mut() else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
+        segments
+            .clear()
+            .push("auth")
+            .push("upstream")
+            .push("callback");
+    }
+
+    Json(serde_json::json!({
+        "client_id": client_id.as_str(),
+        "client_name": format!("Soma ({upstream})"),
+        "redirect_uris": [redirect_uri.as_str()],
+        "token_endpoint_auth_method": "none",
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "application_type": "web"
+    }))
+    .into_response()
+}
 
 /// `GET /openapi.json`, augmented with Palette's `/v1/palette/*` routes on
 /// top of `soma-api`'s own gateway-route augmentation. `soma-api` cannot
@@ -187,10 +332,16 @@ pub fn router(state: AppState) -> Router {
         .route("/readyz", get(readyz))
         .route("/status", get(status))
         .route("/openapi.json", get(openapi_json_with_palette));
-    let public_runtime: Router<AppState> = Router::new().route(
-        "/.well-known/oauth-protected-resource/{*route}",
-        get(soma_runtime::protected_routes::protected_route_resource_metadata),
-    );
+    let public_runtime: Router<AppState> = Router::new()
+        .route(
+            "/.well-known/oauth-protected-resource/{*route}",
+            get(soma_runtime::protected_routes::protected_route_resource_metadata),
+        )
+        .route("/auth/upstream/callback", get(upstream_oauth_callback))
+        .route(
+            "/auth/upstream/client-metadata/{upstream}",
+            get(upstream_client_metadata),
+        );
     // Prometheus metrics are only meaningful when the observability feature
     // installed a recorder at startup; gate the route on the same feature.
     #[cfg(feature = "observability")]

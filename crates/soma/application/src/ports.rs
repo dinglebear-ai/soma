@@ -1,12 +1,12 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::{
-    CodeModeExecuteRequest, ExecutionContext, GatewayExecuteRequest, GatewayPromptRoute,
-    GatewayReloadRequest, GatewayResourceRoute, GatewayRouteScope, GatewayToolRoute,
-    OpenApiExecuteRequest,
+    CodeModeExecuteRequest, ExecutionContext, GatewayExecuteRequest, GatewayMcpOutcome,
+    GatewayMcpRoundTrip, GatewayPromptRoute, GatewayReloadRequest, GatewayResourceRoute,
+    GatewayRouteScope, GatewayToolRoute, OpenApiExecuteRequest,
 };
 
 /// Error returned by an engine port when an operation cannot be completed.
@@ -70,6 +70,69 @@ pub trait GatewayPort: Send + Sync {
         context: &ExecutionContext,
     ) -> Result<Option<Value>, PortError>;
 
+    /// Calls an MCP tool once, preserving modern multi-round-trip and task outcomes.
+    async fn call_mcp_tool_once(
+        &self,
+        name: &str,
+        params: Value,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, PortError> {
+        let _ = round_trip;
+        self.call_mcp_tool(name, params, scope, context)
+            .await
+            .map(|result| {
+                result.map(|value| {
+                    GatewayMcpOutcome::Complete(serde_json::json!({
+                        "resultType": "complete",
+                        "content": [],
+                        "structuredContent": value
+                    }))
+                })
+            })
+    }
+
+    /// Gets the latest state of a routed MCP task.
+    async fn get_mcp_task(
+        &self,
+        task_id: &str,
+        context: &ExecutionContext,
+    ) -> Result<Value, PortError> {
+        let _ = (task_id, context);
+        Err(PortError::new(
+            "tasks_unsupported",
+            "the configured gateway does not support MCP tasks",
+        ))
+    }
+
+    /// Supplies follow-up input to a routed MCP task.
+    async fn update_mcp_task(
+        &self,
+        task_id: &str,
+        input_responses: BTreeMap<String, Value>,
+        context: &ExecutionContext,
+    ) -> Result<(), PortError> {
+        let _ = (task_id, input_responses, context);
+        Err(PortError::new(
+            "tasks_unsupported",
+            "the configured gateway does not support MCP tasks",
+        ))
+    }
+
+    /// Requests cancellation of a routed MCP task.
+    async fn cancel_mcp_task(
+        &self,
+        task_id: &str,
+        context: &ExecutionContext,
+    ) -> Result<(), PortError> {
+        let _ = (task_id, context);
+        Err(PortError::new(
+            "tasks_unsupported",
+            "the configured gateway does not support MCP tasks",
+        ))
+    }
+
     /// Lists MCP resource routes exposed through the gateway, optionally scoped.
     async fn list_mcp_resources(
         &self,
@@ -84,6 +147,20 @@ pub trait GatewayPort: Send + Sync {
         scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<Option<Value>, PortError>;
+
+    /// Reads an MCP resource once, preserving a possible input-required outcome.
+    async fn read_mcp_resource_once(
+        &self,
+        uri: &str,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, PortError> {
+        let _ = round_trip;
+        self.read_mcp_resource(uri, scope, context)
+            .await
+            .map(|result| result.map(GatewayMcpOutcome::Complete))
+    }
 
     /// Lists MCP prompt routes exposed through the gateway, optionally scoped.
     async fn list_mcp_prompts(
@@ -100,6 +177,20 @@ pub trait GatewayPort: Send + Sync {
         scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<Option<Value>, PortError>;
+    /// Gets an MCP prompt once, preserving a possible input-required outcome.
+    async fn get_mcp_prompt_once(
+        &self,
+        name: &str,
+        arguments: Option<serde_json::Map<String, Value>>,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, PortError> {
+        let _ = round_trip;
+        self.get_mcp_prompt(name, arguments, scope, context)
+            .await
+            .map(|result| result.map(GatewayMcpOutcome::Complete))
+    }
 }
 
 /// Port to the Code Mode engine that runs sandboxed JavaScript against the

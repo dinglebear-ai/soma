@@ -13,7 +13,7 @@ use crate::error::AuthError;
 use crate::types::{
     AllowedUserRow, AuthorizationCodeRow, AuthorizationRequestRow, BrowserLoginStateRow,
     BrowserSessionRow, NativeAuthorizationResultRow, RefreshTokenRow, RegisteredClient,
-    UpstreamOauthCredentialRow, UpstreamOauthStateRow,
+    UpstreamOauthCredentialRow, UpstreamOauthDynamicClientRow, UpstreamOauthStateRow,
 };
 
 #[path = "sqlite_rows.rs"]
@@ -27,7 +27,7 @@ use sqlite_rows::{
 const UPSTREAM_OAUTH_STATE_MAX_TTL_SECS: i64 = 600;
 /// Schema version for the `PRAGMA user_version` migration guard.
 /// Increment this whenever a migration step is added to `run_migrations`.
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 use crate::util::{
     ensure_restrictive_permissions, fingerprint, now_unix, set_restrictive_permissions,
@@ -776,11 +776,12 @@ impl SqliteStore {
         self.with_conn(move |conn| {
             conn.execute(
                 "INSERT INTO upstream_oauth_credentials (
-                    upstream_name, subject, client_id, granted_scopes_json,
+                    upstream_name, subject, issuer, client_id, granted_scopes_json,
                     token_blob, token_blob_nonce, token_received_at,
                     access_token_expires_at, refresh_token_present
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
                  ON CONFLICT(upstream_name, subject) DO UPDATE SET
+                    issuer = excluded.issuer,
                     client_id = excluded.client_id,
                     granted_scopes_json = excluded.granted_scopes_json,
                     token_blob = excluded.token_blob,
@@ -791,6 +792,7 @@ impl SqliteStore {
                 params![
                     row.upstream_name,
                     row.subject,
+                    row.issuer,
                     row.client_id,
                     row.granted_scopes_json,
                     row.token_blob,
@@ -815,7 +817,7 @@ impl SqliteStore {
         let subject = subject.to_string();
         self.with_conn(move |conn| {
             conn.query_row(
-                "SELECT upstream_name, subject, client_id, granted_scopes_json,
+                "SELECT upstream_name, subject, issuer, client_id, granted_scopes_json,
                         token_blob, token_blob_nonce, token_received_at,
                         access_token_expires_at, refresh_token_present
                  FROM upstream_oauth_credentials
@@ -862,13 +864,18 @@ impl SqliteStore {
         self.with_conn(move |conn| {
             conn.execute(
                 "INSERT INTO upstream_oauth_state (
-                    upstream_name, subject, csrf_token, pkce_verifier, created_at, expires_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    upstream_name, subject, csrf_token, pkce_verifier,
+                    expected_issuer, require_issuer, requested_scopes_json,
+                    created_at, expires_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     row.upstream_name,
                     row.subject,
                     row.csrf_token,
                     row.pkce_verifier,
+                    row.expected_issuer,
+                    i64::from(row.require_issuer),
+                    row.requested_scopes_json,
                     row.created_at,
                     row.expires_at,
                 ],
@@ -1024,7 +1031,9 @@ impl SqliteStore {
                    AND subject = ?2
                    AND csrf_token = ?3
                    AND expires_at > ?4
-                 RETURNING upstream_name, subject, csrf_token, pkce_verifier, created_at, expires_at",
+                 RETURNING upstream_name, subject, csrf_token, pkce_verifier,
+                           expected_issuer, require_issuer, requested_scopes_json,
+                           created_at, expires_at",
                 params![upstream_name, subject, csrf_token, now],
                 row_to_upstream_oauth_state,
             )
@@ -1039,19 +1048,22 @@ impl SqliteStore {
         upstream_name: &str,
         subject: &str,
         client_id: &str,
+        issuer: &str,
     ) -> Result<(), AuthError> {
         let upstream_name = upstream_name.to_string();
         let subject = subject.to_string();
         let client_id = client_id.to_string();
+        let issuer = issuer.to_string();
         let now = now_unix();
         self.with_conn(move |conn| {
             conn.execute(
-                "INSERT INTO upstream_oauth_dynamic_clients (upstream_name, subject, client_id, created_at)
-                 VALUES (?1, ?2, ?3, ?4)
+                "INSERT INTO upstream_oauth_dynamic_clients (upstream_name, subject, client_id, issuer, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT(upstream_name, subject) DO UPDATE SET
                     client_id = excluded.client_id,
+                    issuer = excluded.issuer,
                     created_at = excluded.created_at",
-                params![upstream_name, subject, client_id, now],
+                params![upstream_name, subject, client_id, issuer, now],
             )
             .map_err(sqlite_error)?;
             Ok(())
@@ -1063,16 +1075,21 @@ impl SqliteStore {
         &self,
         upstream_name: &str,
         subject: &str,
-    ) -> Result<Option<String>, AuthError> {
+    ) -> Result<Option<UpstreamOauthDynamicClientRow>, AuthError> {
         let upstream_name = upstream_name.to_string();
         let subject = subject.to_string();
         self.with_conn(move |conn| {
             conn.query_row(
-                "SELECT client_id
+                "SELECT client_id, issuer
                  FROM upstream_oauth_dynamic_clients
                  WHERE upstream_name = ?1 AND subject = ?2",
                 params![upstream_name, subject],
-                |row| row.get(0),
+                |row| {
+                    Ok(UpstreamOauthDynamicClientRow {
+                        client_id: row.get(0)?,
+                        issuer: row.get(1)?,
+                    })
+                },
             )
             .optional()
             .map_err(sqlite_error)
@@ -1291,6 +1308,7 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
         CREATE TABLE IF NOT EXISTS upstream_oauth_credentials (
             upstream_name             TEXT NOT NULL,
             subject                   TEXT NOT NULL,
+            issuer                    TEXT NOT NULL DEFAULT '',
             client_id                 TEXT NOT NULL,
             granted_scopes_json       TEXT NOT NULL,
             token_blob                BLOB NOT NULL,
@@ -1301,11 +1319,14 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
             PRIMARY KEY (upstream_name, subject)
         ) WITHOUT ROWID;
         CREATE TABLE IF NOT EXISTS upstream_oauth_state (
-            upstream_name   TEXT NOT NULL,
-            subject         TEXT NOT NULL,
-            csrf_token      TEXT NOT NULL,
-            pkce_verifier   TEXT NOT NULL,
-            created_at      INTEGER NOT NULL,
+            upstream_name        TEXT NOT NULL,
+            subject              TEXT NOT NULL,
+            csrf_token           TEXT NOT NULL,
+            pkce_verifier        TEXT NOT NULL,
+            expected_issuer      TEXT,
+            require_issuer       INTEGER NOT NULL DEFAULT 0,
+            requested_scopes_json TEXT NOT NULL DEFAULT '[]',
+            created_at           INTEGER NOT NULL,
             expires_at      INTEGER NOT NULL,
             PRIMARY KEY (upstream_name, subject, csrf_token)
         ) WITHOUT ROWID;
@@ -1313,6 +1334,7 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
             upstream_name   TEXT NOT NULL,
             subject         TEXT NOT NULL,
             client_id       TEXT NOT NULL,
+            issuer          TEXT NOT NULL DEFAULT '',
             created_at      INTEGER NOT NULL,
             PRIMARY KEY (upstream_name, subject)
         ) WITHOUT ROWID;
@@ -1457,6 +1479,39 @@ fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
         // complete their own callback with the correct client_id (lab-77y5.15).
         add_column_if_missing(conn, "upstream_oauth_state", "dynamic_client_id", "TEXT")?;
 
+        conn.execute_batch("PRAGMA user_version = 2;")
+            .map_err(sqlite_error)?;
+    }
+
+    if current_version < 3 {
+        // Bind durable OAuth state to the authorization-server issuer (SEP-2352)
+        // and preserve RFC 9207 callback requirements across restarts. Legacy
+        // empty-issuer rows intentionally force a fresh authorization flow.
+        add_column_if_missing(
+            conn,
+            "upstream_oauth_credentials",
+            "issuer",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        add_column_if_missing(
+            conn,
+            "upstream_oauth_dynamic_clients",
+            "issuer",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        add_column_if_missing(conn, "upstream_oauth_state", "expected_issuer", "TEXT")?;
+        add_column_if_missing(
+            conn,
+            "upstream_oauth_state",
+            "require_issuer",
+            "INTEGER NOT NULL DEFAULT 0",
+        )?;
+        add_column_if_missing(
+            conn,
+            "upstream_oauth_state",
+            "requested_scopes_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )?;
         conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
             .map_err(sqlite_error)?;
     }

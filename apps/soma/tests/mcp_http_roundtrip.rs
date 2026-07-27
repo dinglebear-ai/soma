@@ -1,5 +1,5 @@
-//! Real Streamable HTTP MCP protocol round-trip: `initialize` -> `tools/list`
-//! -> `tools/call` against the actual `POST /mcp` endpoint, over a real
+//! Real Streamable HTTP MCP protocol round-trip: `server/discover` ->
+//! `tools/list` -> `tools/call` against the actual `POST /mcp` endpoint, over a real
 //! loopback TCP connection — not stdio, not `tower::ServiceExt::oneshot`.
 //!
 //! Every existing `list_tools()`/`call_tool()` test in this suite
@@ -26,7 +26,9 @@
 use std::net::TcpListener as StdTcpListener;
 
 use rmcp::{
-    model::CallToolRequestParams, service::ServiceExt, transport::StreamableHttpClientTransport,
+    model::{CallToolRequestParams, ProtocolVersion, SubscriptionFilter},
+    service::{ClientLifecycleMode, ClientServiceExt, SubscriptionEnd},
+    transport::StreamableHttpClientTransport,
 };
 use serde_json::json;
 
@@ -66,11 +68,23 @@ async fn streamable_http_round_trip_lists_tools_and_calls_actions() -> anyhow::R
     let url = format!("http://127.0.0.1:{port}/mcp");
 
     // Real rmcp client, real reqwest-backed Streamable HTTP transport, real
-    // TCP connection to the router built by apps/soma/src/http.rs — this
-    // performs the actual initialize -> notifications/initialized ->
-    // tools/list -> tools/call JSON-RPC exchange over HTTP.
+    // TCP connection to the router built by apps/soma/src/http.rs. rmcp 3's
+    // client performs the modern server/discover handshake and then attaches
+    // the negotiated client context to every request.
     let transport = StreamableHttpClientTransport::from_uri(url);
-    let service = ().serve(transport).await?;
+    let service = ()
+        .serve_with_lifecycle(
+            transport,
+            ClientLifecycleMode::Discover {
+                preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+            },
+        )
+        .await?;
+
+    let peer_info = service
+        .peer_info()
+        .expect("server/discover should populate peer information");
+    assert_eq!(peer_info.protocol_version, ProtocolVersion::V_2026_07_28);
 
     let tools = service.list_tools(Default::default()).await?;
     let names: Vec<&str> = tools.tools.iter().map(|tool| tool.name.as_ref()).collect();
@@ -117,6 +131,117 @@ async fn streamable_http_round_trip_lists_tools_and_calls_actions() -> anyhow::R
     assert_eq!(error["code"], "input_schema_failed");
 
     service.cancel().await?;
+    server_handle.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn modern_http_subscription_acknowledges_supported_subset_and_cancels() -> anyhow::Result<()>
+{
+    let (port, server_handle) = spawn_http_mcp_server().await?;
+    let url = format!("http://127.0.0.1:{port}/mcp");
+    let transport = StreamableHttpClientTransport::from_uri(url);
+    let service = ()
+        .serve_with_lifecycle(
+            transport,
+            ClientLifecycleMode::Discover {
+                preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+            },
+        )
+        .await?;
+
+    let requested = SubscriptionFilter::builder()
+        .tools_list_changed()
+        .prompts_list_changed()
+        .resources_list_changed()
+        .resource_subscription("soma://schema/mcp-tool")
+        .build();
+    let mut subscription = service.peer().listen(requested).await?;
+
+    assert_eq!(
+        subscription.acknowledged(),
+        &SubscriptionFilter::builder()
+            .tools_list_changed()
+            .prompts_list_changed()
+            .resources_list_changed()
+            .build(),
+        "Soma must acknowledge only notification categories it advertises"
+    );
+    subscription.cancel().await?;
+    assert!(matches!(
+        subscription.end(),
+        Some(SubscriptionEnd::Cancelled)
+    ));
+
+    service.cancel().await?;
+    server_handle.abort();
+    Ok(())
+}
+
+fn modern_request_meta() -> serde_json::Value {
+    json!({
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": {
+            "name": "soma-modern-http-test",
+            "version": env!("CARGO_PKG_VERSION")
+        },
+        "io.modelcontextprotocol/clientCapabilities": {}
+    })
+}
+
+async fn post_modern_request(
+    client: &reqwest::Client,
+    url: &str,
+    id: u64,
+    method: &str,
+) -> anyhow::Result<(reqwest::header::HeaderMap, serde_json::Value)> {
+    let response = client
+        .post(url)
+        .header("Accept", "application/json, text/event-stream")
+        .header("Content-Type", "application/json")
+        .header("MCP-Protocol-Version", "2026-07-28")
+        .header("Mcp-Method", method)
+        .body(serde_json::to_vec(&json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": {"_meta": modern_request_meta()}
+        }))?)
+        .send()
+        .await?;
+
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body: serde_json::Value = serde_json::from_slice(&response.bytes().await?)?;
+    assert_eq!(status, reqwest::StatusCode::OK, "response body was {body}");
+    Ok((headers, body))
+}
+
+#[tokio::test]
+async fn modern_http_is_stateless_and_emits_typed_results() -> anyhow::Result<()> {
+    let (port, server_handle) = spawn_http_mcp_server().await?;
+    let url = format!("http://127.0.0.1:{port}/mcp");
+    let client = reqwest::Client::new();
+
+    let (discover_headers, discover) =
+        post_modern_request(&client, &url, 1, "server/discover").await?;
+    assert!(
+        discover_headers.get("Mcp-Session-Id").is_none(),
+        "modern discovery must not create a protocol session"
+    );
+    assert_eq!(discover["result"]["resultType"], "complete");
+    assert!(discover["result"]["supportedVersions"]
+        .as_array()
+        .is_some_and(|versions| versions.iter().any(|version| version == "2026-07-28")));
+
+    let (list_headers, tools) = post_modern_request(&client, &url, 2, "tools/list").await?;
+    assert!(
+        list_headers.get("Mcp-Session-Id").is_none(),
+        "modern requests must remain stateless"
+    );
+    assert_eq!(tools["result"]["resultType"], "complete");
+    assert_eq!(tools["result"]["tools"][0]["name"], "soma");
+
     server_handle.abort();
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::upstream::{CapScope, PromptDescriptor, UpstreamError};
+use crate::upstream::{CapScope, McpRequestOutcome, McpRoundTrip, PromptDescriptor, UpstreamError};
 
 use super::tools::matches_filter;
 
@@ -54,6 +54,42 @@ impl super::UpstreamPool {
         let bytes = serde_json::to_vec(&value).map_or(usize::MAX, |bytes| bytes.len());
         self.response_caps().enforce(CapScope::PromptsGet, bytes)?;
         Ok(value)
+    }
+
+    pub async fn get_prompt_once(
+        &self,
+        upstream: &str,
+        name: &str,
+        arguments: Option<serde_json::Map<String, serde_json::Value>>,
+        round_trip: McpRoundTrip,
+    ) -> Result<McpRequestOutcome, UpstreamError> {
+        self.ensure_connected(upstream).await?;
+        let peer =
+            self.with_entry(upstream, |entry| {
+                if !entry.config.proxy_prompts {
+                    return Err(UpstreamError::Unsupported {
+                        upstream: upstream.to_owned(),
+                        capability: "prompts/get",
+                    });
+                }
+                entry.live.as_ref().map(|live| live.peer()).ok_or_else(|| {
+                    UpstreamError::Unsupported {
+                        upstream: upstream.to_owned(),
+                        capability: "prompts/get",
+                    }
+                })
+            })?;
+        let outcome = super::live::get_live_prompt_once(
+            upstream,
+            peer,
+            name.to_owned(),
+            arguments,
+            round_trip,
+        )
+        .await?;
+        let bytes = serde_json::to_vec(outcome.payload()).map_or(usize::MAX, |bytes| bytes.len());
+        self.response_caps().enforce(CapScope::PromptsGet, bytes)?;
+        Ok(outcome)
     }
 }
 

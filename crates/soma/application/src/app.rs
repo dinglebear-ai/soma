@@ -11,11 +11,12 @@ use soma_provider_core::{ProviderPrompt, ProviderResource};
 use crate::{
     ApplicationError, ApplicationPorts, CatalogSnapshot, CodeModeExecuteRequest, DoctorReport,
     ElicitedName, ElicitedNameOutcome, ExecuteActionRequest, ExecuteActionResponse,
-    ExecutionContext, GatewayExecuteRequest, GatewayPromptRoute, GatewayReloadRequest,
-    GatewayResourceRoute, GatewayRouteScope, GatewayToolRoute, OpenApiExecuteRequest,
-    OperationResponse, ProviderAuthMode, ProviderCall, ProviderPrincipal, ProviderRegistry,
-    ProviderRequestLimits, ProviderSurface, ReadResourceRequest, ResourceContent,
-    ResourceReadOutput, ResourceTemplateSpec, ScaffoldIntent, ScaffoldIntentRequest, SomaService,
+    ExecutionContext, GatewayExecuteRequest, GatewayMcpOutcome, GatewayMcpRoundTrip,
+    GatewayPromptRoute, GatewayReloadRequest, GatewayResourceRoute, GatewayRouteScope,
+    GatewayToolRoute, OpenApiExecuteRequest, OperationResponse, ProviderAuthMode, ProviderCall,
+    ProviderPrincipal, ProviderRegistry, ProviderRequestLimits, ProviderSurface,
+    ReadResourceRequest, ResourceContent, ResourceReadOutput, ResourceTemplateSpec, ScaffoldIntent,
+    ScaffoldIntentRequest, SomaService,
 };
 
 #[cfg(test)]
@@ -354,6 +355,54 @@ impl SomaApplication {
             .await?)
     }
 
+    /// Call an MCP tool once, preserving MRTR and task outcomes.
+    pub async fn gateway_call_mcp_tool_once(
+        &self,
+        name: &str,
+        params: Value,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, ApplicationError> {
+        Ok(self
+            .ports
+            .gateway
+            .call_mcp_tool_once(name, params, round_trip, scope, context)
+            .await?)
+    }
+
+    /// Get the latest state of a routed MCP task.
+    pub async fn gateway_get_mcp_task(
+        &self,
+        task_id: &str,
+        context: &ExecutionContext,
+    ) -> Result<Value, ApplicationError> {
+        Ok(self.ports.gateway.get_mcp_task(task_id, context).await?)
+    }
+
+    /// Supply follow-up input to a routed MCP task.
+    pub async fn gateway_update_mcp_task(
+        &self,
+        task_id: &str,
+        input_responses: std::collections::BTreeMap<String, Value>,
+        context: &ExecutionContext,
+    ) -> Result<(), ApplicationError> {
+        Ok(self
+            .ports
+            .gateway
+            .update_mcp_task(task_id, input_responses, context)
+            .await?)
+    }
+
+    /// Request cancellation of a routed MCP task.
+    pub async fn gateway_cancel_mcp_task(
+        &self,
+        task_id: &str,
+        context: &ExecutionContext,
+    ) -> Result<(), ApplicationError> {
+        Ok(self.ports.gateway.cancel_mcp_task(task_id, context).await?)
+    }
+
     /// List MCP resources exposed through the gateway, optionally filtered by scope.
     pub async fn gateway_mcp_resources(
         &self,
@@ -381,6 +430,21 @@ impl SomaApplication {
             .await?)
     }
 
+    /// Read an MCP resource once, preserving a possible input-required outcome.
+    pub async fn gateway_read_mcp_resource_once(
+        &self,
+        uri: &str,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, ApplicationError> {
+        Ok(self
+            .ports
+            .gateway
+            .read_mcp_resource_once(uri, round_trip, scope, context)
+            .await?)
+    }
+
     /// List MCP prompts exposed through the gateway, optionally filtered by scope.
     pub async fn gateway_mcp_prompts(
         &self,
@@ -402,6 +466,22 @@ impl SomaApplication {
             .ports
             .gateway
             .get_mcp_prompt(name, arguments, scope, context)
+            .await?)
+    }
+
+    /// Fetch an MCP prompt once, preserving a possible input-required outcome.
+    pub async fn gateway_get_mcp_prompt_once(
+        &self,
+        name: &str,
+        arguments: Option<serde_json::Map<String, Value>>,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, ApplicationError> {
+        Ok(self
+            .ports
+            .gateway
+            .get_mcp_prompt_once(name, arguments, round_trip, scope, context)
             .await?)
     }
 

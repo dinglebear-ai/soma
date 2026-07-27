@@ -7,17 +7,20 @@ use crate::config::UpstreamConfig;
 use crate::process::guard::SpawnGuard;
 use crate::upstream::http_client::{decide_http_transport, transport_kind_for_decision};
 use crate::upstream::{
-    ResponseCaps, ToolDescriptor, TransportKind, UpstreamError, UpstreamHealth, UpstreamSnapshot,
+    McpRequestOutcome, McpRoundTrip, ResponseCaps, ToolDescriptor, TransportKind, UpstreamError,
+    UpstreamHealth, UpstreamSnapshot,
 };
 
 pub mod connect_stdio;
 pub mod discovery;
 pub mod health;
+mod lifecycle_compat;
 pub mod live;
 pub mod prompts;
 pub mod resources;
 #[cfg(feature = "oauth")]
 pub mod subject;
+pub mod tasks;
 pub mod tools;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -225,6 +228,68 @@ impl UpstreamPool {
         self.response_caps()
             .enforce(crate::upstream::CapScope::ToolsCall, bytes)?;
         Ok(result)
+    }
+
+    pub async fn call_tool_once(
+        &self,
+        call: ToolCall,
+        round_trip: McpRoundTrip,
+    ) -> Result<McpRequestOutcome, UpstreamError> {
+        self.ensure_connected(&call.upstream).await?;
+        let (live_peer, config) = {
+            let entries = self.entries.read().expect("upstream pool lock poisoned");
+            let entry =
+                entries
+                    .get(&call.upstream)
+                    .ok_or_else(|| UpstreamError::UnknownUpstream {
+                        upstream: call.upstream.clone(),
+                    })?;
+            ensure_routable(entry)?;
+            tools::ensure_tool_exposed(entry, &call.tool)?;
+            if let Some(in_process) = &entry.in_process {
+                let value = in_process.call_tool(&call)?;
+                let result = rmcp::model::CallToolResult::structured(value);
+                let value =
+                    serde_json::to_value(result).map_err(|error| UpstreamError::LiveCall {
+                        upstream: call.upstream.clone(),
+                        operation: "tools/call",
+                        message: error.to_string(),
+                    })?;
+                let outcome = McpRequestOutcome::Complete(value);
+                let bytes =
+                    serde_json::to_vec(outcome.payload()).map_or(usize::MAX, |bytes| bytes.len());
+                self.response_caps()
+                    .enforce(crate::upstream::CapScope::ToolsCall, bytes)?;
+                return Ok(outcome);
+            }
+            (
+                entry.live.as_ref().map(|live| live.peer()),
+                entry.config.clone(),
+            )
+        };
+        let upstream = call.upstream.clone();
+        let outcome = if round_trip.request_meta.is_some() {
+            live::call_live_tool_once_scoped(
+                &config,
+                live::LiveConnectContext::shared(self.response_caps()),
+                call.tool,
+                call.params,
+                round_trip,
+            )
+            .await?
+        } else {
+            let Some(peer) = live_peer else {
+                return Err(UpstreamError::Unsupported {
+                    upstream: call.upstream,
+                    capability: "tools/call",
+                });
+            };
+            live::call_live_tool_once(&upstream, peer, call.tool, call.params, round_trip).await?
+        };
+        let bytes = serde_json::to_vec(outcome.payload()).map_or(usize::MAX, |bytes| bytes.len());
+        self.response_caps()
+            .enforce(crate::upstream::CapScope::ToolsCall, bytes)?;
+        Ok(outcome)
     }
 
     pub async fn ensure_connected(&self, upstream: &str) -> Result<(), UpstreamError> {

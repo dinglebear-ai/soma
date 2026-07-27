@@ -74,6 +74,24 @@ impl UpstreamOAuthManager for SomaOAuthManager {
         })
     }
 
+    fn complete_authorization<'a>(
+        &'a self,
+        subject: &'a str,
+        code: &'a str,
+        state: &'a str,
+        issuer: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
+        Box::pin(async move {
+            self.manager
+                .complete_authorization_callback(subject, code, state, issuer)
+                .await
+                .map_err(map_oauth_error)?;
+            self.cache
+                .evict_subject(&self.manager.upstream_config().name, subject);
+            Ok(())
+        })
+    }
+
     fn credential_status<'a>(
         &'a self,
         subject: &'a str,
@@ -186,6 +204,9 @@ fn to_auth_upstream(
                 }
             },
             registration: match &oauth.registration {
+                GatewayUpstreamOauthRegistration::Auto => {
+                    soma_auth::upstream::config::UpstreamOauthRegistration::Auto
+                }
                 GatewayUpstreamOauthRegistration::ClientMetadataDocument { url } => {
                     soma_auth::upstream::config::UpstreamOauthRegistration::ClientMetadataDocument {
                         url: url.clone(),

@@ -44,15 +44,14 @@ impl UpstreamConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpstreamOauthConfig {
     pub mode: UpstreamOauthMode,
+    #[serde(default)]
     pub registration: UpstreamOauthRegistration,
     #[serde(default)]
     pub scopes: Option<Vec<String>>,
-    /// When `true`, always use the Client ID Metadata Document (CIMD)
-    /// strategy regardless of whether the upstream advertises a
-    /// `registration_endpoint`. When `false`, always use dynamic
-    /// registration (RFC 7591) when the upstream advertises a
-    /// `registration_endpoint`. `None` leaves the choice to the caller
-    /// wiring up [`UpstreamOauthRegistration::Dynamic`].
+    /// Compatibility override for older configurations. `true` lets an
+    /// explicit dynamic strategy prefer CIMD when the authorization server
+    /// advertises support. `false` keeps explicit dynamic registration on
+    /// RFC 7591. New configurations should use [`UpstreamOauthRegistration::Auto`].
     #[serde(default)]
     pub prefer_client_metadata_document: Option<bool>,
 }
@@ -65,9 +64,13 @@ pub enum UpstreamOauthMode {
 }
 
 /// Outbound OAuth client-registration strategy.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "strategy", rename_all = "snake_case")]
 pub enum UpstreamOauthRegistration {
+    /// Prefer a served Client ID Metadata Document and fall back to DCR only
+    /// when the authorization server does not advertise CIMD support.
+    #[default]
+    Auto,
     ClientMetadataDocument {
         url: String,
     },

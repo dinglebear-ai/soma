@@ -1,4 +1,10 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
+};
 
 use serde_json::Value;
 use thiserror::Error;
@@ -14,6 +20,7 @@ pub mod mcp_projection;
 pub mod mcp_routes;
 #[cfg(feature = "protected-routes")]
 pub mod mcp_scoped_routes;
+pub mod mcp_tasks;
 #[cfg(feature = "oauth")]
 pub mod oauth_lifecycle;
 pub mod pool_lifecycle;
@@ -44,6 +51,10 @@ pub enum GatewayManagerError {
     UpstreamMissing(String),
     #[error("gateway oauth runtime error: {0}")]
     OAuth(String),
+    #[error("MCP task `{0}` is not available")]
+    TaskMissing(String),
+    #[error("invalid MCP task result: {0}")]
+    InvalidTaskResult(String),
 }
 
 impl From<soma_mcp_client::ConfigError> for GatewayManagerError {
@@ -52,12 +63,21 @@ impl From<soma_mcp_client::ConfigError> for GatewayManagerError {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(super) struct TaskRoute {
+    pub upstream: String,
+    pub native_task_id: String,
+    pub subject: Option<String>,
+}
+
 pub struct GatewayManager {
     config: RwLock<GatewayConfig>,
     pool: RwLock<Arc<UpstreamPool>>,
     lifecycle: RwLock<GatewayLifecycle>,
     usage: Arc<dyn UsageSink>,
     store: Option<FsGatewayConfigStore>,
+    task_routes: RwLock<HashMap<String, TaskRoute>>,
+    task_sequence: AtomicU64,
     #[cfg(feature = "oauth")]
     oauth_runtime: RwLock<Option<Arc<soma_mcp_client::oauth::UpstreamOAuthRuntime>>>,
 }
@@ -92,6 +112,8 @@ impl GatewayManager {
             lifecycle: RwLock::new(GatewayLifecycle::Ready),
             usage,
             store,
+            task_routes: RwLock::new(HashMap::new()),
+            task_sequence: AtomicU64::new(1),
             #[cfg(feature = "oauth")]
             oauth_runtime: RwLock::new(None),
         })
@@ -266,6 +288,11 @@ impl GatewayManager {
         }
         *self.config.write().expect("gateway config poisoned") = next;
         *self.pool.write().expect("gateway pool poisoned") = Arc::new(pool);
+        self.task_routes
+            .write()
+            .expect("gateway task routes poisoned")
+            .clear();
+        self.task_sequence.store(1, Ordering::Relaxed);
         Ok(())
     }
 

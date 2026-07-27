@@ -96,7 +96,7 @@ pub fn streamable_http_config(
     origins: Vec<String>,
 ) -> StreamableHttpServerConfig {
     StreamableHttpServerConfig::default()
-        .with_stateful_mode(false)
+        .with_legacy_session_mode(false)
         .with_json_response(true)
         .with_allowed_hosts(hosts)
         .with_allowed_origins(origins)

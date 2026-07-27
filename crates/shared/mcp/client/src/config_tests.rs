@@ -89,3 +89,15 @@ fn oauth_requires_url_and_redacted_view_only_shows_enabled() {
     assert!(!view.contains("client-id"));
     assert!(!view.contains("UPSTREAM_CLIENT_SECRET"));
 }
+
+#[test]
+fn oauth_registration_defaults_to_auto_cimd_with_dcr_fallback() {
+    let oauth: GatewayUpstreamOauthConfig = toml::from_str(
+        r#"
+mode = "authorization_code_pkce"
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(oauth.registration, GatewayUpstreamOauthRegistration::Auto);
+}

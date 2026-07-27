@@ -43,9 +43,10 @@ pub use service::{
 pub use types::CodeModeExecuteRequest;
 pub use types::{
     CatalogSnapshot, DoctorReport, ElicitedName, ExecuteActionRequest, ExecuteActionResponse,
-    GatewayExecuteRequest, GatewayPromptRoute, GatewayReloadRequest, GatewayResourceRoute,
-    GatewayRouteScope, GatewayToolRoute, OpenApiExecuteRequest, OperationResponse,
-    ReadResourceRequest, ResourceContent, ResourceTemplateSpec, ScaffoldIntentRequest,
+    GatewayExecuteRequest, GatewayMcpOutcome, GatewayMcpRoundTrip, GatewayPromptRoute,
+    GatewayReloadRequest, GatewayResourceRoute, GatewayRouteScope, GatewayToolRoute,
+    OpenApiExecuteRequest, OperationResponse, ReadResourceRequest, ResourceContent,
+    ResourceTemplateSpec, ScaffoldIntentRequest,
 };
 
 pub use soma_provider_core::{ProviderPrompt, ProviderResource};

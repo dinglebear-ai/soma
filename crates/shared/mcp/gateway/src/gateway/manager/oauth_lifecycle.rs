@@ -41,6 +41,34 @@ impl GatewayManager {
             .map_err(|error| GatewayManagerError::OAuth(error.to_string()))
     }
 
+    pub async fn complete_upstream_authorization(
+        &self,
+        upstream: &str,
+        subject: &str,
+        code: &str,
+        state: &str,
+        issuer: Option<&str>,
+    ) -> Result<(), GatewayManagerError> {
+        let manager = self.require_oauth_manager(upstream)?;
+        manager
+            .complete_authorization(subject, code, state, issuer)
+            .await
+            .map_err(|error| GatewayManagerError::OAuth(error.to_string()))?;
+        if let Some(runtime) = self
+            .oauth_runtime
+            .read()
+            .expect("gateway oauth runtime poisoned")
+            .as_ref()
+        {
+            runtime.evict_subject(upstream, subject);
+            self.pool
+                .read()
+                .expect("gateway pool poisoned")
+                .evict_oauth_subject(upstream, subject);
+        }
+        Ok(())
+    }
+
     pub async fn upstream_oauth_status(
         &self,
         upstream: &str,

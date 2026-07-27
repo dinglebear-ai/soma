@@ -30,8 +30,9 @@ use crate::sqlite::SqliteStore;
 use crate::types::{UpstreamOauthCredentialRow, UpstreamOauthStateRow};
 use crate::upstream::encryption::{self, EncryptionKey};
 
-fn credential_aad(upstream_name: &str, subject: &str, client_id: &str) -> Vec<u8> {
-    format!("upstream={upstream_name}\0subject={subject}\0client_id={client_id}").into_bytes()
+fn credential_aad(upstream_name: &str, subject: &str, issuer: &str, client_id: &str) -> Vec<u8> {
+    format!("upstream={upstream_name}\0subject={subject}\0issuer={issuer}\0client_id={client_id}")
+        .into_bytes()
 }
 
 fn now_unix() -> i64 {
@@ -51,6 +52,7 @@ pub struct SqliteCredentialStore {
     key: EncryptionKey,
     upstream_name: String,
     subject: String,
+    issuer: String,
 }
 
 impl SqliteCredentialStore {
@@ -59,12 +61,14 @@ impl SqliteCredentialStore {
         key: EncryptionKey,
         upstream_name: impl Into<String>,
         subject: impl Into<String>,
+        issuer: impl Into<String>,
     ) -> Self {
         Self {
             store,
             key,
             upstream_name: upstream_name.into(),
             subject: subject.into(),
+            issuer: issuer.into(),
         }
     }
 }
@@ -91,14 +95,33 @@ impl CredentialStore for SqliteCredentialStore {
             let Some(row) = row else {
                 return Ok(None);
             };
+            if row.issuer.is_empty() || row.issuer != self.issuer {
+                self.store
+                    .delete_upstream_oauth_credentials(&self.upstream_name, &self.subject)
+                    .await
+                    .map_err(|e| AuthError::InternalError(e.to_string()))?;
+                return Ok(None);
+            }
 
-            let aad = credential_aad(&row.upstream_name, &row.subject, &row.client_id);
+            let aad = credential_aad(
+                &row.upstream_name,
+                &row.subject,
+                &row.issuer,
+                &row.client_id,
+            );
             let plaintext =
                 encryption::open_with_aad(&self.key, &row.token_blob, &row.token_blob_nonce, &aad)
                     .map_err(|_| AuthError::AuthorizationRequired)?;
 
             let creds: StoredCredentials = serde_json::from_slice(&plaintext)
                 .map_err(|e| AuthError::InternalError(format!("deserialize credentials: {e}")))?;
+            if creds.issuer.as_deref() != Some(row.issuer.as_str()) {
+                self.store
+                    .delete_upstream_oauth_credentials(&self.upstream_name, &self.subject)
+                    .await
+                    .map_err(|e| AuthError::InternalError(e.to_string()))?;
+                return Ok(None);
+            }
 
             Ok(Some(creds))
         })
@@ -113,6 +136,7 @@ impl CredentialStore for SqliteCredentialStore {
         Self: 'async_trait,
     {
         Box::pin(async move {
+            let credentials = credentials.with_issuer(Some(self.issuer.clone()));
             let token_received_at = credentials
                 .token_received_at
                 .map(|t| t as i64)
@@ -135,7 +159,12 @@ impl CredentialStore for SqliteCredentialStore {
             let plaintext = serde_json::to_vec(&credentials)
                 .map_err(|e| AuthError::InternalError(format!("serialize credentials: {e}")))?;
 
-            let aad = credential_aad(&self.upstream_name, &self.subject, &credentials.client_id);
+            let aad = credential_aad(
+                &self.upstream_name,
+                &self.subject,
+                &self.issuer,
+                &credentials.client_id,
+            );
             let (token_blob, token_blob_nonce) =
                 encryption::seal_with_aad(&self.key, &plaintext, &aad)
                     .map_err(|e| AuthError::InternalError(format!("encrypt credentials: {e}")))?;
@@ -143,6 +172,7 @@ impl CredentialStore for SqliteCredentialStore {
             let row = UpstreamOauthCredentialRow {
                 upstream_name: self.upstream_name.clone(),
                 subject: self.subject.clone(),
+                issuer: self.issuer.clone(),
                 client_id: credentials.client_id.clone(),
                 granted_scopes_json,
                 token_blob,
@@ -215,11 +245,18 @@ impl StateStore for SqliteStateStore {
     {
         Box::pin(async move {
             let now = now_unix();
+            let requested_scopes_json =
+                serde_json::to_string(&state.requested_scopes).map_err(|e| {
+                    AuthError::InternalError(format!("serialize requested scopes: {e}"))
+                })?;
             let row = UpstreamOauthStateRow {
                 upstream_name: self.upstream_name.clone(),
                 subject: self.subject.clone(),
                 csrf_token: csrf_token.to_string(),
                 pkce_verifier: state.pkce_verifier,
+                expected_issuer: state.expected_issuer,
+                require_issuer: state.require_issuer,
+                requested_scopes_json,
                 created_at: now,
                 expires_at: now + STATE_TTL_SECS,
             };
@@ -253,12 +290,21 @@ impl StateStore for SqliteStateStore {
                 .await
                 .map_err(|e| AuthError::InternalError(e.to_string()))?;
 
-            Ok(row.map(|r| {
-                StoredAuthorizationState::new(
+            row.map(|r| {
+                let requested_scopes =
+                    serde_json::from_str(&r.requested_scopes_json).map_err(|e| {
+                        AuthError::InternalError(format!("deserialize requested scopes: {e}"))
+                    })?;
+                let mut state = StoredAuthorizationState::new_with_expected_issuer(
                     &PkceCodeVerifier::new(r.pkce_verifier),
                     &CsrfToken::new(r.csrf_token),
-                )
-            }))
+                    r.expected_issuer,
+                    r.require_issuer,
+                );
+                state.requested_scopes = requested_scopes;
+                Ok(state)
+            })
+            .transpose()
         })
     }
 
@@ -287,10 +333,14 @@ impl StateStore for SqliteStateStore {
 
 #[cfg(test)]
 mod tests {
+    use base64::Engine as _;
     use oauth2::{CsrfToken, PkceCodeVerifier};
-    use rmcp_client::transport::auth::{StateStore, StoredAuthorizationState};
+    use rmcp_client::transport::auth::{
+        CredentialStore, StateStore, StoredAuthorizationState, StoredCredentials,
+    };
 
-    use super::SqliteStateStore;
+    use super::{SqliteCredentialStore, SqliteStateStore};
+    use crate::upstream::encryption::load_key;
 
     /// Open a disposable in-memory SQLite store for testing.
     async fn temp_store() -> crate::sqlite::SqliteStore {
@@ -366,6 +416,124 @@ mod tests {
     /// The underlying `take_upstream_oauth_state` query filters by `expires_at`,
     /// so an expired row is treated the same as a missing row.  We simulate this
     /// by writing a row with `expires_at = now - 1` directly via the raw store.
+
+    #[tokio::test]
+    async fn state_round_trip_preserves_rfc9207_issuer_and_requested_scopes() {
+        let sqlite = temp_store().await;
+        let store = make_state_store(sqlite, "acme", "alice");
+        let csrf = "csrf-issuer-round-trip";
+        let mut state = StoredAuthorizationState::new_with_expected_issuer(
+            &PkceCodeVerifier::new("verifier-value".to_string()),
+            &CsrfToken::new(csrf.to_string()),
+            Some("https://issuer.example".to_string()),
+            true,
+        );
+        state.requested_scopes = vec!["mcp.read".to_string(), "mcp.write".to_string()];
+
+        store.save(csrf, state).await.expect("save state");
+        let restored = store
+            .load(csrf)
+            .await
+            .expect("load state")
+            .expect("state exists");
+
+        assert_eq!(
+            restored.expected_issuer.as_deref(),
+            Some("https://issuer.example")
+        );
+        assert!(restored.require_issuer);
+        assert_eq!(restored.requested_scopes, ["mcp.read", "mcp.write"]);
+    }
+
+    fn test_encryption_key() -> crate::upstream::encryption::EncryptionKey {
+        load_key(&base64::engine::general_purpose::STANDARD.encode([7u8; 32])).expect("test key")
+    }
+
+    #[tokio::test]
+    async fn credential_store_rejects_and_deletes_credentials_from_another_issuer() {
+        let sqlite = temp_store().await;
+        let key = test_encryption_key();
+        let issuer_a = SqliteCredentialStore::new(
+            sqlite.clone(),
+            key.clone(),
+            "acme",
+            "alice",
+            "https://issuer-a.example",
+        );
+        issuer_a
+            .save(
+                StoredCredentials::new(
+                    "client-a".to_string(),
+                    None,
+                    vec!["mcp".to_string()],
+                    Some(1_700_000_000),
+                )
+                .with_issuer(Some("https://issuer-a.example".to_string())),
+            )
+            .await
+            .expect("save credentials");
+
+        let issuer_b = SqliteCredentialStore::new(
+            sqlite.clone(),
+            key,
+            "acme",
+            "alice",
+            "https://issuer-b.example",
+        );
+        assert!(
+            issuer_b
+                .load()
+                .await
+                .expect("load mismatched credentials")
+                .is_none(),
+            "credentials minted by another issuer must never be reused"
+        );
+        assert!(
+            sqlite
+                .find_upstream_oauth_credentials("acme", "alice")
+                .await
+                .expect("query credentials")
+                .is_none(),
+            "the stale issuer-bound row must be removed"
+        );
+    }
+
+    #[tokio::test]
+    async fn credential_store_rejects_legacy_rows_without_an_issuer() {
+        let sqlite = temp_store().await;
+        sqlite
+            .upsert_upstream_oauth_credentials(crate::types::UpstreamOauthCredentialRow {
+                upstream_name: "acme".to_string(),
+                subject: "alice".to_string(),
+                issuer: String::new(),
+                client_id: "legacy-client".to_string(),
+                granted_scopes_json: "[]".to_string(),
+                token_blob: vec![1, 2, 3],
+                token_blob_nonce: vec![0; 12],
+                token_received_at: 0,
+                access_token_expires_at: 0,
+                refresh_token_present: false,
+            })
+            .await
+            .expect("insert legacy row");
+        let store = SqliteCredentialStore::new(
+            sqlite.clone(),
+            test_encryption_key(),
+            "acme",
+            "alice",
+            "https://issuer.example",
+        );
+
+        assert!(store.load().await.expect("load legacy row").is_none());
+        assert!(
+            sqlite
+                .find_upstream_oauth_credentials("acme", "alice")
+                .await
+                .expect("query legacy row")
+                .is_none()
+        );
+    }
+
     #[tokio::test]
     async fn expired_state_is_rejected() {
         use crate::types::UpstreamOauthStateRow;
@@ -382,6 +550,9 @@ mod tests {
             subject: "alice".to_string(),
             csrf_token: "csrf-expired".to_string(),
             pkce_verifier: "verifier".to_string(),
+            expected_issuer: Some("https://issuer.example".to_string()),
+            require_issuer: true,
+            requested_scopes_json: "[]".to_string(),
             created_at: now - 400,
             expires_at: now - 1, // already expired
         };

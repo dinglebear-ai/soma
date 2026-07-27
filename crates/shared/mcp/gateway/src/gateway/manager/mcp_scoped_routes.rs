@@ -1,6 +1,9 @@
 use serde_json::Value;
 
-use crate::gateway::protected_routes::ProtectedRouteScope;
+use crate::{
+    gateway::protected_routes::ProtectedRouteScope,
+    upstream::{McpRequestOutcome, McpRoundTrip},
+};
 
 use super::{
     mcp_routes::{GatewayPromptRoute, GatewayResourceRoute, GatewayToolRoute},
@@ -39,6 +42,26 @@ impl GatewayManager {
         self.call_mcp_tool_for_subject(name, params, subject).await
     }
 
+    pub async fn call_mcp_tool_once_for_subject_and_scope(
+        &self,
+        name: &str,
+        params: Value,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+        scope: Option<&ProtectedRouteScope>,
+    ) -> Result<Option<McpRequestOutcome>, GatewayManagerError> {
+        let allowed = self
+            .tool_routes_for_subject_and_scope(subject, scope)
+            .await?
+            .into_iter()
+            .any(|route| route.name == name);
+        if !allowed {
+            return Ok(None);
+        }
+        self.call_mcp_tool_once_for_subject(name, params, round_trip, subject)
+            .await
+    }
+
     pub async fn resource_routes_for_subject_and_scope(
         &self,
         subject: Option<&str>,
@@ -67,6 +90,25 @@ impl GatewayManager {
             return Ok(None);
         }
         self.read_mcp_resource_for_subject(uri, subject).await
+    }
+
+    pub async fn read_mcp_resource_once_for_subject_and_scope(
+        &self,
+        uri: &str,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+        scope: Option<&ProtectedRouteScope>,
+    ) -> Result<Option<McpRequestOutcome>, GatewayManagerError> {
+        let allowed = self
+            .resource_routes_for_subject_and_scope(subject, scope)
+            .await?
+            .into_iter()
+            .any(|route| route.uri == uri);
+        if !allowed {
+            return Ok(None);
+        }
+        self.read_mcp_resource_once_for_subject(uri, round_trip, subject)
+            .await
     }
 
     pub async fn prompt_routes_for_subject_and_scope(
@@ -98,6 +140,25 @@ impl GatewayManager {
             return Ok(None);
         }
         self.get_mcp_prompt_for_subject(name, arguments, subject)
+            .await
+    }
+    pub async fn get_mcp_prompt_once_for_subject_and_scope(
+        &self,
+        name: &str,
+        arguments: Option<serde_json::Map<String, Value>>,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+        scope: Option<&ProtectedRouteScope>,
+    ) -> Result<Option<McpRequestOutcome>, GatewayManagerError> {
+        let allowed = self
+            .prompt_routes_for_subject_and_scope(subject, scope)
+            .await?
+            .into_iter()
+            .any(|route| route.name == name);
+        if !allowed {
+            return Ok(None);
+        }
+        self.get_mcp_prompt_once_for_subject(name, arguments, round_trip, subject)
             .await
     }
 }

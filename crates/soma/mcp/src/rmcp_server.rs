@@ -12,18 +12,22 @@ use std::time::Instant;
 
 use rmcp::{
     model::{
-        CallToolRequestParams, CallToolResult, GetPromptRequestParams, GetPromptResult,
-        Implementation, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
-        ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, Tool,
+        CacheScope, CallToolRequestParams, CallToolResponse, CancelTaskParams,
+        GetPromptRequestParams, GetPromptResponse, GetTaskParams, GetTaskResult, Implementation,
+        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
+        ReadResourceResult, Resource, ResourceContents, ResourceTemplate, ServerCapabilities,
+        ServerInfo, SubscriptionFilter, Tool, UpdateTaskParams,
     },
-    service::{Peer, RequestContext},
+    service::{Peer, RequestContext, SubscriptionContext},
     ErrorData, RoleServer, ServerHandler,
 };
 use rmcp_traces::TraceTrust;
 use serde_json::{Map, Value};
 
-use soma_application::{ApplicationError, ExecutionContext, ReadResourceRequest, ResourceContent};
+use soma_application::{
+    ApplicationError, ExecutionContext, GatewayMcpRoundTrip, ReadResourceRequest, ResourceContent,
+};
 use soma_domain::{token_limit::MAX_RESPONSE_BYTES, TraceContext};
 use soma_mcp_server::{
     conformance,
@@ -67,6 +71,9 @@ macro_rules! trace_summary_event {
     };
 }
 
+mod catalog_subscriptions;
+mod destructive_mrtr;
+
 // ── server ────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -76,6 +83,41 @@ pub struct SomaRmcpServer {
 
 pub fn rmcp_server(state: McpState) -> SomaRmcpServer {
     SomaRmcpServer { state }
+}
+
+fn private_tools_result(tools: Vec<Tool>) -> ListToolsResult {
+    ListToolsResult::with_all_items(tools)
+        .with_ttl_ms(0)
+        .with_cache_scope(CacheScope::Private)
+}
+
+fn private_resources_result(resources: Vec<Resource>) -> ListResourcesResult {
+    ListResourcesResult::with_all_items(resources)
+        .with_ttl_ms(0)
+        .with_cache_scope(CacheScope::Private)
+}
+
+fn private_resource_templates_result(
+    resource_templates: Vec<ResourceTemplate>,
+) -> ListResourceTemplatesResult {
+    ListResourceTemplatesResult::with_all_items(resource_templates)
+        .with_ttl_ms(0)
+        .with_cache_scope(CacheScope::Private)
+}
+
+fn private_prompts_result(mut result: ListPromptsResult) -> ListPromptsResult {
+    result.ttl_ms = Some(0);
+    result.cache_scope = Some(CacheScope::Private);
+    result
+}
+
+fn private_dynamic_read_response(response: ReadResourceResponse) -> ReadResourceResponse {
+    match response {
+        ReadResourceResponse::Complete(result) => ReadResourceResponse::Complete(
+            result.with_ttl_ms(0).with_cache_scope(CacheScope::Private),
+        ),
+        other => other,
+    }
 }
 
 impl ServerHandler for SomaRmcpServer {
@@ -108,17 +150,14 @@ impl ServerHandler for SomaRmcpServer {
             tools.extend(conformance::tool_definitions());
         }
         tracing::debug!(tool_count = tools.len(), "MCP tools listed");
-        Ok(ListToolsResult {
-            tools,
-            ..Default::default()
-        })
+        Ok(private_tools_result(tools))
     }
 
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<CallToolResponse, ErrorData> {
         let tool_name = request.name.to_string();
 
         // Extract action before scope check so a missing action returns the
@@ -148,42 +187,111 @@ impl ServerHandler for SomaRmcpServer {
         let trace_context_conflict = trace_resolution.http_trace_headers_present
             && trace_resolution::meta_has_any_trace_key(&context.meta);
         let route_scope = protected_route_scope(&context);
-        let execution_context =
+        let mut execution_context =
             execution_context_with_trace(&self.state, auth, trace_resolution.trace_context.clone());
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
         if soma_allowed && self.state.config().conformance_fixtures {
             if let Some(result) = conformance::call_tool(&tool_name) {
-                return Ok(result);
+                return Ok(result.into());
             }
         }
         if tool_name != "soma" {
+            let Some(requires_confirmation) = gateway_proxy::tool_requires_confirmation(
+                self.state.application(),
+                &tool_name,
+                route_scope,
+                &execution_context,
+            )
+            .await?
+            else {
+                return Err(unknown_tool_error(&tool_name));
+            };
+            let confirmation_action = action_opt
+                .as_deref()
+                .filter(|action| !action.is_empty())
+                .unwrap_or(&tool_name);
+            match destructive_mrtr::destructive_confirmation(
+                &request,
+                &context.meta,
+                confirmation_action,
+                requires_confirmation,
+            ) {
+                destructive_mrtr::DestructiveConfirmation::Proceed(confirmation) => {
+                    execution_context.destructive_confirmation = confirmation;
+                }
+                destructive_mrtr::DestructiveConfirmation::InputRequired(result) => {
+                    return Ok(CallToolResponse::InputRequired(result));
+                }
+                destructive_mrtr::DestructiveConfirmation::Refused => {
+                    return tool_error_result(serde_json::json!({
+                        "kind": "mcp_tool_error",
+                        "schema_version": 1,
+                        "code": "confirmation_required",
+                        "tool": tool_name,
+                        "action": confirmation_action,
+                        "message": "destructive gateway tool requires an accepted MCP form confirmation",
+                        "retryable": true,
+                        "remediation": "Retry with form elicitation support and accept the destructive confirmation, or send legacy confirm=true.",
+                    }))
+                    .map(Into::into);
+                }
+            }
+
             if let Some(result) = gateway_proxy::call_tool_for_subject_and_scope(
                 self.state.application(),
                 &tool_name,
                 request.arguments.clone(),
+                GatewayMcpRoundTrip {
+                    input_responses: request.input_responses.clone(),
+                    request_state: request.request_state.clone(),
+                    request_meta: request_meta_value(&context),
+                },
                 route_scope,
                 &execution_context,
             )
             .await
             {
-                if result.is_error == Some(true) {
-                    trace_summary_event!(
-                        warn,
-                        trace_resolution,
-                        trace_context_conflict,
-                        "MCP gateway tool execution failed",
-                        tool = %tool_name,
-                        action = action_opt.as_deref().unwrap_or_default(),
-                    );
-                } else {
-                    trace_summary_event!(
-                        info,
-                        trace_resolution,
-                        trace_context_conflict,
-                        "MCP gateway tool execution completed",
-                        tool = %tool_name,
-                        action = action_opt.as_deref().unwrap_or_default(),
-                    );
+                match &result {
+                    CallToolResponse::Complete(result) if result.is_error == Some(true) => {
+                        trace_summary_event!(
+                            warn,
+                            trace_resolution,
+                            trace_context_conflict,
+                            "MCP gateway tool execution failed",
+                            tool = %tool_name,
+                            action = action_opt.as_deref().unwrap_or_default(),
+                        );
+                    }
+                    CallToolResponse::InputRequired(_) => {
+                        trace_summary_event!(
+                            info,
+                            trace_resolution,
+                            trace_context_conflict,
+                            "MCP gateway tool requires client input",
+                            tool = %tool_name,
+                            action = action_opt.as_deref().unwrap_or_default(),
+                        );
+                    }
+                    CallToolResponse::Task(_) => {
+                        trace_summary_event!(
+                            info,
+                            trace_resolution,
+                            trace_context_conflict,
+                            "MCP gateway tool returned a task",
+                            tool = %tool_name,
+                            action = action_opt.as_deref().unwrap_or_default(),
+                        );
+                    }
+                    _ => {
+                        trace_summary_event!(
+                            info,
+                            trace_resolution,
+                            trace_context_conflict,
+                            "MCP gateway tool execution completed",
+                            tool = %tool_name,
+                            action = action_opt.as_deref().unwrap_or_default(),
+                        );
+                    }
                 }
                 return Ok(result);
             }
@@ -217,7 +325,39 @@ impl ServerHandler for SomaRmcpServer {
                 response_paging_options(),
                 &tool_name,
                 empty_action_as_none(&action),
-            );
+            )
+            .map(Into::into);
+        }
+
+        let requires_confirmation = self
+            .state
+            .application()
+            .action_requires_confirmation(&action);
+        match destructive_mrtr::destructive_confirmation(
+            &request,
+            &context.meta,
+            &action,
+            requires_confirmation,
+        ) {
+            destructive_mrtr::DestructiveConfirmation::Proceed(confirmation) => {
+                execution_context.destructive_confirmation = confirmation;
+            }
+            destructive_mrtr::DestructiveConfirmation::InputRequired(result) => {
+                return Ok(CallToolResponse::InputRequired(result));
+            }
+            destructive_mrtr::DestructiveConfirmation::Refused => {
+                return tool_error_result(serde_json::json!({
+                    "kind": "mcp_tool_error",
+                    "schema_version": 1,
+                    "code": "confirmation_required",
+                    "tool": tool_name,
+                    "action": action,
+                    "message": "destructive action requires an accepted MCP form confirmation",
+                    "retryable": true,
+                    "remediation": "Retry with form elicitation support and accept the destructive confirmation, or send legacy confirm=true.",
+                }))
+                .map(Into::into);
+            }
         }
 
         let mut arguments = request
@@ -260,6 +400,7 @@ impl ServerHandler for SomaRmcpServer {
                     empty_action_as_none(&action),
                     continuation_args.as_ref(),
                 )
+                .map(Into::into)
             }
             Err(error) => {
                 let application_error = error.downcast_ref::<ApplicationError>();
@@ -294,6 +435,7 @@ impl ServerHandler for SomaRmcpServer {
                     &tool_name,
                     empty_action_as_none(&action),
                 ))
+                .map(Into::into)
             }
         }
     }
@@ -334,10 +476,7 @@ impl ServerHandler for SomaRmcpServer {
         if soma_allowed && self.state.config().conformance_fixtures {
             resources.extend(conformance::resources());
         }
-        Ok(ListResourcesResult {
-            resources,
-            ..Default::default()
-        })
+        Ok(private_resources_result(resources))
     }
 
     async fn list_resource_templates(
@@ -364,35 +503,37 @@ impl ServerHandler for SomaRmcpServer {
         if self.state.config().conformance_fixtures {
             resource_templates.extend(conformance::resource_templates());
         }
-        Ok(ListResourceTemplatesResult {
-            resource_templates,
-            ..Default::default()
-        })
+        Ok(private_resource_templates_result(resource_templates))
     }
 
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
+    ) -> Result<ReadResourceResponse, ErrorData> {
         let auth = require_auth_context(&self.state, &context)?;
         let route_scope = protected_route_scope(&context);
         let execution_context = execution_context(&self.state, &context, auth);
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
         if soma_allowed && self.state.config().conformance_fixtures {
             if let Some(result) = conformance::read_resource(&request.uri) {
-                return Ok(result);
+                return Ok(private_dynamic_read_response(result.into()));
             }
         }
         if let Some(result) = gateway_proxy::read_resource_for_subject_and_scope(
             self.state.application(),
             &request.uri,
+            GatewayMcpRoundTrip {
+                input_responses: request.input_responses.clone(),
+                request_state: request.request_state.clone(),
+                request_meta: request_meta_value(&context),
+            },
             route_scope,
             &execution_context,
         )
         .await?
         {
-            return Ok(result);
+            return Ok(private_dynamic_read_response(result));
         }
         if !soma_allowed {
             return Err(ErrorData::invalid_params(
@@ -410,7 +551,10 @@ impl ServerHandler for SomaRmcpServer {
                 text,
                 SCHEMA_RESOURCE_URI,
             )
-            .with_mime_type("application/json")]));
+            .with_mime_type("application/json")])
+            .with_ttl_ms(0)
+            .with_cache_scope(CacheScope::Private)
+            .into());
         }
 
         let output = self
@@ -424,9 +568,12 @@ impl ServerHandler for SomaRmcpServer {
             )
             .await
             .map_err(|error| resource_read_error(&request.uri, &error))?;
-        Ok(ReadResourceResult::new(vec![
-            resource_contents_from_output(&request.uri, output),
-        ]))
+        Ok(
+            ReadResourceResult::new(vec![resource_contents_from_output(&request.uri, output)])
+                .with_ttl_ms(0)
+                .with_cache_scope(CacheScope::Private)
+                .into(),
+        )
     }
 
     // ── prompts ───────────────────────────────────────────────────────────────
@@ -462,27 +609,32 @@ impl ServerHandler for SomaRmcpServer {
         if soma_allowed && self.state.config().conformance_fixtures {
             result.prompts.extend(conformance::prompts());
         }
-        Ok(result)
+        Ok(private_prompts_result(result))
     }
 
     async fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<GetPromptResult, ErrorData> {
+    ) -> Result<GetPromptResponse, ErrorData> {
         let auth = require_auth_context(&self.state, &context)?;
         let route_scope = protected_route_scope(&context);
         let execution_context = execution_context(&self.state, &context, auth);
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
         if soma_allowed && self.state.config().conformance_fixtures {
             if let Some(result) = conformance::get_prompt(request.clone()) {
-                return Ok(result);
+                return Ok(result.into());
             }
         }
         if let Some(result) = gateway_proxy::get_prompt_for_subject_and_scope(
             self.state.application(),
             &request.name,
             request.arguments.clone(),
+            GatewayMcpRoundTrip {
+                input_responses: request.input_responses.clone(),
+                request_state: request.request_state.clone(),
+                request_meta: request_meta_value(&context),
+            },
             route_scope,
             &execution_context,
         )
@@ -502,7 +654,7 @@ impl ServerHandler for SomaRmcpServer {
             .application()
             .get_prompt(&request.name, &execution_context)
         {
-            Ok(prompt) => return Ok(prompts::provider_prompt_result(prompt)),
+            Ok(prompt) => return Ok(prompts::provider_prompt_result(prompt).into()),
             Err(error) if error.code == "insufficient_scope" => {
                 return Err(ErrorData::invalid_request(
                     format!("forbidden: {}", error.message),
@@ -514,7 +666,88 @@ impl ServerHandler for SomaRmcpServer {
                 return Err(ErrorData::internal_error(error.message, None));
             }
         }
-        prompts::get_prompt(request).map_err(|e| ErrorData::invalid_params(e.to_string(), None))
+        prompts::get_prompt(request)
+            .map(Into::into)
+            .map_err(|e| ErrorData::invalid_params(e.to_string(), None))
+    }
+
+    // ── subscriptions ──────────────────────────────────────────────────────────
+
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        // The rmcp service layer intersects this with Soma's advertised
+        // notification capabilities before acknowledging the subscription.
+        // Returning the requested filter enables the modern lifecycle without
+        // claiming notification categories Soma cannot currently emit.
+        Some(requested.clone())
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), ErrorData> {
+        require_auth_context(&self.state, context.request_context())?;
+        tracing::debug!(
+            accepted = ?context.accepted(),
+            "MCP catalog subscription established"
+        );
+        let result = catalog_subscriptions::listen_for_catalog_changes(self, context).await;
+        tracing::debug!("MCP catalog subscription closed");
+        result
+    }
+
+    // ── tasks ─────────────────────────────────────────────────────────────────
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, ErrorData> {
+        let auth = require_auth_context(&self.state, &context)?;
+        let execution_context = execution_context(&self.state, &context, auth);
+        let value = self
+            .state
+            .application()
+            .gateway_get_mcp_task(&request.task_id, &execution_context)
+            .await
+            .map_err(task_application_error)?;
+        serde_json::from_value(value).map_err(|error| {
+            ErrorData::internal_error(
+                "gateway returned an invalid tasks/get result",
+                Some(serde_json::json!({"message": error.to_string()})),
+            )
+        })
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        let auth = require_auth_context(&self.state, &context)?;
+        let execution_context = execution_context(&self.state, &context, auth);
+        self.state
+            .application()
+            .gateway_update_mcp_task(
+                &request.task_id,
+                request.input_responses,
+                &execution_context,
+            )
+            .await
+            .map_err(task_application_error)
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        let auth = require_auth_context(&self.state, &context)?;
+        let execution_context = execution_context(&self.state, &context, auth);
+        self.state
+            .application()
+            .gateway_cancel_mcp_task(&request.task_id, &execution_context)
+            .await
+            .map_err(task_application_error)
     }
 
     // ── server info ───────────────────────────────────────────────────────────
@@ -523,8 +756,12 @@ impl ServerHandler for SomaRmcpServer {
         ServerInfo::new(
             ServerCapabilities::builder()
                 .enable_tools()
+                .enable_tool_list_changed()
                 .enable_resources()
+                .enable_resources_list_changed()
                 .enable_prompts()
+                .enable_prompts_list_changed()
+                .enable_tasks()
                 .build(),
         )
         .with_server_info(Implementation::new(
@@ -532,6 +769,16 @@ impl ServerHandler for SomaRmcpServer {
             env!("CARGO_PKG_VERSION"),
         ))
         .with_instructions(SERVER_INSTRUCTIONS)
+    }
+}
+
+fn task_application_error(error: ApplicationError) -> ErrorData {
+    if error.code == "task_missing" || error.code == "not_found" {
+        ErrorData::invalid_params(error.message, None)
+    } else if error.code == "insufficient_scope" {
+        ErrorData::invalid_request(format!("forbidden: {}", error.message), None)
+    } else {
+        ErrorData::internal_error(error.message, None)
     }
 }
 
@@ -654,6 +901,14 @@ fn execution_context(
         Some(principal(auth)),
         trace_context_from_meta(&request.meta),
     )
+}
+
+fn request_meta_value(context: &RequestContext<RoleServer>) -> Option<Value> {
+    if context.meta.is_empty() {
+        None
+    } else {
+        serde_json::to_value(&context.meta).ok()
+    }
 }
 
 fn execution_context_with_trace(

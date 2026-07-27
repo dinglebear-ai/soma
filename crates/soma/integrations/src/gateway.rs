@@ -14,8 +14,9 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use soma_application::{
-    ExecutionContext, GatewayExecuteRequest, GatewayPort, GatewayPromptRoute, GatewayReloadRequest,
-    GatewayResourceRoute, GatewayRouteScope, GatewayToolRoute, PortError,
+    ExecutionContext, GatewayExecuteRequest, GatewayMcpOutcome, GatewayMcpRoundTrip, GatewayPort,
+    GatewayPromptRoute, GatewayReloadRequest, GatewayResourceRoute, GatewayRouteScope,
+    GatewayToolRoute, PortError,
 };
 use soma_domain::{
     actions::{scopes_satisfy, READ_SCOPE},
@@ -25,8 +26,12 @@ use soma_domain::{
 use soma_gateway::gateway::dispatch::{
     dispatch_gateway_action, GatewayAccess, GatewayDispatchError,
 };
-use soma_gateway::gateway::{
-    manager::GatewayManager, manager::GatewayManagerError, protected_routes::ProtectedRouteScope,
+use soma_gateway::{
+    gateway::{
+        manager::GatewayManager, manager::GatewayManagerError,
+        protected_routes::ProtectedRouteScope,
+    },
+    upstream::{McpRequestOutcome, McpRoundTrip},
 };
 
 /// `soma-gateway`'s `GatewayProductState` is `Arc<GatewayManager>` — this
@@ -122,6 +127,62 @@ impl GatewayPort for GatewayApplicationPort {
             .map_err(|error| gateway_manager_port_error("tools/call", error))
     }
 
+    async fn call_mcp_tool_once(
+        &self,
+        name: &str,
+        params: Value,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, PortError> {
+        let scope = scope.map(protected_route_scope);
+        self.gateway
+            .call_mcp_tool_once_for_subject_and_scope(
+                name,
+                params,
+                mcp_round_trip(round_trip),
+                Some(gateway_subject(context)),
+                scope.as_ref(),
+            )
+            .await
+            .map(|outcome| outcome.map(gateway_mcp_outcome))
+            .map_err(|error| gateway_manager_port_error("tools/call", error))
+    }
+
+    async fn get_mcp_task(
+        &self,
+        task_id: &str,
+        context: &ExecutionContext,
+    ) -> Result<Value, PortError> {
+        self.gateway
+            .get_mcp_task_for_subject(task_id, Some(gateway_subject(context)))
+            .await
+            .map_err(|error| gateway_manager_port_error("tasks/get", error))
+    }
+
+    async fn update_mcp_task(
+        &self,
+        task_id: &str,
+        input_responses: std::collections::BTreeMap<String, Value>,
+        context: &ExecutionContext,
+    ) -> Result<(), PortError> {
+        self.gateway
+            .update_mcp_task_for_subject(task_id, input_responses, Some(gateway_subject(context)))
+            .await
+            .map_err(|error| gateway_manager_port_error("tasks/update", error))
+    }
+
+    async fn cancel_mcp_task(
+        &self,
+        task_id: &str,
+        context: &ExecutionContext,
+    ) -> Result<(), PortError> {
+        self.gateway
+            .cancel_mcp_task_for_subject(task_id, Some(gateway_subject(context)))
+            .await
+            .map_err(|error| gateway_manager_port_error("tasks/cancel", error))
+    }
+
     async fn list_mcp_resources(
         &self,
         scope: Option<&GatewayRouteScope>,
@@ -158,6 +219,26 @@ impl GatewayPort for GatewayApplicationPort {
                 scope.as_ref(),
             )
             .await
+            .map_err(|error| gateway_manager_port_error("resources/read", error))
+    }
+
+    async fn read_mcp_resource_once(
+        &self,
+        uri: &str,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, PortError> {
+        let scope = scope.map(protected_route_scope);
+        self.gateway
+            .read_mcp_resource_once_for_subject_and_scope(
+                uri,
+                mcp_round_trip(round_trip),
+                Some(gateway_subject(context)),
+                scope.as_ref(),
+            )
+            .await
+            .map(|outcome| outcome.map(gateway_mcp_outcome))
             .map_err(|error| gateway_manager_port_error("resources/read", error))
     }
 
@@ -199,6 +280,43 @@ impl GatewayPort for GatewayApplicationPort {
             )
             .await
             .map_err(|error| gateway_manager_port_error("prompts/get", error))
+    }
+    async fn get_mcp_prompt_once(
+        &self,
+        name: &str,
+        arguments: Option<serde_json::Map<String, Value>>,
+        round_trip: GatewayMcpRoundTrip,
+        scope: Option<&GatewayRouteScope>,
+        context: &ExecutionContext,
+    ) -> Result<Option<GatewayMcpOutcome>, PortError> {
+        let scope = scope.map(protected_route_scope);
+        self.gateway
+            .get_mcp_prompt_once_for_subject_and_scope(
+                name,
+                arguments,
+                mcp_round_trip(round_trip),
+                Some(gateway_subject(context)),
+                scope.as_ref(),
+            )
+            .await
+            .map(|outcome| outcome.map(gateway_mcp_outcome))
+            .map_err(|error| gateway_manager_port_error("prompts/get", error))
+    }
+}
+
+fn mcp_round_trip(round_trip: GatewayMcpRoundTrip) -> McpRoundTrip {
+    McpRoundTrip {
+        input_responses: round_trip.input_responses,
+        request_state: round_trip.request_state,
+        request_meta: round_trip.request_meta,
+    }
+}
+
+fn gateway_mcp_outcome(outcome: McpRequestOutcome) -> GatewayMcpOutcome {
+    match outcome {
+        McpRequestOutcome::Complete(value) => GatewayMcpOutcome::Complete(value),
+        McpRequestOutcome::InputRequired(value) => GatewayMcpOutcome::InputRequired(value),
+        McpRequestOutcome::Task(value) => GatewayMcpOutcome::Task(value),
     }
 }
 

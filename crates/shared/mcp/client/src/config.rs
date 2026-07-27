@@ -56,6 +56,7 @@ pub struct UpstreamConfigView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GatewayUpstreamOauthConfig {
     pub mode: GatewayUpstreamOauthMode,
+    #[serde(default)]
     pub registration: GatewayUpstreamOauthRegistration,
     #[serde(default)]
     pub scopes: Option<Vec<String>>,
@@ -69,9 +70,13 @@ pub enum GatewayUpstreamOauthMode {
     AuthorizationCodePkce,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "strategy", rename_all = "snake_case")]
 pub enum GatewayUpstreamOauthRegistration {
+    /// Prefer a served Client ID Metadata Document and fall back to DCR only
+    /// when the authorization server does not advertise CIMD support.
+    #[default]
+    Auto,
     ClientMetadataDocument {
         url: String,
     },

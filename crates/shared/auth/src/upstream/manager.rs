@@ -143,14 +143,7 @@ impl UpstreamOauthManager {
                 OauthError::Internal(format!("create auth manager: {e}"))
             })?;
 
-        let cred_store = SqliteCredentialStore::new(
-            self.sqlite.clone(),
-            self.key.clone(),
-            &self.upstream.name,
-            subject,
-        );
         let state_store = SqliteStateStore::new(self.sqlite.clone(), &self.upstream.name, subject);
-        manager.set_credential_store(cred_store);
         manager.set_state_store(state_store);
 
         let metadata = self
@@ -173,6 +166,21 @@ impl UpstreamOauthManager {
             issuer = metadata.issuer.as_deref().unwrap_or("<none>"),
             "upstream oauth: AS metadata ready"
         );
+
+        let issuer = metadata
+            .issuer
+            .as_deref()
+            .expect("issuer binding verification requires issuer")
+            .trim_end_matches('/')
+            .to_string();
+        let cred_store = SqliteCredentialStore::new(
+            self.sqlite.clone(),
+            self.key.clone(),
+            &self.upstream.name,
+            subject,
+            issuer.clone(),
+        );
+        manager.set_credential_store(cred_store);
 
         self.verify_s256(&metadata.code_challenge_methods_supported)
             .inspect_err(|e| {
@@ -198,6 +206,7 @@ impl UpstreamOauthManager {
                 &mut manager,
                 subject,
                 &scopes,
+                &issuer,
                 DynamicClientRegistrationUse::BeginAuthorization,
             )
             .await
@@ -265,6 +274,7 @@ impl UpstreamOauthManager {
         subject: &str,
         code: &str,
         csrf_token: &str,
+        received_issuer: Option<&str>,
     ) -> Result<(), OauthError> {
         let started = std::time::Instant::now();
 
@@ -286,7 +296,7 @@ impl UpstreamOauthManager {
             })?;
 
         auth_manager
-            .exchange_code_for_token(code, csrf_token)
+            .exchange_code_for_token_with_issuer(code, csrf_token, received_issuer)
             .await
             .map_err(|e| {
                 let mapped = map_auth_error(e);
@@ -389,6 +399,7 @@ impl UpstreamOauthManager {
         self.sqlite
             .find_dynamic_client_registration(&self.upstream.name, subject)
             .await
+            .map(|row| row.map(|row| row.client_id))
             .map_err(|e| OauthError::Internal(e.to_string()))
     }
 
@@ -409,17 +420,24 @@ impl UpstreamOauthManager {
             .await
             .map_err(|e| OauthError::Internal(format!("create auth manager: {e}")))?;
 
+        let state_store = SqliteStateStore::new(self.sqlite.clone(), &self.upstream.name, subject);
+        manager.set_state_store(state_store);
+
+        let metadata = self.get_or_discover_metadata(&mut manager).await?;
+        let issuer = metadata
+            .issuer
+            .as_deref()
+            .expect("issuer binding verification requires issuer")
+            .trim_end_matches('/')
+            .to_string();
         let cred_store = SqliteCredentialStore::new(
             self.sqlite.clone(),
             self.key.clone(),
             &self.upstream.name,
             subject,
+            issuer.clone(),
         );
-        let state_store = SqliteStateStore::new(self.sqlite.clone(), &self.upstream.name, subject);
         manager.set_credential_store(cred_store);
-        manager.set_state_store(state_store);
-
-        let metadata = self.get_or_discover_metadata(&mut manager).await?;
         self.verify_s256(&metadata.code_challenge_methods_supported)?;
         manager.set_metadata(metadata);
 
@@ -431,7 +449,13 @@ impl UpstreamOauthManager {
             .map(String::as_str)
             .collect();
         let client_cfg = self
-            .resolve_client_config(&mut manager, subject, &scopes, dynamic_registration_use)
+            .resolve_client_config(
+                &mut manager,
+                subject,
+                &scopes,
+                &issuer,
+                dynamic_registration_use,
+            )
             .await?;
         manager
             .configure_client(client_cfg)
@@ -531,8 +555,8 @@ impl UpstreamOauthManager {
             return Ok(meta);
         }
 
-        let metadata = match manager.discover_metadata().await {
-            Ok(metadata) => metadata,
+        let metadata = match manager.resolve_metadata().await {
+            Ok(resolution) => resolution.metadata,
             Err(error) => {
                 match discover_metadata_via_protected_resource(self.upstream_url()?.as_str())
                     .await?

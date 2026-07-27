@@ -260,6 +260,7 @@ fn sample_upstream_credentials() -> UpstreamOauthCredentialRow {
     UpstreamOauthCredentialRow {
         upstream_name: "acme".to_string(),
         subject: "alice".to_string(),
+        issuer: "https://issuer.example".to_string(),
         client_id: "client-xyz".to_string(),
         granted_scopes_json: "[\"mcp\"]".to_string(),
         token_blob: vec![1, 2, 3, 4],
@@ -277,6 +278,9 @@ fn sample_upstream_state() -> UpstreamOauthStateRow {
         subject: "alice".to_string(),
         csrf_token: "csrf-1".to_string(),
         pkce_verifier: "verifier-1".to_string(),
+        expected_issuer: Some("https://issuer.example".to_string()),
+        require_issuer: true,
+        requested_scopes_json: r#"["mcp"]"#.to_string(),
         created_at: now,
         expires_at: now + 300,
     }
@@ -299,6 +303,7 @@ async fn sqlite_store_upsert_upstream_oauth_credentials_round_trip() {
 
     assert_eq!(fetched.upstream_name, row.upstream_name);
     assert_eq!(fetched.subject, row.subject);
+    assert_eq!(fetched.issuer, row.issuer);
     assert_eq!(fetched.client_id, row.client_id);
     assert_eq!(fetched.granted_scopes_json, row.granted_scopes_json);
     assert_eq!(fetched.token_blob, row.token_blob);
@@ -347,6 +352,9 @@ async fn sqlite_store_cleanup_expired_drops_state() {
         subject: "alice".to_string(),
         csrf_token: "csrf-expired".to_string(),
         pkce_verifier: "verifier-expired".to_string(),
+        expected_issuer: Some("https://issuer.example".to_string()),
+        require_issuer: true,
+        requested_scopes_json: "[]".to_string(),
         created_at: now - 400,
         expires_at: now - 10,
     };
@@ -427,7 +435,7 @@ async fn dynamic_client_registration_round_trip() {
 
     // Save and retrieve.
     store
-        .save_dynamic_client_registration("acme", "alice", "client-dyn-1")
+        .save_dynamic_client_registration("acme", "alice", "client-dyn-1", "https://issuer.example")
         .await
         .unwrap();
     let found = store
@@ -435,11 +443,17 @@ async fn dynamic_client_registration_round_trip() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(found, "client-dyn-1");
+    assert_eq!(found.client_id, "client-dyn-1");
+    assert_eq!(found.issuer, "https://issuer.example");
 
     // Upsert with a new client_id (server re-registered).
     store
-        .save_dynamic_client_registration("acme", "alice", "client-dyn-2")
+        .save_dynamic_client_registration(
+            "acme",
+            "alice",
+            "client-dyn-2",
+            "https://issuer-2.example",
+        )
         .await
         .unwrap();
     let found2 = store
@@ -447,11 +461,12 @@ async fn dynamic_client_registration_round_trip() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(found2, "client-dyn-2");
+    assert_eq!(found2.client_id, "client-dyn-2");
+    assert_eq!(found2.issuer, "https://issuer-2.example");
 
     // Delete and confirm gone; other subjects unaffected.
     store
-        .save_dynamic_client_registration("acme", "bob", "client-dyn-bob")
+        .save_dynamic_client_registration("acme", "bob", "client-dyn-bob", "https://issuer.example")
         .await
         .unwrap();
     store
