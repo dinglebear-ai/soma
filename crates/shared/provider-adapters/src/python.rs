@@ -42,6 +42,7 @@ use crate::{
 };
 
 pub mod environment;
+pub mod materializer;
 
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const DEFAULT_MAX_INPUT_BYTES: usize = 64 * 1024;
