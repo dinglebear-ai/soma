@@ -30,7 +30,7 @@ pub async fn authorization_server_metadata(
         issuer: base.clone(),
         authorization_endpoint: format!("{base}/authorize"),
         token_endpoint: format!("{base}/token"),
-        revocation_endpoint: None,
+        revocation_endpoint: Some(format!("{base}/revoke")),
         registration_endpoint: format!("{base}/register"),
         native_callback_endpoint: Some(native_callback_endpoint(&state)),
         native_poll_endpoint: Some(native_poll_endpoint(&state)),
@@ -135,6 +135,12 @@ mod tests {
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["token_endpoint"], "https://lab.example.com/token");
+        // Advertised only because `/revoke` is really mounted -- see
+        // `AuthorizationServerMetadata::revocation_endpoint`.
+        assert_eq!(
+            json["revocation_endpoint"],
+            "https://lab.example.com/revoke"
+        );
         assert_eq!(json["authorization_response_iss_parameter_supported"], true);
         assert_eq!(json["client_id_metadata_document_supported"], true);
     }

@@ -5,10 +5,11 @@ pub struct AuthorizationServerMetadata {
     pub issuer: String,
     pub authorization_endpoint: String,
     pub token_endpoint: String,
-    /// RFC 7009 revocation endpoint. `/revoke` is reserved in
-    /// `config::FIXED_ROUTE_PATHS` but not yet served by `routes::router`, so
-    /// this stays `None` — advertising an endpoint that 404s is worse than
-    /// omitting the capability. Populate once the handler lands.
+    /// RFC 7009 revocation endpoint, served by `revoke::revoke` and mounted at
+    /// `/revoke` by both `routes::router` and `routes::bearer_only_router`.
+    /// Stays an `Option` so a consumer assembling this metadata without that
+    /// route can omit the capability rather than advertise an endpoint that
+    /// 404s.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revocation_endpoint: Option<String>,
     pub registration_endpoint: String,
