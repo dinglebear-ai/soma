@@ -955,6 +955,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix the scheduled `rmcp release monitor` workflow, which had failed on every
+  run with `Error: failed to parse GitHub release metadata`. The
+  `setup-rust-soldr` action exports `CLICOLOR_FORCE=1` into `GITHUB_ENV`, so
+  every later step inherited it, and `gh` treats that as "force color on" even
+  when stdout is redirected to a file (`NO_COLOR` does not override it). Each
+  `gh api` redirect therefore wrote pretty-printed, ANSI-colorized JSON
+  starting with an ESC byte, which serde rejected at line 1 column 1. All five
+  `gh` steps now set `CLICOLOR_FORCE=0`, and a new `Validate fetched JSON
+  payloads` step rejects any payload that is not the expected JSON array or
+  object, printing the head with control characters escaped.
+- Make `cargo xtask rmcp-release-monitor` JSON parse failures diagnosable. All
+  five payload parses now report the payload size, an escaped preview, and a
+  diagnosis naming the fix for the shapes that actually occur in CI (ANSI
+  escapes, empty payloads, GitHub API error objects, HTML error pages) instead
+  of only a bare serde message that discards the payload.
+- Wire `xtask/src/rmcp_release_monitor_tests.rs` into the module tree. The file
+  existed and satisfied `cargo xtask check-test-siblings`, but was never
+  referenced by `rmcp_release_monitor.rs`, so nothing in it compiled or ran -
+  including the `exact_version` regression test added with the exact-pin fix.
 - Fix the container image build: `packages/` was not copied into the builder
   stage, so cargo refused to load the workspace once the Python provider
   package became a member.
