@@ -49,6 +49,21 @@ pub struct PreparedPythonEnvironment {
     pub input_plan_key: Option<String>,
 }
 
+impl PreparedPythonEnvironment {
+    pub fn environment_plan(&self) -> PythonEnvironmentPlan {
+        PythonEnvironmentPlan {
+            key: self.key.clone(),
+            directory: self.directory.clone(),
+            plan_version: self.plan_version,
+            dependency_count: self.dependency_count,
+            runtime: self.runtime.clone(),
+            sdk_wheel_tag: self.sdk_wheel_tag.clone(),
+            sdk_wheel_sha256: self.sdk_wheel_sha256.clone(),
+            uv_version: self.uv_version.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct PythonMaterializationRequest<'a> {
     pub metadata: Option<&'a Pep723Metadata>,
@@ -144,6 +159,19 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
     ) -> Result<PreparedPythonEnvironment, PythonMaterializationError> {
         open_ready(plan)?
             .ok_or_else(|| PythonMaterializationError::OfflineCacheMiss(plan.key.clone()))
+    }
+
+    pub fn validate_prepared(
+        &self,
+        expected: &PreparedPythonEnvironment,
+    ) -> Result<PreparedPythonEnvironment, PythonMaterializationError> {
+        let reopened = self.open_frozen(&expected.environment_plan())?;
+        if reopened != *expected {
+            return Err(PythonMaterializationError::InvalidMarker(
+                "prepared environment identity changed since it was selected".to_owned(),
+            ));
+        }
+        Ok(reopened)
     }
 
     pub fn prepare(

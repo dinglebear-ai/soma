@@ -102,6 +102,38 @@ impl<R: UvRunner> PythonEnvironmentLifecycle<R> {
     /// Resolves dependencies into a new immutable candidate generation.
     ///
     /// The current prepared environment is never replaced or activated here.
+    pub fn validate_provider_candidate(
+        &self,
+        provider_path: &Path,
+        candidate: &PreparedPythonEnvironment,
+    ) -> Result<PreparedPythonEnvironment, PythonEnvironmentLifecycleError> {
+        let source = fs::read_to_string(provider_path).map_err(|source| {
+            PythonEnvironmentLifecycleError::ReadSource {
+                path: provider_path.to_path_buf(),
+                source,
+            }
+        })?;
+        let metadata = parse_pep723_metadata(&source)?;
+        let input_plan = plan_python_environment(
+            &self.spec.cache_root,
+            metadata.as_ref(),
+            &self.spec.runtime,
+            &self.spec.sdk_wheel,
+            &self.spec.sdk_wheel_sha256,
+            &self.spec.uv_version,
+        )?;
+        let source_sha256 = normalized_source_sha256(&source);
+        if candidate.provider_source_sha256.as_deref() != Some(source_sha256.as_str()) {
+            return Err(PythonEnvironmentLifecycleError::CandidateSourceMismatch);
+        }
+        if candidate.input_plan_key.as_deref() != Some(input_plan.key.as_str()) {
+            return Err(PythonEnvironmentLifecycleError::CandidatePlanMismatch);
+        }
+        self.materializer
+            .validate_prepared(candidate)
+            .map_err(Into::into)
+    }
+
     pub fn update_provider(
         &self,
         provider_path: &Path,
@@ -159,6 +191,10 @@ pub enum PythonEnvironmentLifecycleError {
     Materialization(#[from] PythonMaterializationError),
     #[error(transparent)]
     Update(#[from] PythonEnvironmentUpdateError),
+    #[error("Python candidate source digest does not match the provider file")]
+    CandidateSourceMismatch,
+    #[error("Python candidate input plan does not match the provider file")]
+    CandidatePlanMismatch,
 }
 
 #[cfg(test)]

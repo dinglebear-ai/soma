@@ -302,6 +302,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add atomic activation of immutable Python provider environments:
+  `ProviderRegistry::activate_python_candidate` revalidates a prepared
+  candidate against the current provider source and cache before swapping it
+  in, and refuses the swap if the registry changed underneath
+  (`provider_candidate_activation_raced`). Provider fingerprints now cover the
+  active Python environment generation, so a candidate swap is detected without
+  reloading unrelated providers.
 - Add an embedded, dependency-free `soma_provider.tool` helper for plain Python
   providers. Decorated functions can supply the complete JSON-compatible
   `ToolSpec` overlay without installing a Python package, while legacy

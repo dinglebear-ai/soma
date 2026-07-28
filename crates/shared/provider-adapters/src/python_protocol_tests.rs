@@ -448,11 +448,10 @@ fn framed_codec_rejects_incomplete_oversized_and_malformed_frames() {
 
 #[test]
 fn shared_python_golden_fixtures_decode_as_rust_protocol_types() {
-    let fixtures: Value =
-        serde_json::from_str(include_str!(
+    let fixtures: Value = serde_json::from_str(include_str!(
         "../../../../packages/python/tests/runner_protocol_v1.json"
     ))
-            .expect("shared runner fixture JSON");
+    .expect("shared runner fixture JSON");
 
     let hello: PythonRunnerHello =
         serde_json::from_value(fixtures["hello"].clone()).expect("hello fixture");
