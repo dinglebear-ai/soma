@@ -263,7 +263,7 @@ fn build_monitor_report(
         serde_json::from_str(crate_json).context("failed to parse crates.io rmcp metadata")?;
     let releases: Vec<GithubRelease> =
         serde_json::from_str(releases_json).context("failed to parse GitHub release metadata")?;
-    let current = Version::parse(current_version)
+    let current = Version::parse(exact_version(current_version))
         .with_context(|| format!("invalid current rmcp version {current_version:?}"))?;
     let latest = latest_non_yanked_version(&metadata)?;
     let rmcp_drift = latest > current;
@@ -311,6 +311,20 @@ fn build_monitor_report(
         issue_title,
         issue_body,
     })
+}
+
+/// Strips the comparator from a cargo version requirement so it can be parsed
+/// as a concrete `Version`.
+///
+/// The workspace pins rmcp exactly (`rmcp = { version = "=3.0.0-beta.2" }`),
+/// and `detect_current_rmcp_version` returns that requirement verbatim.
+/// `semver::Version::parse` rejects the leading `=`, so the monitor could
+/// never read an exactly-pinned workspace.
+fn exact_version(requirement: &str) -> &str {
+    requirement
+        .trim()
+        .trim_start_matches(['=', '^', '~', 'v'])
+        .trim()
 }
 
 fn detect_current_rmcp_version(root: &Path) -> Result<String> {
