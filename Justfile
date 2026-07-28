@@ -102,7 +102,8 @@ watch:
 
 # Generate Rust coverage report (requires cargo-llvm-cov)
 test-cov:
-    cargo llvm-cov --html --workspace --all-features
+    mkdir -p target/llvm-cov/profiles
+    LLVM_PROFILE_FILE="target/llvm-cov/profiles/%p-%m.profraw" cargo llvm-cov --html --workspace --all-features
 
 # Report dependency updates without modifying Cargo.lock
 deps-check:
@@ -370,7 +371,7 @@ install-local: build-release
     install -m 755 target/release/synapse "${HOME}/.local/bin/synapse"
     @echo "Installed ${HOME}/.local/bin/synapse"
 
-# Validate all plugin manifests, MCP config, hooks, and skills
+# Validate all plugin manifests, MCP config, monitors, and skills
 validate-plugin:
     bash scripts/validate-plugin-layout.sh
 
