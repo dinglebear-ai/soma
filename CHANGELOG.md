@@ -326,10 +326,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Authorization-server metadata now advertises the grant types, client
   authentication methods, and signing algorithms that the configured machine
   clients and enterprise issuers actually enable.
-  The `token_client_auth` module is not yet called from the `/token` handler,
-  so none of it is reachable at runtime; the endpoint wiring and the RFC 7009
-  `/revoke` handler are tracked separately. `revocation_endpoint` is
-  deliberately omitted from metadata until that handler exists.
+  The RFC 7009 `/revoke` handler is still tracked separately, so
+  `revocation_endpoint` is deliberately omitted from metadata until it exists.
+- Wire `token_client_auth` into the `/token` handler, making OAuth 2.1 client
+  authentication and the machine grants reachable at runtime. The handler now
+  takes the request headers, folds RFC 6749 §2.3.1 HTTP Basic credentials into
+  the body parameters, and recovers `client_id` from a client assertion's
+  subject when the client sends none. `authorization_code` and `refresh_token`
+  authenticate the client before any grant-specific work, so a failed
+  authentication can never consume a single-use authorization code; public
+  clients (`token_endpoint_auth_method = "none"`) are unaffected.
+  `client_credentials` and `urn:ietf:params:oauth:grant-type:jwt-bearer` issue
+  machine tokens bounded by the machine client's configured scopes and
+  resources, with no refresh token (RFC 6749 §4.4.3). The JWT-bearer grant's
+  `assertion` is adopted as the client assertion and fully verified —
+  signature against the client's JWKS, audience, issuer/subject, expiry, and
+  single-use `jti` — rather than being ignored, so it can never degrade into a
+  bare alias for `client_credentials`. Ambiguous credentials (Basic *and* body
+  parameters, or two disagreeing assertions) are always rejected.
 - Add `SOMA_MCP_STATIC_TOKEN_WRITE` (default `false`): the static bearer token
   stays read-only (`soma:read`) unless the operator explicitly grants
   `soma:write`, applied through the single `build_auth_layer` call site so
