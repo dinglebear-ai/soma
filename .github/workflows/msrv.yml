@@ -84,8 +84,15 @@ jobs:
       - name: cargo check (MSRV)
         run: cargo check --all-targets --locked
 
+      # `--all-targets` overrides the per-target `test = false` in
+      # packages/python/Cargo.toml, so it would build a Rust test binary for
+      # the PyO3 extension and link `-lpython3.12`, which the runner image does
+      # not carry. `cargo check --all-targets` above still type-checks that
+      # crate at the MSRV; only the link step is skipped here.
       - name: cargo test --no-run (MSRV)
-        run: cargo test --no-run --all-targets --locked
+        run: >-
+          cargo test --no-run --all-targets --locked
+          --workspace --exclude soma-provider-python
 
   msrv-gate:
     name: MSRV Gate

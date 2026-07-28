@@ -28,9 +28,12 @@ class RunnerProtocolTests(unittest.TestCase):
                 self.assertEqual(decode_frame(frame), message)
 
     def test_unicode_is_utf8_and_non_finite_values_are_rejected(self):
-        message = {"status": "ok", "result": {"message": "こんにちは 👋"}}
+        # Escaped rather than literal so this file stays ASCII (the repo's
+        # asciicheck gate covers *.py); the runtime strings are identical.
+        greeting = "\u3053\u3093\u306b\u3061\u306f"  # "konnichiwa" in hiragana
+        message = {"status": "ok", "result": {"message": f"{greeting} \U0001f44b"}}
         frame = encode_frame(message)
-        self.assertIn("こんにちは".encode(), frame)
+        self.assertIn(greeting.encode(), frame)
         self.assertEqual(decode_frame(frame), message)
 
         for value in (math.nan, math.inf, -math.inf):
