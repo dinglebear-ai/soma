@@ -1,4 +1,4 @@
-use axum::extract::{Form, State};
+use axum::extract::{ConnectInfo, Form, State};
 use axum::{
     Json,
     http::{HeaderMap, HeaderValue, StatusCode, header},
@@ -7,6 +7,7 @@ use axum::{
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
+use std::net::SocketAddr;
 use subtle::ConstantTimeEq;
 use tracing::{info, warn};
 
@@ -17,14 +18,26 @@ use crate::token_client_auth;
 use crate::types::AuthorizationCodeRow;
 use crate::types::{RefreshTokenRow, TokenRequest, TokenResponse};
 use crate::util::{
-    duration_secs_usize, expires_at, fingerprint, now_unix, random_token, timestamp_usize,
+    duration_secs_usize, expires_at, fingerprint, now_unix, random_token, remote_ip,
+    timestamp_usize,
 };
 
 pub async fn token(
     State(state): State<AuthState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Form(mut request): Form<TokenRequest>,
 ) -> Response {
+    // Rate-limit before any parsing or client resolution. Client
+    // authentication now runs ahead of grant work, and for a CIMD-shaped
+    // `client_id` that means an outbound metadata fetch - reachable without a
+    // valid authorization code. Unlimited, that turns `/token` into both a
+    // self-DoS (queued 5s-timeout fetches) and an unauthenticated trigger for
+    // outbound requests to attacker-chosen hosts. `/authorize` and `/register`
+    // have always guarded this way; `/token` never called its own limiter.
+    if let Err(error) = state.check_token_rate_limit(remote_ip(addr)).await {
+        return TokenEndpointError::Auth(error).into_response();
+    }
     if let Err(error) = prepare_client_credentials(&headers, &mut request) {
         return TokenEndpointError::Auth(error).into_response();
     }
@@ -647,9 +660,21 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    use axum::Router;
+    use axum::extract::connect_info::MockConnectInfo;
+    use std::net::SocketAddr;
+
     use crate::config::MachineClientConfig;
     use crate::google::GoogleProvider;
-    use crate::routes::router;
+
+    // `oneshot` bypasses the live `into_make_service_with_connect_info` layer,
+    // so `/token`'s rate-limit `ConnectInfo<SocketAddr>` extractor would be
+    // missing and every request would 500. Wrap the real router with a mock
+    // peer address, matching the helper in `authorize.rs`.
+    fn router(state: AuthState) -> Router {
+        crate::routes::router(state)
+            .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 9002))))
+    }
     use crate::state::AuthState;
 
     use super::super::authorize::tests::{
@@ -2000,5 +2025,51 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
         assert_eq!(json["error"], "invalid_client");
+    }
+
+    /// `/token` must enforce its own rate limit. Client authentication runs
+    /// ahead of grant work, and for a CIMD-shaped `client_id` that triggers an
+    /// outbound metadata fetch - reachable with no valid authorization code.
+    /// Unlimited, that is both a self-DoS and an unauthenticated trigger for
+    /// outbound requests to attacker-chosen hosts. `check_token_rate_limit`
+    /// existed and was documented for this endpoint but had no caller.
+    #[tokio::test]
+    async fn token_endpoint_is_rate_limited_after_configured_burst() {
+        let mut config = test_auth_config();
+        config.token_requests_per_minute = 1;
+        let state = test_auth_state_with_config(config).await;
+        let app = router(state);
+
+        let body = "grant_type=authorization_code&code=nope&client_id=client\
+                    &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=v";
+
+        let first = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/token")
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        // The grant itself fails (no such code); what matters is that the
+        // request was admitted rather than throttled.
+        assert_ne!(first.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let second = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/token")
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 }

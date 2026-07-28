@@ -969,6 +969,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Rate-limit `POST /token`. `check_token_rate_limit` existed and was
+  documented as backing the endpoint but had no caller, so `/token` was the
+  only unauthenticated auth surface with no limiter. That became exploitable
+  once client authentication moved ahead of grant work: a CIMD-shaped
+  `client_id` triggers an outbound metadata fetch before any authorization
+  code is validated, so an attacker could force unbounded outbound HTTPS
+  requests to hosts of their choosing without credentials.
 - Fix the scheduled `rmcp release monitor` workflow, which had failed on every
   run with `Error: failed to parse GitHub release metadata`. The
   `setup-rust-soldr` action exports `CLICOLOR_FORCE=1` into `GITHUB_ENV`, so
