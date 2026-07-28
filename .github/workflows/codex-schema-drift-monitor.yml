@@ -139,12 +139,7 @@ jobs:
               --body-file codex-schema-drift-issue.md
           fi
 
-      # CLICOLOR_FORCE=0 is load-bearing, not cosmetic. The setup-rust-soldr
-      # action exports CLICOLOR_FORCE=1 into GITHUB_ENV, so every later step
-      # inherits it, and gh treats that as "force color on" even in command
-      # substitution - NO_COLOR does not override it. Without this the --jq
-      # output captured into `existing` carries ANSI escapes and the following
-      # `gh issue edit/comment/close "$existing"` gets a non-numeric argument.
+      # CLICOLOR_FORCE=0 is load-bearing here too - same reason as the step above.
       - name: Close resolved codex schema drift issue
         if: steps.drift.outputs.skipped == 'false' && steps.drift.outputs.in_sync == 'true'
         env:

@@ -102,6 +102,19 @@ fn empty_releases_payload_says_the_fetch_wrote_nothing() {
 }
 
 #[test]
+fn byte_order_mark_payload_is_identified_as_a_bom() {
+    // Every other branch of diagnose_json_payload has a regression test; this
+    // one covers the BOM branch so the diagnosis list stays evidence-backed
+    // rather than an untested grab bag.
+    let message = releases_error("\u{feff}[{\"tag_name\":\"rmcp-v3.0.0-beta.2\"}]");
+
+    assert!(
+        message.contains("byte-order mark"),
+        "error must identify a UTF-8 BOM: {message}"
+    );
+}
+
+#[test]
 fn html_error_page_payload_is_identified_as_html() {
     let message = releases_error("<!DOCTYPE html>\n<html><body>502 Bad Gateway</body></html>\n");
 
