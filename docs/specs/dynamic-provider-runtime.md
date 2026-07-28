@@ -150,12 +150,70 @@ the module. Private names are ignored. Function signatures are converted into
 JSON Schema for common Python annotations such as `str`, `int`, `float`, `bool`,
 `dict`, `list`, and typed lists.
 
+For explicit metadata, Soma embeds a dependency-free authoring helper into the
+sidecar before importing the provider:
+
+```python
+from soma_provider import tool
+
+@tool(
+    name="sum-values",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "a": {"type": "integer"},
+            "b": {"type": "integer"},
+        },
+        "required": ["a", "b"],
+        "additionalProperties": False,
+    },
+    cli={"aliases": ["sum"]},
+)
+def add(a, b):
+    return a + b
+```
+
+The module is registered as `soma_provider` without installation or
+`PYTHONPATH`. The decorator preserves function identity and records versioned
+JSON-compatible metadata. Explicit decorator values win over existing inference
+and adapter defaults. Explicit schemas avoid eager annotation resolution, while
+signature validation still rejects positional-only parameters. The resolved tool
+is validated against the canonical Rust manifest before registration.
+
+The Rust adapter and one-shot Python worker use a private schema-versioned NDJSON
+request/response envelope with a request ID and explicit `catalog`/`call` mode.
+Responses must match the request version, ID, and mode. Envelope capture has
+bounded headroom, and extracted payloads remain subject to their configured byte
+limits.
+
+A separate persistent-runner protocol seam is versioned independently from that
+compatibility envelope. Its dedicated control channel uses a four-byte
+big-endian length followed by bounded UTF-8 JSON. The worker initiates a
+major/minor handshake; matching majors negotiate the lower minor and the
+intersection of advertised features. Typed messages cover `describe`, `invoke`,
+`cancel`, `health`, `drain`, `shutdown`, brokered `host.*` calls, stable
+invocation states, and redacted error codes. Invocation envelopes carry the
+request and invocation IDs, deadline, trace, actor/scopes, cancellation token,
+and generation required for at-most-once dispatch. Rust and dependency-free
+Python codecs consume shared golden fixtures. This seam is not the active
+execution engine yet; the one-shot bridge remains in place until the supervisor
+phase lands.
+
 Python provider files are trusted code, not inert configuration. Soma imports
 the module to derive the catalog, so top-level Python runs during provider
 refresh. The sidecar starts with a cleared environment and receives only
 declared provider/tool env values during tool execution. Catalog import does
 not receive provider env; provider code must read secrets inside tool functions
-instead of at module import time.
+instead of at module import time. A cleared environment and bounded I/O do not
+make the sidecar an OS sandbox; Python code retains the filesystem, network, and
+process authority of the Soma service account. The request `snapshot_id` binds
+dispatch to catalog metadata but does not attest the Python file or its imported
+dependencies; source drift can execute at call time until the registry refreshes.
+
+A Python implementation graduates to WASM by preserving its provider manifest,
+schemas, action names, and surface overlays while replacing the implementation.
+Soma does not define arbitrary Python-to-WASM transpilation. See
+[ADR 0013](../adr/0013-python-provider-authoring-boundary.md).
 
 ### Python LangChain and LlamaIndex Providers
 

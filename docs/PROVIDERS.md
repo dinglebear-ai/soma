@@ -139,6 +139,68 @@ curl -sS -X POST http://127.0.0.1:40060/v1/tools/my_provider_action \
   -d '{"message":"hello"}'
 ```
 
+## Python Providers
+
+Plain `.py` providers can keep using a raw `PROVIDER` dictionary plus public
+functions. Soma also embeds a dependency-free `soma_provider` helper, so deployed
+providers need no package install or `PYTHONPATH` configuration. Python projects
+can optionally install the matching `soma-provider` package for development, IDE
+support, and unit tests; both modes expose the same import and metadata contract:
+
+```python
+from soma_provider import Context, provider, tool
+
+PROVIDER = provider(name="math-tools", kind="python")
+
+@tool(
+    name="sum-values",
+    title="Sum values",
+    input_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "a": {"type": "integer"},
+            "b": {"type": "integer"},
+        },
+        "required": ["a", "b"],
+    },
+    output_schema={"type": "integer"},
+    cli={"aliases": ["sum"]},
+    meta={"owner": "platform"},
+)
+def add(a: int, b: int, ctx: Context) -> int:
+    """Add two values. Context is supplied by Soma."""
+    return a + b
+```
+
+The decorator returns the original function. Explicit decorator fields win over
+function-name/docstring/annotation inference, which in turn wins over adapter
+defaults. A decorated `name` is the action used by catalog and dispatch. Explicit
+`input_schema` skips annotation resolution, while positional-only parameters remain
+invalid because JSON object keys are passed as keyword arguments. `cli` shallowly
+overlays the generated `{"enabled": true, "command": <name>}` value, and
+`meta.python.adapter` is reserved for the host.
+
+Decorator metadata maps to the existing provider tool contract: `name`,
+`description`, `title`, `input_schema`, `output_schema`, `scope`, `destructive`,
+`requires_admin`, `cost`, `env`, `limits`, `mcp`, `rest`, `cli`, `palette`, `ui`,
+`examples`, and `meta`. Rust validates the fully resolved manifest before the tool
+is registered. Legacy public-function discovery, explicit `TOOLS = []`, LangChain,
+and LlamaIndex providers remain unchanged.
+
+Use `provider(...)` to build a validated `PROVIDER` mapping. A parameter
+annotated as `soma_provider.Context` is omitted from the public input schema and
+injected during dispatch. Its immutable `request` carries the request ID,
+provider, action, surface, and snapshot. The current one-shot runner exposes
+explicit unavailable handles for HTTP, secrets, state, structured logging, and
+metrics until those calls are connected to the persistent capability broker.
+
+Python providers are trusted executable code. Environment clearing and bounded
+sidecar I/O are safety controls, not an OS sandbox; imported code retains the
+filesystem, network, and process authority of the Soma service account. See
+[ADR 0013](./adr/0013-python-provider-authoring-boundary.md) for the authoring and
+Python-to-WASM graduation boundary.
+
 ## MCP Providers
 
 `mcp` providers infer their transport from `meta.mcp`: `url` selects
@@ -202,5 +264,6 @@ including URI-matching precedence and ambiguity rules.
 
 ## Examples
 
-See `examples/providers/`, including `examples/providers/resources/` for the
-structured resources layout.
+See `examples/providers/`, including `examples/providers/python/` for minimal,
+decorated Context, async, Pydantic, LangChain, and LlamaIndex providers, plus
+`examples/providers/resources/` for the structured resources layout.

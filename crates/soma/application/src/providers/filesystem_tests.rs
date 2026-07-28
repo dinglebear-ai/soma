@@ -393,7 +393,11 @@ fn inspect_does_not_false_positive_on_manifests_that_omit_optional_fields() {
     assert_eq!(report.providers_invalid, 0);
 }
 
-fn tool_manifest(provider_name: &str, tool_name: &str, cli_command: Option<&str>) -> String {
+pub(super) fn tool_manifest(
+    provider_name: &str,
+    tool_name: &str,
+    cli_command: Option<&str>,
+) -> String {
     let cli = match cli_command {
         Some(command) => format!(r#", "cli": {{ "enabled": true, "command": "{command}" }}"#),
         None => String::new(),
@@ -670,27 +674,6 @@ fn fingerprint_ignores_wasm_binary_bytes_when_sidecar_manifest_exists() {
     assert_eq!(first, second);
 }
 
-#[test]
-fn fingerprint_changes_when_python_dependency_changes() {
-    let temp = tempdir().expect("tempdir");
-    let package = temp.path().join("helpers");
-    fs::create_dir(&package).expect("create helper package");
-    fs::write(package.join("__init__.py"), "").expect("write package init");
-    fs::write(package.join("schema.py"), "ACTION = 'first'\n").expect("write schema");
-    fs::write(
-        temp.path().join("entry.py"),
-        "from helpers.schema import ACTION\nPROVIDER = {'name': 'entry', 'kind': 'python'}\ndef tool():\n    return ACTION\n",
-    )
-    .expect("write provider entry");
-    let source = FileProviderSource::new(temp.path());
-
-    let first = source.fingerprint().expect("first fingerprint");
-    fs::write(package.join("schema.py"), "ACTION = 'second'\n").expect("rewrite schema");
-    let second = source.fingerprint().expect("second fingerprint");
-
-    assert_ne!(first, second);
-}
-
 fn manifest_bytes(name: &str) -> Vec<u8> {
     serde_json::to_vec(&json!({
         "schema_version": 1,
@@ -713,3 +696,7 @@ fn manifest_bytes(name: &str) -> Vec<u8> {
     }))
     .expect("manifest json")
 }
+
+#[cfg(unix)]
+#[path = "filesystem_environment_tests.rs"]
+mod environment_integration;

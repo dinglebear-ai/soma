@@ -1,13 +1,17 @@
 use std::{
     collections::BTreeSet,
-    fs,
+    fmt, fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use soma_domain::provider_validation::{validate_manifest_schema, validate_provider_manifest};
-use soma_provider_adapters::manifest_file;
+use soma_provider_adapters::{
+    manifest_file,
+    python::{PythonInterpreter, PythonProvider},
+};
 use soma_provider_core::{ProviderCatalog, ProviderKind};
 
 use crate::{
@@ -23,6 +27,8 @@ const PROVIDER_ENV_PREFIX: &str = "SOMA";
 
 #[path = "filesystem_prompts.rs"]
 mod filesystem_prompts;
+#[path = "filesystem_python.rs"]
+mod filesystem_python;
 #[path = "filesystem_resources.rs"]
 mod filesystem_resources;
 #[path = "filesystem_uniqueness.rs"]
@@ -30,10 +36,31 @@ mod filesystem_uniqueness;
 #[path = "filesystem_wasm.rs"]
 mod filesystem_wasm;
 
+use filesystem_python::{
+    collect_python_dependency_paths, fingerprint_python_environment, is_python_provider_source,
+};
+pub use filesystem_python::{
+    PythonProviderEnvironmentPreparer, PythonProviderEnvironmentSelections,
+};
+
 /// File-backed provider source rooted at a provider directory.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FileProviderSource {
     root: PathBuf,
+    python_environment_preparer: Option<Arc<dyn PythonProviderEnvironmentPreparer>>,
+}
+
+impl fmt::Debug for FileProviderSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FileProviderSource")
+            .field("root", &self.root)
+            .field(
+                "python_environment_preparer",
+                &self.python_environment_preparer.is_some(),
+            )
+            .finish()
+    }
 }
 
 /// Result of a non-executing inspection of a provider directory.
@@ -91,7 +118,20 @@ pub enum ProviderFileInspectionStatus {
 impl FileProviderSource {
     /// Creates a source rooted at `root`.
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self {
+            root: root.into(),
+            python_environment_preparer: None,
+        }
+    }
+
+    /// Configures immutable Python environment preparation for `.py`
+    /// candidates. Existing sources remain ambient unless this is called.
+    pub fn with_python_environment_preparer(
+        mut self,
+        preparer: Arc<dyn PythonProviderEnvironmentPreparer>,
+    ) -> Self {
+        self.python_environment_preparer = Some(preparer);
+        self
     }
 
     /// Returns the root provider directory.
@@ -275,13 +315,23 @@ impl FileProviderSource {
     /// Loads and builds every enabled provider (including resource-file
     /// providers) from the directory, ready for registration.
     pub fn load(&self) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
+        self.load_with_python_environments(&PythonProviderEnvironmentSelections::new())
+    }
+
+    /// Loads providers using the supplied immutable Python environment selections.
+    pub fn load_with_python_environments(
+        &self,
+        selections: &PythonProviderEnvironmentSelections,
+    ) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
+        self.validate_python_environment_selections(selections)?;
         let mut providers = Vec::new();
         for path in self.provider_paths()? {
-            let catalog = load_catalog(&path)?;
+            let interpreter = self.python_interpreter_with_environments(&path, selections)?;
+            let catalog = load_catalog_with_interpreter(&path, &interpreter)?;
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
-            providers.push(provider_for_catalog(path, catalog)?);
+            providers.push(provider_for_catalog(path, catalog, interpreter)?);
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
             let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
@@ -297,9 +347,21 @@ impl FileProviderSource {
     /// Computes a stable SHA-256 fingerprint over all provider inputs, used to
     /// detect changes to the provider directory.
     pub fn fingerprint(&self) -> Result<String, FileProviderLoadError> {
+        self.fingerprint_with_python_environments(&PythonProviderEnvironmentSelections::new())
+    }
+
+    /// Fingerprints provider inputs plus active Python environment generations.
+    pub fn fingerprint_with_python_environments(
+        &self,
+        selections: &PythonProviderEnvironmentSelections,
+    ) -> Result<String, FileProviderLoadError> {
+        self.validate_python_environment_selections(selections)?;
         let mut hasher = Sha256::new();
         for path in self.fingerprint_paths()? {
             fingerprint_file(&mut hasher, &self.root, &path)?;
+        }
+        for (path, candidate) in selections {
+            fingerprint_python_environment(&mut hasher, &self.root, path, candidate);
         }
         Ok(hasher
             .finalize()
@@ -422,70 +484,6 @@ fn collect_flat_files(
     Ok(())
 }
 
-fn collect_python_dependency_paths(
-    root: &Path,
-    paths: &mut BTreeSet<PathBuf>,
-) -> Result<(), FileProviderLoadError> {
-    if !root.exists() {
-        return Ok(());
-    }
-    collect_python_dependency_paths_inner(root, paths)
-}
-
-fn collect_python_dependency_paths_inner(
-    dir: &Path,
-    paths: &mut BTreeSet<PathBuf>,
-) -> Result<(), FileProviderLoadError> {
-    let entries = fs::read_dir(dir).map_err(|source| FileProviderLoadError {
-        path: dir.to_path_buf(),
-        message: format!("failed to read provider dependency directory: {source}"),
-    })?;
-    for entry in entries {
-        let entry = entry.map_err(|source| FileProviderLoadError {
-            path: dir.to_path_buf(),
-            message: format!("failed to read provider dependency directory entry: {source}"),
-        })?;
-        let path = entry.path();
-        if path.is_dir() {
-            if should_scan_dependency_dir(&path) {
-                collect_python_dependency_paths_inner(&path, paths)?;
-            }
-            continue;
-        }
-        if path.is_file() && is_python_dependency_file(&path) {
-            paths.insert(path);
-        }
-    }
-    Ok(())
-}
-
-fn should_scan_dependency_dir(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-        return false;
-    };
-    !matches!(
-        name,
-        "__pycache__"
-            | ".git"
-            | ".mypy_cache"
-            | ".pytest_cache"
-            | ".ruff_cache"
-            | ".venv"
-            | "venv"
-            | "node_modules"
-            | "target"
-            | "dist"
-            | "build"
-    )
-}
-
-fn is_python_dependency_file(path: &Path) -> bool {
-    matches!(
-        path.extension().and_then(|extension| extension.to_str()),
-        Some("py" | "pyi")
-    )
-}
-
 /// Error raised while reading, parsing, or building a file-backed provider.
 #[derive(Debug)]
 pub struct FileProviderLoadError {
@@ -524,8 +522,20 @@ impl std::error::Error for FileProviderLoadError {}
 fn provider_for_catalog(
     path: PathBuf,
     catalog: ProviderCatalog,
+    interpreter: PythonInterpreter,
 ) -> Result<std::sync::Arc<dyn Provider>, FileProviderLoadError> {
     let kind = catalog.provider.kind;
+    if matches!(
+        kind,
+        ProviderKind::Python | ProviderKind::Langchain | ProviderKind::Llamaindex
+    ) {
+        return Ok(SharedAdapter::wrap(PythonProvider::arc_with_interpreter(
+            path,
+            catalog,
+            PROVIDER_ENV_PREFIX,
+            interpreter,
+        )));
+    }
     manifest_file::build_provider(path.clone(), catalog, PROVIDER_ENV_PREFIX)
         .map(SharedAdapter::wrap)
         .ok_or_else(|| FileProviderLoadError {
@@ -567,10 +577,6 @@ fn is_wasm_sidecar_manifest(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.ends_with(".wasm.json"))
-}
-
-fn is_python_provider_source(path: &Path) -> bool {
-    path.extension().and_then(|extension| extension.to_str()) == Some("py")
 }
 
 /// Mirrors the schema-compilation pass `provider_registry::build_snapshot()`
@@ -616,6 +622,13 @@ fn fingerprint_file(
 }
 
 fn load_catalog(path: &Path) -> Result<ProviderCatalog, FileProviderLoadError> {
+    load_catalog_with_interpreter(path, &PythonInterpreter::Ambient)
+}
+
+fn load_catalog_with_interpreter(
+    path: &Path,
+    interpreter: &PythonInterpreter,
+) -> Result<ProviderCatalog, FileProviderLoadError> {
     let extension = path.extension().and_then(|extension| extension.to_str());
     let catalog = match extension {
         Some("json") | Some("ts") | Some("wasm") | Some("md") => {
@@ -633,12 +646,15 @@ fn load_catalog(path: &Path) -> Result<ProviderCatalog, FileProviderLoadError> {
             // `validate_provider_manifest(&provider.catalog())` call, so
             // this does not skip that policy, just defers it to the same
             // place every other kind already goes through.
-            soma_provider_adapters::python::load_python_catalog(path, PROVIDER_ENV_PREFIX).map_err(
-                |source| FileProviderLoadError {
-                    path: path.to_path_buf(),
-                    message: format!("invalid Python provider: {source}"),
-                },
-            )?
+            soma_provider_adapters::python::load_python_catalog_with_interpreter(
+                path,
+                PROVIDER_ENV_PREFIX,
+                interpreter,
+            )
+            .map_err(|source| FileProviderLoadError {
+                path: path.to_path_buf(),
+                message: format!("invalid Python provider: {source}"),
+            })?
         }
         _ => {
             return Err(FileProviderLoadError {

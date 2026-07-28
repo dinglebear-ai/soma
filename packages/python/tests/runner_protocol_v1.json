@@ -1,0 +1,48 @@
+{
+  "hello": {
+    "protocol": {"major": 1, "minor": 0},
+    "sdk_version": "0.1.0",
+    "python": {"implementation": "cpython", "version": "3.13.5"},
+    "features": ["describe", "invoke", "cancel", "health", "host-calls"]
+  },
+  "invoke": {
+    "method": "invoke",
+    "request_id": 42,
+    "invocation": {
+      "invocation_id": "invoke-42",
+      "provider": "demo",
+      "action": "lookup",
+      "arguments": {"query": "soma"},
+      "deadline_unix_ms": 1900000000000,
+      "trace": {
+        "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        "tracestate": "soma=test"
+      },
+      "actor": {"actor_id": "user-1", "scopes": ["tools:call"]},
+      "cancellation_token_id": "cancel-42",
+      "generation_id": "generation-3"
+    }
+  },
+  "host_progress": {
+    "method": "host.progress",
+    "request_id": 43,
+    "invocation_id": "invoke-42",
+    "current": 2,
+    "total": 3,
+    "message": "halfway"
+  },
+  "error_reply": {
+    "status": "error",
+    "request_id": 44,
+    "error": {
+      "code": "python_worker_crashed",
+      "phase": "invocation",
+      "provider": "demo",
+      "source": "/providers/demo.py",
+      "generation_id": "generation-3",
+      "action": "lookup",
+      "retryable": false,
+      "public_message": "Python worker exited during execution"
+    }
+  }
+}

@@ -30,6 +30,8 @@ pub mod ai_sdk;
 pub mod python;
 #[cfg(feature = "python")]
 mod python_bridge;
+#[cfg(feature = "python")]
+pub mod python_protocol;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;

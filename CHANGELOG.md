@@ -302,6 +302,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add atomic activation of immutable Python provider environments:
+  `ProviderRegistry::activate_python_candidate` revalidates a prepared
+  candidate against the current provider source and cache before swapping it
+  in, and refuses the swap if the registry changed underneath
+  (`provider_candidate_activation_raced`). Provider fingerprints now cover the
+  active Python environment generation, so a candidate swap is detected without
+  reloading unrelated providers.
+- Add an embedded, dependency-free `soma_provider.tool` helper for plain Python
+  providers. Decorated functions can supply the complete JSON-compatible
+  `ToolSpec` overlay without installing a Python package, while legacy
+  `PROVIDER`, `TOOLS`, and public-function discovery remain compatible.
+- Add a typed, schema-versioned NDJSON contract between the Rust Python adapter
+  and its one-shot worker. Catalog and call responses validate protocol version,
+  request ID, response mode, JSON framing, and bounded payload size before
+  entering canonical provider validation.
 - Add `SOMA_MCP_STATIC_TOKEN_WRITE` (default `false`): the static bearer token
   stays read-only (`soma:read`) unless the operator explicitly grants
   `soma:write`, applied through the single `build_auth_layer` call site so
@@ -325,6 +340,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Plain Python tool metadata now resolves explicit decorator values first,
+  existing annotation/docstring inference second, and host defaults last. CLI
+  metadata shallowly overlays the generated command, while
+  `meta.python.adapter` remains host-owned.
 - Migrate local JWT access-token signing from RSA/RS256 to EdDSA/Ed25519. On
   load, any pre-migration RSA key material is quarantined to
   `<key>.retired-<ts>` and never reused; a fresh Ed25519 key is generated in
@@ -349,6 +368,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Clarify that the Python sidecar and cleared environment provide failure
+  isolation and ambient-secret reduction, not a filesystem, network, or process
+  sandbox. Python providers remain trusted code; WASM is the contract-preserving
+  graduation path for stronger host control.
 - Consolidate the two at-rest ChaCha20-Poly1305 stacks behind a single shared
   AEAD core; inbound provider refresh tokens are now AAD-bound to their row
   identity via a new `enc2:` storage format (legacy `enc:` rows still decrypt;

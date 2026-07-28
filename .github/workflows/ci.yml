@@ -207,6 +207,18 @@ jobs:
       - name: Build stdio test binary
         run: cargo build --bin soma
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.31"
+          enable-cache: true
+
+      - name: Python provider SDK tests
+        run: just test-python
+
+      - name: Python provider package smoke test
+        run: just test-python-package
+
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
 

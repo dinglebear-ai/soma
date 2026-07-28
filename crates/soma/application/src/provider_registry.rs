@@ -2,6 +2,7 @@
 //! providers, builds catalog snapshots, and indexes resources and prompts.
 use std::{
     collections::{BTreeMap, HashMap},
+    path::Path,
     sync::{Arc, RwLock},
 };
 
@@ -9,14 +10,16 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use soma_domain::provider_validation::{validate_provider_manifest, ProviderValidationError};
+use soma_provider_adapters::python::materializer::PreparedPythonEnvironment;
 use soma_provider_core::{
     ProviderCall as CoreProviderCall, ProviderCatalog, ProviderRegistry as CoreRegistry,
     ProviderResource, RegistrySnapshot as CoreRegistrySnapshot,
 };
 
 use crate::{
-    capabilities::CapabilityBroker, provider_errors::ProviderError,
-    providers::filesystem::FileProviderSource,
+    capabilities::CapabilityBroker,
+    provider_errors::ProviderError,
+    providers::filesystem::{FileProviderSource, PythonProviderEnvironmentSelections},
 };
 
 mod enforcement;
@@ -328,6 +331,7 @@ struct RegistryState {
     core_registry: CoreRegistry,
     snapshot: Arc<RegistrySnapshot>,
     file_fingerprint: Option<String>,
+    python_environments: PythonProviderEnvironmentSelections,
 }
 
 impl ProviderRegistry {
@@ -349,6 +353,7 @@ impl ProviderRegistry {
                 core_registry,
                 snapshot,
                 file_fingerprint: None,
+                python_environments: PythonProviderEnvironmentSelections::new(),
             })),
             capabilities,
             base_providers: Arc::new(Vec::new()),
@@ -379,6 +384,7 @@ impl ProviderRegistry {
                 core_registry,
                 snapshot,
                 file_fingerprint: Some(file_fingerprint),
+                python_environments: PythonProviderEnvironmentSelections::new(),
             })),
             capabilities,
             base_providers,
@@ -408,34 +414,40 @@ impl ProviderRegistry {
         let Some(file_source) = &self.file_source else {
             return Ok(self.snapshot());
         };
-        let file_fingerprint = match file_source.fingerprint() {
-            Ok(fingerprint) => fingerprint,
-            Err(error) => {
-                return Ok(self.snapshot_after_refresh_failure(
-                    file_source,
-                    "provider_file_fingerprint_failed",
-                    &error.to_string(),
-                ));
-            }
-        };
-        {
+        let (baseline_fingerprint, active_environments) = {
             let state = self
                 .state
                 .read()
                 .expect("provider registry lock should not be poisoned");
-            if state.file_fingerprint.as_deref() == Some(file_fingerprint.as_str()) {
-                return Ok(state.snapshot.clone());
-            }
+            (
+                state.file_fingerprint.clone(),
+                state.python_environments.clone(),
+            )
+        };
+        let file_fingerprint =
+            match file_source.fingerprint_with_python_environments(&active_environments) {
+                Ok(fingerprint) => fingerprint,
+                Err(error) => {
+                    return Ok(self.snapshot_after_refresh_failure(
+                        file_source,
+                        "provider_file_fingerprint_failed",
+                        &error.to_string(),
+                    ));
+                }
+            };
+        if baseline_fingerprint.as_deref() == Some(file_fingerprint.as_str()) {
+            return Ok(self.snapshot());
         }
 
         let rebuilt: Result<_, ProviderValidationError> = (|| {
-            let dynamic_providers = file_source.load().map_err(|error| {
-                ProviderValidationError::new("provider_file_load_failed", error.to_string())
-            })?;
+            let dynamic_providers = file_source
+                .load_with_python_environments(&active_environments)
+                .map_err(|error| {
+                    ProviderValidationError::new("provider_file_load_failed", error.to_string())
+                })?;
             let mut providers = self.base_providers.iter().cloned().collect::<Vec<_>>();
             providers.extend(dynamic_providers);
-            let (providers, core_registry, snapshot) = build_registry(providers)?;
-            Ok((providers, core_registry, snapshot))
+            build_registry(providers)
         })();
         let (providers, core_registry, snapshot) = match rebuilt {
             Ok(parts) => parts,
@@ -452,17 +464,98 @@ impl ProviderRegistry {
             .state
             .write()
             .expect("provider registry lock should not be poisoned");
-        if state.snapshot.fingerprint == snapshot.fingerprint {
+        if state.file_fingerprint != baseline_fingerprint
+            || state.python_environments != active_environments
+        {
             return Ok(state.snapshot.clone());
         }
         let previous = state.snapshot.clone();
-        let event = ProviderRefreshEvent::new(&previous, &snapshot);
+        let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
         state.providers = providers;
         state.core_registry = core_registry;
-        state.snapshot = snapshot.clone();
+        if public_catalog_changed {
+            state.snapshot = snapshot.clone();
+        }
         state.file_fingerprint = Some(file_fingerprint);
-        event.log(file_source.root());
-        Ok(snapshot)
+        state.python_environments = active_environments;
+        if public_catalog_changed {
+            ProviderRefreshEvent::new(&previous, &snapshot).log(file_source.root());
+        }
+        Ok(state.snapshot.clone())
+    }
+
+    /// Validates and atomically activates one immutable Python environment candidate.
+    pub fn activate_python_candidate(
+        &self,
+        provider_path: &Path,
+        candidate: PreparedPythonEnvironment,
+    ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
+        let file_source = self.file_source.as_ref().ok_or_else(|| {
+            ProviderValidationError::new(
+                "provider_file_source_unavailable",
+                "Python candidates require a file-backed provider registry",
+            )
+        })?;
+        let provider_path = file_source
+            .resolve_python_provider_path(provider_path)
+            .map_err(|error| {
+                ProviderValidationError::new("provider_candidate_path_invalid", error.to_string())
+            })?;
+        let (baseline_fingerprint, baseline_environments) = {
+            let state = self
+                .state
+                .read()
+                .expect("provider registry lock should not be poisoned");
+            (
+                state.file_fingerprint.clone(),
+                state.python_environments.clone(),
+            )
+        };
+        let mut next_environments = baseline_environments.clone();
+        next_environments.insert(provider_path, candidate);
+
+        let dynamic_providers = file_source
+            .load_with_python_environments(&next_environments)
+            .map_err(|error| {
+                ProviderValidationError::new(
+                    "provider_candidate_validation_failed",
+                    error.to_string(),
+                )
+            })?;
+        let file_fingerprint = file_source
+            .fingerprint_with_python_environments(&next_environments)
+            .map_err(|error| {
+                ProviderValidationError::new("provider_file_fingerprint_failed", error.to_string())
+            })?;
+        let mut providers = self.base_providers.iter().cloned().collect::<Vec<_>>();
+        providers.extend(dynamic_providers);
+        let (providers, core_registry, snapshot) = build_registry(providers)?;
+
+        let mut state = self
+            .state
+            .write()
+            .expect("provider registry lock should not be poisoned");
+        if state.file_fingerprint != baseline_fingerprint
+            || state.python_environments != baseline_environments
+        {
+            return Err(ProviderValidationError::new(
+                "provider_candidate_activation_raced",
+                "provider registry changed while the candidate was being validated",
+            ));
+        }
+        let previous = state.snapshot.clone();
+        let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
+        state.providers = providers;
+        state.core_registry = core_registry;
+        if public_catalog_changed {
+            state.snapshot = snapshot.clone();
+        }
+        state.file_fingerprint = Some(file_fingerprint);
+        state.python_environments = next_environments;
+        if public_catalog_changed {
+            ProviderRefreshEvent::new(&previous, &snapshot).log(file_source.root());
+        }
+        Ok(state.snapshot.clone())
     }
 
     fn snapshot_after_refresh_failure(
@@ -505,6 +598,7 @@ impl ProviderRegistry {
         state.core_registry = core_registry;
         state.snapshot = snapshot.clone();
         state.file_fingerprint = None;
+        state.python_environments.clear();
         Ok(snapshot)
     }
 

@@ -1,0 +1,20 @@
+[package]
+name = "soma-provider-python"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.96"
+authors.workspace = true
+description = "Private PyO3 acceleration and validation bindings for soma-provider"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+publish = false
+
+[lib]
+name = "_soma_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3.workspace = true
+serde_json = "1"
+soma-provider-core.workspace = true

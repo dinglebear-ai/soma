@@ -1,7 +1,12 @@
-use serde_json::json;
-use soma_provider_core::{ProviderCall, ProviderSurface};
+use std::path::PathBuf;
 
-use super::python_execution_payload;
+use crate::python_protocol::PYTHON_PROTOCOL_HEADROOM_BYTES;
+
+use super::{
+    environment::{PythonRuntimeFingerprint, PythonWheelTag},
+    materializer::PreparedPythonEnvironment,
+    protocol_output_limit, select_python_command, PythonInterpreter,
+};
 
 #[test]
 fn default_python_command_matches_platform_launcher() {
@@ -10,27 +15,77 @@ fn default_python_command_matches_platform_launcher() {
 
     #[cfg(not(windows))]
     assert_eq!(super::default_python_command(), "python3");
+
+    assert_eq!(
+        select_python_command(None, None, &PythonInterpreter::Ambient),
+        super::default_python_command()
+    );
 }
 
 #[test]
-fn python_sidecar_payload_preserves_execution_envelope_fields() {
-    let mut call =
-        ProviderCall::new("lookup", json!({"query": "status"})).with_surface(ProviderSurface::Cli);
-    call.provider = "demo-python".to_owned();
-    call.snapshot_id = "sha256:test-snapshot".to_owned();
+fn prepared_interpreter_uses_materialized_python() {
+    let python = PathBuf::from("cache")
+        .join(".venv")
+        .join("bin")
+        .join("python");
+    let environment = PreparedPythonEnvironment {
+        key: "environment-key".to_owned(),
+        directory: PathBuf::from("cache"),
+        python: python.clone(),
+        lockfile: PathBuf::from("cache").join("uv.lock"),
+        plan_version: 2,
+        dependency_count: 0,
+        runtime: PythonRuntimeFingerprint::new(
+            "cpython",
+            "3.12.4",
+            "linux-x86_64",
+            "manylinux_2_17_x86_64",
+        )
+        .unwrap(),
+        sdk_wheel_tag: PythonWheelTag {
+            python: "cp311".to_owned(),
+            abi: "abi3".to_owned(),
+            platform: "manylinux_2_17_x86_64".to_owned(),
+        },
+        sdk_wheel_sha256: "a".repeat(64),
+        uv_version: "0.11.31".to_owned(),
+        lock_sha256: "b".repeat(64),
+        provider_source_sha256: None,
+        input_plan_key: None,
+    };
 
-    let env = vec![("SOMA_DEMO_SECRET".to_owned(), "redacted".to_owned())];
-    let bytes = python_execution_payload(std::path::Path::new("/tmp/demo.py"), &call, &env)
-        .expect("payload should serialize");
-    let payload: serde_json::Value = serde_json::from_slice(&bytes).expect("payload JSON");
+    let interpreter = PythonInterpreter::prepared(&environment);
 
-    assert_eq!(payload["mode"], "call");
-    assert_eq!(payload["path"], "/tmp/demo.py");
-    assert_eq!(payload["env_keys"], json!(["SOMA_DEMO_SECRET"]));
-    assert_eq!(payload["schema_version"], 1);
-    assert_eq!(payload["provider"], "demo-python");
-    assert_eq!(payload["action"], "lookup");
-    assert_eq!(payload["params"], json!({"query": "status"}));
-    assert_eq!(payload["surface"], "cli");
-    assert_eq!(payload["snapshot_id"], "sha256:test-snapshot");
+    assert_eq!(interpreter, PythonInterpreter::Prepared(python.clone()));
+    assert_eq!(
+        select_python_command(None, None, &interpreter),
+        python.to_string_lossy()
+    );
+}
+
+#[test]
+fn configured_commands_override_prepared_interpreter() {
+    let interpreter = PythonInterpreter::Prepared(PathBuf::from("prepared-python"));
+
+    assert_eq!(
+        select_python_command(
+            Some("manifest-python"),
+            Some("environment-python".to_owned()),
+            &interpreter,
+        ),
+        "manifest-python"
+    );
+    assert_eq!(
+        select_python_command(None, Some("environment-python".to_owned()), &interpreter),
+        "environment-python"
+    );
+}
+
+#[test]
+fn protocol_capture_limit_adds_bounded_headroom() {
+    assert_eq!(
+        protocol_output_limit(256 * 1024),
+        256 * 1024 + PYTHON_PROTOCOL_HEADROOM_BYTES
+    );
+    assert_eq!(protocol_output_limit(usize::MAX), usize::MAX);
 }

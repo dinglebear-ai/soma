@@ -1,0 +1,40 @@
+[build-system]
+requires = ["maturin>=1.14,<2"]
+build-backend = "maturin"
+
+[project]
+name = "soma-provider"
+version = "0.2.0"
+description = "Dependency-free authoring helpers with private Rust validation bindings for Soma providers"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Dinglebear AI" }]
+keywords = ["soma", "providers", "mcp", "tools"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Rust",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[dependency-groups]
+dev = ["maturin==1.14.1"]
+
+[project.urls]
+Homepage = "https://soma.dinglebear.ai"
+Repository = "https://github.com/dinglebear-ai/soma"
+Documentation = "https://github.com/dinglebear-ai/soma/blob/main/docs/PROVIDERS.md"
+
+[tool.maturin]
+bindings = "pyo3"
+module-name = "soma_provider._soma_native"
+python-source = "python"
+features = ["pyo3/extension-module"]

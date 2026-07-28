@@ -10,6 +10,10 @@ SOMA_PROVIDER_DIR=./examples/providers soma providers list
 The examples are intentionally outside the default `./providers` directory so
 local development does not load sample actions by accident.
 
+Python authoring examples live in `python/`: minimal, decorated Context,
+async, Pydantic, LangChain, and LlamaIndex providers. Files with third-party
+dependencies include PEP 723 metadata for the future uv environment manager.
+
 Markdown files in this directory are exposed as MCP prompts. For example,
 `code-review.md` appears as the `code-review` prompt.
 
