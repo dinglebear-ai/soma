@@ -15,14 +15,15 @@ use tokio::sync::Mutex;
 use tower::ServiceExt;
 
 #[cfg(feature = "oauth")]
-use futures::future::BoxFuture;
+use mcp_client::oauth::{UpstreamOAuthManager, UpstreamOAuthRuntime};
+
 #[cfg(feature = "oauth")]
-use mcp_client::{
-    oauth::{
-        BeginAuthorization, UpstreamOAuthCredentialStatus, UpstreamOAuthError,
-        UpstreamOAuthHttpClient, UpstreamOAuthManager, UpstreamOAuthProvider, UpstreamOAuthRuntime,
-    },
-    upstream::http_body_cap::BodyCappedHttpClient,
+#[path = "http_tests_oauth_stubs.rs"]
+mod oauth_stubs;
+
+#[cfg(feature = "oauth")]
+use oauth_stubs::{
+    FakeOAuthManager, FakeOAuthProvider, RecordedAuthorizationCallback, RecordingOAuthManager,
 };
 
 use super::router;
@@ -261,72 +262,6 @@ async fn upstream_oauth_state_is_shared_by_gateway_actions_and_protected_proxy()
 }
 
 #[cfg(feature = "oauth")]
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct RecordedAuthorizationCallback {
-    subject: String,
-    code: String,
-    state: String,
-    issuer: Option<String>,
-}
-
-#[cfg(feature = "oauth")]
-struct RecordingOAuthManager {
-    callbacks: Arc<Mutex<Vec<RecordedAuthorizationCallback>>>,
-}
-
-#[cfg(feature = "oauth")]
-impl UpstreamOAuthManager for RecordingOAuthManager {
-    fn begin_authorization<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<BeginAuthorization, UpstreamOAuthError>> {
-        Box::pin(async { Err(UpstreamOAuthError::internal("unused by callback test")) })
-    }
-
-    fn complete_authorization<'a>(
-        &'a self,
-        subject: &'a str,
-        code: &'a str,
-        state: &'a str,
-        issuer: Option<&'a str>,
-    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
-        Box::pin(async move {
-            self.callbacks
-                .lock()
-                .await
-                .push(RecordedAuthorizationCallback {
-                    subject: subject.to_owned(),
-                    code: code.to_owned(),
-                    state: state.to_owned(),
-                    issuer: issuer.map(str::to_owned),
-                });
-            Ok(())
-        })
-    }
-
-    fn credential_status<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<Option<UpstreamOAuthCredentialStatus>, UpstreamOAuthError>> {
-        Box::pin(async { Ok(None) })
-    }
-
-    fn clear_credentials<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
-        Box::pin(async { Ok(()) })
-    }
-
-    fn access_token<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<String, UpstreamOAuthError>> {
-        Box::pin(async { Err(UpstreamOAuthError::internal("unused by callback test")) })
-    }
-}
-
-#[cfg(feature = "oauth")]
 fn upstream_oauth_gateway_config() -> GatewayConfig {
     let mut config =
         protected_gateway_config(Some("https://upstream.example/mcp".to_owned()), None);
@@ -521,78 +456,6 @@ async fn upstream_oauth_callback_forwards_code_state_and_rfc9207_issuer() {
             issuer: Some("https://issuer.example".to_owned()),
         }]
     );
-}
-
-#[cfg(feature = "oauth")]
-struct FakeOAuthProvider;
-
-#[cfg(feature = "oauth")]
-impl UpstreamOAuthProvider for FakeOAuthProvider {
-    fn authenticated_http_client<'a>(
-        &'a self,
-        _upstream: &'a mcp_client::config::UpstreamConfig,
-        _subject: &'a str,
-        _http_client: BodyCappedHttpClient,
-    ) -> BoxFuture<'a, Result<UpstreamOAuthHttpClient, UpstreamOAuthError>> {
-        Box::pin(async {
-            Err(UpstreamOAuthError::internal(
-                "unused by protected proxy test",
-            ))
-        })
-    }
-}
-
-#[cfg(feature = "oauth")]
-struct FakeOAuthManager;
-
-#[cfg(feature = "oauth")]
-impl UpstreamOAuthManager for FakeOAuthManager {
-    fn begin_authorization<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<BeginAuthorization, UpstreamOAuthError>> {
-        Box::pin(async {
-            Err(UpstreamOAuthError::internal(
-                "unused by protected proxy test",
-            ))
-        })
-    }
-
-    fn complete_authorization<'a>(
-        &'a self,
-        _subject: &'a str,
-        _code: &'a str,
-        _state: &'a str,
-        _issuer: Option<&'a str>,
-    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
-        Box::pin(async { Ok(()) })
-    }
-
-    fn credential_status<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<Option<UpstreamOAuthCredentialStatus>, UpstreamOAuthError>> {
-        Box::pin(async {
-            Ok(Some(UpstreamOAuthCredentialStatus {
-                access_token_expires_at: 4_102_444_800,
-                refresh_token_present: true,
-            }))
-        })
-    }
-
-    fn clear_credentials<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
-        Box::pin(async { Ok(()) })
-    }
-
-    fn access_token<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<String, UpstreamOAuthError>> {
-        Box::pin(async { Ok("oauth-token".to_owned()) })
-    }
 }
 
 #[tokio::test]

@@ -37,6 +37,14 @@ pub mod sqlite;
 pub mod state;
 #[cfg(feature = "http-axum")]
 pub mod token;
+// OAuth 2.1 client authentication (client_secret_basic / private_key_jwt) and
+// the client-credentials + jwt-bearer machine grants. Fully implemented and
+// unit-tested, but not yet called from `token::token` — the token endpoint
+// integration is tracked separately. `allow(dead_code)` keeps the finished
+// module in tree, compiled and tested, until that wiring lands.
+#[cfg(feature = "http-axum")]
+#[allow(dead_code)]
+mod token_client_auth;
 pub mod types;
 #[cfg(feature = "upstream-oauth-rmcp")]
 pub mod upstream;

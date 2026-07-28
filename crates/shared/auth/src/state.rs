@@ -174,6 +174,7 @@ pub struct AuthState {
     allowed_resource_scopes: Arc<RwLock<BTreeMap<String, BTreeSet<String>>>>,
     authorize_limiter: PerIpRateLimiter,
     register_limiter: PerIpRateLimiter,
+    token_limiter: PerIpRateLimiter,
     /// Single-flight, TTL-cached OAuth Client ID Metadata Document store for
     /// `/authorize`'s CIMD path (`crate::cimd`). Gated behind `http-axum`
     /// alongside `crate::cimd` itself, even though `AuthState` (this struct)
@@ -252,6 +253,7 @@ impl AuthState {
 
         let authorize_limiter = PerIpRateLimiter::new(config.authorize_requests_per_minute);
         let register_limiter = PerIpRateLimiter::new(config.register_requests_per_minute);
+        let token_limiter = PerIpRateLimiter::new(config.token_requests_per_minute);
         let default_provider = config.default_provider.clone();
         Ok(Self {
             config: Arc::new(config),
@@ -262,6 +264,7 @@ impl AuthState {
             allowed_resource_scopes: Arc::new(RwLock::new(BTreeMap::new())),
             authorize_limiter,
             register_limiter,
+            token_limiter,
             #[cfg(feature = "http-axum")]
             cimd_cache: Arc::new(crate::cimd::document::DocumentCache::new()),
         })
@@ -353,6 +356,31 @@ impl AuthState {
         }
     }
 
+    /// Rate-limit guard shared by `/token` and `/revoke`.
+    pub async fn check_token_rate_limit(&self, ip: IpAddr) -> Result<(), AuthError> {
+        if self.token_limiter.try_acquire(ip).await {
+            Ok(())
+        } else {
+            Err(AuthError::RateLimited {
+                message: "token endpoint rate limit exceeded".to_string(),
+                retry_after_ms: RATE_LIMIT_RETRY_AFTER_MS,
+            })
+        }
+    }
+
+    /// Consume a JWT assertion identifier exactly once.
+    pub async fn consume_assertion_jti(
+        &self,
+        issuer: &str,
+        jti: &str,
+        issued_at: i64,
+        expires_at: i64,
+    ) -> Result<bool, AuthError> {
+        self.store
+            .consume_assertion_jti(issuer, jti, issued_at, expires_at, crate::util::now_unix())
+            .await
+    }
+
     /// Returns the merged email allowlist: admin first, then all `allowed_users` rows,
     /// deduplicating case-insensitively so admin is never counted twice.
     ///
@@ -414,6 +442,7 @@ impl AuthState {
     ) -> Self {
         let authorize_limiter = PerIpRateLimiter::new(config.authorize_requests_per_minute);
         let register_limiter = PerIpRateLimiter::new(config.register_requests_per_minute);
+        let token_limiter = PerIpRateLimiter::new(config.token_requests_per_minute);
         let default_provider = config.default_provider.clone();
         Self {
             config: Arc::new(config),
@@ -424,6 +453,7 @@ impl AuthState {
             allowed_resource_scopes: Arc::new(RwLock::new(BTreeMap::new())),
             authorize_limiter,
             register_limiter,
+            token_limiter,
             #[cfg(feature = "http-axum")]
             cimd_cache: Arc::new(crate::cimd::document::DocumentCache::new()),
         }

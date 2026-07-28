@@ -57,6 +57,7 @@ impl TokenEndpointError {
     fn oauth_error(&self) -> &'static str {
         match self {
             Self::Auth(AuthError::InvalidGrant(_)) => "invalid_grant",
+            Self::Auth(AuthError::InvalidScope(_)) => "invalid_scope",
             Self::UnsupportedGrantType(_) => "unsupported_grant_type",
             Self::Auth(AuthError::AuthFailed(_) | AuthError::InvalidAccessToken) => {
                 "invalid_client"
@@ -83,7 +84,9 @@ impl TokenEndpointError {
 
     fn status(&self) -> StatusCode {
         match self {
-            Self::Auth(AuthError::InvalidGrant(_) | AuthError::Validation(_))
+            Self::Auth(
+                AuthError::InvalidGrant(_) | AuthError::InvalidScope(_) | AuthError::Validation(_),
+            )
             | Self::UnsupportedGrantType(_) => StatusCode::BAD_REQUEST,
             Self::Auth(AuthError::AuthFailed(_) | AuthError::InvalidAccessToken) => {
                 StatusCode::UNAUTHORIZED
@@ -1436,6 +1439,8 @@ mod tests {
                 client_id: "client".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                 created_at: crate::util::now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             })
             .await
             .unwrap();

@@ -16,6 +16,12 @@ use crate::types::{
     UpstreamOauthCredentialRow, UpstreamOauthDynamicClientRow, UpstreamOauthStateRow,
 };
 
+#[path = "sqlite_assertions.rs"]
+mod sqlite_assertions;
+#[path = "sqlite_migrations.rs"]
+mod sqlite_migrations;
+
+use sqlite_migrations::{add_column_if_missing, run_migrations};
 #[path = "sqlite_rows.rs"]
 mod sqlite_rows;
 use sqlite_rows::{
@@ -27,7 +33,7 @@ use sqlite_rows::{
 const UPSTREAM_OAUTH_STATE_MAX_TTL_SECS: i64 = 600;
 /// Schema version for the `PRAGMA user_version` migration guard.
 /// Increment this whenever a migration step is added to `run_migrations`.
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 use crate::util::{
     ensure_restrictive_permissions, fingerprint, now_unix, set_restrictive_permissions,
@@ -113,13 +119,28 @@ impl SqliteStore {
         self.with_conn(move |conn| {
             let redirect_uris = serde_json::to_string(&client.redirect_uris)
                 .map_err(|error| AuthError::Storage(format!("serialize redirect_uris: {error}")))?;
+            let jwks = client
+                .jwks
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|error| AuthError::Storage(format!("serialize client jwks: {error}")))?;
             conn.execute(
-                "INSERT INTO registered_clients (client_id, redirect_uris, created_at)
-                 VALUES (?1, ?2, ?3)
+                "INSERT INTO registered_clients (
+                    client_id, redirect_uris, created_at, token_endpoint_auth_method, jwks
+                 ) VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT(client_id) DO UPDATE SET
                     redirect_uris = excluded.redirect_uris,
-                    created_at = excluded.created_at",
-                params![client.client_id, redirect_uris, client.created_at],
+                    created_at = excluded.created_at,
+                    token_endpoint_auth_method = excluded.token_endpoint_auth_method,
+                    jwks = excluded.jwks",
+                params![
+                    client.client_id,
+                    redirect_uris,
+                    client.created_at,
+                    client.token_endpoint_auth_method,
+                    jwks,
+                ],
             )
             .map_err(sqlite_error)?;
             Ok(())
@@ -134,7 +155,7 @@ impl SqliteStore {
         let client_id = client_id.to_string();
         self.with_conn(move |conn| {
             conn.query_row(
-                "SELECT client_id, redirect_uris, created_at
+                "SELECT client_id, redirect_uris, created_at, token_endpoint_auth_method, jwks
                  FROM registered_clients
                  WHERE client_id = ?1",
                 params![client_id],
@@ -147,10 +168,23 @@ impl SqliteStore {
                             Box::new(error),
                         )
                     })?;
+                    let jwks: Option<String> = row.get(4)?;
+                    let jwks = jwks
+                        .map(|value| serde_json::from_str(&value))
+                        .transpose()
+                        .map_err(|error| {
+                            rusqlite::Error::FromSqlConversionFailure(
+                                4,
+                                rusqlite::types::Type::Text,
+                                Box::new(error),
+                            )
+                        })?;
                     Ok(RegisteredClient {
                         client_id: row.get(0)?,
                         redirect_uris,
                         created_at: row.get(2)?,
+                        token_endpoint_auth_method: row.get(3)?,
+                        jwks,
                     })
                 },
             )
@@ -1242,7 +1276,9 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
         "CREATE TABLE IF NOT EXISTS registered_clients (
             client_id TEXT PRIMARY KEY,
             redirect_uris TEXT NOT NULL,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+            jwks TEXT
         );
         CREATE TABLE IF NOT EXISTS authorization_requests (
             state TEXT PRIMARY KEY,
@@ -1342,9 +1378,24 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
             email       TEXT PRIMARY KEY NOT NULL,
             added_by    TEXT NOT NULL,
             created_at  INTEGER NOT NULL
-        );",
+        );
+        CREATE TABLE IF NOT EXISTS assertion_jtis (
+            issuer TEXT NOT NULL,
+            jti TEXT NOT NULL,
+            expires_at INTEGER NOT NULL,
+            PRIMARY KEY (issuer, jti)
+        );
+        CREATE INDEX IF NOT EXISTS idx_assertion_jtis_expiry
+            ON assertion_jtis(expires_at);",
     )
     .map_err(sqlite_error)?;
+    add_column_if_missing(
+        &conn,
+        "registered_clients",
+        "token_endpoint_auth_method",
+        "TEXT NOT NULL DEFAULT 'none'",
+    )?;
+    add_column_if_missing(&conn, "registered_clients", "jwks", "TEXT")?;
     add_column_if_missing(
         &conn,
         "authorization_requests",
@@ -1398,132 +1449,6 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
     Ok(conn)
 }
 
-/// One-time migrations keyed by `PRAGMA user_version`.
-///
-/// Migration 0 → 1: add `refresh_token_hash` to the `refresh_tokens` table
-/// (if the table was created with the old `refresh_token TEXT PRIMARY KEY`
-/// schema) and backfill SHA-256 hashes for any plaintext rows that pre-date
-/// this change.  New databases created with the v1 schema already have
-/// `refresh_token_hash` as the PK, so the `ALTER TABLE` step is a no-op in
-/// that case.
-fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
-    let current_version: i64 = conn
-        .query_row("PRAGMA user_version;", [], |row| row.get(0))
-        .map_err(sqlite_error)?;
-
-    if current_version < 1 {
-        // Step 1: add `refresh_token_hash` column if missing (pre-v1 DBs have
-        // `refresh_token TEXT PRIMARY KEY` and no hash column).
-        let cols: Vec<String> = {
-            let mut stmt = conn
-                .prepare("PRAGMA table_info(refresh_tokens);")
-                .map_err(sqlite_error)?;
-            stmt.query_map([], |row| row.get::<_, String>(1))
-                .map_err(sqlite_error)?
-                .collect::<rusqlite::Result<Vec<_>>>()
-                .map_err(sqlite_error)?
-        };
-
-        if !cols.iter().any(|c| c == "refresh_token_hash") {
-            // Old schema: add the column and back-fill SHA-256 hashes.
-            conn.execute_batch("ALTER TABLE refresh_tokens ADD COLUMN refresh_token_hash TEXT;")
-                .map_err(sqlite_error)?;
-
-            // Back-fill: hash existing plaintext `refresh_token` values.  We
-            // can only do this in a SQL-only migration when the hash is
-            // computed outside SQLite; instead load all rows, compute hashes
-            // in Rust, and update.
-            let rows: Vec<(String,)> = {
-                let mut stmt = conn
-                    .prepare("SELECT refresh_token FROM refresh_tokens WHERE refresh_token_hash IS NULL;")
-                    .map_err(sqlite_error)?;
-                stmt.query_map([], |row| Ok((row.get::<_, String>(0)?,)))
-                    .map_err(sqlite_error)?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-                    .map_err(sqlite_error)?
-            };
-            for (plaintext,) in rows {
-                let hash = hash_token(&plaintext);
-                conn.execute(
-                    "UPDATE refresh_tokens SET refresh_token_hash = ?1 WHERE refresh_token = ?2 AND refresh_token_hash IS NULL;",
-                    params![hash, plaintext],
-                )
-                .map_err(sqlite_error)?;
-            }
-
-            warn!(
-                "migration v1: added refresh_token_hash column and backfilled existing rows — old plaintext tokens invalidated on next rotation"
-            );
-        }
-
-        // Ensure a UNIQUE index exists on refresh_token_hash so that
-        // ON CONFLICT(refresh_token_hash) works correctly on pre-existing
-        // databases where the column was added by ALTER TABLE (not declared as
-        // PRIMARY KEY).  On new databases the column is already PRIMARY KEY so
-        // this index is redundant but harmless.
-        conn.execute_batch(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_refresh_tokens_hash \
-             ON refresh_tokens(refresh_token_hash);",
-        )
-        .map_err(sqlite_error)?;
-
-        conn.execute_batch("PRAGMA user_version = 1;")
-            .map_err(sqlite_error)?;
-    }
-
-    if current_version < 2 {
-        // Step 2: add `dynamic_client_id` column to `upstream_oauth_state`.
-        // This column binds the OAuth client_id used to begin a specific
-        // authorization flow to the CSRF state row so that concurrent
-        // `begin_authorization` calls for the same upstream+subject can each
-        // complete their own callback with the correct client_id (lab-77y5.15).
-        add_column_if_missing(conn, "upstream_oauth_state", "dynamic_client_id", "TEXT")?;
-
-        conn.execute_batch("PRAGMA user_version = 2;")
-            .map_err(sqlite_error)?;
-    }
-
-    if current_version < 3 {
-        // Bind durable OAuth state to the authorization-server issuer (SEP-2352)
-        // and preserve RFC 9207 callback requirements across restarts. Legacy
-        // empty-issuer rows intentionally force a fresh authorization flow.
-        add_column_if_missing(
-            conn,
-            "upstream_oauth_credentials",
-            "issuer",
-            "TEXT NOT NULL DEFAULT ''",
-        )?;
-        add_column_if_missing(
-            conn,
-            "upstream_oauth_dynamic_clients",
-            "issuer",
-            "TEXT NOT NULL DEFAULT ''",
-        )?;
-        add_column_if_missing(conn, "upstream_oauth_state", "expected_issuer", "TEXT")?;
-        add_column_if_missing(
-            conn,
-            "upstream_oauth_state",
-            "require_issuer",
-            "INTEGER NOT NULL DEFAULT 0",
-        )?;
-        add_column_if_missing(
-            conn,
-            "upstream_oauth_state",
-            "requested_scopes_json",
-            "TEXT NOT NULL DEFAULT '[]'",
-        )?;
-        conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
-            .map_err(sqlite_error)?;
-    }
-
-    Ok(())
-}
-
-/// Compute a hex-encoded SHA-256 digest of a token for safe storage.
-///
-/// The raw token (24+ bytes of random entropy) has sufficient pre-image
-/// resistance for SHA-256 to be appropriate here — Argon2 would add
-/// per-request latency without a meaningful security benefit.
 /// AAD binding an encrypted `provider_refresh_token` to its row identity.
 ///
 /// The refresh-token hash is the table's primary key and is derivable at
@@ -1563,32 +1488,6 @@ fn validate_or_reopen_connection(conn: &mut Connection, path: &Path) -> Result<(
 #[allow(clippy::needless_pass_by_value)]
 fn sqlite_error(error: rusqlite::Error) -> AuthError {
     AuthError::Storage(format!("sqlite error: {error}"))
-}
-
-fn add_column_if_missing(
-    conn: &Connection,
-    table: &str,
-    column: &str,
-    definition: &str,
-) -> Result<(), AuthError> {
-    let mut stmt = conn
-        .prepare(&format!("PRAGMA table_info({table})"))
-        .map_err(sqlite_error)?;
-    let exists = stmt
-        .query_map([], |row| row.get::<_, String>(1))
-        .map_err(sqlite_error)?
-        .collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(sqlite_error)?
-        .iter()
-        .any(|name| name == column);
-    if !exists {
-        conn.execute(
-            &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
-            [],
-        )
-        .map_err(sqlite_error)?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

@@ -69,6 +69,8 @@ pub async fn register_client(
         client_id: random_token(18)?,
         redirect_uris: request.redirect_uris,
         created_at: now_unix(),
+        token_endpoint_auth_method: "none".to_string(),
+        jwks: None,
     };
     state.store.register_client(client.clone()).await?;
     info!(
@@ -143,7 +145,9 @@ impl RegistrationError {
     fn status(&self) -> StatusCode {
         match self {
             Self::InvalidRedirectUri(_) | Self::InvalidClientMetadata(_) => StatusCode::BAD_REQUEST,
-            Self::Auth(AuthError::InvalidGrant(_)) => StatusCode::BAD_REQUEST,
+            Self::Auth(AuthError::InvalidGrant(_) | AuthError::InvalidScope(_)) => {
+                StatusCode::BAD_REQUEST
+            }
             Self::Auth(AuthError::AuthFailed(_) | AuthError::InvalidAccessToken) => {
                 StatusCode::UNAUTHORIZED
             }
@@ -251,6 +255,33 @@ pub(crate) fn allowed_uris_from_cimd_document(
         ));
     }
     Ok(allowed)
+}
+
+/// Resolve complete client authentication metadata from DCR or CIMD.
+// Consumed by `token_client_auth` once the token endpoint wiring lands.
+#[allow(dead_code)]
+pub(crate) async fn resolve_client(
+    state: &AuthState,
+    client_id: &str,
+) -> Result<Option<RegisteredClient>, AuthError> {
+    if crate::cimd::document::is_cimd_client_id(client_id) {
+        let document =
+            crate::cimd::document::fetch_and_validate_client_metadata(&state.cimd_cache, client_id)
+                .await
+                .map_err(|_| {
+                    AuthError::Validation(
+                        "client_id metadata document is invalid or unreachable".to_string(),
+                    )
+                })?;
+        return Ok(Some(RegisteredClient {
+            client_id: document.client_id,
+            redirect_uris: document.redirect_uris,
+            created_at: 0,
+            token_endpoint_auth_method: document.token_endpoint_auth_method,
+            jwks: document.jwks,
+        }));
+    }
+    state.store.find_client(client_id).await
 }
 
 /// Resolve the set of trusted `redirect_uris` for `client_id`, either via

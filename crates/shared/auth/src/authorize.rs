@@ -639,7 +639,11 @@ pub(crate) fn elevate_scope_for_allowed_user(scope: &str, default_scope: &str) -
     scopes.join(" ")
 }
 
-fn validate_scope(state: &AuthState, resource: &str, scope: &str) -> Result<String, AuthError> {
+pub(crate) fn validate_scope(
+    state: &AuthState,
+    resource: &str,
+    scope: &str,
+) -> Result<String, AuthError> {
     let canonical = crate::metadata::canonical_resource_url(state);
     let supported = if resource.trim_end_matches('/') == canonical {
         state.config.scopes_supported.clone()
@@ -799,6 +803,8 @@ pub mod tests {
                 "http://127.0.0.1:3000/callback".to_string(),
                 "https://attacker.evil/steal-code".to_string(),
             ],
+            token_endpoint_auth_method: "none".to_string(),
+            jwks: None,
         };
         let allowed = allowed_uris_from_cimd_document(
             &document,
@@ -819,6 +825,8 @@ pub mod tests {
             client_id: "https://app.example.com/client.json".to_string(),
             client_name: "Example".to_string(),
             redirect_uris: vec!["https://attacker.evil/steal-code".to_string()],
+            token_endpoint_auth_method: "none".to_string(),
+            jwks: None,
         };
         let err = allowed_uris_from_cimd_document(
             &document,
@@ -1528,6 +1536,8 @@ pub mod tests {
                 client_id: "client".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                 created_at: now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             })
             .await
             .unwrap();
@@ -1705,6 +1715,8 @@ pub mod tests {
                 client_id: "client".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                 created_at: now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             })
             .await
             .unwrap();
@@ -1811,6 +1823,8 @@ pub mod tests {
                 client_id: "client".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                 created_at: now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             })
             .await
             .unwrap();
@@ -2090,6 +2104,8 @@ pub mod tests {
                 client_id: "client".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                 created_at: now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             })
             .await
             .unwrap();
@@ -2164,6 +2180,8 @@ pub mod tests {
                 client_id: "native-client".to_string(),
                 redirect_uris: vec![native_callback_endpoint.clone()],
                 created_at: now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             })
             .await
             .unwrap();
@@ -2460,6 +2478,8 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     client_id: "client".to_string(),
                     redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                     created_at: now_unix(),
+                    token_endpoint_auth_method: "none".to_string(),
+                    jwks: None,
                 })
                 .await
                 .unwrap();
@@ -2622,6 +2642,8 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     client_id: "client".to_string(),
                     redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                     created_at: now_unix(),
+                    token_endpoint_auth_method: "none".to_string(),
+                    jwks: None,
                 })
                 .await
                 .unwrap();
@@ -2848,6 +2870,8 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                 client_id: "client".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
                 created_at: now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             })
             .await
             .unwrap();
