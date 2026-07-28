@@ -202,6 +202,10 @@ pub struct AuthorizationRequestRow {
     pub code_challenge_method: String,
     pub created_at: i64,
     pub expires_at: i64,
+    /// The client's `token_endpoint_auth_method` as resolved at `/authorize`,
+    /// carried forward onto the authorization code this request becomes.
+    /// See [`AuthorizationCodeRow::token_endpoint_auth_method`].
+    pub token_endpoint_auth_method: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -218,6 +222,19 @@ pub struct AuthorizationCodeRow {
     pub provider_refresh_token: Option<String>,
     pub created_at: i64,
     pub expires_at: i64,
+    /// The `token_endpoint_auth_method` this grant was issued under, recorded
+    /// when `/authorize` resolved the client.
+    ///
+    /// This is the *contract* of the grant, not a live view of the client: a
+    /// client that later changes its declared method does not retroactively
+    /// change grants that were already issued under the old one.
+    ///
+    /// `None` means "unknown" — either a row written before schema v5, or a
+    /// client that could not be resolved at issuance time. `/token` then
+    /// resolves the client exactly as it did before this field existed. It
+    /// deliberately does **not** mean `"none"`: defaulting an unknown row to
+    /// public would silently downgrade a confidential client.
+    pub token_endpoint_auth_method: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,6 +248,11 @@ pub struct RefreshTokenRow {
     pub provider_refresh_token: Option<String>,
     pub created_at: i64,
     pub expires_at: i64,
+    /// The `token_endpoint_auth_method` this grant was issued under, inherited
+    /// from the authorization code that minted it and preserved across every
+    /// refresh and rotation. See
+    /// [`AuthorizationCodeRow::token_endpoint_auth_method`].
+    pub token_endpoint_auth_method: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

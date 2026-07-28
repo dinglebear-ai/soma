@@ -700,6 +700,68 @@ mod tests {
         assert_eq!(err.kind(), "invalid_client_metadata");
     }
 
+    /// `/token` only knows how to authenticate `none` and `private_key_jwt`
+    /// clients. A document declaring anything else — `client_secret_basic` is
+    /// the obvious one, since it is the RFC 7591 default and what a client
+    /// author would reach for — must be rejected here, at validation, with a
+    /// message naming the field.
+    ///
+    /// The alternative failure mode is the one worth guarding against: if such
+    /// a document were accepted, the client would register successfully, then
+    /// fail every `/token` exchange with a bare `invalid_client` and no clue
+    /// which field was at fault. Nothing produces such a client today — the
+    /// only other writer of `token_endpoint_auth_method`, dynamic client
+    /// registration, hardcodes `"none"` — and this test is what keeps that
+    /// true.
+    #[tokio::test]
+    async fn fetch_via_pinned_address_rejects_an_unsupported_token_endpoint_auth_method() {
+        let server = MockServer::start().await;
+        let addr = *server.address();
+        let url = format!("{}/client.json", server.uri());
+        Mock::given(method("GET"))
+            .and(path("/client.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "client_id": url,
+                "client_name": "Example",
+                "redirect_uris": ["http://127.0.0.1:3000/callback"],
+                "token_endpoint_auth_method": "client_secret_basic",
+            })))
+            .mount(&server)
+            .await;
+
+        let err = fetch_via_pinned_address(&url, addr).await.unwrap_err();
+        let CimdError::InvalidDocument(message) = &err else {
+            panic!("expected an invalid-document rejection, got {err:?}");
+        };
+        assert_eq!(message, "unsupported token_endpoint_auth_method");
+        assert_eq!(err.kind(), "invalid_client_metadata");
+    }
+
+    /// A document that omits the field entirely is a public client — the
+    /// default that makes the CIMD flow work at all. Pinned alongside the
+    /// rejection above so the two cannot drift apart.
+    #[tokio::test]
+    async fn fetch_via_pinned_address_defaults_a_missing_auth_method_to_public() {
+        let server = MockServer::start().await;
+        let addr = *server.address();
+        let url = format!("{}/client.json", server.uri());
+        Mock::given(method("GET"))
+            .and(path("/client.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "client_id": url,
+                "client_name": "Example",
+                "redirect_uris": ["http://127.0.0.1:3000/callback"],
+            })))
+            .mount(&server)
+            .await;
+
+        let document = fetch_via_pinned_address(&url, addr)
+            .await
+            .expect("fetch ok");
+        assert_eq!(document.token_endpoint_auth_method, "none");
+        assert!(document.jwks.is_none());
+    }
+
     #[tokio::test]
     async fn fetch_via_pinned_address_rejects_non_success_status() {
         let server = MockServer::start().await;

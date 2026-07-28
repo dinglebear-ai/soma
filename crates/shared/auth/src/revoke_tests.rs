@@ -77,6 +77,7 @@ async fn seed_refresh_token(state: &AuthState, refresh_token: &str, client_id: &
             provider_refresh_token: None,
             created_at: now_unix(),
             expires_at: now_unix() + 3600,
+            token_endpoint_auth_method: None,
         })
         .await
         .unwrap();

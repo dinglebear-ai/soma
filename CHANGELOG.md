@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+* **auth:** stop a public client's token refreshes from depending on its own
+  metadata host. Wiring client authentication into `/token` made every
+  `authorization_code` and `refresh_token` exchange re-resolve the client,
+  which for a Client ID Metadata Document (CIMD) `client_id` is a live HTTPS
+  fetch — so a valid, unrevoked refresh token failed for as long as the
+  client's metadata host was unreachable, repeating until it recovered. The
+  `token_endpoint_auth_method` a grant was issued under is now recorded on the
+  authorization request, the authorization code, and the refresh token (schema
+  v5), and `/token` reads it from the grant instead. Public (`none`) clients
+  authenticate with no network call at all, while still being rejected if they
+  present a `client_secret` or `client_assertion`. `private_key_jwt` clients
+  are unchanged and still resolve, so their JWKS is always read fresh. The new
+  column is nullable: grants issued before the migration record `NULL`, which
+  means "unknown" and resolves the client exactly as before — never `"none"`,
+  which would downgrade a confidential client.
+
 ### Security
 
 * **auth:** drop the `rsa` crate from the shipped `soma-auth` dependency graph.

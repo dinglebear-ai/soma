@@ -33,7 +33,7 @@ use sqlite_rows::{
 const UPSTREAM_OAUTH_STATE_MAX_TTL_SECS: i64 = 600;
 /// Schema version for the `PRAGMA user_version` migration guard.
 /// Increment this whenever a migration step is added to `run_migrations`.
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 use crate::util::{
     ensure_restrictive_permissions, fingerprint, now_unix, set_restrictive_permissions,
@@ -202,8 +202,9 @@ impl SqliteStore {
             conn.execute(
                 "INSERT INTO authorization_requests (
                     state, client_id, redirect_uri, client_state, resource, scope, provider_code_verifier,
-                    code_challenge, code_challenge_method, created_at, expires_at, provider
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    code_challenge, code_challenge_method, created_at, expires_at, provider,
+                    token_endpoint_auth_method
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     request.state,
                     request.client_id,
@@ -217,6 +218,7 @@ impl SqliteStore {
                     request.created_at,
                     request.expires_at,
                     request.provider,
+                    request.token_endpoint_auth_method,
                 ],
             )
             .map_err(sqlite_error)?;
@@ -237,7 +239,8 @@ impl SqliteStore {
                  WHERE state = ?1
                    AND expires_at > ?2
                  RETURNING state, client_id, redirect_uri, client_state, scope, provider_code_verifier,
-                           code_challenge, code_challenge_method, created_at, expires_at, resource, provider",
+                           code_challenge, code_challenge_method, created_at, expires_at, resource, provider,
+                           token_endpoint_auth_method",
                 params![state, now],
                 row_to_authorization_request,
             )
@@ -257,8 +260,8 @@ impl SqliteStore {
                 "INSERT INTO authorization_codes (
                     code, client_id, subject, redirect_uri, resource, scope,
                     code_challenge, code_challenge_method, provider_refresh_token,
-                    created_at, expires_at, provider
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    created_at, expires_at, provider, token_endpoint_auth_method
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     code.code,
                     code.client_id,
@@ -272,6 +275,7 @@ impl SqliteStore {
                     code.created_at,
                     code.expires_at,
                     code.provider,
+                    code.token_endpoint_auth_method,
                 ],
             )
             .map_err(sqlite_error)?;
@@ -290,7 +294,8 @@ impl SqliteStore {
                    AND expires_at > ?2
                  RETURNING code, client_id, subject, redirect_uri, scope,
                            code_challenge, code_challenge_method, provider_refresh_token,
-                           created_at, expires_at, resource, provider",
+                           created_at, expires_at, resource, provider,
+                           token_endpoint_auth_method",
                 params![code, now],
                 row_to_authorization_code,
             )
@@ -322,8 +327,9 @@ impl SqliteStore {
             conn.execute(
                 "INSERT INTO refresh_tokens (
                     refresh_token_hash, client_id, subject, resource, scope,
-                    provider_refresh_token, created_at, expires_at, provider
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                    provider_refresh_token, created_at, expires_at, provider,
+                    token_endpoint_auth_method
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
                  ON CONFLICT(refresh_token_hash) DO UPDATE SET
                     client_id = excluded.client_id,
                     subject = excluded.subject,
@@ -332,7 +338,8 @@ impl SqliteStore {
                     provider_refresh_token = excluded.provider_refresh_token,
                     created_at = excluded.created_at,
                     expires_at = excluded.expires_at,
-                    provider = excluded.provider",
+                    provider = excluded.provider,
+                    token_endpoint_auth_method = excluded.token_endpoint_auth_method",
                 params![
                     hash,
                     token.client_id,
@@ -343,6 +350,7 @@ impl SqliteStore {
                     token.created_at,
                     token.expires_at,
                     token.provider,
+                    token.token_endpoint_auth_method,
                 ],
             )
             .map_err(sqlite_error)?;
@@ -407,8 +415,9 @@ impl SqliteStore {
                 .execute(
                     "INSERT INTO refresh_tokens (
                     refresh_token_hash, client_id, subject, resource, scope,
-                    provider_refresh_token, created_at, expires_at, provider
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    provider_refresh_token, created_at, expires_at, provider,
+                    token_endpoint_auth_method
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                     params![
                         new_hash,
                         new_token.client_id,
@@ -419,6 +428,7 @@ impl SqliteStore {
                         new_token.created_at,
                         new_token.expires_at,
                         new_token.provider,
+                        new_token.token_endpoint_auth_method,
                     ],
                 )
                 .map_err(sqlite_error);
@@ -451,7 +461,8 @@ impl SqliteStore {
             let row = conn
                 .query_row(
                     "SELECT client_id, subject, scope,
-                        provider_refresh_token, created_at, expires_at, resource, provider
+                        provider_refresh_token, created_at, expires_at, resource, provider,
+                        token_endpoint_auth_method
                  FROM refresh_tokens
                  WHERE refresh_token_hash = ?1
                    AND expires_at > ?2",
@@ -467,6 +478,7 @@ impl SqliteStore {
                             expires_at: row.get(5)?,
                             resource: row.get(6).unwrap_or_default(),
                             provider: row.get(7)?,
+                            token_endpoint_auth_method: row.get(8)?,
                         })
                     },
                 )
@@ -492,6 +504,55 @@ impl SqliteStore {
                 }
                 None => Ok(None),
             }
+        })
+        .await
+    }
+
+    /// Read the `token_endpoint_auth_method` recorded on an unredeemed
+    /// authorization code, without consuming it.
+    ///
+    /// `Ok(None)` covers both "no such code" and a row written before schema
+    /// v5 recorded the method — callers must treat it as "unknown", never as
+    /// `"none"`.
+    pub async fn auth_code_client_auth_method(
+        &self,
+        code: &str,
+    ) -> Result<Option<String>, AuthError> {
+        self.client_auth_method(
+            "SELECT token_endpoint_auth_method FROM authorization_codes WHERE code = ?1",
+            code.to_string(),
+        )
+        .await
+    }
+
+    /// Read the `token_endpoint_auth_method` recorded on a refresh token.
+    ///
+    /// Same `Ok(None)` semantics as [`Self::auth_code_client_auth_method`].
+    pub async fn refresh_token_client_auth_method(
+        &self,
+        refresh_token: &str,
+    ) -> Result<Option<String>, AuthError> {
+        self.client_auth_method(
+            "SELECT token_endpoint_auth_method FROM refresh_tokens \
+             WHERE refresh_token_hash = ?1",
+            hash_token(refresh_token),
+        )
+        .await
+    }
+
+    /// Shared single-column lookup behind the two accessors above. The outer
+    /// `Option` (row present?) and the inner one (column non-NULL?) collapse
+    /// into one because both mean "resolve the client the way we always did".
+    async fn client_auth_method(
+        &self,
+        sql: &'static str,
+        key: String,
+    ) -> Result<Option<String>, AuthError> {
+        self.with_conn(move |conn| {
+            conn.query_row(sql, params![key], |row| row.get::<_, Option<String>>(0))
+                .optional()
+                .map(Option::flatten)
+                .map_err(sqlite_error)
         })
         .await
     }
@@ -1292,7 +1353,8 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
             code_challenge TEXT NOT NULL,
             code_challenge_method TEXT NOT NULL,
             created_at INTEGER NOT NULL,
-            expires_at INTEGER NOT NULL
+            expires_at INTEGER NOT NULL,
+            token_endpoint_auth_method TEXT
         );
         CREATE TABLE IF NOT EXISTS authorization_codes (
             code TEXT PRIMARY KEY,
@@ -1306,7 +1368,8 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
             code_challenge_method TEXT NOT NULL,
             provider_refresh_token TEXT,
             created_at INTEGER NOT NULL,
-            expires_at INTEGER NOT NULL
+            expires_at INTEGER NOT NULL,
+            token_endpoint_auth_method TEXT
         );
         CREATE TABLE IF NOT EXISTS refresh_tokens (
             refresh_token_hash TEXT PRIMARY KEY,
@@ -1317,7 +1380,8 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
             provider TEXT NOT NULL DEFAULT 'google',
             provider_refresh_token TEXT,
             created_at INTEGER NOT NULL,
-            expires_at INTEGER NOT NULL
+            expires_at INTEGER NOT NULL,
+            token_endpoint_auth_method TEXT
         );
         CREATE TABLE IF NOT EXISTS browser_sessions (
             session_id TEXT PRIMARY KEY,
