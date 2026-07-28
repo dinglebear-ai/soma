@@ -11,6 +11,13 @@ use walkdir::WalkDir;
 const MARKER: &str = "<!-- rmcp-release-monitor -->";
 const DEFAULT_MAX_BODY_BYTES: usize = 60_000;
 
+/// Bytes of an unparseable JSON payload echoed back in the error message.
+///
+/// Enough to identify what the fetch actually wrote - an ANSI escape run, an
+/// HTML error page, a GitHub API error object - without dumping a multi-hundred
+/// kilobyte payload into the CI log.
+const JSON_PREVIEW_BYTES: usize = 200;
+
 #[derive(Debug)]
 struct MonitorReport {
     drift: bool,
@@ -259,10 +266,12 @@ fn build_monitor_report(
     conformance: Option<&ConformanceMonitorInput>,
     max_body_bytes: usize,
 ) -> Result<MonitorReport> {
-    let metadata: CratesIoResponse =
-        serde_json::from_str(crate_json).context("failed to parse crates.io rmcp metadata")?;
-    let releases: Vec<GithubRelease> =
-        serde_json::from_str(releases_json).context("failed to parse GitHub release metadata")?;
+    let metadata: CratesIoResponse = serde_json::from_str(crate_json).with_context(|| {
+        json_parse_context("crates.io rmcp metadata (--crate-json)", crate_json)
+    })?;
+    let releases: Vec<GithubRelease> = serde_json::from_str(releases_json).with_context(|| {
+        json_parse_context("GitHub release metadata (--releases-json)", releases_json)
+    })?;
     let current = Version::parse(exact_version(current_version))
         .with_context(|| format!("invalid current rmcp version {current_version:?}"))?;
     let latest = latest_non_yanked_version(&metadata)?;
@@ -311,6 +320,72 @@ fn build_monitor_report(
         issue_title,
         issue_body,
     })
+}
+
+/// Builds the `anyhow` context for a failed `serde_json` parse of a fetched
+/// payload.
+///
+/// A bare serde message ("expected value at line 1 column 1") throws away the
+/// only evidence that matters: what the fetch actually wrote. The scheduled
+/// monitor failed opaquely for weeks because of it - the real payload was
+/// ANSI-colorized JSON, which is indistinguishable from "empty file" or "API
+/// error object" once the bytes are discarded. Report the size, a diagnosis
+/// when the payload has a recognizable shape, and an escaped head.
+fn json_parse_context(label: &str, payload: &str) -> String {
+    let mut message = format!("failed to parse {label}; {} bytes", payload.len());
+    if let Some(diagnosis) = diagnose_json_payload(payload) {
+        message.push_str("; ");
+        message.push_str(diagnosis);
+    }
+    message.push_str("; payload head: ");
+    message.push_str(&escaped_head(payload, JSON_PREVIEW_BYTES));
+    message
+}
+
+/// Recognizes the payload shapes that actually show up when a JSON fetch goes
+/// wrong in CI, and names the fix.
+fn diagnose_json_payload(payload: &str) -> Option<&'static str> {
+    if payload.starts_with('\u{feff}') {
+        return Some("payload starts with a UTF-8 byte-order mark");
+    }
+    let trimmed = payload.trim_start();
+    if trimmed.is_empty() {
+        return Some("payload is empty - the upstream fetch wrote nothing");
+    }
+    if trimmed.contains("\"message\"") && trimmed.contains("\"documentation_url\"") {
+        return Some(
+            "payload looks like a GitHub API error object - check the token, its permissions, \
+             and the rate limit",
+        );
+    }
+    match trimmed.chars().next()? {
+        '\u{1b}' => Some(
+            "payload starts with an ANSI escape - a CLI wrote colorized output instead of raw \
+             JSON. `gh` forces color when CLICOLOR_FORCE is set to anything but 0, even with \
+             stdout redirected to a file, and NO_COLOR does not override it; set \
+             CLICOLOR_FORCE=0 on the fetch step",
+        ),
+        '<' => Some("payload starts with '<' - this looks like HTML, not JSON"),
+        _ => None,
+    }
+}
+
+/// Renders the first `max_bytes` of `payload` as a quoted, escaped, pure-ASCII
+/// string so control characters (notably ESC) are visible in the CI log.
+fn escaped_head(payload: &str, max_bytes: usize) -> String {
+    let mut end = payload.len().min(max_bytes);
+    while !payload.is_char_boundary(end) {
+        end -= 1;
+    }
+    let escaped: String = payload[..end]
+        .chars()
+        .flat_map(char::escape_debug)
+        .collect();
+    if end < payload.len() {
+        format!("\"{escaped}\"...")
+    } else {
+        format!("\"{escaped}\"")
+    }
 }
 
 /// Strips the comparator from a cargo version requirement so it can be parsed
@@ -555,7 +630,11 @@ fn build_schema_report(input: &SchemaMonitorInput) -> Result<SchemaReport> {
     let commits = input
         .commits_json
         .as_deref()
-        .map(|json| serde_json::from_str(json).context("failed to parse MCP schema commit JSON"))
+        .map(|json| {
+            serde_json::from_str(json).with_context(|| {
+                json_parse_context("MCP schema commit JSON (--schema-commits-json)", json)
+            })
+        })
         .transpose()?
         .unwrap_or_default();
     let changed_terms = if drift {
@@ -589,16 +668,24 @@ fn build_schema_report(input: &SchemaMonitorInput) -> Result<SchemaReport> {
 }
 
 fn build_conformance_report(input: &ConformanceMonitorInput) -> Result<ConformanceReport> {
-    let head: ConformanceHead = serde_json::from_str(&input.head_json)
-        .context("failed to parse MCP conformance head JSON")?;
+    let head: ConformanceHead = serde_json::from_str(&input.head_json).with_context(|| {
+        json_parse_context(
+            "MCP conformance head JSON (--conformance-head-json)",
+            &input.head_json,
+        )
+    })?;
     let baseline_sha = input.baseline_sha.trim().to_owned();
     let drift = baseline_sha != head.sha;
     let compare = input
         .compare_json
         .as_deref()
         .map(|json| {
-            serde_json::from_str::<ConformanceCompare>(json)
-                .context("failed to parse MCP conformance compare JSON")
+            serde_json::from_str::<ConformanceCompare>(json).with_context(|| {
+                json_parse_context(
+                    "MCP conformance compare JSON (--conformance-compare-json)",
+                    json,
+                )
+            })
         })
         .transpose()?;
     let commits = compare
@@ -1226,6 +1313,13 @@ fn value_arg<'a>(args: &'a [String], index: usize, flag: &str) -> Result<&'a str
         .map(String::as_str)
         .with_context(|| format!("{flag} requires a value"))
 }
+
+/// The `_tests.rs` sibling is a real module, not just a file that satisfies
+/// `cargo xtask check-test-siblings`. It was previously unreferenced, so
+/// everything in it silently never ran.
+#[cfg(test)]
+#[path = "rmcp_release_monitor_tests.rs"]
+mod sibling_tests;
 
 #[cfg(test)]
 mod tests {
