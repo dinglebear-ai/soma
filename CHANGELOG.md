@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [Unreleased]
+
+### Security
+
+* **auth:** drop the `rsa` crate from the shipped `soma-auth` dependency graph.
+  It was a direct dependency but only ever used inside `#[cfg(test)]` modules
+  to mint throwaway RSA keypairs for the wiremock OIDC fixtures, so it moved to
+  `[dev-dependencies]`. This removes a release-candidate RSA implementation
+  (`0.10.0-rc.18`, flagged by RUSTSEC-2023-0071) from every released binary. No
+  runtime behaviour changes: RS256 verification of Google/Authelia ID tokens
+  still works, and token signing remains Ed25519/EdDSA. The remaining
+  `rsa 0.9.10` copy is transitive via `jsonwebtoken`'s `rust_crypto` backend and
+  is required for that RS256 verification; `deny.toml` now documents why the
+  advisory is not reachable (Soma holds no RSA private key, and the Marvin
+  timing attack targets private-key operations).
+
 ## [0.6.1](https://github.com/dinglebear-ai/soma/compare/v0.6.0...v0.6.1) (2026-07-26)
 
 
