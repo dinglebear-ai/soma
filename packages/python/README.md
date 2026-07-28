@@ -57,4 +57,6 @@ module for provider-core manifest validation and an SDK/native version check.
 and installs the wheel in isolation. Persistent workers and publication to PyPI
 remain separate milestones. Replacing
 a Python implementation with WASM should preserve the provider contract rather
-than attempt to transpile arbitrary Python code.
+than attempt to transpile arbitrary Python code. The canonical delivery status
+and remaining milestones live in
+[`docs/specs/python-provider-platform.md`](../../docs/specs/python-provider-platform.md).

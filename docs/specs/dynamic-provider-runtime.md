@@ -213,7 +213,9 @@ dependencies; source drift can execute at call time until the registry refreshes
 A Python implementation graduates to WASM by preserving its provider manifest,
 schemas, action names, and surface overlays while replacing the implementation.
 Soma does not define arbitrary Python-to-WASM transpilation. See
-[ADR 0013](../adr/0013-python-provider-authoring-boundary.md).
+[ADR 0013](../adr/0013-python-provider-authoring-boundary.md). Delivery status,
+remaining phases, and completion gates are tracked in the
+[Python Provider Platform Plan](python-provider-platform.md).
 
 ### Python LangChain and LlamaIndex Providers
 
