@@ -38,7 +38,7 @@ pub async fn token(
     if let Err(error) = state.check_token_rate_limit(remote_ip(addr)).await {
         return TokenEndpointError::Auth(error).into_response();
     }
-    if let Err(error) = prepare_client_credentials(&headers, &mut request) {
+    if let Err(error) = token_client_auth::normalize_client_credentials(&headers, &mut request) {
         return TokenEndpointError::Auth(error).into_response();
     }
     info!(
@@ -54,31 +54,6 @@ pub async fn token(
     }
 }
 
-/// Normalize inbound client credentials so every grant sees one shape.
-///
-/// Folds RFC 6749 section 2.3.1 HTTP Basic credentials into the body
-/// parameters, moves a JWT-bearer `assertion` into the client-assertion slot,
-/// and recovers `client_id` from the assertion's subject when the client did
-/// not send one. Ambiguous credentials (Basic *and* body parameters, or two
-/// disagreeing assertions) are rejected here rather than silently resolved.
-///
-/// Never logs, formats, or returns any part of a secret or assertion.
-fn prepare_client_credentials(
-    headers: &HeaderMap,
-    request: &mut TokenRequest,
-) -> Result<(), AuthError> {
-    token_client_auth::apply_basic_client_credentials(headers, request)?;
-    token_client_auth::discard_blank_credentials(request);
-    if request.grant_type == token_client_auth::JWT_BEARER_GRANT_TYPE {
-        token_client_auth::adopt_jwt_bearer_assertion(request)?;
-    }
-    if request.client_id.is_none() {
-        request.client_id =
-            token_client_auth::extract_assertion_client_id(request.client_assertion.as_deref());
-    }
-    Ok(())
-}
-
 async fn dispatch_grant(
     state: AuthState,
     request: TokenRequest,
@@ -92,6 +67,9 @@ async fn dispatch_grant(
             authenticate_client(&state, &request).await?;
             refresh_token_grant(state, request).await
         }
+        // Authenticated inside `machine_grant`, before any token material is
+        // minted - so every arm of this table authenticates first, even though
+        // only the two delegation arms say so explicitly.
         "client_credentials" | token_client_auth::JWT_BEARER_GRANT_TYPE => {
             machine_client_grant(state, request).await
         }

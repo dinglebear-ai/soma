@@ -128,9 +128,12 @@ fn html_error_page_payload_is_identified_as_html() {
 fn payload_preview_is_truncated_on_a_char_boundary() {
     // A multi-byte char straddling the preview limit must not panic or emit
     // invalid UTF-8; the head is escaped to ASCII either way.
-    let payload = format!("{}\u{1f600}tail", "x".repeat(super::JSON_PREVIEW_BYTES - 2));
+    let payload = format!(
+        "{}\u{1f600}tail",
+        "x".repeat(super::diagnostics::JSON_PREVIEW_BYTES - 2)
+    );
 
-    let head = super::escaped_head(&payload, super::JSON_PREVIEW_BYTES);
+    let head = super::diagnostics::escaped_head(&payload, super::diagnostics::JSON_PREVIEW_BYTES);
 
     assert!(head.starts_with('"'));
     assert!(
@@ -142,8 +145,10 @@ fn payload_preview_is_truncated_on_a_char_boundary() {
 
 #[test]
 fn well_formed_payloads_are_not_misdiagnosed() {
-    assert!(super::diagnose_json_payload("[{\"tag_name\":\"rmcp-v1.8.0\"}]").is_none());
-    assert!(super::diagnose_json_payload(VALID_CRATE_JSON).is_none());
+    assert!(
+        super::diagnostics::diagnose_json_payload("[{\"tag_name\":\"rmcp-v1.8.0\"}]").is_none()
+    );
+    assert!(super::diagnostics::diagnose_json_payload(VALID_CRATE_JSON).is_none());
 }
 
 /// The workflow half of the fix: the fetch steps must neutralize the
@@ -165,11 +170,39 @@ fn workflow_disables_forced_color_and_validates_fetched_payloads() {
         workflow.contains("rmcp-releases.json"),
         "the releases payload must be covered by validation"
     );
-    // The fetch steps set it per step, so precedence over GITHUB_ENV is not in
-    // question; count them so a newly added gh step is not silently missed.
-    assert_eq!(
-        workflow.matches("CLICOLOR_FORCE: \"0\"").count(),
-        5,
-        "every step that runs gh must disable forced color"
-    );
+}
+
+/// Derived guard: every workflow step whose `run:` block invokes `gh` must
+/// disable forced color. Checked by walking the steps rather than counting
+/// occurrences, so adding a legitimate `gh` step fails with the step's name
+/// instead of an off-by-one on a magic number - and so both workflows that
+/// use the soldr runner action are covered, not just one.
+#[test]
+fn every_gh_step_disables_forced_color() {
+    for (name, source) in [
+        (
+            "rmcp-release-monitor.yml",
+            include_str!("../../.github/workflows/rmcp-release-monitor.yml"),
+        ),
+        (
+            "codex-schema-drift-monitor.yml",
+            include_str!("../../.github/workflows/codex-schema-drift-monitor.yml"),
+        ),
+    ] {
+        for step in source.split("      - name: ").skip(1) {
+            let title = step.lines().next().unwrap_or_default().trim();
+            // Skip YAML comments: the rationale comments in these workflows
+            // mention `gh issue ...` in prose, which would otherwise match.
+            let runs_gh = step
+                .lines()
+                .filter(|line| !line.trim_start().starts_with('#'))
+                .any(|line| line.contains("gh api") || line.contains("gh issue"));
+            if runs_gh {
+                assert!(
+                    step.contains("CLICOLOR_FORCE: \"0\""),
+                    "{name}: step `{title}` runs gh but does not disable forced color"
+                );
+            }
+        }
+    }
 }

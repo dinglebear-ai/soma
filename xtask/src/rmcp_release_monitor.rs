@@ -11,18 +11,12 @@ use walkdir::WalkDir;
 mod diagnostics;
 
 use diagnostics::json_parse_context;
-#[cfg(test)]
-use diagnostics::{diagnose_json_payload, escaped_head};
 
 const MARKER: &str = "<!-- rmcp-release-monitor -->";
 const DEFAULT_MAX_BODY_BYTES: usize = 60_000;
 
 /// Bytes of an unparseable JSON payload echoed back in the error message.
 ///
-/// Enough to identify what the fetch actually wrote - an ANSI escape run, an
-/// HTML error page, a GitHub API error object - without dumping a multi-hundred
-/// kilobyte payload into the CI log.
-const JSON_PREVIEW_BYTES: usize = 200;
 
 #[derive(Debug)]
 struct MonitorReport {

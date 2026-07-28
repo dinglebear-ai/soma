@@ -2,7 +2,10 @@
 //! `rmcp_release_monitor.rs` to stay under the PATTERNS.md module size hard
 //! limit.
 
-use super::JSON_PREVIEW_BYTES;
+/// Enough to identify what the fetch actually wrote - an ANSI escape run, an
+/// HTML error page, a GitHub API error object - without dumping a multi-hundred
+/// kilobyte payload into the CI log.
+pub(super) const JSON_PREVIEW_BYTES: usize = 200;
 
 /// Builds the `anyhow` context for a failed `serde_json` parse of a fetched
 /// payload.

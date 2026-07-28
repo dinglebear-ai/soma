@@ -32,7 +32,7 @@ pub(super) struct MachineGrant {
 /// verifies the assertion against that client's JWKS and re-checks that
 /// `iss` and `sub` both equal the resolved `client_id`, so a forged `sub`
 /// only selects a client whose key then fails to verify.
-pub(super) fn extract_assertion_client_id(assertion: Option<&str>) -> Option<String> {
+fn extract_assertion_client_id(assertion: Option<&str>) -> Option<String> {
     assertion::extract_client_id(assertion)
 }
 
@@ -49,7 +49,7 @@ pub(super) fn extract_assertion_client_id(assertion: Option<&str>) -> Option<Str
 /// instead of accepting an empty one. `client_id` is deliberately untouched so
 /// the Basic-plus-body ambiguity check in
 /// [`apply_basic_client_credentials`] - which runs first - stays strict.
-pub(super) fn discard_blank_credentials(request: &mut TokenRequest) {
+fn discard_blank_credentials(request: &mut TokenRequest) {
     let blank = |value: &Option<String>| value.as_deref().is_some_and(str::is_empty);
     if blank(&request.client_secret) {
         request.client_secret = None;
@@ -63,6 +63,36 @@ pub(super) fn discard_blank_credentials(request: &mut TokenRequest) {
     if blank(&request.assertion) {
         request.assertion = None;
     }
+}
+
+/// Normalize inbound client credentials so every grant sees one shape.
+///
+/// Folds RFC 6749 section 2.3.1 HTTP Basic credentials into the body
+/// parameters, moves a JWT-bearer `assertion` into the client-assertion slot,
+/// and recovers `client_id` from the assertion's subject when the client did
+/// not send one. Ambiguous credentials (Basic *and* body parameters, or two
+/// disagreeing assertions) are rejected here rather than silently resolved.
+///
+/// Never logs, formats, or returns any part of a secret or assertion.
+///
+/// The call order is load-bearing: [`apply_basic_client_credentials`] must run
+/// first so the Basic-plus-body ambiguity check sees the untouched body
+/// parameters, and [`discard_blank_credentials`] must run after it so blanking
+/// an empty field can never relax that check. Keeping the sequence in this
+/// module means the invariant and the helpers it orders cannot drift apart.
+pub(super) fn normalize_client_credentials(
+    headers: &HeaderMap,
+    request: &mut TokenRequest,
+) -> Result<(), AuthError> {
+    apply_basic_client_credentials(headers, request)?;
+    discard_blank_credentials(request);
+    if request.grant_type == JWT_BEARER_GRANT_TYPE {
+        adopt_jwt_bearer_assertion(request)?;
+    }
+    if request.client_id.is_none() {
+        request.client_id = extract_assertion_client_id(request.client_assertion.as_deref());
+    }
+    Ok(())
 }
 
 /// Fold the JWT-bearer grant's `assertion` (RFC 7523 section 2.1) into the
@@ -79,7 +109,7 @@ pub(super) fn discard_blank_credentials(request: &mut TokenRequest) {
 /// Never guesses: a missing assertion is `invalid_request`, and an `assertion`
 /// that disagrees with a separately supplied `client_assertion` - or a
 /// `client_assertion_type` naming a different scheme - is `invalid_client`.
-pub(super) fn adopt_jwt_bearer_assertion(request: &mut TokenRequest) -> Result<(), AuthError> {
+fn adopt_jwt_bearer_assertion(request: &mut TokenRequest) -> Result<(), AuthError> {
     let Some(assertion) = request.assertion.take() else {
         return Err(AuthError::Validation(
             "missing `assertion` parameter".to_string(),
@@ -104,7 +134,7 @@ pub(super) fn adopt_jwt_bearer_assertion(request: &mut TokenRequest) -> Result<(
     Ok(())
 }
 
-pub(super) fn apply_basic_client_credentials(
+fn apply_basic_client_credentials(
     headers: &HeaderMap,
     request: &mut TokenRequest,
 ) -> Result<(), AuthError> {
