@@ -131,19 +131,16 @@ fn normalize_credentials(
     headers: &HeaderMap,
     request: &mut RevocationRequest,
 ) -> Result<(), AuthError> {
+    // Only the four credential fields are meaningful here; `..Default::default()`
+    // keeps them the only thing a reader has to check. `grant_type` stays empty,
+    // which is safe: the one branch that reads it (`adopt_jwt_bearer_assertion`)
+    // can never fire, because `RevocationRequest` carries no `assertion` field.
     let mut shim = TokenRequest {
-        grant_type: String::new(),
-        code: None,
         client_id: request.client_id.take(),
-        resource: None,
-        redirect_uri: None,
-        code_verifier: None,
-        refresh_token: None,
         client_secret: request.client_secret.take(),
-        scope: None,
         client_assertion_type: request.client_assertion_type.take(),
         client_assertion: request.client_assertion.take(),
-        assertion: None,
+        ..Default::default()
     };
     token_client_auth::normalize_client_credentials(headers, &mut shim)?;
     request.client_id = shim.client_id;

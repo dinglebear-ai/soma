@@ -121,7 +121,7 @@ pub struct BrowserLoginQuery {
     pub provider: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenRequest {
     pub grant_type: String,
     #[serde(default)]
