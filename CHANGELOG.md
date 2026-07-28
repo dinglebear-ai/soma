@@ -302,6 +302,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add RFC 7009 OAuth 2.0 token revocation. `POST /revoke` is now mounted by
+  both `soma_auth::routes::router` and `bearer_only_router`, shares the
+  `/token` per-IP rate limiter, requires the same client authentication as
+  `/token` (including HTTP Basic), and revokes only refresh tokens belonging to
+  the authenticated client. Unknown, expired, already-revoked, and
+  other-client tokens all return an identical empty `200`, so the endpoint is
+  never a token-existence oracle; `token_type_hint=access_token` returns
+  `unsupported_token_type` because access tokens are stateless JWTs. The
+  authorization server metadata document now advertises `revocation_endpoint`.
 - Add atomic activation of immutable Python provider environments:
   `ProviderRegistry::activate_python_candidate` revalidates a prepared
   candidate against the current provider source and cache before swapping it

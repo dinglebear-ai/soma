@@ -10,6 +10,7 @@ use crate::authorize::{authorize, browser_login, callback, native_callback, nati
 use crate::error::AuthErrorKind;
 use crate::metadata::{authorization_server_metadata, jwks, protected_resource_metadata};
 use crate::registration::register_client;
+use crate::revoke::revoke;
 use crate::state::AuthState;
 use crate::token::token;
 
@@ -33,7 +34,8 @@ pub fn router(state: AuthState) -> Router {
         .route("/auth/login", get(browser_login))
         .route("/native/callback", get(native_callback))
         .route("/native/poll", get(native_poll))
-        .route("/token", post(token));
+        .route("/token", post(token))
+        .route("/revoke", post(revoke));
     for callback_path in callback_paths(&state) {
         app = app.route(&callback_path, get(callback));
     }
@@ -63,7 +65,7 @@ fn callback_paths(state: &AuthState) -> Vec<String> {
 ///
 /// Mounts only the endpoints a non-browser MCP client needs to discover and
 /// exchange tokens — `/.well-known/*`, `/jwks`, `/authorize`,
-/// `/auth/google/callback`, and `/token`. Excludes:
+/// `/auth/google/callback`, `/token`, and `/revoke`. Excludes:
 ///
 /// - `/auth/login` (browser HTML — no UI on a headless service).
 /// - `/register` (RFC 7591 dynamic client registration — extra attack
@@ -87,7 +89,8 @@ pub fn bearer_only_router(state: AuthState) -> Router {
         )
         .route("/jwks", get(jwks))
         .route("/authorize", get(authorize))
-        .route("/token", post(token));
+        .route("/token", post(token))
+        .route("/revoke", post(revoke));
     for callback_path in callback_paths(&state) {
         app = app.route(&callback_path, get(callback));
     }
@@ -108,6 +111,7 @@ pub const BEARER_ONLY_ROUTER_PATHS: &[(&str, &str)] = &[
     ("GET", "/authorize"),
     ("GET", "/auth/google/callback"),
     ("GET", "/jwks"),
+    ("POST", "/revoke"),
     ("POST", "/token"),
 ];
 
@@ -188,6 +192,7 @@ fn auth_dispatch_action(path: &str) -> &'static str {
         "/native/callback" => "oauth.native_callback",
         "/native/poll" => "oauth.native_poll",
         "/token" => "oauth.token",
+        "/revoke" => "oauth.revoke",
         _ if path.starts_with("/.well-known/oauth-authorization-server/") => {
             "oauth.metadata.authorization_server"
         }
@@ -223,6 +228,7 @@ mod tests {
         assert_eq!(auth_dispatch_action("/register"), "oauth.register");
         assert_eq!(auth_dispatch_action("/authorize"), "oauth.authorize");
         assert_eq!(auth_dispatch_action("/token"), "oauth.token");
+        assert_eq!(auth_dispatch_action("/revoke"), "oauth.revoke");
         // Every configured provider's callback path — including
         // operator-overridden custom ones — must map to "oauth.callback" so
         // log-based alerting/dashboarding keyed on this action isn't blind
