@@ -136,6 +136,168 @@ async fn sqlite_store_backfills_provider_column_on_pre_migration_refresh_tokens_
     assert_eq!(row.resource, "https://lab.example.com/mcp");
 }
 
+/// Hand-writes a v4-shaped database (the schema immediately before
+/// `token_endpoint_auth_method` was recorded on grants), seeds one
+/// authorization code and one refresh token, then opens it through
+/// `SqliteStore::open`.
+///
+/// Two things must hold. The pre-existing rows survive intact — a migration
+/// that drops or rewrites live grants logs every user out. And their recorded
+/// method reads back as `NULL`, not `'none'`: `NULL` means "issued before this
+/// column existed, method unknown", which sends `/token` down the
+/// resolve-the-client path it always used. Defaulting to `'none'` would
+/// re-label every pre-existing row as a public client, silently downgrading
+/// any `private_key_jwt` client whose grants predate v5.
+#[tokio::test]
+async fn sqlite_store_adds_a_null_client_auth_method_to_pre_v5_rows() {
+    let path = temp_db_path();
+    let now = now_unix();
+    let plaintext_token = "pre-v5-refresh-token";
+    write_v4_database(&path, now, plaintext_token);
+    crate::util::set_restrictive_permissions(&path).unwrap();
+
+    let store = SqliteStore::open(path.clone()).await.unwrap();
+
+    let refresh = store
+        .find_refresh_token(plaintext_token)
+        .await
+        .unwrap()
+        .expect("a pre-v5 refresh token must survive the migration");
+    assert_eq!(refresh.client_id, "pre-v5-client");
+    assert_eq!(refresh.scope, "lab");
+    assert_eq!(
+        refresh.provider_refresh_token.as_deref(),
+        Some("provider-refresh-token")
+    );
+    assert_eq!(
+        refresh.token_endpoint_auth_method, None,
+        "an unknown method must stay NULL, never default to 'none'"
+    );
+    assert_eq!(
+        store
+            .refresh_token_client_auth_method(plaintext_token)
+            .await
+            .unwrap(),
+        None
+    );
+
+    let code = store.redeem_auth_code("pre-v5-code").await.unwrap();
+    assert_eq!(code.client_id, "pre-v5-client");
+    assert_eq!(code.redirect_uri, "http://127.0.0.1:7777/callback");
+    assert_eq!(code.token_endpoint_auth_method, None);
+    assert_eq!(user_version(&path), 5);
+}
+
+/// Re-opening an already-migrated database must be a no-op: the v5 step runs
+/// through `add_column_if_missing`, so a second pass cannot fail on a
+/// duplicate column or disturb the rows already there.
+#[tokio::test]
+async fn migrating_to_v5_twice_is_a_no_op() {
+    let path = temp_db_path();
+    let now = now_unix();
+    let plaintext_token = "reopened-refresh-token";
+    write_v4_database(&path, now, plaintext_token);
+    crate::util::set_restrictive_permissions(&path).unwrap();
+
+    let first = SqliteStore::open(path.clone()).await.unwrap();
+    drop(first);
+    assert_eq!(user_version(&path), 5);
+
+    let second = SqliteStore::open(path.clone()).await.unwrap();
+    let refresh = second
+        .find_refresh_token(plaintext_token)
+        .await
+        .unwrap()
+        .expect("re-opening a migrated database must not disturb its rows");
+    assert_eq!(refresh.client_id, "pre-v5-client");
+    assert_eq!(refresh.token_endpoint_auth_method, None);
+    assert_eq!(user_version(&path), 5);
+}
+
+/// The `authorization_codes` and `refresh_tokens` tables exactly as schema v4
+/// left them: no `token_endpoint_auth_method` column anywhere, one row in
+/// each, and `user_version = 4` so the earlier migrations are correctly
+/// treated as already applied.
+fn write_v4_database(path: &PathBuf, now: i64, plaintext_token: &str) {
+    let conn = rusqlite::Connection::open(path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE authorization_codes (
+            code TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            redirect_uri TEXT NOT NULL,
+            resource TEXT NOT NULL DEFAULT '',
+            scope TEXT NOT NULL,
+            provider TEXT NOT NULL DEFAULT 'google',
+            code_challenge TEXT NOT NULL,
+            code_challenge_method TEXT NOT NULL,
+            provider_refresh_token TEXT,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        );
+        CREATE TABLE refresh_tokens (
+            refresh_token_hash TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            resource TEXT NOT NULL DEFAULT '',
+            scope TEXT NOT NULL,
+            provider TEXT NOT NULL DEFAULT 'google',
+            provider_refresh_token TEXT,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        );
+        PRAGMA user_version = 4;",
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO authorization_codes (
+            code, client_id, subject, redirect_uri, resource, scope, provider,
+            code_challenge, code_challenge_method, provider_refresh_token,
+            created_at, expires_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        rusqlite::params![
+            "pre-v5-code",
+            "pre-v5-client",
+            "google-user",
+            "http://127.0.0.1:7777/callback",
+            "https://lab.example.com/mcp",
+            "lab",
+            "google",
+            "challenge",
+            "S256",
+            "provider-refresh-token",
+            now,
+            now + 300,
+        ],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO refresh_tokens (
+            refresh_token_hash, client_id, subject, resource, scope, provider,
+            provider_refresh_token, created_at, expires_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![
+            super::hash_token(plaintext_token),
+            "pre-v5-client",
+            "google-user",
+            "https://lab.example.com/mcp",
+            "lab",
+            "google",
+            "provider-refresh-token",
+            now,
+            now + 3600,
+        ],
+    )
+    .unwrap();
+}
+
+fn user_version(path: &PathBuf) -> i64 {
+    rusqlite::Connection::open(path)
+        .unwrap()
+        .query_row("PRAGMA user_version;", [], |row| row.get(0))
+        .unwrap()
+}
+
 fn temp_db_path() -> PathBuf {
     tempfile::tempdir().unwrap().keep().join("auth.db")
 }

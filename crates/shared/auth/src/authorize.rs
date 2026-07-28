@@ -190,6 +190,29 @@ fn html_escape(text: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// The `token_endpoint_auth_method` the grant now being authorized is issued
+/// under, captured here because `/authorize` has just resolved this client.
+///
+/// The value is recorded on the authorization request, inherited by the
+/// authorization code, and then by the refresh token, so `/token` can
+/// authenticate the client from the grant instead of resolving the client
+/// again on every exchange. It is the *contract* of the grant: a client that
+/// later changes its declared method does not retroactively change grants
+/// already issued under the old one.
+///
+/// For a CIMD `client_id` this is served from the positive cache that
+/// `resolve_client_redirect_uris` populated moments ago, so it costs no extra
+/// network round trip. A failure to resolve yields `None` ("unknown"), which
+/// leaves `/token` doing exactly what it did before this field existed - never
+/// a downgrade to public.
+async fn issued_client_auth_method(state: &AuthState, client_id: &str) -> Option<String> {
+    crate::registration::resolve_client(state, client_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|client| client.token_endpoint_auth_method)
+}
+
 pub async fn authorize(
     State(state): State<AuthState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -235,6 +258,8 @@ pub async fn authorize(
         ));
     }
 
+    let token_endpoint_auth_method = issued_client_auth_method(&state, &query.client_id).await;
+
     let provider = state.provider_or_default(query.provider.as_deref())?;
     let provider_code_verifier = random_token(32)?;
     let provider_code_challenge =
@@ -257,6 +282,7 @@ pub async fn authorize(
             code_challenge_method: query.code_challenge_method.clone(),
             created_at: now_unix(),
             expires_at: now_unix() + AUTH_REQUEST_TTL_SECS,
+            token_endpoint_auth_method,
         })
         .await?;
 
@@ -440,6 +466,7 @@ pub async fn callback(
                 state.config.auth_code_ttl,
                 &format!("{}_AUTH_CODE_TTL_SECS", state.config.env_prefix),
             )?,
+            token_endpoint_auth_method: request.token_endpoint_auth_method,
         })
         .await?;
     info!(
@@ -1478,6 +1505,7 @@ pub mod tests {
                 provider_refresh_token: None,
                 created_at: now_unix(),
                 expires_at: now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1736,6 +1764,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2044,6 +2073,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix() - 300,
                 expires_at: now_unix() - 1,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2145,6 +2175,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2216,6 +2247,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2509,6 +2541,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     code_challenge_method: "S256".to_string(),
                     created_at: now_unix(),
                     expires_at: now_unix() + 300,
+                    token_endpoint_auth_method: None,
                 })
                 .await
                 .unwrap();
@@ -2669,6 +2702,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     code_challenge_method: "S256".to_string(),
                     created_at: now_unix(),
                     expires_at: now_unix() + 300,
+                    token_endpoint_auth_method: None,
                 })
                 .await
                 .unwrap();
@@ -2887,6 +2921,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                 provider_refresh_token: None,
                 created_at: now_unix(),
                 expires_at: now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();

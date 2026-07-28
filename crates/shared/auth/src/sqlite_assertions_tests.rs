@@ -65,6 +65,7 @@ async fn refresh_revocation_is_bound_to_authenticated_client() {
             provider_refresh_token: None,
             created_at: now,
             expires_at: now + 3600,
+            token_endpoint_auth_method: None,
         })
         .await
         .expect("store refresh token");

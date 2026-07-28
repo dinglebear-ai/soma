@@ -96,6 +96,9 @@ async fn authenticate_client(state: &AuthState, request: &TokenRequest) -> Resul
         .client_id
         .as_deref()
         .ok_or_else(|| AuthError::Validation("missing `client_id` parameter".to_string()))?;
+    if recorded_public_client(state, request, client_id).await? {
+        return authenticate_recorded_public_client(request);
+    }
     token_client_auth::authenticate_oauth_client(
         state,
         client_id,
@@ -104,6 +107,70 @@ async fn authenticate_client(state: &AuthState, request: &TokenRequest) -> Resul
         request.client_assertion.as_deref(),
     )
     .await
+}
+
+/// Whether the grant being redeemed was issued to a client that registered
+/// `token_endpoint_auth_method = "none"`, as recorded on the grant itself.
+///
+/// This is the whole point of storing the method at issuance. Resolving the
+/// client instead means, for a CIMD-shaped (`https://...`) `client_id`, a live
+/// metadata fetch — so a valid, unrevoked refresh token failed with
+/// `invalid_client` for as long as the client's own metadata host was
+/// unreachable (up to the 60s negative-cache window, repeating until it came
+/// back). A public client presents no credentials to check against that
+/// document, so the fetch buys nothing for it.
+///
+/// Only the public case is short-circuited. `private_key_jwt` still resolves:
+/// its JWKS must be read fresh because the client may have rotated keys, and
+/// such a client is presenting an assertion anyway, so the fetch is inherent.
+/// A `None` record (legacy row, or a client that could not be resolved at
+/// issuance) also resolves — unknown never means public.
+///
+/// Machine clients are excluded: their credentials come from server config,
+/// not from a registration record, and `authenticate_oauth_client` checks them
+/// first. Skipping it for a config-declared client id would drop that check.
+async fn recorded_public_client(
+    state: &AuthState,
+    request: &TokenRequest,
+    client_id: &str,
+) -> Result<bool, AuthError> {
+    if state
+        .config
+        .machine_clients
+        .iter()
+        .any(|client| client.client_id == client_id)
+    {
+        return Ok(false);
+    }
+    let recorded = match request.grant_type.as_str() {
+        "authorization_code" => match request.code.as_deref() {
+            Some(code) => state.store.auth_code_client_auth_method(code).await?,
+            None => None,
+        },
+        "refresh_token" => match request.refresh_token.as_deref() {
+            Some(token) => state.store.refresh_token_client_auth_method(token).await?,
+            None => None,
+        },
+        _ => None,
+    };
+    Ok(recorded.as_deref() == Some("none"))
+}
+
+/// The public-client half of `authenticate_oauth_client`, decided locally.
+///
+/// Byte-for-byte the same verdict that arm reaches — a client registered with
+/// `token_endpoint_auth_method = "none"` that presents a `client_secret` or a
+/// `client_assertion` is rejected — just without the client resolution that
+/// produced the method, which the grant already told us.
+fn authenticate_recorded_public_client(request: &TokenRequest) -> Result<(), AuthError> {
+    if request.client_secret.is_some() || request.client_assertion.is_some() {
+        warn!(
+            grant_type = %request.grant_type,
+            "oauth token rejected: public client presented client credentials"
+        );
+        return Err(token_client_auth::invalid_client());
+    }
+    Ok(())
 }
 
 /// `client_credentials` / JWT-bearer machine grant. The client acts for
@@ -321,6 +388,10 @@ async fn authorization_code_grant(
                     state.config.refresh_token_ttl,
                     &format!("{}_AUTH_REFRESH_TOKEN_TTL_SECS", state.config.env_prefix),
                 )?,
+                // The refresh token inherits the authorization code's contract
+                // so later refreshes authenticate the same way this exchange
+                // did, with no client resolution in between.
+                token_endpoint_auth_method: row.token_endpoint_auth_method.clone(),
             })
             .await?;
         info!(
@@ -490,6 +561,9 @@ async fn refresh_token_grant(
             provider_refresh_token: Some(next_provider_refresh_token),
             created_at: stored.created_at,
             expires_at: refreshed_expires_at,
+            // Preserved verbatim across the rewrite: the grant's contract does
+            // not change just because it was refreshed.
+            token_endpoint_auth_method: stored.token_endpoint_auth_method.clone(),
         })
         .await?;
 
@@ -932,6 +1006,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -981,6 +1056,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1048,6 +1124,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 3600,
                 expires_at: crate::util::now_unix() - 1,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1111,6 +1188,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1163,6 +1241,7 @@ mod tests {
                 provider_refresh_token: None,
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1203,6 +1282,7 @@ mod tests {
                 provider_refresh_token: None,
                 created_at: 1_700_000_000,
                 expires_at: 4_102_444_800,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1224,6 +1304,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: 1_700_000_000,
                 expires_at,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1244,6 +1325,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1297,6 +1379,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1347,6 +1430,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1402,6 +1486,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1459,6 +1544,7 @@ mod tests {
                 provider_refresh_token: None,
                 created_at: crate::util::now_unix(),
                 expires_at: crate::util::now_unix() + 300,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1508,6 +1594,7 @@ mod tests {
                 provider_refresh_token: Some("upstream-refresh".to_string()),
                 created_at: crate::util::now_unix(),
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1574,6 +1661,7 @@ mod tests {
                 provider_refresh_token: Some("hand-inserted-upstream-value".to_string()),
                 created_at: crate::util::now_unix(),
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1991,6 +2079,7 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
                 expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2049,5 +2138,313 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    // --- recorded token_endpoint_auth_method ----------------------------
+    //
+    // A CIMD `client_id` whose metadata host cannot be reached. Resolving it
+    // is a DNS failure, so any code path that re-resolves this client at
+    // `/token` fails; a path that authenticates from the grant's recorded
+    // method does not. That contrast is what these tests measure.
+    const UNREACHABLE_CIMD_CLIENT: &str = "https://unreachable-client.invalid/client.json";
+
+    fn form_encoded(value: &str) -> String {
+        url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+    }
+
+    /// Seed a refresh token issued to `client_id` and recorded as having been
+    /// granted under `method`. `None` is a row written before schema v5
+    /// started recording one.
+    async fn seed_recorded_refresh_token(
+        state: &AuthState,
+        refresh_token: &str,
+        client_id: &str,
+        method: Option<&str>,
+    ) {
+        state
+            .store
+            .upsert_refresh_token(crate::types::RefreshTokenRow {
+                refresh_token: refresh_token.to_string(),
+                client_id: client_id.to_string(),
+                subject: "google-subject-123".to_string(),
+                resource: "https://lab.example.com/mcp".to_string(),
+                scope: "lab".to_string(),
+                provider: "google".to_string(),
+                provider_refresh_token: Some("provider-refresh".to_string()),
+                created_at: crate::util::now_unix() - 60,
+                expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: method.map(str::to_string),
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_for_a_recorded_public_client_survives_an_unreachable_metadata_host() {
+        // The bug this fixes: wiring client authentication into `/token` made
+        // every refresh re-resolve the client, which for a CIMD `client_id` is
+        // a live metadata fetch. A valid, unrevoked refresh token then failed
+        // for as long as the client's own metadata host was down. A public
+        // client presents no credentials to check against that document, so
+        // the recorded method is enough and no fetch happens.
+        let state = test_auth_state_with_mock_google().await;
+        seed_recorded_refresh_token(
+            &state,
+            "public-cimd-token",
+            UNREACHABLE_CIMD_CLIENT,
+            Some("none"),
+        )
+        .await;
+        let (status, json) = post_token(
+            &state,
+            format!(
+                "grant_type=refresh_token&refresh_token=public-cimd-token&client_id={}",
+                form_encoded(UNREACHABLE_CIMD_CLIENT)
+            ),
+            None,
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "a public client's refresh must not depend on its metadata host: {json}"
+        );
+        assert!(json["access_token"].is_string(), "{json}");
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_for_a_row_without_a_recorded_method_still_resolves_the_client() {
+        // The legacy half of the same scenario: a row issued before schema v5
+        // records nothing, so `/token` resolves the client exactly as it did
+        // before - unchanged behaviour, including this failure. NULL must
+        // never be read as "public".
+        let state = test_auth_state_with_mock_google().await;
+        seed_recorded_refresh_token(&state, "legacy-token", UNREACHABLE_CIMD_CLIENT, None).await;
+        let (status, json) = post_token(
+            &state,
+            format!(
+                "grant_type=refresh_token&refresh_token=legacy-token&client_id={}",
+                form_encoded(UNREACHABLE_CIMD_CLIENT)
+            ),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+        assert_eq!(json["error"], "invalid_request");
+        assert!(
+            json["error_description"]
+                .as_str()
+                .is_some_and(|description| description.contains("unreachable")),
+            "the legacy path must still fail on client resolution: {json}"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_rejects_a_recorded_public_client_presenting_a_client_secret() {
+        // The fast path skips the fetch, not the rule: a client registered
+        // with `token_endpoint_auth_method = "none"` that presents credentials
+        // is rejected exactly as it is when the client is resolved.
+        let state = test_auth_state_with_mock_google().await;
+        seed_recorded_refresh_token(
+            &state,
+            "public-secret-token",
+            UNREACHABLE_CIMD_CLIENT,
+            Some("none"),
+        )
+        .await;
+        let (status, json) = post_token(
+            &state,
+            format!(
+                "grant_type=refresh_token&refresh_token=public-secret-token\
+                 &client_id={}&client_secret=guess",
+                form_encoded(UNREACHABLE_CIMD_CLIENT)
+            ),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{json}");
+        assert_eq!(json["error"], "invalid_client");
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_rejects_a_recorded_public_client_presenting_a_client_assertion() {
+        let state = test_auth_state_with_mock_google().await;
+        seed_recorded_refresh_token(
+            &state,
+            "public-assertion-token",
+            UNREACHABLE_CIMD_CLIENT,
+            Some("none"),
+        )
+        .await;
+        let assertion = signed_client_assertion(UNREACHABLE_CIMD_CLIENT, "public-assertion-jti");
+        let (status, json) = post_token(
+            &state,
+            format!(
+                "grant_type=refresh_token&refresh_token=public-assertion-token&client_id={}\
+                 &client_assertion_type={}&client_assertion={assertion}",
+                form_encoded(UNREACHABLE_CIMD_CLIENT),
+                "urn%3Aietf%3Aparams%3Aoauth%3Aclient-assertion-type%3Ajwt-bearer"
+            ),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{json}");
+        assert_eq!(json["error"], "invalid_client");
+    }
+
+    /// A confidential client registered with `private_key_jwt`, whose JWKS
+    /// lives in the registered-clients table.
+    async fn state_with_private_key_jwt_client() -> AuthState {
+        let state = test_auth_state_with_mock_google().await;
+        state
+            .store
+            .register_client(crate::types::RegisteredClient {
+                client_id: "jwt-client".to_string(),
+                redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
+                created_at: crate::util::now_unix(),
+                token_endpoint_auth_method: "private_key_jwt".to_string(),
+                jwks: Some(client_assertion_jwks()),
+            })
+            .await
+            .unwrap();
+        state
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_for_a_recorded_private_key_jwt_client_still_authenticates() {
+        // Confidential clients are deliberately NOT short-circuited: their
+        // JWKS must be read fresh because keys rotate, and they are presenting
+        // an assertion anyway, so the resolution is inherent to the exchange.
+        let state = state_with_private_key_jwt_client().await;
+        seed_recorded_refresh_token(&state, "jwt-token", "jwt-client", Some("private_key_jwt"))
+            .await;
+        let assertion = signed_client_assertion("jwt-client", "refresh-assertion-jti");
+        let (status, json) = post_token(
+            &state,
+            format!(
+                "grant_type=refresh_token&refresh_token=jwt-token&client_id=jwt-client\
+                 &client_assertion_type={}&client_assertion={assertion}",
+                "urn%3Aietf%3Aparams%3Aoauth%3Aclient-assertion-type%3Ajwt-bearer"
+            ),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{json}");
+        assert!(json["access_token"].is_string(), "{json}");
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_for_a_recorded_private_key_jwt_client_rejects_a_missing_assertion() {
+        let state = state_with_private_key_jwt_client().await;
+        seed_recorded_refresh_token(
+            &state,
+            "jwt-bare-token",
+            "jwt-client",
+            Some("private_key_jwt"),
+        )
+        .await;
+        let (status, json) = post_token(
+            &state,
+            "grant_type=refresh_token&refresh_token=jwt-bare-token&client_id=jwt-client"
+                .to_string(),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{json}");
+        assert_eq!(json["error"], "invalid_client");
+    }
+
+    #[tokio::test]
+    async fn authorization_code_grant_carries_the_recorded_method_onto_the_refresh_token() {
+        // The recorded method has to survive the hop from authorization code
+        // to refresh token, or the very first refresh falls back to resolving
+        // the client and the fix only lasts one exchange.
+        let state = test_auth_state_with_registered_client().await;
+        state
+            .store
+            .insert_auth_code(crate::types::AuthorizationCodeRow {
+                code: "recorded-code".to_string(),
+                client_id: "client".to_string(),
+                subject: "google-subject-123".to_string(),
+                redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
+                resource: "https://lab.example.com/mcp".to_string(),
+                scope: "lab".to_string(),
+                provider: "google".to_string(),
+                code_challenge: super::pkce_challenge("verifier"),
+                code_challenge_method: "S256".to_string(),
+                provider_refresh_token: Some("provider-refresh".to_string()),
+                created_at: 1_700_000_000,
+                expires_at: 4_102_444_800,
+                token_endpoint_auth_method: Some("none".to_string()),
+            })
+            .await
+            .unwrap();
+        let (status, json) = post_token(
+            &state,
+            "grant_type=authorization_code&code=recorded-code&client_id=client\
+             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
+                .to_string(),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{json}");
+        let refresh_token = json["refresh_token"].as_str().expect("refresh token");
+        let row = state
+            .store
+            .find_refresh_token(refresh_token)
+            .await
+            .unwrap()
+            .expect("refresh token row");
+        assert_eq!(row.token_endpoint_auth_method.as_deref(), Some("none"));
+    }
+
+    #[tokio::test]
+    async fn refreshing_a_recorded_grant_preserves_its_method() {
+        let state = test_auth_state_with_mock_google().await;
+        seed_recorded_refresh_token(&state, "preserved-token", "client", Some("none")).await;
+        let (status, json) = post_token(
+            &state,
+            "grant_type=refresh_token&refresh_token=preserved-token&client_id=client".to_string(),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{json}");
+        let row = state
+            .store
+            .find_refresh_token("preserved-token")
+            .await
+            .unwrap()
+            .expect("refresh token row");
+        assert_eq!(
+            row.token_endpoint_auth_method.as_deref(),
+            Some("none"),
+            "a refresh must not erase the contract the grant was issued under"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_recorded_public_method_never_bypasses_a_configured_machine_client() {
+        // A config-declared machine client authenticates against server
+        // config, not a registration record. Even if a stored grant claims
+        // `none` for that client id, its configured credentials still apply.
+        let mut config = test_auth_config();
+        config.machine_clients = vec![MachineClientConfig {
+            client_id: "client".to_string(),
+            client_secret: Some("machine-secret".to_string()),
+            jwks: None,
+            scopes: vec!["lab".to_string()],
+            resources: vec!["https://lab.example.com/mcp".to_string()],
+        }];
+        let state = test_auth_state_with_config(config).await;
+        seed_recorded_refresh_token(&state, "machine-shadowed-token", "client", Some("none")).await;
+        let (status, json) = post_token(
+            &state,
+            "grant_type=refresh_token&refresh_token=machine-shadowed-token&client_id=client"
+                .to_string(),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{json}");
+        assert_eq!(json["error"], "invalid_client");
     }
 }

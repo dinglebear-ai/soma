@@ -34,6 +34,7 @@ pub(super) fn row_to_authorization_request(
         code_challenge_method: row.get(7)?,
         created_at: row.get(8)?,
         expires_at: row.get(9)?,
+        token_endpoint_auth_method: row.get(12)?,
     })
 }
 
@@ -53,6 +54,7 @@ pub(super) fn row_to_authorization_code(
         provider_refresh_token: row.get(7)?,
         created_at: row.get(8)?,
         expires_at: row.get(9)?,
+        token_endpoint_auth_method: row.get(12)?,
     })
 }
 
