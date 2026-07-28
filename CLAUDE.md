@@ -7,6 +7,12 @@ drop-in tools, prompts, resources, auth, docs, plugins, web fallback, and
 release automation already wired. The canonical binary is `soma`; explicit
 subcommands select HTTP server, stdio MCP, or CLI adapter mode.
 
+**Soma is the scaffold the rest of the Rust MCP fleet is generated from.**
+`cargo-generate.toml` + `scaffold/cargo-generate/post.rhai` + `cargo xtask
+scaffold` turn this repo into a new server. Anything you add here — a
+convention, a CI gate, a plugin file — propagates to every future server. Weigh
+changes accordingly.
+
 ## Long-Lived Branches
 
 - `marketplace-no-mcp` is a protected long-lived marketplace variant branch,
@@ -22,6 +28,37 @@ subcommands select HTTP server, stdio MCP, or CLI adapter mode.
   bundled MCP server registration for environments where the MCP server is
   already connected through the Labby gateway.
 
+## Repo identity
+
+| Fact | Value |
+|---|---|
+| Remote | `git@github.com:dinglebear-ai/soma.git` |
+| Default branch | `main` |
+| Former names | `rmcp-template`, then `rtemplate-mcp` — both GitHub names now redirect here. Fix any local remote still pointing at `jmagar/*`. |
+| Workspace | 34 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `apps/*`, plus `xtask` |
+| rmcp pin | `rmcp = { version = "=2.2.0", default-features = false }` — an **exact** pin in `[workspace.dependencies]`, deliberately duplicated on the `rmcp-client` alias entry because TOML cannot cross-reference. Bump both together. |
+
+`crates/soma/*` is product code (this server). `crates/shared/*` is reusable
+engine code (auth, gateway, mcp client/server/proxy, provider adapters,
+observability, self-update) that other repos consume. Put anything
+Soma-specific in `crates/soma/`; put anything a derived server would also want
+in `crates/shared/`.
+
+### Known inconsistency — workspace edition
+
+The root `Cargo.toml` has a `[workspace.package]` table (`authors`,
+`description`, `homepage`, `repository`, `keywords`) but **declares no
+`edition`**. Every member sets its own, and they disagree: **31 crates on
+edition 2021, 4 on edition 2024**. `[workspace.lints]` only carries
+`rust.missing_docs = "warn"` — the fleet's `clippy::mod_module_files = "deny"`
+convention is *not* enforced here (it is followed de facto: there are zero
+`mod.rs` files in the tree).
+
+This matters more here than anywhere else, because generated servers inherit
+whatever this repo models. If you touch the workspace manifest, prefer adding
+`edition = "2024"` to `[workspace.package]` and moving members to
+`edition.workspace = true` rather than adding another one-off `edition` line.
+
 ## Module map
 
 | File | Role |
@@ -36,7 +73,8 @@ subcommands select HTTP server, stdio MCP, or CLI adapter mode.
 | `crates/soma/config/src/config.rs` | `Config`, `SomaConfig`, `McpConfig`, `AuthConfig`, env loading |
 | `crates/soma/integrations/` | Product bridges from `SomaApplication` ports to shared engines (gateway, auth) |
 | `crates/soma/runtime/src/server.rs` | `SomaRuntime`, `AppState`, `AuthPolicy`, `build_auth_layer` — process facade, HTTP state, and auth policy |
-| `apps/soma/src/routes.rs` | Axum router: `/mcp`, `/health`, `/status`, OAuth discovery routes |
+| `apps/soma/src/http.rs` | Axum router assembly: `/mcp`, `/health`, `/status`, OAuth discovery routes |
+| `crates/soma/runtime/src/protected_routes.rs` | Scope-gated route layer applied on top of the router |
 | `crates/soma/api/src/api.rs` | REST API handlers: direct `/v1/*` routes, `GET /health`, `GET /status` |
 | `crates/soma/mcp/src/lib.rs` | MCP protocol layer — re-exports from `mcp/` submodules |
 | `crates/soma/mcp/src/tools.rs` | MCP shim: parse JSON args → call `SomaApplication` → return `Value` |
@@ -100,7 +138,11 @@ For actions with parameters, extract them with `string_arg(&args, "param_name")`
 | `AuthPolicy::Mounted { auth_state: None }` | Default non-loopback | Static bearer token required |
 | `AuthPolicy::Mounted { auth_state: Some(_) }` | `auth_mode = "oauth"` | Google, Authelia, and/or GitHub login + EdDSA/Ed25519 JWT issuance |
 
-Auth is selected in `build_auth_policy()` in `main.rs`. Scopes are `soma:read` and `soma:write` (write satisfies read). `help` requires no scope. Unknown actions get `DENY_SCOPE`.
+Auth is selected by `resolve_auth_policy_kind()` in
+`crates/soma/runtime/src/server.rs`, which `http_auth_policy()` in
+`apps/soma/src/bootstrap.rs` turns into the concrete `AuthPolicy`. Scopes are
+`soma:read` and `soma:write` (write satisfies read). `help` requires no scope.
+Unknown actions get `DENY_SCOPE`.
 
 ## Environment variables
 
@@ -182,7 +224,29 @@ just doc                  # cargo xtask doc — rustdoc API reference (target/do
 just doc-check            # cargo xtask doc --strict — RUSTDOCFLAGS="-D warnings" (CI grade)
 just gen-token            # openssl rand -hex 32
 just health               # curl http://localhost:40060/health | jq .
+just validate-plugin      # cargo xtask validate-plugin-layout
+just pre-release          # release-readiness gate
 ```
+
+## Scaffolding a new server from Soma
+
+Soma is the fleet's template. Three entry points, all owned by `xtask`:
+
+```bash
+cargo xtask scaffold                    # rename/derive a new server in place
+cargo xtask cargo-generate              # drive cargo-generate against this repo
+cargo xtask cargo-generate-post         # post-generation rewrite hook
+cargo xtask check-scaffold-intent-contract   # validate scaffold intent schema + examples
+```
+
+`cargo-generate.toml` declares the placeholders and the `[hooks]` block that
+runs `scaffold/cargo-generate/post.rhai`. The scaffold carries **no** plugin
+`hooks.json` and **no** no-MCP marketplace machinery — do not reintroduce
+either into the template path, or every future server inherits it.
+
+Before landing anything in this repo, ask whether a generated server should
+inherit it. If not, keep it out of `scaffold/`, `cargo-generate.toml`,
+`plugins/`, and `release/`.
 
 ## Test helpers
 
@@ -217,6 +281,15 @@ and the CLI subcommand/flag documented.
 
 ## Plugin versioning
 
+The plugin package ships **no Claude Code lifecycle hooks**: no manifest
+declares a `hooks` key and there is no `plugins/soma/hooks/hooks.json`.
+`just validate-plugin`, `cargo xtask check-patterns`, and
+`apps/soma/tests/plugin_contract.rs` all assert their absence — do not add them
+back. The `soma setup plugin-hook` subcommand still exists (it is the
+cross-repo standard the other Rust MCP servers wire up, and
+`cargo xtask check-plugin-hook-contract` audits them); Soma just does not
+invoke it automatically. Run it by hand after install or a settings change.
+
 Plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`) do **not** contain a `version` field. The marketplace derives the version from the git commit SHA on every push — adding an explicit version causes every push to be treated as a new version and creates duplicate entries. Do not add `version` to any plugin manifest and do not run `scripts/bump-version.sh` targets against plugin manifests.
 
 ## Release versioning
@@ -236,7 +309,7 @@ PR mode uses the merge-base of the PR branch and `origin/main`; main mode compar
 
 ## Common gotchas
 
-- **Stdio mode suppresses logs** — `main.rs` sets log level to `warn` in stdio mode so JSON-RPC is not corrupted by log lines on stdout.
+- **Stdio mode suppresses logs** — `init_logging()` in `apps/soma/src/bootstrap.rs` runs stdio mode at `warn` (see `DispatchMode` in `apps/soma/src/invocation.rs`) so JSON-RPC framing on stdout is never corrupted. Logs go to stderr; `RUST_LOG` still overrides.
 - **Scope checks run in `rmcp_server.rs`**, not in `tools.rs`. `tools.rs` only dispatches.
 - **`help` action is public** — `required_scope_for("help")` returns `None`. All other actions require at least `soma:read`.
 - **Default port is 40060** — set in `default_mcp_port()` in `config.rs`. Override with `SOMA_MCP_PORT`.

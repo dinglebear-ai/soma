@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# Thin wrapper. Canonical implementation: cargo xtask apply-no-mcp-marketplace.
-set -euo pipefail
-
-cargo xtask apply-no-mcp-marketplace "$@"
