@@ -258,8 +258,9 @@ pub(crate) fn allowed_uris_from_cimd_document(
 }
 
 /// Resolve complete client authentication metadata from DCR or CIMD.
-// Consumed by `token_client_auth` once the token endpoint wiring lands.
-#[allow(dead_code)]
+///
+/// Consumed by `token_client_auth::authenticate_oauth_client` to decide which
+/// `token_endpoint_auth_method` a client must satisfy at `/token`.
 pub(crate) async fn resolve_client(
     state: &AuthState,
     client_id: &str,

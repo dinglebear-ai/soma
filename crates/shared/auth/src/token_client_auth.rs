@@ -13,6 +13,9 @@ mod assertion;
 pub(super) const CLIENT_ASSERTION_TYPE: &str =
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 
+/// RFC 7523 section 2.1 JWT authorization-grant type.
+pub(super) const JWT_BEARER_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct MachineGrant {
     pub client_id: String,
@@ -21,8 +24,84 @@ pub(super) struct MachineGrant {
     pub scope: String,
 }
 
+/// Read the `sub` claim of a client assertion *without* verifying it, so the
+/// token endpoint can pick which configured client's keys to check the
+/// assertion against when `client_id` was not sent as a body parameter.
+///
+/// The value is a routing hint only: [`authenticate_oauth_client`] still
+/// verifies the assertion against that client's JWKS and re-checks that
+/// `iss` and `sub` both equal the resolved `client_id`, so a forged `sub`
+/// only selects a client whose key then fails to verify.
 pub(super) fn extract_assertion_client_id(assertion: Option<&str>) -> Option<String> {
     assertion::extract_client_id(assertion)
+}
+
+/// Treat blank credential parameters as absent.
+///
+/// Some OAuth clients emit `client_secret=` (or an empty assertion) for public
+/// clients rather than omitting the field. Without this, such a request would
+/// be read as "this client presented a secret" and rejected even though
+/// `token_endpoint_auth_method = "none"` is exactly right for it.
+///
+/// This only ever removes credentials, so it cannot admit a request that would
+/// otherwise be denied - an empty secret matches no configured secret, and an
+/// operator who managed to configure an empty `client_secret` now fails closed
+/// instead of accepting an empty one. `client_id` is deliberately untouched so
+/// the Basic-plus-body ambiguity check in
+/// [`apply_basic_client_credentials`] - which runs first - stays strict.
+pub(super) fn discard_blank_credentials(request: &mut TokenRequest) {
+    let blank = |value: &Option<String>| value.as_deref().is_some_and(str::is_empty);
+    if blank(&request.client_secret) {
+        request.client_secret = None;
+    }
+    if blank(&request.client_assertion) {
+        request.client_assertion = None;
+    }
+    if blank(&request.client_assertion_type) {
+        request.client_assertion_type = None;
+    }
+    if blank(&request.assertion) {
+        request.assertion = None;
+    }
+}
+
+/// Fold the JWT-bearer grant's `assertion` (RFC 7523 section 2.1) into the
+/// `client_assertion` slot (RFC 7523 section 2.2).
+///
+/// soma-auth only mints machine tokens from this grant, and a machine client
+/// authenticates with a JWT signed by a key in its configured JWKS - so the
+/// same JWT is simultaneously the authorization grant and the client
+/// credential. Moving it across means [`machine_grant`] actually verifies it
+/// (signature, audience, issuer/subject, expiry, and one-shot `jti`) instead
+/// of a security-relevant parameter being silently ignored, which would make
+/// this grant a bare alias for `client_credentials`.
+///
+/// Never guesses: a missing assertion is `invalid_request`, and an `assertion`
+/// that disagrees with a separately supplied `client_assertion` - or a
+/// `client_assertion_type` naming a different scheme - is `invalid_client`.
+pub(super) fn adopt_jwt_bearer_assertion(request: &mut TokenRequest) -> Result<(), AuthError> {
+    let Some(assertion) = request.assertion.take() else {
+        return Err(AuthError::Validation(
+            "missing `assertion` parameter".to_string(),
+        ));
+    };
+    if request
+        .client_assertion
+        .as_deref()
+        .is_some_and(|supplied| supplied != assertion)
+    {
+        return Err(invalid_client());
+    }
+    if request
+        .client_assertion_type
+        .as_deref()
+        .is_some_and(|supplied| supplied != CLIENT_ASSERTION_TYPE)
+    {
+        return Err(invalid_client());
+    }
+    request.client_assertion = Some(assertion);
+    request.client_assertion_type = Some(CLIENT_ASSERTION_TYPE.to_string());
+    Ok(())
 }
 
 pub(super) fn apply_basic_client_credentials(
@@ -35,6 +114,7 @@ pub(super) fn apply_basic_client_credentials(
     if request.client_id.is_some()
         || request.client_secret.is_some()
         || request.client_assertion.is_some()
+        || request.assertion.is_some()
     {
         return Err(invalid_client());
     }
