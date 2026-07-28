@@ -4,7 +4,10 @@ pub use soma_mcp_proxy::{
     McpResourceRoute as GatewayResourceRoute, McpToolRoute as GatewayToolRoute,
 };
 
-use crate::upstream::{PromptDescriptor, ResourceDescriptor, ToolDescriptor, UpstreamHealth};
+use crate::upstream::{
+    McpRequestOutcome, McpRoundTrip, PromptDescriptor, ResourceDescriptor, ToolDescriptor,
+    UpstreamHealth,
+};
 
 use super::{GatewayManager, GatewayManagerError};
 
@@ -63,6 +66,29 @@ impl GatewayManager {
             .map_err(Into::into)
     }
 
+    pub async fn call_mcp_tool_once_for_subject(
+        &self,
+        name: &str,
+        params: Value,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+    ) -> Result<Option<McpRequestOutcome>, GatewayManagerError> {
+        let Some(route) = self
+            .tool_routes_for_subject(subject)
+            .await?
+            .into_iter()
+            .find(|route| route.name == name)
+        else {
+            return Ok(None);
+        };
+        let upstream = route.upstream.clone();
+        let pool = self.ready_pool()?;
+        let outcome = call_tool_once(&pool, route, params, round_trip, subject).await?;
+        Ok(Some(
+            self.register_task_outcome(outcome, &upstream, subject)?,
+        ))
+    }
+
     pub async fn resource_routes(&self) -> Result<Vec<GatewayResourceRoute>, GatewayManagerError> {
         self.resource_routes_for_subject(None).await
     }
@@ -99,6 +125,22 @@ impl GatewayManager {
         };
         let pool = self.ready_pool()?;
         read_resource(&pool, &upstream, &native_uri, subject)
+            .await
+            .map(Some)
+            .map_err(Into::into)
+    }
+
+    pub async fn read_mcp_resource_once_for_subject(
+        &self,
+        uri: &str,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+    ) -> Result<Option<McpRequestOutcome>, GatewayManagerError> {
+        let Some((upstream, native_uri)) = parse_upstream_resource_uri(uri) else {
+            return Ok(None);
+        };
+        let pool = self.ready_pool()?;
+        read_resource_once(&pool, &upstream, &native_uri, round_trip, subject)
             .await
             .map(Some)
             .map_err(Into::into)
@@ -161,6 +203,35 @@ impl GatewayManager {
         .map_err(Into::into)
     }
 
+    pub async fn get_mcp_prompt_once_for_subject(
+        &self,
+        name: &str,
+        arguments: Option<serde_json::Map<String, Value>>,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+    ) -> Result<Option<McpRequestOutcome>, GatewayManagerError> {
+        let Some(route) = self
+            .prompt_routes_for_subject(subject)
+            .await?
+            .into_iter()
+            .find(|route| route.name == name)
+        else {
+            return Ok(None);
+        };
+        let pool = self.ready_pool()?;
+        get_prompt_once(
+            &pool,
+            &route.upstream,
+            &route.native_name,
+            arguments,
+            round_trip,
+            subject,
+        )
+        .await
+        .map(Some)
+        .map_err(Into::into)
+    }
+
     fn ready_pool(
         &self,
     ) -> Result<std::sync::Arc<crate::upstream::pool::UpstreamPool>, GatewayManagerError> {
@@ -213,6 +284,28 @@ async fn call_tool(
     pool.call_tool(call).await
 }
 
+async fn call_tool_once(
+    pool: &crate::upstream::pool::UpstreamPool,
+    route: GatewayToolRoute,
+    params: Value,
+    round_trip: McpRoundTrip,
+    subject: Option<&str>,
+) -> Result<McpRequestOutcome, crate::upstream::UpstreamError> {
+    let _ = subject;
+    let call = crate::upstream::pool::ToolCall {
+        upstream: route.upstream,
+        tool: route.native_name,
+        params,
+    };
+    #[cfg(feature = "oauth")]
+    if subject.is_some() {
+        return pool
+            .call_tool_once_for_subject(call, round_trip, subject)
+            .await;
+    }
+    pool.call_tool_once(call, round_trip).await
+}
+
 async fn list_resources(
     pool: &crate::upstream::pool::UpstreamPool,
     upstream: &str,
@@ -238,6 +331,23 @@ async fn read_resource(
         return pool.read_resource_for_subject(upstream, uri, subject).await;
     }
     pool.read_resource(upstream, uri).await
+}
+
+async fn read_resource_once(
+    pool: &crate::upstream::pool::UpstreamPool,
+    upstream: &str,
+    uri: &str,
+    round_trip: McpRoundTrip,
+    subject: Option<&str>,
+) -> Result<McpRequestOutcome, crate::upstream::UpstreamError> {
+    let _ = subject;
+    #[cfg(feature = "oauth")]
+    if subject.is_some() {
+        return pool
+            .read_resource_once_for_subject(upstream, uri, round_trip, subject)
+            .await;
+    }
+    pool.read_resource_once(upstream, uri, round_trip).await
 }
 
 async fn list_prompts(
@@ -268,6 +378,25 @@ async fn get_prompt(
             .await;
     }
     pool.get_prompt(upstream, name, arguments).await
+}
+
+async fn get_prompt_once(
+    pool: &crate::upstream::pool::UpstreamPool,
+    upstream: &str,
+    name: &str,
+    arguments: Option<serde_json::Map<String, Value>>,
+    round_trip: McpRoundTrip,
+    subject: Option<&str>,
+) -> Result<McpRequestOutcome, crate::upstream::UpstreamError> {
+    let _ = subject;
+    #[cfg(feature = "oauth")]
+    if subject.is_some() {
+        return pool
+            .get_prompt_once_for_subject(upstream, name, arguments, round_trip, subject)
+            .await;
+    }
+    pool.get_prompt_once(upstream, name, arguments, round_trip)
+        .await
 }
 
 #[cfg(test)]

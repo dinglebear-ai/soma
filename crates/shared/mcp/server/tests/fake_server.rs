@@ -8,7 +8,10 @@
 //! product's MCP server.
 
 use rmcp::{
-    model::{CallToolRequestParams, CallToolResult, ListToolsResult, PaginatedRequestParams},
+    model::{
+        CallToolRequestParams, CallToolResponse, CallToolResult, ListToolsResult,
+        PaginatedRequestParams,
+    },
     service::RequestContext,
     ErrorData, RoleServer, ServerHandler,
 };
@@ -83,8 +86,9 @@ impl ServerHandler for FakeServer {
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<CallToolResponse, ErrorData> {
         self.call_tool_sync(&request.name, request.arguments)
+            .map(Into::into)
     }
 }
 

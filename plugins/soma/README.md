@@ -19,8 +19,6 @@ plugins/soma/
 │   ├── plugin.json         # Codex manifest
 │   └── README.md           # Codex manifest field reference
 ├── gemini-extension.json   # Gemini CLI extension manifest
-├── hooks/
-│   └── hooks.json          # SessionStart + ConfigChange hook definitions (call the binary directly)
 ├── monitors/
 │   └── monitors.json       # Background health monitor (requires Claude Code v2.1.105+)
 └── skills/
@@ -71,9 +69,19 @@ from each platform's user-configurable settings at runtime.
 
 ## Hooks
 
-`hooks/hooks.json` runs `soma setup plugin-hook` directly on `SessionStart` and `ConfigChange` (no shell wrapper).
+This package ships **no** Claude Code lifecycle hooks: no manifest declares a
+`hooks` key and there is no `hooks/hooks.json`.
 
-The binary maps plugin settings (`CLAUDE_PLUGIN_OPTION_*`) to its `SOMA_*` environment variables via `apply_plugin_options()` (`crates/soma/cli/src/setup.rs`), self-installs into `~/.local/bin`, prepares appdata, and runs setup checks/repair.
+Setup is not automatic as a result. Run it yourself after installing the plugin:
+
+```bash
+soma setup plugin-hook --no-repair
+```
+
+That command maps plugin settings (`CLAUDE_PLUGIN_OPTION_*`) to the binary's
+`SOMA_*` environment variables via `apply_plugin_options()`
+(`crates/soma/cli/src/setup.rs`), self-installs into `~/.local/bin`, prepares
+appdata, and runs setup checks/repair.
 
 ## Monitors
 

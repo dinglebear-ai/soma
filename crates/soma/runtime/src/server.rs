@@ -274,6 +274,20 @@ impl SomaRuntime {
     }
 
     #[cfg(feature = "oauth")]
+    pub async fn complete_upstream_authorization(
+        &self,
+        upstream: &str,
+        subject: &str,
+        code: &str,
+        state: &str,
+        issuer: Option<&str>,
+    ) -> Result<(), soma_gateway::gateway::manager::GatewayManagerError> {
+        self.gateway
+            .complete_upstream_authorization(upstream, subject, code, state, issuer)
+            .await
+    }
+
+    #[cfg(feature = "oauth")]
     pub async fn upstream_oauth_access_token(
         &self,
         upstream: &UpstreamConfig,
@@ -346,6 +360,20 @@ impl AppState {
 
     pub fn upstream_config(&self, name: &str) -> Option<UpstreamConfig> {
         self.runtime.upstream_config(name)
+    }
+
+    #[cfg(feature = "oauth")]
+    pub async fn complete_upstream_authorization(
+        &self,
+        upstream: &str,
+        subject: &str,
+        code: &str,
+        callback_state: &str,
+        issuer: Option<&str>,
+    ) -> Result<(), soma_gateway::gateway::manager::GatewayManagerError> {
+        self.runtime
+            .complete_upstream_authorization(upstream, subject, code, callback_state, issuer)
+            .await
     }
 
     #[cfg(feature = "oauth")]

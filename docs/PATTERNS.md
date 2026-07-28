@@ -1490,10 +1490,6 @@ Runs when release-please publishes a GitHub Release, plus manual dispatch for an
   changelog/version updates, release tags, and GitHub Releases.
 - `scheduled.yml`: weekly RUSTSEC advisory refresh, with manual full
   `cargo-deny` audit.
-- `check-no-mcp-drift.yml`: read-only scheduled/manual drift check for the
-  protected `marketplace-no-mcp` branch.
-- `sync-marketplace-no-mcp.yml`: push/scheduled/manual sync from `main` into the
-  long-lived no-MCP marketplace variant.
 - `rmcp-release-monitor.yml`: daily/manual upstream `rmcp`, MCP schema, and MCP
   conformance drift issue maintenance.
 - `dependabot-auto-merge.yml`: same-repo Dependabot patch/minor auto-merge

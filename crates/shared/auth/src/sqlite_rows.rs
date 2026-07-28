@@ -96,16 +96,17 @@ pub(super) fn row_to_native_authorization_result(
 pub(super) fn row_to_upstream_oauth_credentials(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<UpstreamOauthCredentialRow> {
-    let refresh_token_present: i64 = row.get(8)?;
+    let refresh_token_present: i64 = row.get(9)?;
     Ok(UpstreamOauthCredentialRow {
         upstream_name: row.get(0)?,
         subject: row.get(1)?,
-        client_id: row.get(2)?,
-        granted_scopes_json: row.get(3)?,
-        token_blob: row.get(4)?,
-        token_blob_nonce: row.get(5)?,
-        token_received_at: row.get(6)?,
-        access_token_expires_at: row.get(7)?,
+        issuer: row.get(2)?,
+        client_id: row.get(3)?,
+        granted_scopes_json: row.get(4)?,
+        token_blob: row.get(5)?,
+        token_blob_nonce: row.get(6)?,
+        token_received_at: row.get(7)?,
+        access_token_expires_at: row.get(8)?,
         refresh_token_present: refresh_token_present != 0,
     })
 }
@@ -113,12 +114,16 @@ pub(super) fn row_to_upstream_oauth_credentials(
 pub(super) fn row_to_upstream_oauth_state(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<UpstreamOauthStateRow> {
+    let require_issuer: i64 = row.get(5)?;
     Ok(UpstreamOauthStateRow {
         upstream_name: row.get(0)?,
         subject: row.get(1)?,
         csrf_token: row.get(2)?,
         pkce_verifier: row.get(3)?,
-        created_at: row.get(4)?,
-        expires_at: row.get(5)?,
+        expected_issuer: row.get(4)?,
+        require_issuer: require_issuer != 0,
+        requested_scopes_json: row.get(6)?,
+        created_at: row.get(7)?,
+        expires_at: row.get(8)?,
     })
 }

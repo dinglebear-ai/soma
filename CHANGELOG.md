@@ -317,6 +317,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and its one-shot worker. Catalog and call responses validate protocol version,
   request ID, response mode, JSON framing, and bounded payload size before
   entering canonical provider validation.
+- Groundwork for MCP 2026 / OAuth 2.1 machine authentication: typed
+  `MachineClientConfig` and `EnterpriseIssuerConfig`, `token_endpoint_auth_method`
+  and `jwks` on registered and CIMD clients, an `AuthError::InvalidScope`
+  variant mapped to the RFC 6749 `invalid_scope` code, and a complete
+  `token_client_auth` module implementing `client_secret_basic`,
+  `private_key_jwt`, and the client-credentials / jwt-bearer machine grants.
+  Authorization-server metadata now advertises the grant types, client
+  authentication methods, and signing algorithms that the configured machine
+  clients and enterprise issuers actually enable.
+  The `token_client_auth` module is not yet called from the `/token` handler,
+  so none of it is reachable at runtime; the endpoint wiring and the RFC 7009
+  `/revoke` handler are tracked separately. `revocation_endpoint` is
+  deliberately omitted from metadata until that handler exists.
 - Add `SOMA_MCP_STATIC_TOKEN_WRITE` (default `false`): the static bearer token
   stays read-only (`soma:read`) unless the operator explicitly grants
   `soma:write`, applied through the single `build_auth_layer` call site so

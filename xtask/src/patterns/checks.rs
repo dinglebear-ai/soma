@@ -256,26 +256,20 @@ pub(super) fn plugins(reporter: &mut PatternReporter) {
         reporter.fail("plugins", failures.join("; "));
     }
 
-    let hook_path = Path::new("plugins/soma/hooks/hooks.json");
-    if hook_path.exists() {
-        let hook = read_file("plugins/soma/hooks/hooks.json");
-        // The hook must call the installed PATH binary directly (no plugin-setup.sh wrapper).
-        if hook.contains("plugin-setup.sh") {
-            reporter.fail(
-                "plugins",
-                "hooks.json must not reference the removed plugin-setup.sh wrapper",
-            );
-        } else if !hook.contains("soma setup plugin-hook") {
-            reporter.fail(
-                "plugins",
-                "hooks.json must call `soma setup plugin-hook` directly",
-            );
-        } else {
-            reporter.ok(
-                "plugins",
-                "plugin hooks call the binary's setup plugin-hook directly",
-            );
-        }
+    // The plugin package ships no Claude Code lifecycle hooks. Guard against a
+    // hooks/hooks.json (or a manifest `hooks` key) creeping back in.
+    if Path::new("plugins/soma/hooks/hooks.json").exists() {
+        reporter.fail(
+            "plugins",
+            "plugins/soma/hooks/hooks.json must not exist; the plugin ships no lifecycle hooks",
+        );
+    } else if read_file("plugins/soma/.claude-plugin/plugin.json").contains("\"hooks\"") {
+        reporter.fail(
+            "plugins",
+            "Claude plugin manifest must not declare a hooks key",
+        );
+    } else {
+        reporter.ok("plugins", "plugin package declares no lifecycle hooks");
     }
 }
 

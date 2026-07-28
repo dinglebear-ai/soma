@@ -59,6 +59,27 @@ fn rejects_upstream_missing_url() {
 }
 
 #[test]
+fn converts_auto_registration_to_cimd_first_auth_strategy() {
+    let upstream = UpstreamConfig {
+        name: "secured".to_owned(),
+        url: Some("https://example.com/mcp".to_owned()),
+        oauth: Some(GatewayUpstreamOauthConfig {
+            mode: GatewayUpstreamOauthMode::AuthorizationCodePkce,
+            registration: GatewayUpstreamOauthRegistration::Auto,
+            scopes: None,
+            prefer_client_metadata_document: None,
+        }),
+        ..UpstreamConfig::default()
+    };
+
+    let converted = to_auth_upstream(&upstream).expect("convert OAuth config");
+    assert!(matches!(
+        converted.oauth.expect("oauth").registration,
+        soma_auth::upstream::config::UpstreamOauthRegistration::Auto
+    ));
+}
+
+#[test]
 fn converts_client_metadata_document_registration() {
     let upstream = UpstreamConfig {
         name: "secured".to_owned(),

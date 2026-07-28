@@ -10,6 +10,16 @@ beads: soma-t8l, soma-6il, soma-c8a, soma-tk3, soma-9a3
 
 # CI workflows and no-MCP cleanup
 
+> **Superseded 2026-07-27.** The no-MCP marketplace variant was retired
+> fleet-wide. The `marketplace-no-mcp` branch is deleted (local and remote), and
+> its machinery — `.github/workflows/check-no-mcp-drift.yml`,
+> `.github/workflows/sync-marketplace-no-mcp.yml`, `docs/no-mcp-variant.md`,
+> `scripts/apply-no-mcp-marketplace`, `scripts/check-no-mcp-drift`, and
+> `xtask/src/no_mcp.rs` (with its `apply-no-mcp-marketplace` /
+> `check-no-mcp-drift` subcommands) — has been removed. This log is retained as
+> an archival record of what happened at the time; nothing in it describes
+> current repository state.
+
 ## User Request
 
 Jacob asked to get CI passing and reduce the repository to `main` plus the protected no-MCP branch without losing work. Earlier in the session, he also asked for the upstream-watch pattern to monitor `rmcp`, the MCP schema, and conformance drift, then asked to capture the session with `vibin:save-to-md`.

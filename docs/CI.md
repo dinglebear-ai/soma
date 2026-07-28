@@ -28,15 +28,14 @@ cargo xtask pre-release-check
 ## GitHub workflows
 
 The repository keeps separate workflows for fast PR feedback, release
-automation, long-lived marketplace-variant maintenance, and scheduled drift
-checks. Use the smallest workflow that proves the thing you changed; do not
-turn release or sync workflows into general PR CI.
+automation, and scheduled drift checks. Use the smallest workflow that proves
+the thing you changed; do not turn release workflows into general PR CI.
 
 ### `.github/workflows/ci.yml`
 
 Use for: every PR, every push to `main`, and manual full verification.
 
-Do not use for: tag-only packaging or marketplace-no-mcp branch maintenance.
+Do not use for: tag-only packaging or release-tag maintenance.
 
 CI is path-aware. The first job, `Changes`, runs
 `cargo xtask changed-paths` and publishes routing booleans consumed by the
@@ -178,22 +177,6 @@ net, not the merge gate.
 Do not path-gate scheduled runs: the point is to catch advisory database changes
 that happen when no repository paths changed. Scheduled runs check advisories
 only; manual dispatch can run the full `cargo-deny` suite.
-
-### `.github/workflows/check-no-mcp-drift.yml`
-
-Use for: detecting drift between `main` and the protected `marketplace-no-mcp`
-variant.
-
-Do not use for: syncing or modifying the branch. This workflow is read-only.
-
-### `.github/workflows/sync-marketplace-no-mcp.yml`
-
-Use for: keeping the protected `marketplace-no-mcp` branch current with `main`
-while applying the no-MCP variant rules.
-
-Do not use for: branch cleanup. `marketplace-no-mcp` is a long-lived protected
-variant branch and must not be deleted, squashed away, or folded into `main`
-unless Jacob explicitly asks for that exact branch to be retired.
 
 ### `.github/workflows/dependabot-auto-merge.yml`
 

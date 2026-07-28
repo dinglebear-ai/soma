@@ -11,10 +11,9 @@ registration is supplied by the client or gateway; the default command is
 
 | File | Role |
 |---|---|
-| `.claude-plugin/plugin.json` | Claude Code manifest — identity, hooks, skills, monitors, `userConfig` |
+| `.claude-plugin/plugin.json` | Claude Code manifest — identity, skills, monitors, `userConfig` |
 | `.codex-plugin/plugin.json` | Codex manifest — same data + Codex UI fields (`interface`) |
 | `gemini-extension.json` | Gemini CLI manifest — uses `settings` array instead of `userConfig` |
-| `hooks/hooks.json` | Lifecycle hook definitions: `SessionStart`, `ConfigChange` — call `soma setup plugin-hook` directly (no shell wrapper) |
 | `monitors/monitors.json` | Background health monitor config (requires Claude Code v2.1.105+) |
 | `skills/soma/SKILL.md` | Three-tier tool documentation shared by Claude and Codex |
 
@@ -56,9 +55,15 @@ The three-tier structure must be preserved:
 
 ## Updating the plugin option mapping
 
-`apply_plugin_options()` in `crates/soma/cli/src/setup.rs` reads `CLAUDE_PLUGIN_OPTION_*` env vars that map to the `userConfig` fields in `plugin.json`, translating them into the binary's `SOMA_*` vars before `Config::load()`. When you add or rename a `userConfig` field, update the mapping table in that function to match. (This replaces the former `plugin-setup.sh` wrapper, which has been removed.)
+`apply_plugin_options()` in `crates/soma/cli/src/setup.rs` reads `CLAUDE_PLUGIN_OPTION_*` env vars that map to the `userConfig` fields in `plugin.json`, translating them into the binary's `SOMA_*` vars before `Config::load()`. When you add or rename a `userConfig` field, update the mapping table in that function to match.
 
-Sensitive fields declared `"sensitive": true` in `plugin.json` are available as env vars in hooks but are **never** substituted into skill content.
+This package ships **no** lifecycle hooks, so nothing runs `soma setup
+plugin-hook` automatically — run it manually after install or a settings
+change. Do not add a `hooks` key or a `hooks/hooks.json`: `just
+validate-plugin`, `cargo xtask check-patterns`, and
+`apps/soma/tests/plugin_contract.rs` all assert their absence.
+
+Sensitive fields declared `"sensitive": true` in `plugin.json` are **never** substituted into skill content.
 
 ## Soma adaptation
 

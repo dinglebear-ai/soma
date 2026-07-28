@@ -89,11 +89,12 @@ impl OauthClientCache {
     ) -> Result<Arc<AuthClient<reqwest::Client>>, OauthError> {
         // For Dynamic upstreams, include the stored client_id in the
         // fingerprint so a re-registration is detected.
-        let dynamic_client_id: Option<String> = if config
-            .oauth
-            .as_ref()
-            .is_some_and(|o| matches!(o.registration, UpstreamOauthRegistration::Dynamic))
-        {
+        let dynamic_client_id: Option<String> = if config.oauth.as_ref().is_some_and(|o| {
+            matches!(
+                o.registration,
+                UpstreamOauthRegistration::Auto | UpstreamOauthRegistration::Dynamic
+            )
+        }) {
             self.managers
                 .get(&config.name)
                 .map(|r| r.clone())
@@ -294,6 +295,12 @@ fn registration_fingerprint(
         .ok_or_else(|| OauthError::Internal("upstream has no oauth config".to_string()))?;
 
     Ok(match &oauth.registration {
+        UpstreamOauthRegistration::Auto => {
+            format!(
+                "auto:{}",
+                dynamic_client_id.unwrap_or("cimd-or-unregistered")
+            )
+        }
         UpstreamOauthRegistration::Preregistered { client_id, .. } => {
             format!("preregistered:{client_id}")
         }
@@ -338,6 +345,15 @@ mod tests {
         let a = registration_fingerprint(&cfg("acme", "id-1"), None).unwrap();
         let b = registration_fingerprint(&cfg("acme", "id-2"), None).unwrap();
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn auto_fingerprint_tracks_dynamic_fallback_registration() {
+        let mut config = cfg("acme", "ignored");
+        config.oauth.as_mut().expect("oauth").registration = UpstreamOauthRegistration::Auto;
+        let first = registration_fingerprint(&config, Some("client-one")).unwrap();
+        let second = registration_fingerprint(&config, Some("client-two")).unwrap();
+        assert_ne!(first, second);
     }
 
     #[test]

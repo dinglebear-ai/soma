@@ -3,7 +3,7 @@
 Claude Code, Codex, and Gemini plugin packages for the MCP server. Marketplace
 manifests intentionally do not bundle an MCP server registration; the server is
 expected to be connected through the user's existing gateway or local MCP setup.
-All platforms share the same skills and lifecycle hooks.
+All platforms share the same skills. The package ships no lifecycle hooks.
 
 ## Structure
 
@@ -15,8 +15,6 @@ plugins/soma/
 │   ├── plugin.json       # Codex manifest
 │   └── README.md         # Codex manifest field reference
 ├── gemini-extension.json # Gemini extension manifest
-├── hooks/
-│   └── hooks.json        # Lifecycle hook definitions (call the binary directly)
 └── skills/
     ├── soma/
     │   └── SKILL.md      # Tool documentation for Claude and Codex
@@ -69,27 +67,28 @@ See `.codex-plugin/README.md` for a full field reference and `brandColor` guide.
 
 ## Hooks
 
-### `hooks/hooks.json`
-
-Defines two lifecycle hooks:
-
-| Hook | Trigger | Command |
-|---|---|---|
-| `SessionStart` | Every Claude Code session start | `soma setup plugin-hook` |
-| `ConfigChange` | User updates plugin settings | `soma setup plugin-hook` |
-
-Timeout: 300 seconds.
+**This plugin package ships no lifecycle hooks.** No manifest declares a
+`hooks` key and there is no `hooks/hooks.json`. Do not add one — `just
+validate-plugin`, `cargo xtask check-patterns`, and the `plugin_contract` tests
+all assert their absence.
 
 ### `soma setup plugin-hook`
 
-The lifecycle command. Runs on every session start and config change, called directly by `hooks.json` (no shell wrapper).
+The `setup plugin-hook` subcommand still exists on the binary and remains the
+cross-repo standard implemented by the other Rust MCP servers (see
+[`docs/PLUGINS.md`](../docs/PLUGINS.md)). Soma no longer wires it to a Claude
+Code lifecycle hook; run it manually when you want the same setup behavior:
+
+```bash
+soma setup plugin-hook --no-repair
+```
 
 - Reads `CLAUDE_PLUGIN_OPTION_*` env vars from plugin `userConfig` and maps them to the binary's `SOMA_*` runtime env vars (`apply_plugin_options()` in `crates/soma/cli/src/setup.rs`)
 - Runs from the binary already installed on `PATH`
 - Prepares the plugin appdata directory
 - Checks/repairs setup and emits the JSON hook contract
 
-Deployment policy, repair behavior, env-var mapping, and failure classification all live in the Rust binary. The former `plugin-setup.sh` wrapper was a pure env-mapping middleman and has been removed.
+Deployment policy, repair behavior, env-var mapping, and failure classification all live in the Rust binary.
 
 ---
 

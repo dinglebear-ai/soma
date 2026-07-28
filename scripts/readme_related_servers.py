@@ -20,56 +20,80 @@ class RelatedServer:
 
 RELATED_SERVERS = (
     RelatedServer("soma", "https://github.com/dinglebear-ai/soma", "RMCP runtime for provider-backed MCP servers."),
-    RelatedServer("unifi-rmcp", "https://github.com/jmagar/unifi-rmcp", "UniFi controller REST API bridge."),
+    RelatedServer("runifi", "https://github.com/dinglebear-ai/runifi", "UniFi controller REST API bridge."),
     RelatedServer(
-        "tailscale-rmcp",
-        "https://github.com/jmagar/tailscale-rmcp",
+        "rtailscale",
+        "https://github.com/dinglebear-ai/rtailscale",
         "Tailscale API bridge for devices, users, and tailnet operations.",
     ),
     RelatedServer(
-        "unraid-rmcp",
-        "https://github.com/jmagar/unraid-rmcp",
-        "Unraid GraphQL bridge for NAS and server management.",
+        "unraid",
+        "https://github.com/dinglebear-ai/unraid",
+        "Unraid monorepo: Python and Rust GraphQL MCP servers plus Unraid plugins.",
     ),
     RelatedServer(
-        "apprise-rmcp",
-        "https://github.com/jmagar/apprise-rmcp",
+        "rapprise",
+        "https://github.com/dinglebear-ai/rapprise",
         "Apprise notification fan-out bridge for many delivery backends.",
     ),
     RelatedServer(
-        "gotify-rmcp",
-        "https://github.com/jmagar/gotify-rmcp",
+        "rgotify",
+        "https://github.com/dinglebear-ai/rgotify",
         "Gotify push notification bridge for sends, messages, apps, and clients.",
     ),
     RelatedServer(
-        "arcane-rmcp",
-        "https://github.com/jmagar/arcane-rmcp",
+        "rarcane",
+        "https://github.com/dinglebear-ai/rarcane",
         "Arcane Docker management bridge for containers and related resources.",
     ),
     RelatedServer(
         "yarr",
-        "https://github.com/jmagar/yarr",
+        "https://github.com/dinglebear-ai/yarr",
         "Media-stack bridge for Sonarr, Radarr, Prowlarr, Plex, and related services.",
     ),
-    RelatedServer("ytdl-rmcp", "https://github.com/jmagar/ytdl-rmcp", "Media download and metadata workflow server."),
     RelatedServer(
-        "synapse-rmcp",
-        "https://github.com/jmagar/synapse-rmcp",
+        "rytdl", "https://github.com/dinglebear-ai/rytdl", "Media download and metadata workflow server."
+    ),
+    RelatedServer(
+        "synapse",
+        "https://github.com/dinglebear-ai/synapse",
         "Local Synapse workflow server for scout and flux actions.",
     ),
-    RelatedServer("cortex", "https://github.com/jmagar/cortex", "Syslog and homelab log aggregation MCP server."),
-    RelatedServer("axon", "https://github.com/jmagar/axon", "RAG, crawl, scrape, extract, and semantic search project."),
-    RelatedServer("labby", "https://github.com/jmagar/labby", "Homelab control plane and MCP gateway project."),
+    RelatedServer(
+        "cortex", "https://github.com/dinglebear-ai/cortex", "Syslog and homelab log aggregation MCP server."
+    ),
+    RelatedServer(
+        "axon",
+        "https://github.com/dinglebear-ai/axon",
+        "RAG, crawl, scrape, extract, and semantic search project.",
+    ),
+    RelatedServer(
+        "labby", "https://github.com/dinglebear-ai/labby", "Homelab control plane and MCP gateway project."
+    ),
     RelatedServer("lumen", "https://github.com/jmagar/lumen", "Local semantic code search MCP server."),
 )
 
+# Historical directory / repo names that still resolve to a canonical entry.
+# The fleet moved to the dinglebear-ai org and dropped the `-rmcp` suffix;
+# GitHub redirects keep the old names working, so keep mapping them.
 RELATED_SERVER_SELF_ALIASES = {
+    "apprise-rmcp": "rapprise",
+    "arcane-rmcp": "rarcane",
     "cortex-rmcp": "cortex",
+    "gotify-rmcp": "rgotify",
     "lab": "labby",
     "labby-mcp": "labby",
+    "rmcp-template": "soma",
+    "rtemplate-mcp": "soma",
+    "runraid": "unraid",
     "soma-rmcp": "soma",
-    "synapse": "synapse-rmcp",
+    "synapse-rmcp": "synapse",
+    "tailscale-rmcp": "rtailscale",
+    "unifi-rmcp": "runifi",
+    "unraid-mcp": "unraid",
+    "unraid-rmcp": "unraid",
     "yarr-mcp": "yarr",
+    "ytdl-rmcp": "rytdl",
 }
 
 STALE_RELATED_SERVER_NAMES = (

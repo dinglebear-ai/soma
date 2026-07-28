@@ -167,9 +167,6 @@ pub fn validate_plugin_layout(repo_root: &Path, plugin_root: Option<&Path>) -> R
     checks.check_result("Claude plugin has no version field", || {
         json_has_no_version(&layout.claude)
     });
-    checks.check_result("Claude plugin points to hooks config", || {
-        json_field_eq(&layout.claude, "/hooks", "./hooks/hooks.json")
-    });
     checks.check_result("Claude plugin points to skills directory", || {
         json_field_eq(&layout.claude, "/skills", "./skills")
     });
@@ -235,15 +232,13 @@ pub fn validate_plugin_layout(repo_root: &Path, plugin_root: Option<&Path>) -> R
     // (see plugins/README.md): the server connects through the user's gateway or
     // local MCP setup. No .mcp.json / mcpServers checks here by design.
 
-    checks.check_result("hooks config exists", || file_exists(&layout.hooks));
-    checks.check_result("hooks config is valid JSON", || {
-        read_json(&layout.hooks).map(|_| ())
+    // The plugin package intentionally ships no Claude Code lifecycle hooks:
+    // manifests declare no `hooks` key and there is no `hooks/hooks.json`.
+    checks.check_result("Claude plugin declares no hooks", || {
+        json_has_no_hooks(&layout.claude)
     });
-    checks.check_result("SessionStart runs plugin setup", || {
-        hook_command_exists(&layout.hooks, "SessionStart", None)
-    });
-    checks.check_result("ConfigChange runs plugin setup", || {
-        hook_command_exists(&layout.hooks, "ConfigChange", Some("user_settings"))
+    checks.check_result("Gemini extension declares no hooks", || {
+        json_has_no_hooks(&layout.gemini)
     });
 
     checks.check_result("skills directory exists", || dir_exists(&layout.skills));
@@ -455,7 +450,6 @@ struct PluginLayout {
     claude: PathBuf,
     codex: PathBuf,
     gemini: PathBuf,
-    hooks: PathBuf,
     skills: PathBuf,
 }
 
@@ -465,7 +459,6 @@ impl PluginLayout {
             claude: plugin_root.join(".claude-plugin/plugin.json"),
             codex: plugin_root.join(".codex-plugin/plugin.json"),
             gemini: plugin_root.join("gemini-extension.json"),
-            hooks: plugin_root.join("hooks/hooks.json"),
             skills: plugin_root.join("skills"),
         }
     }
@@ -546,6 +539,15 @@ fn json_has_no_version(path: &Path) -> Result<()> {
     }
 }
 
+fn json_has_no_hooks(path: &Path) -> Result<()> {
+    let value = read_json(path)?;
+    if value.get("hooks").is_some() {
+        bail!("must not declare a hooks key; the plugin ships no lifecycle hooks")
+    } else {
+        Ok(())
+    }
+}
+
 fn require_json_str(value: &Value, pointer: &str, expected: &str) -> Result<()> {
     let actual = value
         .pointer(pointer)
@@ -588,34 +590,6 @@ fn contains_json_key(value: &Value, key: &str) -> bool {
         }
         Value::Array(values) => values.iter().any(|value| contains_json_key(value, key)),
         _ => false,
-    }
-}
-
-fn hook_command_exists(path: &Path, event: &str, matcher: Option<&str>) -> Result<()> {
-    let value = read_json(path)?;
-    let entries = value
-        .pointer(&format!("/hooks/{event}"))
-        .and_then(Value::as_array)
-        .with_context(|| format!("missing hooks.{event} array"))?;
-    let found = entries.iter().any(|entry| {
-        if matcher
-            .is_some_and(|expected| entry.get("matcher").and_then(Value::as_str) != Some(expected))
-        {
-            return false;
-        }
-        entry
-            .get("hooks")
-            .and_then(Value::as_array)
-            .is_some_and(|hooks| {
-                hooks.iter().any(|hook| {
-                    hook.get("command").and_then(Value::as_str) == Some("soma setup plugin-hook")
-                })
-            })
-    });
-    if found {
-        Ok(())
-    } else {
-        bail!("missing {event} hook command")
     }
 }
 

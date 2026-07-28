@@ -3,8 +3,8 @@ use serde_json::{Map, Value};
 use crate::oauth::UpstreamOAuthProvider;
 use crate::process::guard::SpawnGuard;
 use crate::upstream::{
-    CapScope, PromptDescriptor, ResourceDescriptor, ToolDescriptor, UpstreamError, UpstreamHealth,
-    UpstreamSnapshot,
+    CapScope, McpRequestOutcome, McpRoundTrip, PromptDescriptor, ResourceDescriptor,
+    ToolDescriptor, UpstreamError, UpstreamHealth, UpstreamSnapshot,
 };
 
 use super::tools::matches_filter;
@@ -113,6 +113,54 @@ impl UpstreamPool {
         Ok(result)
     }
 
+    pub async fn call_tool_once_for_subject(
+        &self,
+        call: ToolCall,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+    ) -> Result<McpRequestOutcome, UpstreamError> {
+        let Some(subject) = subject else {
+            return self.call_tool_once(call, round_trip).await;
+        };
+        if !self.config_is_oauth(&call.upstream)? {
+            return self.call_tool_once(call, round_trip).await;
+        }
+        self.ensure_subject_connected(&call.upstream, subject)
+            .await?;
+        let (peer, upstream) = self.with_subject_entry(&call.upstream, subject, |entry| {
+            ensure_subject_routable(&entry.snapshot)?;
+            if !entry
+                .snapshot
+                .tools
+                .iter()
+                .any(|candidate| candidate.name == call.tool)
+            {
+                return Err(UpstreamError::NotExposed {
+                    upstream: call.upstream.clone(),
+                    item: call.tool.clone(),
+                });
+            }
+            Ok((entry.live.peer(), entry.snapshot.name.clone()))
+        })?;
+        let outcome = if round_trip.request_meta.is_some() {
+            let config = self.config_for_subject(&call.upstream)?;
+            let provider = self.oauth_provider()?;
+            live::call_live_tool_once_scoped(
+                &config,
+                live::LiveConnectContext::oauth(self.response_caps(), subject, provider),
+                call.tool,
+                call.params,
+                round_trip,
+            )
+            .await?
+        } else {
+            live::call_live_tool_once(&upstream, peer, call.tool, call.params, round_trip).await?
+        };
+        let bytes = serde_json::to_vec(outcome.payload()).map_or(usize::MAX, |bytes| bytes.len());
+        self.response_caps().enforce(CapScope::ToolsCall, bytes)?;
+        Ok(outcome)
+    }
+
     pub async fn list_resources_for_subject(
         &self,
         upstream: &str,
@@ -162,6 +210,32 @@ impl UpstreamPool {
         Ok(value)
     }
 
+    pub async fn read_resource_once_for_subject(
+        &self,
+        upstream: &str,
+        uri: &str,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+    ) -> Result<McpRequestOutcome, UpstreamError> {
+        let Some(subject) = subject else {
+            return self.read_resource_once(upstream, uri, round_trip).await;
+        };
+        if !self.config_is_oauth(upstream)? {
+            return self.read_resource_once(upstream, uri, round_trip).await;
+        }
+        self.ensure_subject_connected(upstream, subject).await?;
+        let peer = self.with_subject_entry(upstream, subject, |entry| {
+            ensure_subject_routable(&entry.snapshot)?;
+            Ok(entry.live.peer())
+        })?;
+        let outcome =
+            live::read_live_resource_once(upstream, peer, uri.to_owned(), round_trip).await?;
+        let bytes = serde_json::to_vec(outcome.payload()).map_or(usize::MAX, |bytes| bytes.len());
+        self.response_caps()
+            .enforce(CapScope::ResourcesRead, bytes)?;
+        Ok(outcome)
+    }
+
     pub async fn list_prompts_for_subject(
         &self,
         upstream: &str,
@@ -208,6 +282,122 @@ impl UpstreamPool {
         let bytes = serde_json::to_vec(&value).map_or(usize::MAX, |bytes| bytes.len());
         self.response_caps().enforce(CapScope::PromptsGet, bytes)?;
         Ok(value)
+    }
+
+    pub async fn get_prompt_once_for_subject(
+        &self,
+        upstream: &str,
+        name: &str,
+        arguments: Option<Map<String, Value>>,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+    ) -> Result<McpRequestOutcome, UpstreamError> {
+        let Some(subject) = subject else {
+            return self
+                .get_prompt_once(upstream, name, arguments, round_trip)
+                .await;
+        };
+        if !self.config_is_oauth(upstream)? {
+            return self
+                .get_prompt_once(upstream, name, arguments, round_trip)
+                .await;
+        }
+        self.ensure_subject_connected(upstream, subject).await?;
+        let peer = self.with_subject_entry(upstream, subject, |entry| {
+            ensure_subject_routable(&entry.snapshot)?;
+            Ok(entry.live.peer())
+        })?;
+        let outcome =
+            live::get_live_prompt_once(upstream, peer, name.to_owned(), arguments, round_trip)
+                .await?;
+        let bytes = serde_json::to_vec(outcome.payload()).map_or(usize::MAX, |bytes| bytes.len());
+        self.response_caps().enforce(CapScope::PromptsGet, bytes)?;
+        Ok(outcome)
+    }
+
+    pub async fn get_task_for_subject(
+        &self,
+        upstream: &str,
+        task_id: &str,
+        subject: Option<&str>,
+    ) -> Result<Value, UpstreamError> {
+        let Some(subject) = subject else {
+            return self.get_task(upstream, task_id).await;
+        };
+        if !self.config_is_oauth(upstream)? {
+            return self.get_task(upstream, task_id).await;
+        }
+        self.ensure_subject_connected(upstream, subject).await?;
+        let peer = self.with_subject_entry(upstream, subject, |entry| {
+            ensure_subject_routable(&entry.snapshot)?;
+            Ok(entry.live.peer())
+        })?;
+        let result = peer
+            .get_task(rmcp::model::GetTaskParams::new(task_id))
+            .await
+            .map_err(|error| UpstreamError::LiveCall {
+                upstream: upstream.to_owned(),
+                operation: "tasks/get",
+                message: error.to_string(),
+            })?;
+        serde_json::to_value(result).map_err(|error| UpstreamError::LiveCall {
+            upstream: upstream.to_owned(),
+            operation: "tasks/get",
+            message: error.to_string(),
+        })
+    }
+
+    pub async fn update_task_for_subject(
+        &self,
+        upstream: &str,
+        task_id: &str,
+        input_responses: std::collections::BTreeMap<String, Value>,
+        subject: Option<&str>,
+    ) -> Result<(), UpstreamError> {
+        let Some(subject) = subject else {
+            return self.update_task(upstream, task_id, input_responses).await;
+        };
+        if !self.config_is_oauth(upstream)? {
+            return self.update_task(upstream, task_id, input_responses).await;
+        }
+        self.ensure_subject_connected(upstream, subject).await?;
+        let peer = self.with_subject_entry(upstream, subject, |entry| {
+            ensure_subject_routable(&entry.snapshot)?;
+            Ok(entry.live.peer())
+        })?;
+        peer.update_task(rmcp::model::UpdateTaskParams::new(task_id, input_responses))
+            .await
+            .map_err(|error| UpstreamError::LiveCall {
+                upstream: upstream.to_owned(),
+                operation: "tasks/update",
+                message: error.to_string(),
+            })
+    }
+
+    pub async fn cancel_task_for_subject(
+        &self,
+        upstream: &str,
+        task_id: &str,
+        subject: Option<&str>,
+    ) -> Result<(), UpstreamError> {
+        let Some(subject) = subject else {
+            return self.cancel_task(upstream, task_id).await;
+        };
+        if !self.config_is_oauth(upstream)? {
+            return self.cancel_task(upstream, task_id).await;
+        }
+        self.ensure_subject_connected(upstream, subject).await?;
+        let peer = self.with_subject_entry(upstream, subject, |entry| {
+            ensure_subject_routable(&entry.snapshot)?;
+            Ok(entry.live.peer())
+        })?;
+        peer.cancel_task(rmcp::model::CancelTaskParams::new(task_id))
+            .await
+            .map_err(|error| UpstreamError::LiveCall {
+                upstream: upstream.to_owned(),
+                operation: "tasks/cancel",
+                message: error.to_string(),
+            })
     }
 
     async fn ensure_subject_connected(

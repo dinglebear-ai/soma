@@ -5,6 +5,12 @@ pub struct AuthorizationServerMetadata {
     pub issuer: String,
     pub authorization_endpoint: String,
     pub token_endpoint: String,
+    /// RFC 7009 revocation endpoint. `/revoke` is reserved in
+    /// `config::FIXED_ROUTE_PATHS` but not yet served by `routes::router`, so
+    /// this stays `None` — advertising an endpoint that 404s is worse than
+    /// omitting the capability. Populate once the handler lands.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revocation_endpoint: Option<String>,
     pub registration_endpoint: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_callback_endpoint: Option<String>,
@@ -12,9 +18,12 @@ pub struct AuthorizationServerMetadata {
     pub native_poll_endpoint: Option<String>,
     pub jwks_uri: String,
     pub response_types_supported: Vec<String>,
+    pub scopes_supported: Vec<String>,
     pub grant_types_supported: Vec<String>,
     pub code_challenge_methods_supported: Vec<String>,
     pub token_endpoint_auth_methods_supported: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub token_endpoint_auth_signing_alg_values_supported: Vec<String>,
     /// RFC 9207 §2.3 — MUST be `true` whenever the authorization server includes
     /// the `iss` parameter in authorization responses (soma-auth always does, in
     /// `authorize::callback`). Always emitted, never conditional.
@@ -23,6 +32,8 @@ pub struct AuthorizationServerMetadata {
     /// (see `crate::cimd`). Always `true` — soma-auth supports CIMD
     /// unconditionally alongside DCR.
     pub client_id_metadata_document_supported: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub authorization_grant_profiles_supported: Vec<String>,
 }
 
 /// Query params for `GET /native/callback` and `GET /native/poll` — the
@@ -124,6 +135,31 @@ pub struct TokenRequest {
     pub code_verifier: Option<String>,
     #[serde(default)]
     pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub client_secret: Option<String>,
+    #[serde(default)]
+    pub scope: Option<String>,
+    #[serde(default)]
+    pub client_assertion_type: Option<String>,
+    #[serde(default)]
+    pub client_assertion: Option<String>,
+    #[serde(default)]
+    pub assertion: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevocationRequest {
+    pub token: String,
+    #[serde(default)]
+    pub token_type_hint: Option<String>,
+    #[serde(default)]
+    pub client_id: Option<String>,
+    #[serde(default)]
+    pub client_secret: Option<String>,
+    #[serde(default)]
+    pub client_assertion_type: Option<String>,
+    #[serde(default)]
+    pub client_assertion: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,6 +177,14 @@ pub struct RegisteredClient {
     pub client_id: String,
     pub redirect_uris: Vec<String>,
     pub created_at: i64,
+    #[serde(default = "default_token_endpoint_auth_method")]
+    pub token_endpoint_auth_method: String,
+    #[serde(default)]
+    pub jwks: Option<serde_json::Value>,
+}
+
+fn default_token_endpoint_auth_method() -> String {
+    "none".to_string()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,6 +264,9 @@ pub struct BrowserLoginStateRow {
 pub struct UpstreamOauthCredentialRow {
     pub upstream_name: String,
     pub subject: String,
+    /// Canonical authorization-server issuer that minted these credentials.
+    /// Empty values are legacy rows and are never reusable.
+    pub issuer: String,
     pub client_id: String,
     pub granted_scopes_json: String,
     pub token_blob: Vec<u8>,
@@ -234,6 +281,7 @@ impl std::fmt::Debug for UpstreamOauthCredentialRow {
         f.debug_struct("UpstreamOauthCredentialRow")
             .field("upstream_name", &self.upstream_name)
             .field("subject", &"<redacted>")
+            .field("issuer", &self.issuer)
             .field("client_id", &self.client_id)
             .field("granted_scopes_json", &self.granted_scopes_json)
             .field("token_blob", &"<redacted>")
@@ -259,8 +307,22 @@ pub struct UpstreamOauthStateRow {
     pub subject: String,
     pub csrf_token: String,
     pub pkce_verifier: String,
+    /// RFC 9207 issuer recorded when the authorization request was created.
+    pub expected_issuer: Option<String>,
+    /// Whether the authorization server advertised mandatory issuer responses.
+    pub require_issuer: bool,
+    /// JSON-encoded scopes requested in this authorization round.
+    pub requested_scopes_json: String,
     pub created_at: i64,
     pub expires_at: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UpstreamOauthDynamicClientRow {
+    pub client_id: String,
+    /// Canonical authorization-server issuer that registered this client.
+    /// Empty values are legacy rows and are never reusable.
+    pub issuer: String,
 }
 
 /// A row from the `allowed_users` table.
@@ -282,6 +344,9 @@ impl std::fmt::Debug for UpstreamOauthStateRow {
             .field("subject", &"<redacted>")
             .field("csrf_token", &"<redacted>")
             .field("pkce_verifier", &"<redacted>")
+            .field("expected_issuer", &self.expected_issuer)
+            .field("require_issuer", &self.require_issuer)
+            .field("requested_scopes_json", &self.requested_scopes_json)
             .field("created_at", &self.created_at)
             .field("expires_at", &self.expires_at)
             .finish()

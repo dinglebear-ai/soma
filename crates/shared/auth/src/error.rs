@@ -22,6 +22,9 @@ pub enum AuthError {
     InvalidGrant(String),
 
     #[error("{0}")]
+    InvalidScope(String),
+
+    #[error("{0}")]
     AuthFailed(String),
 
     #[error("{0}")]
@@ -56,6 +59,7 @@ impl AuthError {
                 "internal_error"
             }
             Self::InvalidGrant(_) => "invalid_grant",
+            Self::InvalidScope(_) => "invalid_scope",
             Self::AuthFailed(_) | Self::InvalidAccessToken => "auth_failed",
             Self::Validation(_) => "validation_failed",
             Self::Network(_) => "network_error",
@@ -68,7 +72,7 @@ impl AuthError {
     #[cfg(feature = "http-axum")]
     const fn status(&self) -> StatusCode {
         match self {
-            Self::InvalidGrant(_) => StatusCode::BAD_REQUEST,
+            Self::InvalidGrant(_) | Self::InvalidScope(_) => StatusCode::BAD_REQUEST,
             Self::AuthFailed(_) | Self::InvalidAccessToken => StatusCode::UNAUTHORIZED,
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::Network(_) | Self::Server(_) => StatusCode::BAD_GATEWAY,

@@ -49,18 +49,46 @@ use std::{collections::HashMap, process::Stdio, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use reqwest::header::{HeaderName, HeaderValue};
 use rmcp::{
-    model::CallToolRequestParams,
+    model::{
+        CallToolRequestParams, CallToolResponse, CallToolResult, ClientCapabilities, ClientInfo,
+        GetTaskParams, Implementation, ProtocolVersion, TaskPayload,
+    },
+    service::{ClientLifecycleMode, ClientServiceExt, RunningService},
     transport::{
         streamable_http_client::StreamableHttpClientTransportConfig, ConfigureCommandExt,
         StreamableHttpClientTransport, TokioChildProcess,
     },
-    ServiceExt,
 };
+use rmcp::{ClientHandler, RoleClient};
 use serde_json::{json, Map, Value};
 use soma_provider_core::{
     Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
 };
 use tokio::{io::AsyncReadExt, process::Command};
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ProviderMcpClientHandler;
+
+impl ClientHandler for ProviderMcpClientHandler {
+    fn get_info(&self) -> ClientInfo {
+        ClientInfo::new(
+            ClientCapabilities::builder().enable_tasks().build(),
+            Implementation::new("soma-provider-mcp-client", env!("CARGO_PKG_VERSION")),
+        )
+        .with_protocol_version(ProtocolVersion::LATEST)
+    }
+}
+
+fn upstream_lifecycle() -> ClientLifecycleMode {
+    ClientLifecycleMode::Auto {
+        preferred_versions: ProtocolVersion::KNOWN_VERSIONS
+            .iter()
+            .rev()
+            .cloned()
+            .collect(),
+        legacy_version: Some(ProtocolVersion::LATEST),
+    }
+}
 
 #[derive(Clone)]
 pub struct UpstreamMcpProvider {
@@ -159,7 +187,10 @@ async fn call_stdio(
         .map_err(|error| {
             ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
         })?;
-    let service = match ().serve(transport).await {
+    let service = match ProviderMcpClientHandler
+        .serve_with_lifecycle(transport, upstream_lifecycle())
+        .await
+    {
         Ok(service) => service,
         Err(error) => {
             let provider_error =
@@ -167,9 +198,7 @@ async fn call_stdio(
             return Err(attach_stderr(provider_error, stderr).await);
         }
     };
-    let result = service
-        .call_tool(CallToolRequestParams::new(upstream.name.clone()).with_arguments(params))
-        .await;
+    let result = call_provider_tool(&service, catalog, call, upstream, params).await;
     let result = match result {
         Ok(result) => Ok(result),
         Err(error) => {
@@ -187,6 +216,126 @@ async fn call_stdio(
         );
     }
     result
+}
+
+async fn call_provider_tool(
+    service: &RunningService<RoleClient, ProviderMcpClientHandler>,
+    catalog: &ProviderCatalog,
+    call: &ProviderCall,
+    upstream: &UpstreamTool,
+    params: Map<String, Value>,
+) -> Result<CallToolResult, ProviderError> {
+    let response = service
+        .call_tool_once(CallToolRequestParams::new(upstream.name.clone()).with_arguments(params))
+        .await
+        .map_err(|error| {
+            ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
+        })?;
+    match response {
+        CallToolResponse::Complete(result) => Ok(result),
+        CallToolResponse::InputRequired(_) => Err(provider_interaction_error(
+            catalog,
+            call,
+            "mcp_provider_input_required",
+            "upstream MCP tool requires interactive client input",
+            "Invoke this MCP server through a client that can fulfill elicitation, sampling, or roots requests.",
+        )),
+        CallToolResponse::Task(task) => {
+            poll_provider_task(service, catalog, call, task.task.task_id).await
+        }
+        _ => Err(provider_interaction_error(
+            catalog,
+            call,
+            "mcp_provider_unknown_result",
+            "upstream MCP tool returned an unsupported result variant",
+            "Update Soma and the upstream MCP server to compatible protocol versions.",
+        )),
+    }
+}
+
+async fn poll_provider_task(
+    service: &RunningService<RoleClient, ProviderMcpClientHandler>,
+    catalog: &ProviderCatalog,
+    call: &ProviderCall,
+    task_id: String,
+) -> Result<CallToolResult, ProviderError> {
+    loop {
+        let task = service
+            .get_task(GetTaskParams::new(task_id.clone()))
+            .await
+            .map_err(|error| {
+                ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
+            })?;
+        let poll_interval_ms = task.task.task.poll_interval_ms.unwrap_or(100).max(10);
+        match task.task.payload {
+            TaskPayload::Working => {
+                tokio::time::sleep(Duration::from_millis(poll_interval_ms)).await;
+            }
+            TaskPayload::Completed { result } => {
+                return serde_json::from_value(Value::Object(result)).map_err(|error| {
+                    ProviderError::new(
+                        "mcp_provider_invalid_task_result",
+                        &catalog.provider.name,
+                        Some(call.action.clone()),
+                        format!("completed MCP task returned an invalid tool result: {error}"),
+                        "Update the upstream MCP server to return a valid CallToolResult.",
+                    )
+                });
+            }
+            TaskPayload::InputRequired { .. } => {
+                return Err(provider_interaction_error(
+                    catalog,
+                    call,
+                    "mcp_provider_task_input_required",
+                    "upstream MCP task requires interactive client input",
+                    "Invoke this MCP server through a client that can answer task input requests.",
+                ));
+            }
+            TaskPayload::Failed { error } => {
+                return Err(ProviderError::new(
+                    "mcp_provider_task_failed",
+                    &catalog.provider.name,
+                    Some(call.action.clone()),
+                    format!("upstream MCP task failed: {}", Value::Object(error)),
+                    "Inspect the upstream MCP server logs and task error payload.",
+                ));
+            }
+            TaskPayload::Cancelled => {
+                return Err(provider_interaction_error(
+                    catalog,
+                    call,
+                    "mcp_provider_task_cancelled",
+                    "upstream MCP task was cancelled",
+                    "Retry the tool call if cancellation was not intentional.",
+                ));
+            }
+            _ => {
+                return Err(provider_interaction_error(
+                    catalog,
+                    call,
+                    "mcp_provider_unknown_task_status",
+                    "upstream MCP task returned an unsupported status",
+                    "Update Soma and the upstream MCP server to compatible protocol versions.",
+                ));
+            }
+        }
+    }
+}
+
+fn provider_interaction_error(
+    catalog: &ProviderCatalog,
+    call: &ProviderCall,
+    code: &'static str,
+    message: &'static str,
+    remediation: &'static str,
+) -> ProviderError {
+    ProviderError::new(
+        code,
+        &catalog.provider.name,
+        Some(call.action.clone()),
+        message,
+        remediation,
+    )
 }
 
 /// Best-effort attaches whatever the child has written to stderr as private
@@ -243,15 +392,13 @@ async fn call_http(
         config = config.custom_headers(runtime.headers.clone());
     }
     let transport = StreamableHttpClientTransport::from_config(config);
-    let service = ().serve(transport).await.map_err(|error| {
-        ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
-    })?;
-    let result = service
-        .call_tool(CallToolRequestParams::new(upstream.name.clone()).with_arguments(params))
+    let service = ProviderMcpClientHandler
+        .serve_with_lifecycle(transport, upstream_lifecycle())
         .await
         .map_err(|error| {
             ProviderError::execution(&catalog.provider.name, call.action.clone(), error)
-        });
+        })?;
+    let result = call_provider_tool(&service, catalog, call, upstream, params).await;
     if let Err(error) = service.cancel().await {
         tracing::debug!(
             provider = %catalog.provider.name,

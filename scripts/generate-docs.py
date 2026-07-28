@@ -798,7 +798,6 @@ def render_claude_plugin_json() -> str:
             "repository": surface["repository"],
             "license": surface["license"],
             "keywords": surface["keywords"],
-            "hooks": "./hooks/hooks.json",
             "skills": "./skills",
             "userConfig": user_config,
         }
@@ -849,7 +848,6 @@ def render_gemini_extension_json() -> str:
             "keywords": surface["keywords"],
             "contextFileName": "GEMINI.md",
             "skills": "./skills",
-            "hooks": "./hooks/hooks.json",
             "settings": settings,
         }
     )

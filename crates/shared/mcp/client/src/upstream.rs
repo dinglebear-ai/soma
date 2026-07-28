@@ -6,9 +6,44 @@ pub mod pool;
 pub mod relay;
 pub mod transport;
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
+
+/// Protocol-neutral representation of a modern MCP request outcome.
+///
+/// The payload contains the serialized result object for the corresponding
+/// `resultType`, allowing product layers to preserve MRTR and task responses
+/// without depending directly on rmcp's protocol models.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpRequestOutcome {
+    Complete(Value),
+    InputRequired(Value),
+    Task(Value),
+}
+
+impl McpRequestOutcome {
+    #[must_use]
+    pub fn payload(&self) -> &Value {
+        match self {
+            Self::Complete(value) | Self::InputRequired(value) | Self::Task(value) => value,
+        }
+    }
+}
+
+/// Follow-up data echoed by clients during a modern MCP multi-round trip.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpRoundTrip {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_responses: Option<BTreeMap<String, Value>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_state: Option<String>,
+    /// Complete per-request MCP metadata from the downstream client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_meta: Option<Value>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolDescriptor {

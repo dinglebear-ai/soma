@@ -25,7 +25,6 @@
   ],
   "contextFileName": "GEMINI.md",
   "skills": "./skills",
-  "hooks": "./hooks/hooks.json",
   "settings": [
     {
       "name": "soma_api_url",

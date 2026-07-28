@@ -81,6 +81,14 @@ pub struct ClientMetadataDocument {
     pub client_name: String,
     #[serde(default)]
     pub redirect_uris: Vec<String>,
+    #[serde(default = "default_token_endpoint_auth_method")]
+    pub token_endpoint_auth_method: String,
+    #[serde(default)]
+    pub jwks: Option<serde_json::Value>,
+}
+
+fn default_token_endpoint_auth_method() -> String {
+    "none".to_string()
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -322,6 +330,25 @@ pub(crate) async fn fetch_document_at(
         return Err(CimdError::InvalidDocument(format!(
             "document at `{url}` is missing required client_id or client_name"
         )));
+    }
+    match document.token_endpoint_auth_method.as_str() {
+        "none" if document.jwks.is_none() => {}
+        "private_key_jwt" if document.jwks.is_some() => {}
+        "none" => {
+            return Err(CimdError::InvalidDocument(
+                "public clients must not declare jwks".to_string(),
+            ));
+        }
+        "private_key_jwt" => {
+            return Err(CimdError::InvalidDocument(
+                "private_key_jwt clients require jwks".to_string(),
+            ));
+        }
+        _ => {
+            return Err(CimdError::InvalidDocument(
+                "unsupported token_endpoint_auth_method".to_string(),
+            ));
+        }
     }
     if document.redirect_uris.is_empty() {
         return Err(CimdError::InvalidDocument(format!(
@@ -732,6 +759,8 @@ mod tests {
             client_id: "https://app.example.com/client.json".to_string(),
             client_name: "Example".to_string(),
             redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
+            token_endpoint_auth_method: "none".to_string(),
+            jwks: None,
         };
         cache.insert(
             "https://app.example.com/client.json".to_string(),
@@ -753,6 +782,8 @@ mod tests {
             client_id: "https://app.example.com/client.json".to_string(),
             client_name: "Example".to_string(),
             redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
+            token_endpoint_auth_method: "none".to_string(),
+            jwks: None,
         };
         cache.insert(
             "https://app.example.com/client.json".to_string(),
@@ -795,6 +826,8 @@ mod tests {
                 client_id: url.clone(),
                 client_name: "Example".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             };
             cache.insert(url, &Ok(doc), CACHE_TTL);
         }
@@ -805,6 +838,8 @@ mod tests {
             client_id: overflow_url.clone(),
             client_name: "Example".to_string(),
             redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
+            token_endpoint_auth_method: "none".to_string(),
+            jwks: None,
         };
         cache.insert(overflow_url.clone(), &Ok(doc), CACHE_TTL);
 
@@ -875,6 +910,8 @@ mod tests {
                 client_id: url.to_string(),
                 client_name: "Example".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
             };
             cache.insert(url.to_string(), &Ok(doc.clone()), CACHE_TTL);
             doc

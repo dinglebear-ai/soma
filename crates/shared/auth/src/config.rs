@@ -8,8 +8,12 @@ use url::Url;
 use crate::at_rest::TokenEncryptionKey;
 use crate::error::AuthError;
 
+#[path = "config_machine_clients.rs"]
+mod config_machine_clients;
 #[path = "config_providers.rs"]
 mod config_providers;
+
+pub use config_machine_clients::{EnterpriseIssuerConfig, MachineClientConfig};
 pub use config_providers::{AutheliaConfig, GitHubConfig, GoogleConfig};
 use config_providers::{
     default_authelia_callback_path, default_authelia_scopes, default_github_callback_path,
@@ -24,6 +28,7 @@ const DEFAULT_REFRESH_TOKEN_TTL_SECS: u64 = 30 * 24 * 3600;
 const DEFAULT_AUTH_CODE_TTL_SECS: u64 = 300;
 const DEFAULT_REGISTER_REQUESTS_PER_MINUTE: u32 = 20;
 const DEFAULT_AUTHORIZE_REQUESTS_PER_MINUTE: u32 = 60;
+const DEFAULT_TOKEN_REQUESTS_PER_MINUTE: u32 = 120;
 const DEFAULT_MAX_PENDING_OAUTH_STATES: usize = 1024;
 
 /// This crate's own fixed, non-configurable routes (see `routes.rs::router`).
@@ -34,6 +39,7 @@ const DEFAULT_MAX_PENDING_OAUTH_STATES: usize = 1024;
 const FIXED_ROUTE_PATHS: &[&str] = &[
     "/authorize",
     "/token",
+    "/revoke",
     "/jwks",
     "/auth/login",
     "/native/callback",
@@ -134,6 +140,7 @@ pub struct AuthConfig {
     pub auth_code_ttl: Duration,
     pub register_requests_per_minute: u32,
     pub authorize_requests_per_minute: u32,
+    pub token_requests_per_minute: u32,
     pub max_pending_oauth_states: usize,
 
     // ---- Brand / consumer-specific parameterization (see L1 bead) ----
@@ -176,6 +183,10 @@ pub struct AuthConfig {
     /// `{PREFIX}_TOKEN_ENCRYPTION_KEY` (64 hex digits or 43 base64url chars).
     /// When absent, tokens are stored as plaintext (backward-compatible).
     pub token_encryption_key: Option<TokenEncryptionKey>,
+    /// Out-of-band machine identities authorized for OAuth client credentials.
+    pub machine_clients: Vec<MachineClientConfig>,
+    /// Trusted enterprise identity providers authorized to issue ID-JAG grants.
+    pub enterprise_issuers: Vec<EnterpriseIssuerConfig>,
 }
 
 impl Default for AuthConfig {
@@ -198,6 +209,7 @@ impl Default for AuthConfig {
             auth_code_ttl: Duration::from_secs(DEFAULT_AUTH_CODE_TTL_SECS),
             register_requests_per_minute: DEFAULT_REGISTER_REQUESTS_PER_MINUTE,
             authorize_requests_per_minute: DEFAULT_AUTHORIZE_REQUESTS_PER_MINUTE,
+            token_requests_per_minute: DEFAULT_TOKEN_REQUESTS_PER_MINUTE,
             max_pending_oauth_states: DEFAULT_MAX_PENDING_OAUTH_STATES,
             env_prefix: DEFAULT_ENV_PREFIX.to_string(),
             default_data_dir: base_dir,
@@ -214,6 +226,8 @@ impl Default for AuthConfig {
             enable_dynamic_registration: false,
             disable_static_token_with_oauth: false,
             token_encryption_key: None,
+            machine_clients: Vec::new(),
+            enterprise_issuers: Vec::new(),
         }
     }
 }
@@ -268,6 +282,41 @@ impl AuthConfig {
                 "default_scope `{}` must be listed in scopes_supported",
                 self.default_scope
             )));
+        }
+        for client in &self.machine_clients {
+            if client.client_id.trim().is_empty() {
+                return Err(AuthError::Config(
+                    "machine clients require client_id".to_string(),
+                ));
+            }
+            if client.client_secret.is_some() == client.jwks.is_some() {
+                return Err(AuthError::Config(
+                    "machine clients require exactly one of client_secret or jwks".to_string(),
+                ));
+            }
+            if client.resources.is_empty() {
+                return Err(AuthError::Config(
+                    "machine clients require at least one allowed resource".to_string(),
+                ));
+            }
+        }
+        for issuer in &self.enterprise_issuers {
+            if issuer.issuer.trim().is_empty()
+                || (issuer.jwks_uri.is_none() && issuer.jwks.is_none())
+            {
+                return Err(AuthError::Config(
+                    "enterprise issuers require issuer and jwks_uri or jwks".to_string(),
+                ));
+            }
+            if issuer
+                .jwks_uri
+                .as_ref()
+                .is_some_and(|uri| uri.scheme() != "https")
+            {
+                return Err(AuthError::Config(
+                    "enterprise issuer jwks_uri must use https".to_string(),
+                ));
+            }
         }
 
         if matches!(self.mode, AuthMode::OAuth) {
@@ -579,8 +628,11 @@ impl AuthConfigBuilder {
         let key_code_ttl = env_key(&prefix, "AUTH_CODE_TTL_SECS");
         let key_reg_rpm = env_key(&prefix, "AUTH_REGISTER_REQUESTS_PER_MINUTE");
         let key_az_rpm = env_key(&prefix, "AUTH_AUTHORIZE_REQUESTS_PER_MINUTE");
+        let key_token_rpm = env_key(&prefix, "AUTH_TOKEN_REQUESTS_PER_MINUTE");
         let key_max_pending = env_key(&prefix, "AUTH_MAX_PENDING_OAUTH_STATES");
         let key_enc_key = env_key(&prefix, "TOKEN_ENCRYPTION_KEY");
+        let key_machine_clients = env_key(&prefix, "AUTH_MACHINE_CLIENTS_JSON");
+        let key_enterprise_issuers = env_key(&prefix, "AUTH_ENTERPRISE_ISSUERS_JSON");
 
         let mode = AuthMode::parse(vars.get(&key_mode).map(String::as_str), &key_mode)?;
         let admin_email = read_string(&vars, &key_admin)
@@ -653,6 +705,8 @@ impl AuthConfigBuilder {
                 .unwrap_or(DEFAULT_REGISTER_REQUESTS_PER_MINUTE),
             authorize_requests_per_minute: read_u32(&vars, &key_az_rpm)?
                 .unwrap_or(DEFAULT_AUTHORIZE_REQUESTS_PER_MINUTE),
+            token_requests_per_minute: read_u32(&vars, &key_token_rpm)?
+                .unwrap_or(DEFAULT_TOKEN_REQUESTS_PER_MINUTE),
             max_pending_oauth_states: read_usize(&vars, &key_max_pending)?
                 .unwrap_or(DEFAULT_MAX_PENDING_OAUTH_STATES),
             env_prefix: prefix,
@@ -671,6 +725,8 @@ impl AuthConfigBuilder {
                         .map_err(|e| AuthError::Config(format!("invalid {key_enc_key}: {e}")))
                 })
                 .transpose()?,
+            machine_clients: read_json(&vars, &key_machine_clients)?.unwrap_or_default(),
+            enterprise_issuers: read_json(&vars, &key_enterprise_issuers)?.unwrap_or_default(),
         };
 
         config.validate()?;
@@ -727,6 +783,18 @@ fn read_csv(vars: &HashMap<String, String>, key: &str) -> Option<Vec<String>> {
             .map(ToOwned::to_owned)
             .collect()
     })
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(
+    vars: &HashMap<String, String>,
+    key: &str,
+) -> Result<Option<T>, AuthError> {
+    read_string(vars, key)
+        .map(|value| {
+            serde_json::from_str(&value)
+                .map_err(|error| AuthError::Config(format!("{key} must be valid JSON: {error}")))
+        })
+        .transpose()
 }
 
 fn read_url(vars: &HashMap<String, String>, key: &str) -> Result<Option<Url>, AuthError> {

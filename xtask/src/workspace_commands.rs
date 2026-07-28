@@ -543,9 +543,6 @@ COMMANDS:
   check-schema-docs     Generate/check docs/MCP_SCHEMA.md
   check-scaffold-intent-contract
                         Validate scaffold intent schema/examples
-  apply-no-mcp-marketplace
-                        Remove bundled MCP registrations for the no-MCP branch
-  check-no-mcp-drift    Validate marketplace-no-MCP invariants and branch drift
   check-ts-client       Regenerate/verify the checked-in codex-app-server-client TS REST client
   sync-cargo            Copy Cargo.lock into plugin data directories
   pre-release-check     Run release-readiness gate

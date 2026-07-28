@@ -15,14 +15,15 @@ use tokio::sync::Mutex;
 use tower::ServiceExt;
 
 #[cfg(feature = "oauth")]
-use futures::future::BoxFuture;
+use mcp_client::oauth::{UpstreamOAuthManager, UpstreamOAuthRuntime};
+
 #[cfg(feature = "oauth")]
-use mcp_client::{
-    oauth::{
-        BeginAuthorization, UpstreamOAuthCredentialStatus, UpstreamOAuthError,
-        UpstreamOAuthHttpClient, UpstreamOAuthManager, UpstreamOAuthProvider, UpstreamOAuthRuntime,
-    },
-    upstream::http_body_cap::BodyCappedHttpClient,
+#[path = "http_oauth_stubs_tests.rs"]
+mod oauth_stubs;
+
+#[cfg(feature = "oauth")]
+use oauth_stubs::{
+    FakeOAuthManager, FakeOAuthProvider, RecordedAuthorizationCallback, RecordingOAuthManager,
 };
 
 use super::router;
@@ -261,65 +262,200 @@ async fn upstream_oauth_state_is_shared_by_gateway_actions_and_protected_proxy()
 }
 
 #[cfg(feature = "oauth")]
-struct FakeOAuthProvider;
-
-#[cfg(feature = "oauth")]
-impl UpstreamOAuthProvider for FakeOAuthProvider {
-    fn authenticated_http_client<'a>(
-        &'a self,
-        _upstream: &'a mcp_client::config::UpstreamConfig,
-        _subject: &'a str,
-        _http_client: BodyCappedHttpClient,
-    ) -> BoxFuture<'a, Result<UpstreamOAuthHttpClient, UpstreamOAuthError>> {
-        Box::pin(async {
-            Err(UpstreamOAuthError::internal(
-                "unused by protected proxy test",
-            ))
-        })
-    }
+fn upstream_oauth_gateway_config() -> GatewayConfig {
+    let mut config =
+        protected_gateway_config(Some("https://upstream.example/mcp".to_owned()), None);
+    config.upstream[0].oauth = Some(soma_gateway::config::GatewayUpstreamOauthConfig {
+        mode: soma_gateway::config::GatewayUpstreamOauthMode::AuthorizationCodePkce,
+        registration: soma_gateway::config::GatewayUpstreamOauthRegistration::Auto,
+        scopes: Some(vec!["mcp".to_owned()]),
+        prefer_client_metadata_document: None,
+    });
+    config
 }
 
 #[cfg(feature = "oauth")]
-struct FakeOAuthManager;
+async fn save_callback_state(state: &AppState, csrf: &str, subject: &str) {
+    let AuthPolicy::Mounted {
+        auth_state: Some(auth_state),
+    } = &state.auth_policy
+    else {
+        panic!("OAuth test state must mount auth state");
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    auth_state
+        .store
+        .save_upstream_oauth_state(soma_auth::types::UpstreamOauthStateRow {
+            upstream_name: "backend".to_owned(),
+            subject: subject.to_owned(),
+            csrf_token: csrf.to_owned(),
+            pkce_verifier: "verifier".to_owned(),
+            expected_issuer: Some("https://issuer.example".to_owned()),
+            require_issuer: true,
+            requested_scopes_json: r#"["mcp"]"#.to_owned(),
+            created_at: now,
+            expires_at: now + 300,
+        })
+        .await
+        .expect("save callback state");
+}
 
 #[cfg(feature = "oauth")]
-impl UpstreamOAuthManager for FakeOAuthManager {
-    fn begin_authorization<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<BeginAuthorization, UpstreamOAuthError>> {
-        Box::pin(async {
-            Err(UpstreamOAuthError::internal(
-                "unused by protected proxy test",
-            ))
-        })
-    }
+#[tokio::test]
+async fn generated_upstream_client_metadata_is_public_and_web_typed() {
+    let temp = tempfile::tempdir().unwrap();
+    let state = oauth_state_with_gateway(&temp, upstream_oauth_gateway_config()).await;
 
-    fn credential_status<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<Option<UpstreamOAuthCredentialStatus>, UpstreamOAuthError>> {
-        Box::pin(async {
-            Ok(Some(UpstreamOAuthCredentialStatus {
-                access_token_expires_at: 4_102_444_800,
-                refresh_token_present: true,
-            }))
-        })
-    }
+    let response = router(state)
+        .oneshot(
+            Request::builder()
+                .uri("/auth/upstream/client-metadata/backend")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
 
-    fn clear_credentials<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
-        Box::pin(async { Ok(()) })
-    }
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        json["client_id"],
+        "https://example.example.com/auth/upstream/client-metadata/backend"
+    );
+    assert_eq!(json["application_type"], "web");
+    assert_eq!(
+        json["redirect_uris"],
+        serde_json::json!(["https://example.example.com/auth/upstream/callback"])
+    );
+}
 
-    fn access_token<'a>(
-        &'a self,
-        _subject: &'a str,
-    ) -> BoxFuture<'a, Result<String, UpstreamOAuthError>> {
-        Box::pin(async { Ok("oauth-token".to_owned()) })
-    }
+#[cfg(feature = "oauth")]
+#[tokio::test]
+async fn generated_upstream_client_metadata_requires_an_https_public_origin() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut state = oauth_state_with_gateway(&temp, upstream_oauth_gateway_config()).await;
+    state.config.auth.public_url = Some("http://127.0.0.1:40060".to_owned());
+
+    let response = router(state)
+        .oneshot(
+            Request::builder()
+                .uri("/auth/upstream/client-metadata/backend")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[cfg(feature = "oauth")]
+#[tokio::test]
+async fn upstream_oauth_callback_rejects_unknown_state() {
+    let temp = tempfile::tempdir().unwrap();
+    let state = oauth_state_with_gateway(&temp, upstream_oauth_gateway_config()).await;
+
+    let response = router(state)
+        .oneshot(
+            Request::builder()
+                .uri("/auth/upstream/callback?code=code&state=unknown&iss=https%3A%2F%2Fissuer.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[cfg(feature = "oauth")]
+#[tokio::test]
+async fn upstream_oauth_provider_error_consumes_state_without_reflecting_description() {
+    let temp = tempfile::tempdir().unwrap();
+    let state = oauth_state_with_gateway(&temp, upstream_oauth_gateway_config()).await;
+    save_callback_state(&state, "denied-state", "alice").await;
+
+    let response = router(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/auth/upstream/callback?state=denied-state&error=access_denied&error_description=super-secret-detail")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert!(!String::from_utf8_lossy(&body).contains("super-secret-detail"));
+    let AuthPolicy::Mounted {
+        auth_state: Some(auth_state),
+    } = &state.auth_policy
+    else {
+        panic!("OAuth test state must mount auth state");
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    assert!(auth_state
+        .store
+        .find_upstream_oauth_state_owner("denied-state", now)
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[cfg(feature = "oauth")]
+#[tokio::test]
+async fn upstream_oauth_callback_forwards_code_state_and_rfc9207_issuer() {
+    let callbacks = Arc::new(Mutex::new(Vec::new()));
+    let gateway =
+        soma_runtime::server::gateway_product_state_from_config(upstream_oauth_gateway_config())
+            .unwrap();
+    let mut managers: BTreeMap<String, Arc<dyn UpstreamOAuthManager>> = BTreeMap::new();
+    managers.insert(
+        "backend".to_owned(),
+        Arc::new(RecordingOAuthManager {
+            callbacks: Arc::clone(&callbacks),
+        }),
+    );
+    gateway.install_upstream_oauth_runtime(UpstreamOAuthRuntime::new(
+        Arc::new(FakeOAuthProvider),
+        managers,
+    ));
+    let temp = tempfile::tempdir().unwrap();
+    let state = crate::testing::oauth_state_with_gateway_product_state(temp.path(), gateway).await;
+    save_callback_state(&state, "callback-state", "alice").await;
+
+    let response = router(state)
+        .oneshot(
+            Request::builder()
+                .uri("/auth/upstream/callback?code=auth-code&state=callback-state&iss=https%3A%2F%2Fissuer.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        callbacks.lock().await.as_slice(),
+        [RecordedAuthorizationCallback {
+            subject: "alice".to_owned(),
+            code: "auth-code".to_owned(),
+            state: "callback-state".to_owned(),
+            issuer: Some("https://issuer.example".to_owned()),
+        }]
+    );
 }
 
 #[tokio::test]

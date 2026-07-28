@@ -27,7 +27,6 @@ fn plugin_manifests_exist_for_all_supported_hosts() {
         "plugins/soma/.claude-plugin/plugin.json",
         "plugins/soma/.codex-plugin/plugin.json",
         "plugins/soma/gemini-extension.json",
-        "plugins/soma/hooks/hooks.json",
         "plugins/soma/skills/soma/SKILL.md",
     ] {
         assert!(repo_path(path).exists(), "{path} should exist");
@@ -242,13 +241,20 @@ fn generated_openapi_carries_product_metadata() {
 }
 
 #[test]
-fn claude_hooks_call_binary_setup_plugin_hook_directly() {
-    let hooks = json("plugins/soma/hooks/hooks.json");
-    for hook_name in ["SessionStart", "ConfigChange"] {
-        let command = hooks["hooks"][hook_name][0]["hooks"][0]["command"]
-            .as_str()
-            .unwrap();
-        assert_eq!(command, "soma setup plugin-hook");
+fn plugin_package_ships_no_lifecycle_hooks() {
+    assert!(
+        !repo_path("plugins/soma/hooks").exists(),
+        "plugins/soma/hooks must not exist; the plugin ships no lifecycle hooks"
+    );
+    for path in [
+        "plugins/soma/.claude-plugin/plugin.json",
+        "plugins/soma/.codex-plugin/plugin.json",
+        "plugins/soma/gemini-extension.json",
+    ] {
+        assert!(
+            json(path).get("hooks").is_none(),
+            "{path} must not declare a hooks key"
+        );
     }
 }
 

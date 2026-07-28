@@ -300,6 +300,18 @@ fn manager_error_shape(
             "runtime",
             "configure upstream OAuth resources and retry",
         ),
+        GatewayManagerError::TaskMissing(_) => structured_error(
+            action,
+            "task_missing",
+            "validation",
+            "use a taskId returned by this gateway for the current authorization subject",
+        ),
+        GatewayManagerError::InvalidTaskResult(_) => structured_error(
+            action,
+            "invalid_task_result",
+            "runtime",
+            "update the upstream server to emit a valid MCP task result",
+        ),
         GatewayManagerError::Upstream(UpstreamError::UnknownUpstream { .. }) => structured_error(
             action,
             "unknown_upstream",

@@ -1,5 +1,5 @@
 use rmcp::{
-    model::{CallToolRequestParams, ErrorCode, Meta, ResourceContents},
+    model::{CallToolRequestParams, Meta},
     service::ServiceError,
     ServiceExt,
 };
@@ -7,17 +7,13 @@ use rmcp_traces::TraceTrust;
 use serde_json::json;
 use soma_test_support::{tracing_test_lock, SharedBuf};
 
-use soma_application::{ApplicationError, ApplicationErrorDetails, ResourceContent};
+use soma_application::{ApplicationError, ApplicationErrorDetails};
 use soma_domain::token_limit::MAX_RESPONSE_BYTES;
-use soma_provider_core::ProviderResource;
 
 use crate::{assert_result_has_no_meta, trace_resolution};
 
-use super::{
-    application_error_payload, resource_contents_from_output, resource_read_error,
-    rmcp_resource_from_catalog_resource, rmcp_tool_from_json, tool_error_result,
-    trace_context_from_meta, unknown_tool_error,
-};
+use super::support::trace_context_from_meta;
+use super::{application_error_payload, tool_error_result, unknown_tool_error};
 
 const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01";
 
@@ -247,7 +243,7 @@ async fn call_tool_logs_safe_trace_summary_from_request_meta() {
     let mut request = CallToolRequestParams::new("soma").with_arguments(
         serde_json::Map::from_iter([("action".to_owned(), json!("status"))]),
     );
-    request.meta = Some(meta);
+    request.meta = Some(meta.into());
 
     let result = client
         .call_tool(request)
@@ -316,7 +312,7 @@ async fn call_tool_auth_failure_logs_without_trace_fields() {
     let mut request = CallToolRequestParams::new("soma").with_arguments(
         serde_json::Map::from_iter([("action".to_owned(), json!("status"))]),
     );
-    request.meta = Some(meta);
+    request.meta = Some(meta.into());
 
     let error = client
         .call_tool(request)
@@ -380,7 +376,7 @@ async fn call_tool_response_page_rejection_logs_without_trace_or_request_fields(
             ("_response_offset".to_owned(), json!(1)),
         ]),
     );
-    request.meta = Some(meta);
+    request.meta = Some(meta.into());
 
     let error = client
         .call_tool(request)
@@ -411,169 +407,4 @@ async fn call_tool_response_page_rejection_logs_without_trace_or_request_fields(
     assert!(!logs.contains("vendor=value"), "logs were: {logs}");
     assert!(!logs.contains("alice@example.com"), "logs were: {logs}");
     assert!(!logs.contains("s123"), "logs were: {logs}");
-}
-
-#[test]
-fn rmcp_tool_conversion_preserves_output_schema() {
-    let tool = rmcp_tool_from_json(json!({
-        "name": "soma",
-        "description": "Dispatch Soma actions.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "action": { "type": "string" }
-            },
-            "required": ["action"]
-        },
-        "outputSchema": {
-            "type": "object",
-            "additionalProperties": true,
-            "properties": {
-                "status": { "type": "string" }
-            }
-        }
-    }))
-    .expect("tool definition should convert");
-
-    let schema = tool
-        .output_schema
-        .as_ref()
-        .expect("outputSchema should be copied onto rmcp Tool");
-    assert_eq!(schema["type"], "object");
-    assert_eq!(schema["properties"]["status"]["type"], "string");
-}
-
-#[test]
-fn resource_read_error_maps_unknown_resource_to_invalid_params() {
-    let error = ApplicationError::new(
-        "unknown_resource",
-        "unknown resource",
-        false,
-        "List available resources and retry.",
-    );
-    let mapped = resource_read_error("soma://resources/missing", &error);
-    assert_eq!(mapped.code, ErrorCode::INVALID_PARAMS);
-    assert!(mapped.message.contains("unknown resource"));
-}
-
-#[test]
-fn resource_read_error_maps_insufficient_scope_to_invalid_request() {
-    let error = ApplicationError::new(
-        "insufficient_scope",
-        "resource `soma://resources/runbook` requires scope `soma:write`",
-        false,
-        "Authenticate with a token that includes the required scope.",
-    );
-    let mapped = resource_read_error("soma://resources/runbook", &error);
-    assert_eq!(mapped.code, ErrorCode::INVALID_REQUEST);
-    assert!(mapped.message.contains("forbidden"));
-}
-
-#[test]
-fn resource_read_error_maps_every_other_code_to_internal_error() {
-    for code in [
-        "resource_reader_timeout",
-        "resource_reader_invalid_shape",
-        "resource_escapes_root",
-        "provider_not_loaded",
-    ] {
-        let error = ApplicationError::new(code, "boom", false, "Retry later.");
-        let mapped = resource_read_error("soma://resources/x", &error);
-        assert_eq!(
-            mapped.code,
-            ErrorCode::INTERNAL_ERROR,
-            "code {code} should map to internal_error"
-        );
-    }
-}
-
-#[test]
-fn resource_contents_from_output_preserves_text_and_mime_type() {
-    let contents = resource_contents_from_output(
-        "soma://resources/runbook",
-        ResourceContent::Text {
-            text: "hello".to_owned(),
-            mime_type: Some("text/markdown".to_owned()),
-        },
-    );
-    match contents {
-        ResourceContents::TextResourceContents {
-            uri,
-            mime_type,
-            text,
-            ..
-        } => {
-            assert_eq!(uri, "soma://resources/runbook");
-            assert_eq!(mime_type.as_deref(), Some("text/markdown"));
-            assert_eq!(text, "hello");
-        }
-        ResourceContents::BlobResourceContents { .. } => panic!("expected text contents"),
-        _ => panic!("unexpected resource contents variant"),
-    }
-}
-
-#[test]
-fn resource_contents_from_output_falls_back_to_text_plain_when_reader_omits_mime_type() {
-    // `rmcp::model::ResourceContents::text` itself defaults to
-    // `text/plain` when not overridden — `resource_contents_from_output`
-    // only overrides it, it never clears it, so a reader that returns
-    // `{ text }` with no `mimeType` still gets a real MIME type on the
-    // wire rather than `null`.
-    let contents = resource_contents_from_output(
-        "soma://resources/runbook",
-        ResourceContent::Text {
-            text: "hello".to_owned(),
-            mime_type: None,
-        },
-    );
-    match contents {
-        ResourceContents::TextResourceContents { mime_type, .. } => {
-            assert_eq!(mime_type.as_deref(), Some("text/plain"));
-        }
-        ResourceContents::BlobResourceContents { .. } => panic!("expected text contents"),
-        _ => panic!("unexpected resource contents variant"),
-    }
-}
-
-#[test]
-fn resource_contents_from_output_preserves_blob_and_mime_type() {
-    let contents = resource_contents_from_output(
-        "soma://resources/logo",
-        ResourceContent::Blob {
-            blob_base64: "AAAA".to_owned(),
-            mime_type: Some("image/png".to_owned()),
-        },
-    );
-    match contents {
-        ResourceContents::BlobResourceContents {
-            uri,
-            mime_type,
-            blob,
-            ..
-        } => {
-            assert_eq!(uri, "soma://resources/logo");
-            assert_eq!(mime_type.as_deref(), Some("image/png"));
-            assert_eq!(blob, "AAAA");
-        }
-        ResourceContents::TextResourceContents { .. } => panic!("expected blob contents"),
-        _ => panic!("unexpected resource contents variant"),
-    }
-}
-
-#[test]
-fn rmcp_resource_conversion_carries_uri_name_description_and_mime_type() {
-    let resource = ProviderResource {
-        uri_template: "soma://resources/runbook".to_owned(),
-        name: "runbook".to_owned(),
-        description: "On-call runbook".to_owned(),
-        mime_type: Some("text/markdown".to_owned()),
-        scope: None,
-        mcp: None,
-        annotations: json!({}),
-    };
-    let converted = rmcp_resource_from_catalog_resource(&resource);
-    assert_eq!(converted.uri, "soma://resources/runbook");
-    assert_eq!(converted.name, "runbook");
-    assert_eq!(converted.description.as_deref(), Some("On-call runbook"));
-    assert_eq!(converted.mime_type.as_deref(), Some("text/markdown"));
 }

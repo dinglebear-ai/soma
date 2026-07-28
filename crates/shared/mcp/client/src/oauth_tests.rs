@@ -45,6 +45,16 @@ impl UpstreamOAuthManager for FakeManager {
         })
     }
 
+    fn complete_authorization<'a>(
+        &'a self,
+        _subject: &'a str,
+        _code: &'a str,
+        _state: &'a str,
+        _issuer: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<(), UpstreamOAuthError>> {
+        Box::pin(async { Ok(()) })
+    }
+
     fn credential_status<'a>(
         &'a self,
         _subject: &'a str,

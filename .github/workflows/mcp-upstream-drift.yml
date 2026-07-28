@@ -1,0 +1,72 @@
+name: MCP upstream drift
+
+on:
+  schedule:
+    - cron: "17 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mcp-upstream-drift
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, unraid]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test ownership mapping
+        run: python3 scripts/ci/test_mcp_upstream_drift.py
+
+      - name: Compare pinned MCP and RMCP baselines
+        id: drift
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/ci/mcp_upstream_drift.py
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload actionable report
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcp-upstream-drift
+          path: target/mcp-upstream-drift.md
+
+      - name: Open or update drift issue
+        if: steps.drift.outputs.drift == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        with:
+          script: |
+            const fs = require("fs");
+            const title = "MCP upstream drift requires Soma updates";
+            const body = fs.readFileSync("target/mcp-upstream-drift.md", "utf8");
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const existing = issues.find(
+              issue => !issue.pull_request && issue.title === title
+            );
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }

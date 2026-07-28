@@ -3,7 +3,16 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 const EXEMPT: &[&str] = &["main.rs", "lib.rs"];
-const ORPHAN_EXEMPT: &[&str] = &["cli_tests.rs", "mcp_tests.rs"];
+/// `_tests.rs` files that legitimately have no same-named source sibling:
+/// shared test *fixtures* (in-process servers, stub impls) that several tests
+/// in the same tree consume. They are named `_tests.rs` so they stay test-only
+/// code rather than source requiring siblings of their own.
+const ORPHAN_EXEMPT: &[&str] = &[
+    "cli_tests.rs",
+    "mcp_tests.rs",
+    "http_oauth_stubs_tests.rs",
+    "live_servers_tests.rs",
+];
 
 pub(crate) fn check() -> Result<()> {
     let missing = missing_siblings();
@@ -262,6 +271,14 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
          and dynamic-dispatch layers through the public API. This is the \
          crates/integrations/* reference template's convention - see \
          crates/integrations/README.md.",
+    ),
+    (
+        "packages/python/src",
+        "single-file PyO3 extension (lib.rs) that only translates Python \
+         inputs and errors at the package boundary - the reusable behavior it \
+         wraps is tested in the PyO3-free crates. What it adds is covered by \
+         inline #[cfg(test)] tests plus the Python-side suite in \
+         packages/python/tests/ and apps/soma/tests/python_provider.rs.",
     ),
 ];
 

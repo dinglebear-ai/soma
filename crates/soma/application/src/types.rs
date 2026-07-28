@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use soma_provider_core::ProviderCatalog;
@@ -100,6 +102,31 @@ pub struct GatewayRouteScope {
     pub services: Vec<String>,
     /// Whether the code-mode surface is exposed to this route.
     pub expose_code_mode: bool,
+}
+
+/// Protocol-neutral representation of an MCP request outcome routed through Soma.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub enum GatewayMcpOutcome {
+    /// The operation completed normally.
+    Complete(Value),
+    /// The operation needs client-supplied input before it can continue.
+    InputRequired(Value),
+    /// The operation created or returned an asynchronous task.
+    Task(Value),
+}
+
+/// Follow-up fields supplied by a client during an MCP multi-round trip.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayMcpRoundTrip {
+    /// Responses keyed by the input request identifier from the prior result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_responses: Option<BTreeMap<String, Value>>,
+    /// Opaque request state echoed exactly from the prior result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_state: Option<String>,
+    /// Complete per-request MCP metadata forwarded without SDK coupling.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_meta: Option<Value>,
 }
 
 /// A tool advertised through the gateway routing layer.
