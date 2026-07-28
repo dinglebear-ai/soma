@@ -15,13 +15,27 @@ yanked = "deny"
 
 # Known advisories we've reviewed and accepted:
 ignore = [
-  # RUSTSEC-2023-0071 — Marvin Attack (RSA timing side-channel) in the `rsa` crate.
-  # Pulled in transitively: lab-auth → jsonwebtoken → rsa v0.9.10 / v0.10.0-rc.18.
-  # No upstream fix exists yet (as of 2026-05). The RSA keys are used for JWT
-  # signing only (short-lived tokens, not long-term data encryption), and the
-  # server is not exposed to untrusted timing oracles in its normal deployment.
-  # Revisit when jsonwebtoken releases a fix or switches to a constant-time impl.
-  { id = "RUSTSEC-2023-0071", reason = "no fix available; risk accepted for JWT-only usage via lab-auth" },
+  # RUSTSEC-2023-0071 — Marvin Attack (RSA timing side-channel) in the `rsa`
+  # crate. Two copies land in Cargo.lock, both under `soma-auth`:
+  #   * rsa v0.9.10       — soma-auth → jsonwebtoken v10 (`rust_crypto` feature).
+  #   * rsa v0.10.0-rc.18 — soma-auth [dev-dependencies] only (test fixtures).
+  # No fixed upgrade exists (checked 2026-07); jsonwebtoken 11 keeps the same
+  # `rust_crypto` backend, so dependabot's 10 → 11 bump does not clear this.
+  #
+  # Why it is not reachable here: Marvin is a timing side-channel against RSA
+  # *private-key* operations (PKCS#1 v1.5 decryption/signing) that can recover
+  # the private key. Soma holds no RSA private key at runtime — access tokens
+  # are signed with Ed25519/EdDSA (`crates/shared/auth/src/jwt.rs`, which also
+  # quarantines any legacy RSA key file rather than reusing it), and the only
+  # runtime RSA path is *public-key verification* of Google/Authelia RS256 ID
+  # tokens (`crates/shared/auth/src/oidc.rs`). Verification uses no secret, so
+  # there is no key for a timing oracle to recover. Dropping RSA verification
+  # would break Google and Authelia login outright, so the dep stays.
+  #
+  # Revisit when the `rsa` crate ships a constant-time release, or if soma-auth
+  # ever gains an RSA private-key operation — at which point this is no longer
+  # an accepted risk.
+  { id = "RUSTSEC-2023-0071", reason = "no fixed release exists; soma-auth performs RSA verification only (no private key), and Ed25519 signs all issued tokens" },
 
   # RUSTSEC-2024-0411/0412/0413/0414/0415/0416/0417/0418/0419/0420 — gtk-rs GTK3
   # bindings ("no longer maintained", upstream points to gtk4-rs). Pulled in
