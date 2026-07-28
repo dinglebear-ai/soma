@@ -869,11 +869,26 @@ fn check_schema_scope(root: &Path, actions: &[ActionEntry]) -> Result<Vec<String
     {
         failures.push("crates/soma/mcp/src/schemas.rs must derive required action parameters from provider catalogs".to_owned());
     }
-    let rmcp_server_text = read(root.join("crates/soma/mcp/src/rmcp_server.rs"))?;
+    // The `ServerHandler` impl is split across rmcp_server.rs and its
+    // rmcp_server/ submodules (the module outgrew the PATTERNS.md size hard
+    // limit), so scan the whole module tree rather than just the root file.
+    let mut rmcp_server_text = read(root.join("crates/soma/mcp/src/rmcp_server.rs"))?;
+    let rmcp_server_dir = root.join("crates/soma/mcp/src/rmcp_server");
+    if rmcp_server_dir.is_dir() {
+        let mut submodules = std::fs::read_dir(&rmcp_server_dir)?
+            .filter_map(std::result::Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "rs"))
+            .collect::<Vec<_>>();
+        submodules.sort();
+        for path in submodules {
+            rmcp_server_text.push_str(&read(path)?);
+        }
+    }
     if !rmcp_server_text.contains("soma://schema/mcp-tool")
         || !rmcp_server_text.contains("tool_definitions_for_state")
     {
-        failures.push("crates/soma/mcp/src/rmcp_server.rs must expose the schema resource from the state-backed tool definitions".to_owned());
+        failures.push("crates/soma/mcp/src/rmcp_server.rs (or its rmcp_server/ submodules) must expose the schema resource from the state-backed tool definitions".to_owned());
     }
     let prompts_text = read(root.join("crates/soma/mcp/src/prompts.rs"))?;
     if !prompts_text.contains("quick_start") {

@@ -276,8 +276,9 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
         "packages/python/src",
         "single-file PyO3 extension (lib.rs) that only translates Python \
          inputs and errors at the package boundary - the reusable behavior it \
-         wraps is tested in the PyO3-free crates. What it adds is covered by \
-         inline #[cfg(test)] tests plus the Python-side suite in \
+         wraps is tested in the PyO3-free crates. It has no Rust test target \
+         at all (`test = false`, so workspace test runs do not need libpython); \
+         what it adds is covered by the Python-side suite in \
          packages/python/tests/ and apps/soma/tests/python_provider.rs.",
     ),
 ];

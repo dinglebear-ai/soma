@@ -37,38 +37,8 @@ fn _soma_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const VALID_MANIFEST: &str = r#"{
-        "schema_version": 1,
-        "provider": {"name": "native-test", "kind": "static-rust"},
-        "tools": [{
-            "name": "native_echo",
-            "description": "Validate through provider-core.",
-            "input_schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {}
-            }
-        }]
-    }"#;
-
-    #[test]
-    fn native_versions_match_package_contract() {
-        assert_eq!(sdk_version(), "0.2.0");
-        assert_eq!(provider_schema_version(), 1);
-    }
-
-    #[test]
-    fn native_validation_uses_provider_core_semantics() {
-        Python::initialize();
-        let normalized = validate_manifest_json(VALID_MANIFEST).expect("valid manifest");
-        let value: Value = serde_json::from_str(&normalized).expect("normalized JSON");
-        assert_eq!(value["provider"]["name"], "native-test");
-
-        let error = validate_manifest_json("not JSON").expect_err("invalid JSON");
-        assert!(error.to_string().contains("invalid provider JSON"));
-    }
-}
+// Behavior tests live in packages/python/tests/ (run via `just
+// test-python-package`): verify_installed.py asserts native_build(),
+// validate_manifest() round-tripping, and the "invalid provider JSON" error
+// against the actually-built extension. A Rust test target is deliberately
+// disabled here — see the `test = false` note in Cargo.toml.

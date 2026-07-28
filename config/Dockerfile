@@ -52,6 +52,9 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY Cargo.toml Cargo.lock ./
 COPY apps/soma/ apps/soma/
 COPY crates/ crates/
+# Workspace member: cargo refuses to load the workspace without it, even
+# though the soma binary does not depend on the PyO3 extension.
+COPY packages/ packages/
 COPY xtask/ xtask/
 COPY docs/generated/openapi.json docs/generated/openapi.json
 COPY docs/contracts/provider-manifest.schema.json docs/contracts/provider-manifest.schema.json

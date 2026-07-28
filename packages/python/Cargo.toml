@@ -10,9 +10,21 @@ license = "MIT"
 repository.workspace = true
 publish = false
 
+[package.metadata.soma-architecture]
+# PyO3 binding over the product-agnostic provider contract
+# (crates/shared/provider-core), not a Soma product surface.
+layer = "shared"
+
 [lib]
 name = "_soma_native"
 crate-type = ["cdylib"]
+# No Rust test target: linking one pulls in `-lpython3.12`, which would make
+# every workspace-wide `cargo test` / `cargo nextest` depend on Python
+# development libraries being installed. This crate's behavior is asserted
+# against the actually-built extension by packages/python/tests/
+# (`just test-python-package`, run as its own CI step) and by
+# apps/soma/tests/python_provider.rs.
+test = false
 
 [dependencies]
 pyo3.workspace = true

@@ -951,6 +951,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix the container image build: `packages/` was not copied into the builder
+  stage, so cargo refused to load the workspace once the Python provider
+  package became a member.
 - PR19 review fix (second pass): fixed a stale sidecar-test comment in
   `crates/soma/application/src/service.rs` that still pointed at the deleted
   `app_tests.rs` name instead of `service_tests.rs`; corrected an

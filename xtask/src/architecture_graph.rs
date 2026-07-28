@@ -192,6 +192,11 @@ impl Layer {
                 Some(Self::ProductSupport)
             }
             "xtask" => Some(Self::Legacy),
+            // Language-binding packages (PyO3 extension shipped to PyPI as
+            // soma_provider). They wrap the product-agnostic provider contract
+            // in crates/shared/provider-core, so they sit in the shared layer
+            // rather than being a product surface.
+            path if path.starts_with("packages/") => Some(Self::Shared),
             path if path.starts_with("crates/shared/") => Some(Self::Shared),
             path if path.starts_with("crates/integrations/") => Some(Self::Vendor),
             path if path.starts_with("crates/soma/") => Some(Self::Legacy),
