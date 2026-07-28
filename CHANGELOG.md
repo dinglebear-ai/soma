@@ -921,6 +921,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Remove the OpenWiki scheduled documentation workflow and its `npm:openwiki`
+  mise pin. The job had failed on every run since it was added (it never got
+  past building better-sqlite3's native bindings), so it never produced any
+  generated documentation.
 - Deleted `crates/soma/service` and `crates/soma/contracts` (plan PR 19,
   "Delete legacy facades and update ecosystem artifacts"), the two legacy
   strangler-pattern crates every prior slice (PR 4-13) migrated surfaces off
