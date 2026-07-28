@@ -1,7 +1,23 @@
 # Strict expected-failure baseline for experimental MCP extension scenarios.
 # Dated 2026-07-28 protocol results are scored separately through
 # conformance-baseline.yml.
-server: []
+server:
+  # ── MCP 2026 tasks extension: not implemented yet ────────────────────────────
+  # The 2026-07-28 tasks extension renames the wire fields (ttlMs /
+  # pollIntervalMs), changes capability-negotiation fall-through, drops the v1
+  # related-task _meta key, and adds MRTR composition. Soma still speaks the v1
+  # shape. Baselined so the gate catches REGRESSIONS while the work is tracked
+  # separately; delete each entry as it starts passing.
+  # `tasks-status-notifications` already passes and is deliberately absent.
+  - tasks-lifecycle
+  - tasks-capability-negotiation
+  - tasks-wire-fields
+  - tasks-request-state-removal
+  - tasks-mrtr-input
+  - tasks-request-headers
+  - tasks-dispatch-and-envelope
+  - tasks-required-task-error
+  - tasks-mrtr-composition
 
 client:
   # Informational OAuth extension not implemented by rmcp 3.0.0-beta.2.

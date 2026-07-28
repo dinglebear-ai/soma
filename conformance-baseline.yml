@@ -4,8 +4,11 @@
 # `just conformance` fails only on a NEW regression — and flags any baselined
 # scenario that starts passing as a stale entry to remove.
 #
-# Updated 2026-07-04 against the `active` suite with
-# SOMA_MCP_CONFORMANCE_FIXTURES=true on a no-auth loopback server.
+# Updated 2026-07-28 against `--suite all --spec-version 2026-07-28` with
+# SOMA_MCP_CONFORMANCE_FIXTURES=true on a no-auth loopback server. The
+# `MCP 2026 full matrix` job (.github/workflows/conformance.yml) scores
+# against that newer spec; the previous baseline only covered the older
+# `active` suite, which is why that job had never passed.
 #
 # The CORE protocol scenarios PASS — server-initialize, ping, tools-list,
 # resources-list, prompts-list, completion-complete, dns-rebinding-protection —
@@ -21,9 +24,6 @@
 #
 # Regenerate the failing list with: just conformance
 server:
-  # Server runs in JSON-response mode (with_json_response(true)), so the
-  # multiple-concurrent-SSE-streams scenario does not apply.
-  - server-sse-multiple-streams
   - logging-set-level
   - tools-call-with-logging
   - tools-call-with-progress
@@ -36,3 +36,25 @@ server:
   # Pending SEP-1699 transport experiment. Removed in the draft protocol and not
   # implemented by this JSON-response conformance harness.
   - server-sse-polling
+
+  # ── 2026-07-28 spec features not implemented yet ────────────────────────────
+  # These are genuine gaps, not harness artifacts: the newer spec adds the
+  # input-required-result (MRTR) round-trip family, a stateless server mode,
+  # SEP-2164 resource-not-found semantics, and custom-header server validation.
+  # Baselined so the gate catches REGRESSIONS while the work is tracked
+  # separately; delete each entry as it starts passing.
+  - server-stateless
+  - sep-2164-resource-not-found
+  - http-custom-header-server-validation
+  - input-required-result-basic-elicitation
+  - input-required-result-basic-sampling
+  - input-required-result-basic-list-roots
+  - input-required-result-request-state
+  - input-required-result-multiple-input-requests
+  - input-required-result-multi-round
+  - input-required-result-missing-input-response
+  - input-required-result-non-tool-request
+  - input-required-result-result-type
+  - input-required-result-tampered-state
+  - input-required-result-capability-check
+  - input-required-result-ignore-extra-params

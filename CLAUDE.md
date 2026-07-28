@@ -15,18 +15,10 @@ changes accordingly.
 
 ## Long-Lived Branches
 
-- `marketplace-no-mcp` is a protected long-lived marketplace variant branch,
-  not stale cleanup. This protection applies in every repo, not only this one.
-- Never merge, rebase, delete, prune, squash, cherry-pick away, remove the
-  worktree for, or otherwise "clean up" any `marketplace-no-mcp` branch unless
-  Jacob explicitly names that exact branch and says to retire/delete it.
-- Broad cleanup requests such as "clean everything", "down to just main/main",
-  "prune stale branches", "merge everything back", or "remove old worktrees" do
-  not apply to `marketplace-no-mcp`. Treat it as off limits and leave both the
-  local/remote branch and its worktree intact.
-- The branch keeps the Soma/plugin skill surface available while removing
-  bundled MCP server registration for environments where the MCP server is
-  already connected through the Labby gateway.
+None. `marketplace-no-mcp` — the no-MCP marketplace variant that carried the
+plugin/skill surface without bundled MCP server registration — was retired on
+2026-07-28. Branch, remote ref, and worktree are all gone; do not recreate it
+unless Jacob asks for that variant by name.
 
 ## Repo identity
 
