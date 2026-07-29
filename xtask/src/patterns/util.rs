@@ -39,12 +39,16 @@ pub(super) fn size_limit(path: &Path) -> Option<usize> {
         // coupled by design; split once the generated contract stabilizes.
         return Some(500);
     }
-    if path == Path::new("xtask/src/rmcp_release_monitor.rs")
-        || path == Path::new("xtask/src/scaffold.rs")
-    {
-        // These xtask modules orchestrate cross-cutting repo automation and are
-        // being split as the automation surface settles. Keep them visible as
-        // warnings without making unrelated workflow fixes fail CI.
+    if path == Path::new("xtask/src/scaffold.rs") {
+        // This xtask module orchestrates cross-cutting repo automation and is
+        // being split as the automation surface settles. Keep it visible as a
+        // warning without making unrelated workflow fixes fail CI.
+        //
+        // `xtask/src/rmcp_release_monitor.rs` used to share this exemption. It
+        // has since been split along its real seams (CLI options, the schema
+        // and conformance watches, the shared impact scan, issue-body
+        // rendering), so it is back under the ordinary limit and needs no
+        // bespoke number. Do not re-add it - grow the submodules instead.
         return Some(600);
     }
     if path
@@ -249,10 +253,21 @@ mod tests {
 
     #[test]
     fn transitional_xtask_modules_warn_before_hard_failing() {
+        assert_eq!(size_limit(Path::new("xtask/src/scaffold.rs")), Some(600));
+    }
+
+    #[test]
+    fn split_xtask_modules_lose_their_transitional_exemption() {
+        // The monitor was split along its real seams, so it is governed by the
+        // ordinary Rust limit again. A regression here would mean someone
+        // re-added the bespoke number instead of extending a submodule.
         assert_eq!(
             size_limit(Path::new("xtask/src/rmcp_release_monitor.rs")),
-            Some(600)
+            Some(350)
         );
-        assert_eq!(size_limit(Path::new("xtask/src/scaffold.rs")), Some(600));
+        assert_eq!(
+            size_limit(Path::new("xtask/src/rmcp_release_monitor/schema.rs")),
+            Some(350)
+        );
     }
 }
