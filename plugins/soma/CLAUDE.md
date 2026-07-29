@@ -29,6 +29,21 @@ together. Do not assume a shared `.mcp.json` exists in this plugin.
 
 When changing user-configurable settings, update all three manifests: `userConfig` in the Claude and Codex `plugin.json` files, and `settings` in `gemini-extension.json`. Keep field names and descriptions consistent across all three.
 
+**These settings are declarative, not auto-applied — know this before copying
+the pattern.** This package deliberately ships no `.mcp.json` (see
+`plugins/README.md`: the server is expected to be reached through the user's
+existing gateway or local MCP setup), so there is no `env` block for
+`${user_config.*}` to flow into, and no lifecycle hook to bridge them either.
+The fields exist to *declare* what an operator must wire into their own
+gateway config; `apps/soma/tests/plugin_contract.rs` asserts the core five are
+present. Filling them in the settings UI configures nothing by itself.
+
+Every server generated from this scaffold does the opposite: it ships an
+`.mcp.json` whose `env` block maps each `userConfig` key to a `<SERVICE>_*`
+variable, which is what actually delivers config to a stdio server. If you are
+deriving a server, wire the env block — do not inherit soma's gateway-oriented
+shape by accident.
+
 ## Monitors (Claude Code v2.1.105+)
 
 The default stdio MCP registration runs `soma mcp`. The binary must be installed
@@ -39,8 +54,15 @@ just install-local
 ```
 
 `monitors/monitors.json` is optional and only useful for HTTP deployments. Its
-command uses `${user_config.server_url}` substitution — this is resolved at
-runtime from the user's plugin settings. Do not hardcode URLs in `monitors.json`.
+command must **not** reference `${user_config.*}`: Claude Code v2.1.207+ rejects
+that in monitor commands and the monitor silently never starts. Monitor processes
+also receive no `CLAUDE_PLUGIN_OPTION_*`. `soma watch` therefore takes no `--url`
+and resolves its own default from config; if a monitor ever needs a non-default
+URL, read it from a config file inside the script — the documented alternative.
+Do not hardcode URLs in `monitors.json` either.
+
+**This is scaffold text.** Whatever shape this takes is inherited by every server
+generated from soma, so keep it correct.
 
 When adding a new monitor: add an entry to `monitors.json` and reference the installed `soma` binary or scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/`.
 
@@ -60,7 +82,7 @@ The three-tier structure must be preserved:
 This package ships **no** lifecycle hooks, so nothing runs `soma setup
 plugin-hook` automatically — run it manually after install or a settings
 change. Do not add a `hooks` key or a `hooks/hooks.json`: `just
-validate-plugin`, `cargo xtask check-patterns`, and
+validate-plugin`, `cargo xtask patterns`, and
 `apps/soma/tests/plugin_contract.rs` all assert their absence.
 
 Sensitive fields declared `"sensitive": true` in `plugin.json` are **never** substituted into skill content.

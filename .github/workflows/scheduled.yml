@@ -25,13 +25,17 @@ on:
         required: false
         default: true
         type: boolean
+      remote_canary:
+        description: "Run the kache cold cross-runner canary (clears this runner's local store)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 env:
   CARGO_INCREMENTAL: "0"
-  SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -46,8 +50,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-deny
@@ -64,10 +68,111 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_audit }}
         run: cargo deny check all
 
-  # NOTE: the soldr compile store is now a persistent host bind mount on the
-  # runner farm (CACHE_MOUNTS soldr:/home/runner/.cache/soldr), shared across
-  # runners and repos. Bounding it is handled where it belongs — zccache's own
-  # LRU eviction plus the farm's host-side `prune-cache` — NOT a CI job. A
-  # weekly `rm -rf` from inside one runner would race live builds on the other
-  # runners and delete a cache shared by every repo. The earlier soldr-store-gc
-  # job was removed for that reason.
+  # NOTE: the kache LOCAL store is per-runner under /_work/<repo>/../.kache
+  # (never shared); the shared surface is the filesystem remote, mounted across
+  # runners and repos. Bounding it is handled where it belongs — kache's own
+  # cost-aware local GC (0.12.0) plus the weekly kache-reaper.sh cron on tootie
+  # for the never-evicting remote — NOT a CI job. A weekly `rm -rf` from inside
+  # one runner would race live builds on the other runners and delete a cache
+  # shared by every repo. The earlier store-gc job was removed for that reason.
+
+  # ── kache-remote-canary: cold cross-runner proof of the shared remote ────────
+  #
+  # WHY THIS EXISTS INSTEAD OF KACHE_GATE_REQUIRE_REMOTE=1 ON EVERY JOB:
+  # the gate measures per-build deltas, and a runner whose private store and
+  # target dir are already warm legitimately serves everything locally — zero
+  # NEW remote hits is the HEALTHY outcome there. A standing REQUIRE_REMOTE=1
+  # would red exactly the builds that need the remote least. The failure mode
+  # that actually needs coverage — the shared remote silently degrading while
+  # every warm runner keeps passing — is only observable from a COLD start, so
+  # this job manufactures one: clear this runner's private store, clear the
+  # workspace target dir, rebuild, and require that the artifacts come from the
+  # shared remote seeded by earlier CI runs and canaries.
+  #
+  # First-ever run on an empty remote reds by design (it seeds; nothing could
+  # have served it). Every later weekly run must go green or the shared remote
+  # has regressed.
+  kache-remote-canary:
+    name: kache remote canary (cold cross-runner)
+    if: ${{ github.event_name == 'schedule' || inputs.remote_canary }}
+    runs-on: [self-hosted, unraid]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
+
+      - name: Go cold — clear this runner's private store and target dir
+        run: |
+          set -euo pipefail
+          # Stop the container-lifetime daemon before deleting the store out
+          # from under its open SQLite index, then restart it (same user —
+          # the supervise loop would also revive it within 10 s, but an
+          # explicit start keeps this step deterministic).
+          kache daemon stop || true
+          rm -rf "${KACHE_CACHE_DIR:?}"
+          mkdir -p "$KACHE_CACHE_DIR"
+          cargo clean
+          kache daemon start
+          # Wait until the daemon actually answers before unleashing hundreds
+          # of parallel rustc wrappers at it: kache is fail-open, so every RPC
+          # that races daemon initialization silently skips the remote check
+          # and compiles — a 0%-hit build that looks like a cache regression
+          # but is only a settle race (observed on canary run 6: 0/938).
+          for _ in $(seq 1 30); do
+            kache daemon status >/dev/null 2>&1 && break
+            sleep 1
+          done
+          kache daemon status >/dev/null 2>&1 || { echo "::error::kache daemon did not come back after store wipe"; exit 1; }
+          sleep 3
+          echo "local store and target cleared, daemon answering — every unit must now come from the shared remote or a fresh compile"
+
+      - name: kache gate baseline
+        run: ./scripts/kache-gate.sh --baseline
+
+      - name: Build cold against the shared remote
+        run: cargo check --workspace --all-targets --locked
+
+      - name: kache gate (remote hits required)
+        if: always()
+        env:
+          KACHE_GATE_MIN_HIT_RATE: "50"
+          KACHE_GATE_REQUIRE_REMOTE: "1"
+          KACHE_GATE_REQUIRE_DAEMON: "1"
+        run: ./scripts/kache-gate.sh
+
+      # No drain step any more, deliberately: the farm image supervises a
+      # container-lifetime daemon that is OUTSIDE job process groups, so the
+      # post-job orphan reaper cannot kill it and pending uploads finish after
+      # the job ends. (The per-job-daemon era lost ~half of each seeding run's
+      # uploads to that reaper; a bounded `kache daemon stop` drain recovered
+      # only part of the tail. Stopping the shared daemon at job end would now
+      # be actively harmful.)
+
+      # Lockstep probe: dookie and the runners only share one cache-key
+      # population while glibc, cargo profiles, and RUSTFLAGS stay aligned.
+      # dookie publishes the key it computes for the frozen probe crate; this
+      # step recomputes it here and fails on drift. The weekly canary cannot
+      # catch this any other way — runner↔runner sharing keeps it green while
+      # dookie↔runner sharing silently splits.
+      - name: kache key lockstep probe (dookie ↔ runners)
+        if: always()
+        run: |
+          set -euo pipefail
+          ref=/home/runner/kache-remote/key-probe-reference.txt
+          if [ ! -r "$ref" ]; then
+            echo "no dookie reference at $ref — skipping lockstep check"
+            exit 0
+          fi
+          kache purge --crate-name kache_key_probe >/dev/null 2>&1 || true
+          cargo build --quiet --manifest-path ci/kache-key-probe/Cargo.toml --target-dir /tmp/key-probe-target
+          key="$(kache list kache_key_probe | grep -m1 'Cache key' | awk '{print $3}')"
+          exp="$(cut -d' ' -f1 "$ref")"
+          echo "runner key: $key"
+          echo "dookie ref: $(cat "$ref")"
+          if [ "$key" != "$exp" ]; then
+            echo "::error::kache key drift: runner and dookie no longer compute the same cache key for the frozen probe. Check glibc generation, cargo profile blocks, and RUSTFLAGS lockstep (runner image vs dookie ~/.cargo/config.toml)."
+            exit 1
+          fi
+          echo "lockstep OK — dookie and runners share one key population"

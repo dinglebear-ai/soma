@@ -33,14 +33,12 @@ env:
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Builds route through the soldr front door (cargo tool shims installed by
-  # ./.github/actions/setup-rust-soldr). soldr sets RUSTC_WRAPPER for its cargo
-  # child, which also keeps the dev-only scripts/cargo-rustc-wrapper (used by
-  # sibling repos / user-level config) overridden in CI. The artifact store
-  # lives on the persistent self-hosted Linux runner disk, same pattern as the
-  # old SCCACHE_DIR; the GitHub-hosted native Windows job runs without any
-  # compile wrapper.
-  SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
+  # Builds route through kache (RUSTC_WRAPPER, set by
+  # ./.github/actions/setup-rust-kache). The LOCAL store is per-runner under
+  # $GITHUB_WORKSPACE/../.kache and must never be shared — kache's SQLite index
+  # cannot be held across containers. The SHARED surface is the filesystem
+  # remote bind-mounted at /home/runner/kache-remote. The GitHub-hosted native
+  # Windows job runs without any compile wrapper.
   # Keep Windows artifacts portable and independent of runner image defaults.
   WINDOWS_PORTABLE_RUSTFLAGS: >-
     -C target-cpu=x86-64
@@ -70,8 +68,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Classify changed paths
         id: classify
@@ -118,8 +116,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           components: rustfmt
 
@@ -136,8 +134,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Check architecture boundaries
         run: cargo xtask check-architecture
@@ -155,8 +153,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           components: clippy
 
@@ -179,6 +177,14 @@ jobs:
       - name: soma-gateway clippy all features
         run: cargo clippy -p soma-gateway --all-targets --all-features -- -D warnings
 
+      - name: kache gate
+        if: always()
+        env:
+          KACHE_GATE_MIN_HIT_RATE: "0"
+          KACHE_GATE_REQUIRE_REMOTE: "0"
+          KACHE_GATE_REQUIRE_DAEMON: "1"
+        run: ./scripts/kache-gate.sh
+
   # ── test: cargo nextest run --profile ci ─────────────────────────────────────
   test:
     name: Test
@@ -189,8 +195,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       # CUSTOMIZE: Change cache key prefix from "soma" to your repo name.
       - name: Cache Cargo
@@ -203,6 +209,14 @@ jobs:
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-nextest
+
+      # This job runs `just test-python*` below but never installed `just` - it
+      # inherited whatever the runner happened to have. Provision it explicitly.
+      - name: Set up mise tools
+        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        with:
+          install_args: just
+          cache: true
 
       - name: Build stdio test binary
         run: cargo build --bin soma
@@ -233,6 +247,14 @@ jobs:
 
       - name: codex app-server REST tests
         run: cargo test -p codex-app-server-client --features rest --locked
+
+      - name: kache gate
+        if: always()
+        env:
+          KACHE_GATE_MIN_HIT_RATE: "0"
+          KACHE_GATE_REQUIRE_REMOTE: "0"
+          KACHE_GATE_REQUIRE_DAEMON: "1"
+        run: ./scripts/kache-gate.sh
 
       - name: Upload nextest report
         if: always()
@@ -330,8 +352,8 @@ jobs:
           name: web-out
           path: apps/web/out
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Cache Cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -346,6 +368,14 @@ jobs:
 
       - name: cargo build full binary
         run: cargo build --release --locked --bin soma --features full
+
+      - name: kache gate
+        if: always()
+        env:
+          KACHE_GATE_MIN_HIT_RATE: "0"
+          KACHE_GATE_REQUIRE_REMOTE: "0"
+          KACHE_GATE_REQUIRE_DAEMON: "1"
+        run: ./scripts/kache-gate.sh
 
       - name: Upload Linux binary
         uses: actions/upload-artifact@v7
@@ -370,13 +400,13 @@ jobs:
           path: apps/web/out
 
       # Native Windows cargo historically misbehaved under compile wrappers,
-      # so this job installs soldr without cargo shims and pins the wrapper
+      # so this job runs with no compile cache and pins the wrapper
       # env empty (an empty RUSTC_WRAPPER also keeps any user-level
       # rustc-wrapper config on the runner overridden).
-      - name: Install Rust and soldr (no cargo shims)
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust (no compile cache)
+        uses: ./.github/actions/setup-rust-kache
         with:
-          enable-shims: "false"
+          enable-cache: "false"
 
       - name: Run native Windows cargo without a compile wrapper
         shell: pwsh
@@ -408,10 +438,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Continue'
           rustc -vV
-          soldr --version
           "RUSTC_WRAPPER=$env:RUSTC_WRAPPER"
           "CARGO_BUILD_RUSTC_WRAPPER=$env:CARGO_BUILD_RUSTC_WRAPPER"
-          "SOLDR_CACHE_DIR=$env:SOLDR_CACHE_DIR"
           "RUSTFLAGS=$env:RUSTFLAGS"
           rustc --print cfg | Select-String 'target_feature'
           cargo config get build.rustflags --merged
@@ -530,8 +558,8 @@ jobs:
           name: web-out
           path: apps/web/out
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Set up mise tools
         uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
@@ -652,8 +680,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Install taplo
         uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
@@ -689,8 +717,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       # Only used by "Check TypeScript REST client" below - `cargo xtask
       # check-ts-client` itself skips gracefully (exit 0) if node/pnpm end up
@@ -763,8 +791,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Install cargo-deny
         uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4

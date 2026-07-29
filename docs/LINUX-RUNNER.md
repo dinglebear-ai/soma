@@ -77,8 +77,9 @@ services:
       - RUNNER_TEMP=/home/runner/_work/_temp
       - CARGO_HOME=/home/runner/.cargo
       - RUSTUP_HOME=/home/runner/.rustup
-      - SCCACHE_DIR=/home/runner/_work/.sccache
-      - SCCACHE_CACHE_SIZE=5G
+      - KACHE_CACHE_DIR=/home/runner/_work/.kache
+      - KACHE_MAX_SIZE=40GiB
+      - KACHE_DAEMON_IDLE_TIMEOUT=0
     env_file:
       - .env
     volumes:
@@ -130,30 +131,37 @@ runners.
 
 ## Cache Model
 
-Cargo and sccache data persist under the runner appdata volume:
+Cargo and kache data persist under the runner appdata volume:
 
 - `CARGO_HOME=/home/runner/.cargo`
 - `RUSTUP_HOME=/home/runner/.rustup`
-- `SCCACHE_DIR=/home/runner/_work/.sccache`
-- `SCCACHE_CACHE_SIZE=5G`
+- `KACHE_CACHE_DIR=/home/runner/_work/.kache`
+- `KACHE_MAX_SIZE=40GiB`
 
-Workflow Rust jobs also set:
+The kache LOCAL store is **per-runner and must never be shared**: kache's SQLite
+index cannot be held across containers, and a shared index degrades silently to
+uncached builds. The shared surface is the filesystem remote — see
+`~/docs/dev/toolchain/kache.md`.
+
+Workflow Rust jobs set these via `.github/actions/setup-rust-kache`:
 
 ```yaml
 CARGO_INCREMENTAL: "0"
-RUSTC_WRAPPER: sccache
-CARGO_BUILD_RUSTC_WRAPPER: sccache
-SCCACHE_DIR: ${{ github.workspace }}/../.sccache
+RUSTC_WRAPPER: kache
+CARGO_BUILD_RUSTC_WRAPPER: kache
+KACHE_CACHE_DIR: ${{ github.workspace }}/../.kache
+KACHE_DAEMON_IDLE_TIMEOUT: "0"
 ```
 
-`CARGO_INCREMENTAL=0` is required because incremental compilation and sccache do
-not compose cleanly. `CARGO_BUILD_RUSTC_WRAPPER=sccache` keeps CI focused on
-cacheable compilation; artifact sync is explicit through recipes such as
-`just sync-bin` or `just build-plugin`.
+`CARGO_INCREMENTAL=0` is required because incremental compilation and a compile
+wrapper do not compose. `KACHE_DAEMON_IDLE_TIMEOUT=0` is equally load-bearing:
+the daemon is the only path that uploads dependency artifacts and the only path
+that performs remote lookups, and the remote-check path never starts it — so a
+daemon that idled out means zero remote hits and zero uploads, silently.
 
 The persistent mounts are bounded by two guardrails:
 
-- `SCCACHE_CACHE_SIZE=5G` caps each runner's local sccache store.
+- `KACHE_MAX_SIZE=40GiB` caps each runner's local kache store.
 - `start.sh` prunes stale storage every time the JIT runner starts: `/tmp` and
   `_work/_temp` are cleared, old work directories are removed after 7 days,
   runner diagnostic logs after 14 days, and stale Cargo registry/git cache
@@ -171,9 +179,9 @@ The runner container needs:
 - A persistent `/mnt/cache/appdata/actions-runner/soma` tree.
 - `GITHUB_PAT` in the compose `.env` file for runner registration.
 
-Rust, sccache, and basic Linux build prerequisites (`build-essential`,
+Rust, kache, and basic Linux build prerequisites (`build-essential`,
 `pkg-config`, `libssl-dev`) are installed by
-`.github/actions/setup-rust-sccache` inside the workflow, so the container does
+`.github/actions/setup-rust-kache` inside the workflow, so the container does
 not need them baked in.
 
 ## When To Use This Runner
@@ -195,8 +203,9 @@ outside contributors need CI feedback, route fork PRs to GitHub-hosted runners.
   persistent home with the runner distribution files.
 - **Job waits for a runner**: verify the workflow labels exactly match
   `self-hosted`, `tootie`, and `soma`.
-- **Cargo ignores sccache**: check the setup action output for
-  `RUSTC_WRAPPER=sccache` and `CARGO_BUILD_RUSTC_WRAPPER=sccache`.
+- **Cargo ignores kache**: check the setup action's "Print cache evidence" step
+  for `RUSTC_WRAPPER=kache`, then run `kache doctor` and `kache stats` on the
+  runner. A green build proves nothing — kache is fail-open.
 - **Docker jobs fail**: confirm `/var/run/docker.sock` is mounted and the host
   Docker daemon is healthy.
 - **Registration fails**: refresh the compose `.env` token and restart the

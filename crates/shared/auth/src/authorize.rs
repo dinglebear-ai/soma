@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Query, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect};
 use axum::{Json, response::Response};
 use base64::Engine;
@@ -19,7 +19,9 @@ use crate::types::{
     BrowserLoginStateRow, CallbackQuery, NativeAuthorizationResultRow, NativePollQuery,
     NativePollResponse,
 };
-use crate::util::{expires_at, fingerprint, now_unix, random_token, remote_ip};
+use crate::util::{
+    apply_cache_control_no_store, expires_at, fingerprint, now_unix, random_token, remote_ip,
+};
 
 const AUTH_REQUEST_TTL_SECS: i64 = 300;
 const NATIVE_SUCCESS_PAGE: &str = r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Signed in</h2><p>You can close this tab and return to the app.</p></body></html>"#;
@@ -167,11 +169,7 @@ fn render_provider_picker(state: &AuthState, return_to: &str) -> Response {
     let body = format!(
         r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Sign in</h2><ul style="list-style:none;padding:0;font-size:1.1rem;line-height:2.5">{links}</ul></body></html>"#
     );
-    let mut response = axum::response::Html(body).into_response();
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
+    apply_cache_control_no_store(axum::response::Html(body).into_response())
 }
 
 fn provider_label(provider_id: &str) -> &'static str {
@@ -188,6 +186,29 @@ fn html_escape(text: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+/// The `token_endpoint_auth_method` the grant now being authorized is issued
+/// under, captured here because `/authorize` has just resolved this client.
+///
+/// The value is recorded on the authorization request, inherited by the
+/// authorization code, and then by the refresh token, so `/token` can
+/// authenticate the client from the grant instead of resolving the client
+/// again on every exchange. It is the *contract* of the grant: a client that
+/// later changes its declared method does not retroactively change grants
+/// already issued under the old one.
+///
+/// For a CIMD `client_id` this is served from the positive cache that
+/// `resolve_client_redirect_uris` populated moments ago, so it costs no extra
+/// network round trip. A failure to resolve yields `None` ("unknown"), which
+/// leaves `/token` doing exactly what it did before this field existed - never
+/// a downgrade to public.
+async fn issued_client_auth_method(state: &AuthState, client_id: &str) -> Option<String> {
+    crate::registration::resolve_client(state, client_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|client| client.token_endpoint_auth_method)
 }
 
 pub async fn authorize(
@@ -235,6 +256,8 @@ pub async fn authorize(
         ));
     }
 
+    let token_endpoint_auth_method = issued_client_auth_method(&state, &query.client_id).await;
+
     let provider = state.provider_or_default(query.provider.as_deref())?;
     let provider_code_verifier = random_token(32)?;
     let provider_code_challenge =
@@ -257,6 +280,7 @@ pub async fn authorize(
             code_challenge_method: query.code_challenge_method.clone(),
             created_at: now_unix(),
             expires_at: now_unix() + AUTH_REQUEST_TTL_SECS,
+            token_endpoint_auth_method,
         })
         .await?;
 
@@ -440,6 +464,7 @@ pub async fn callback(
                 state.config.auth_code_ttl,
                 &format!("{}_AUTH_CODE_TTL_SECS", state.config.env_prefix),
             )?,
+            token_endpoint_auth_method: request.token_endpoint_auth_method,
         })
         .await?;
     info!(
@@ -474,10 +499,8 @@ pub async fn callback(
                 )?,
             })
             .await?;
-        let mut response = axum::response::Html(NATIVE_SUCCESS_PAGE).into_response();
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        let response =
+            apply_cache_control_no_store(axum::response::Html(NATIVE_SUCCESS_PAGE).into_response());
         debug!(
             auth_code_id = %auth_code_id,
             native_callback_endpoint = %native_callback_endpoint,
@@ -523,15 +546,13 @@ pub async fn native_callback(Query(query): Query<NativePollQuery>) -> Result<Res
             "missing `state` parameter".to_string(),
         ));
     }
-    let mut response = (
-        StatusCode::GONE,
-        axum::response::Html(NATIVE_CALLBACK_EXPIRED_PAGE),
-    )
-        .into_response();
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    Ok(response)
+    Ok(apply_cache_control_no_store(
+        (
+            StatusCode::GONE,
+            axum::response::Html(NATIVE_CALLBACK_EXPIRED_PAGE),
+        )
+            .into_response(),
+    ))
 }
 
 pub async fn native_poll(
@@ -544,7 +565,7 @@ pub async fn native_poll(
             "missing `state` parameter".to_string(),
         ));
     }
-    let mut response = if let Some(row) = state
+    let response = if let Some(row) = state
         .store
         .take_native_authorization_result(state_param)
         .await?
@@ -560,10 +581,7 @@ pub async fn native_poll(
         )
             .into_response()
     };
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    Ok(response)
+    Ok(apply_cache_control_no_store(response))
 }
 
 fn sanitize_return_to(state: &AuthState, requested: Option<&str>) -> String {
@@ -1478,6 +1496,7 @@ pub mod tests {
                 provider_refresh_token: None,
                 created_at: now_unix(),
                 expires_at: now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -1736,6 +1755,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2044,6 +2064,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix() - 300,
                 expires_at: now_unix() - 1,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2145,6 +2166,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2216,6 +2238,7 @@ pub mod tests {
                 code_challenge_method: "S256".to_string(),
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();
@@ -2509,6 +2532,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     code_challenge_method: "S256".to_string(),
                     created_at: now_unix(),
                     expires_at: now_unix() + 300,
+                    token_endpoint_auth_method: None,
                 })
                 .await
                 .unwrap();
@@ -2669,6 +2693,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     code_challenge_method: "S256".to_string(),
                     created_at: now_unix(),
                     expires_at: now_unix() + 300,
+                    token_endpoint_auth_method: None,
                 })
                 .await
                 .unwrap();
@@ -2887,6 +2912,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                 provider_refresh_token: None,
                 created_at: now_unix(),
                 expires_at: now_unix() + 3600,
+                token_endpoint_auth_method: None,
             })
             .await
             .unwrap();

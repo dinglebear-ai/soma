@@ -7,9 +7,9 @@
 //! guarded fetch path and `ssrf` for the SSRF preflight guard it composes.
 //!
 //! A CIMD document's `redirect_uris` are NOT trusted outright — the
-//! consumer in `authorize.rs` filters them through the same
+//! consumer in `registration.rs` filters them through the same
 //! `is_allowed_redirect_uri` check DCR-registered clients are held to. See
-//! that module's `resolve_client_redirect_uris` for why.
+//! `registration::resolve_client_redirect_uris` for why.
 
 pub mod document;
 pub mod ssrf;

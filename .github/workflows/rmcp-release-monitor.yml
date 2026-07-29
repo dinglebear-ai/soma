@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 15
     env:
       CARGO_INCREMENTAL: "0"
-      SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
       GH_TOKEN: ${{ github.token }}
       MCP_SCHEMA_PATH: schema/2025-11-25/schema.ts
       MCP_SCHEMA_RAW_URL: https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-11-25/schema.ts
@@ -37,8 +36,8 @@ jobs:
           install_args: gh
           cache: true
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Fetch rmcp crate metadata
         run: |
@@ -47,13 +46,25 @@ jobs:
             https://crates.io/api/v1/crates/rmcp \
             -o rmcp-crate.json
 
+      # CLICOLOR_FORCE=0 is load-bearing, not cosmetic. A runner setup
+      # action exports CLICOLOR_FORCE=1 into GITHUB_ENV, so every later step
+      # inherits it, and gh treats that as "force color on" even when stdout is
+      # redirected to a file - NO_COLOR does not override it. Without this the
+      # redirected payload is pretty-printed, ANSI-colorized JSON starting with
+      # an ESC byte, and xtask fails with "expected value at line 1 column 1".
       - name: Fetch rmcp GitHub release notes
+        env:
+          CLICOLOR_FORCE: "0"
+          NO_COLOR: "1"
         run: |
           gh api \
             "repos/modelcontextprotocol/rust-sdk/releases?per_page=100" \
             > rmcp-releases.json
 
       - name: Fetch MCP schema
+        env:
+          CLICOLOR_FORCE: "0"
+          NO_COLOR: "1"
         run: |
           curl -fsSL "$MCP_SCHEMA_RAW_URL" -o mcp-schema-upstream.ts
           gh api \
@@ -61,11 +72,48 @@ jobs:
             > mcp-schema-commits.json
 
       - name: Fetch MCP conformance metadata
+        env:
+          CLICOLOR_FORCE: "0"
+          NO_COLOR: "1"
         run: |
           baseline="$(tr -d '[:space:]' < docs/references/mcp/conformance/main.sha)"
           gh api "repos/${MCP_CONFORMANCE_REPO}/commits/main" > mcp-conformance-head.json
           gh api "repos/${MCP_CONFORMANCE_REPO}/compare/${baseline}...main" \
             > mcp-conformance-compare.json
+
+      # Fail here, with the payload head, rather than 30s later inside a cargo
+      # build with a serde message that names none of these files.
+      - name: Validate fetched JSON payloads
+        run: |
+          set -uo pipefail
+          status=0
+          validate() {
+            path="$1"
+            want="$2"
+            label="$3"
+            if [ ! -s "$path" ]; then
+              echo "::error file=${path}::${path} (${label}) is missing or empty; the fetch step wrote no payload"
+              status=1
+              return
+            fi
+            # cut, not head -c 1: head exits after one byte and SIGPIPEs tr,
+            # which under pipefail fails the check on a perfectly good payload.
+            first="$(tr -d '[:space:]' < "$path" | cut -c1)"
+            if [ "$first" != "$want" ]; then
+              echo "::error file=${path}::${path} (${label}) does not start with '${want}'; first 200 bytes follow with control characters escaped"
+              echo "--- head of ${path} ($(wc -c < "$path") bytes) ---"
+              head -c 200 "$path" | cat -v
+              echo ""
+              echo "--- end of head ---"
+              status=1
+            fi
+          }
+          validate rmcp-releases.json "[" "JSON array of GitHub releases"
+          validate rmcp-crate.json "{" "crates.io crate metadata object"
+          validate mcp-schema-commits.json "[" "JSON array of schema commits"
+          validate mcp-conformance-head.json "{" "conformance head commit object"
+          validate mcp-conformance-compare.json "{" "conformance compare object"
+          exit "$status"
 
       - name: Render rmcp release issue body
         id: monitor
@@ -85,6 +133,9 @@ jobs:
 
       - name: Open or update rmcp release issue
         if: steps.monitor.outputs.drift == 'true'
+        env:
+          CLICOLOR_FORCE: "0"
+          NO_COLOR: "1"
         run: |
           title="${{ steps.monitor.outputs.issue_title }}"
           existing="$(
@@ -106,6 +157,9 @@ jobs:
 
       - name: Close resolved rmcp release issue
         if: steps.monitor.outputs.drift == 'false'
+        env:
+          CLICOLOR_FORCE: "0"
+          NO_COLOR: "1"
         run: |
           existing="$(
             gh issue list \

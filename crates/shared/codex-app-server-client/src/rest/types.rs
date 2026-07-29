@@ -841,24 +841,33 @@ mod tests {
     }
 
     impl EnvVarGuard {
+        // Edition 2024 made `env::set_var`/`env::remove_var` unsafe: mutating
+        // the environment races any other thread reading it. These are
+        // test-only and the suite that uses them is serialized, so the
+        // precondition holds - but it has to be stated explicitly now.
         fn set(key: &'static str, value: impl AsRef<OsStr>) -> Self {
             let previous = env::var_os(key);
-            env::set_var(key, value);
+            // SAFETY: test-only, and the tests using this guard are serialized.
+            unsafe { env::set_var(key, value) };
             Self { key, previous }
         }
 
         fn unset(key: &'static str) -> Self {
             let previous = env::var_os(key);
-            env::remove_var(key);
+            // SAFETY: test-only, and the tests using this guard are serialized.
+            unsafe { env::remove_var(key) };
             Self { key, previous }
         }
     }
 
     impl Drop for EnvVarGuard {
         fn drop(&mut self) {
-            match &self.previous {
-                Some(previous) => env::set_var(self.key, previous),
-                None => env::remove_var(self.key),
+            // SAFETY: test-only, and the tests using this guard are serialized.
+            unsafe {
+                match &self.previous {
+                    Some(previous) => env::set_var(self.key, previous),
+                    None => env::remove_var(self.key),
+                }
             }
         }
     }

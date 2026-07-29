@@ -145,6 +145,35 @@ pub(super) fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
                 ON assertion_jtis(expires_at);",
         )
         .map_err(sqlite_error)?;
+        conn.execute_batch("PRAGMA user_version = 4;")
+            .map_err(sqlite_error)?;
+    }
+
+    if current_version < 5 {
+        // Record the `token_endpoint_auth_method` a grant was issued under so
+        // `/token` can authenticate a public client from the grant itself
+        // instead of re-resolving the client on every exchange - which, for a
+        // CIMD-shaped `client_id`, is a live metadata fetch that made valid
+        // refreshes fail whenever the client's own metadata host was down.
+        //
+        // Deliberately NULLABLE with no default. NULL means "issued before
+        // this migration, method unknown", and `/token` resolves those rows
+        // exactly as it did before. Defaulting to 'none' would re-label every
+        // pre-existing row as a public client, silently downgrading any
+        // confidential (`private_key_jwt`) client whose grants predate v5.
+        add_column_if_missing(
+            conn,
+            "authorization_requests",
+            "token_endpoint_auth_method",
+            "TEXT",
+        )?;
+        add_column_if_missing(
+            conn,
+            "authorization_codes",
+            "token_endpoint_auth_method",
+            "TEXT",
+        )?;
+        add_column_if_missing(conn, "refresh_tokens", "token_endpoint_auth_method", "TEXT")?;
         conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
             .map_err(sqlite_error)?;
     }

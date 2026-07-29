@@ -1,4 +1,7 @@
 import inspect
+import subprocess
+import sys
+import textwrap
 import unittest
 
 from soma_provider import (
@@ -16,8 +19,62 @@ from soma_provider import (
 
 class NativeFallbackTests(unittest.TestCase):
     def test_source_sdk_does_not_require_native_extension(self):
-        self.assertFalse(native_available())
-        self.assertIsNone(native_build())
+        # Asserting `native_available()` directly would only be testing whether
+        # this checkout happens to have a compiled extension sitting in the
+        # source tree - `just test-python-package` builds one there, so the
+        # result flipped depending on what had been run before. Block the
+        # extension in a child interpreter instead, so this asserts the
+        # fallback path itself rather than the state of the working tree.
+        script = textwrap.dedent(
+            """
+            import sys
+
+            class _BlockNative:
+                def find_module(self, name, path=None):
+                    return self if name.endswith("soma_provider._soma_native") else None
+
+                def find_spec(self, name, path=None, target=None):
+                    if name == "soma_provider._soma_native":
+                        raise ImportError("native extension blocked for this test")
+                    return None
+
+            sys.meta_path.insert(0, _BlockNative())
+
+            import soma_provider
+
+            assert not soma_provider.native_available(), "native must be unavailable"
+            assert soma_provider.native_build() is None, "native_build must be None"
+
+            # The SDK must still be fully usable without the extension.
+            @soma_provider.tool(name="fallback-echo")
+            def echo(message: str) -> str:
+                return message
+
+            assert echo("ok") == "ok"
+            assert soma_provider.provider(name="p", kind="python")["name"] == "p"
+            print("FALLBACK_OK")
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"source-only import failed:\nstdout={result.stdout}\nstderr={result.stderr}",
+        )
+        self.assertIn("FALLBACK_OK", result.stdout)
+
+    def test_native_build_agrees_with_native_available(self):
+        # Whether the extension is present varies by checkout; what must always
+        # hold is that the two accessors agree.
+        if native_available():
+            self.assertIsNotNone(native_build())
+        else:
+            self.assertIsNone(native_build())
 
 
 class ToolDecoratorTests(unittest.TestCase):

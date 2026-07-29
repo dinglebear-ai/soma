@@ -177,7 +177,10 @@ const UNCHECKED_SRC_ROOTS: &[(&str, &str)] = &[
     ),
     (
         "crates/shared/auth/src",
-        "inline #[cfg(test)] mod tests throughout (21 modules, 0 siblings)",
+        "predominantly inline #[cfg(test)] mod tests, with a few siblings \
+         (token_client_auth_tests.rs, sqlite_tests.rs, sqlite_assertions_tests.rs, \
+         sqlite_migration_tests.rs). Mixed by module rather than by crate, so \
+         checking the tree wholesale would fail on the inline majority.",
     ),
     (
         "crates/shared/cli-core/src",

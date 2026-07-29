@@ -58,7 +58,7 @@ pub(crate) fn gateway_with_routes(routes: Vec<ProtectedMcpRouteConfig>) -> Gatew
     .expect("gateway product state should build")
 }
 
-/// A real `AuthState` (real RSA signing keypair, real SQLite-backed
+/// A real `AuthState` (real Ed25519 signing keypair, real SQLite-backed
 /// resource-scope store) rooted at `data_dir`. `data_dir` must outlive the
 /// returned state (e.g. a `tempfile::tempdir()` held by the caller).
 pub(crate) async fn auth_state(data_dir: &std::path::Path) -> Arc<AuthState> {

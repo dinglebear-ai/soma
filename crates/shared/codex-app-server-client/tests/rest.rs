@@ -1126,18 +1126,24 @@ struct EnvVarGuard {
 }
 
 impl EnvVarGuard {
+    // Edition 2024 made `env::set_var`/`env::remove_var` unsafe: mutating the
+    // environment races any other thread reading it.
     fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
         let previous = std::env::var_os(key);
-        std::env::set_var(key, value);
+        // SAFETY: test-only, and the tests using this guard are serialized.
+        unsafe { std::env::set_var(key, value) };
         Self { key, previous }
     }
 }
 
 impl Drop for EnvVarGuard {
     fn drop(&mut self) {
-        match &self.previous {
-            Some(previous) => std::env::set_var(self.key, previous),
-            None => std::env::remove_var(self.key),
+        // SAFETY: test-only, and the tests using this guard are serialized.
+        unsafe {
+            match &self.previous {
+                Some(previous) => std::env::set_var(self.key, previous),
+                None => std::env::remove_var(self.key),
+            }
         }
     }
 }

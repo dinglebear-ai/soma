@@ -35,7 +35,6 @@ getrandom = "0.4"
 httpdate = "1"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 reqwest = { version = "0.13", default-features = false, features = ["form", "json", "rustls"] }
-rsa = "0.10.0-rc.16"
 rusqlite = { version = "0.40", features = ["bundled"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 serde = { version = "1", features = ["derive"] }
@@ -60,6 +59,13 @@ optional = true
 
 [dev-dependencies]
 rand = "0.10"
+# Test-only: mints throwaway RSA keypairs so the wiremock OIDC fixtures in
+# `google.rs`, `authelia.rs`, and `authorize.rs` can publish an RS256 JWKS and
+# sign fake ID tokens. Soma never holds an RSA private key at runtime — JWT
+# signing is Ed25519 (`jwt.rs`) and RSA is verify-only (`oidc.rs`) — so this
+# stays out of `[dependencies]` and out of the shipped binary. See the
+# RUSTSEC-2023-0071 note in `deny.toml`.
+rsa = "0.10.0-rc.16"
 tempfile = "3.27"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 wiremock = "0.6"

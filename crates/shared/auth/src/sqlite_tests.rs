@@ -69,6 +69,7 @@ async fn sqlite_store_ignores_expired_refresh_token() {
             provider_refresh_token: Some("provider-refresh".to_string()),
             created_at: now_unix() - 300,
             expires_at: now_unix() - 1,
+            token_endpoint_auth_method: None,
         })
         .await
         .unwrap();
@@ -97,6 +98,7 @@ async fn has_any_refresh_token_reflects_unexpired_rows_only() {
             provider_refresh_token: None,
             created_at: now_unix() - 300,
             expires_at: now_unix() - 1,
+            token_endpoint_auth_method: None,
         })
         .await
         .unwrap();
@@ -116,6 +118,7 @@ async fn has_any_refresh_token_reflects_unexpired_rows_only() {
             provider_refresh_token: None,
             created_at: now_unix(),
             expires_at: now_unix() + 3600,
+            token_endpoint_auth_method: None,
         })
         .await
         .unwrap();
@@ -144,6 +147,7 @@ async fn sqlite_store_cleanup_expired_removes_stale_rows() {
             provider_refresh_token: None,
             created_at: now - 600,
             expires_at: now - 10,
+            token_endpoint_auth_method: None,
         })
         .await
         .unwrap();
@@ -164,6 +168,7 @@ async fn sqlite_store_cleanup_expired_removes_stale_rows() {
             code_challenge_method: "S256".to_string(),
             created_at: now - 600,
             expires_at: now - 10,
+            token_endpoint_auth_method: None,
         })
         .await
         .unwrap();
@@ -180,6 +185,7 @@ async fn sqlite_store_cleanup_expired_removes_stale_rows() {
             provider_refresh_token: None,
             created_at: now,
             expires_at: now + 3600,
+            token_endpoint_auth_method: None,
         })
         .await
         .unwrap();
@@ -228,6 +234,7 @@ fn sample_code() -> AuthorizationCodeRow {
         provider_refresh_token: Some("provider-refresh".to_string()),
         created_at: now,
         expires_at: now + 300,
+        token_endpoint_auth_method: None,
     }
 }
 
@@ -620,6 +627,7 @@ fn sample_refresh_row(refresh_token: &str, provider_rt: &str) -> RefreshTokenRow
         provider_refresh_token: Some(provider_rt.to_string()),
         created_at: now,
         expires_at: now + 3600,
+        token_endpoint_auth_method: None,
     }
 }
 

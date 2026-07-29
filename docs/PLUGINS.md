@@ -72,6 +72,30 @@ Responsibilities:
 - defines `userConfig` settings exposed in Claude Code
 - marks sensitive values with `sensitive: true`
 
+**`userConfig` here is declarative, not auto-applied.** Soma deliberately ships
+no `.mcp.json` — the server is expected to be reached through the operator's
+existing gateway or local MCP setup — so there is no `env` block for
+`${user_config.*}` to flow into, and no lifecycle hook to bridge them either.
+The fields *declare* what an operator must wire into their own gateway config;
+filling them in the Claude Code settings UI configures nothing by itself.
+`apps/soma/tests/plugin_contract.rs` asserts the core five are present.
+
+Every server generated from this scaffold does the opposite: it ships an
+`.mcp.json` whose `env` block maps each `userConfig` key to a `<SERVICE>_*`
+variable, which is what actually delivers config to a stdio server. If you are
+deriving a server, wire that env block — do not inherit Soma's
+gateway-oriented shape by accident.
+
+### Monitors
+
+`plugins/soma/monitors/monitors.json` commands must **not** reference
+`${user_config.*}`: Claude Code v2.1.207+ rejects that in monitor commands and
+the monitor then silently never starts. Monitor processes also receive no
+`CLAUDE_PLUGIN_OPTION_*` environment variables. `soma watch` therefore takes no
+`--url` and resolves its own default from config; a monitor needing a
+non-default URL must read it from a config file inside the script. Do not
+hardcode URLs in `monitors.json` either.
+
 `auth_mode=oauth` enables whichever OIDC providers are configured via env vars
 (Google, Authelia, GitHub — see [`docs/AUTH.md`](AUTH.md)), not only Google;
 `auth_admin_email` bootstraps an allowed email shared across all configured

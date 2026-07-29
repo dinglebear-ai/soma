@@ -8,4 +8,9 @@ python = "3.14.5"
 "npm:mcporter" = "0.12.3"
 "cargo:taplo-cli" = "0.10.0"
 gh = "2.93.0"
+# The Test job runs `just test-python` / `just test-python-package`. It used
+# to rely on `just` happening to exist on the self-hosted runner; when the
+# runner stopped having it, CI failed with `just: command not found` and no
+# repo change could explain it. Pin it here like every other CI tool.
+just = "1.56.0"
 "aqua:EmbarkStudios/cargo-deny" = "0.19.8"

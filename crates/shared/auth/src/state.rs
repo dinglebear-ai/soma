@@ -209,6 +209,12 @@ impl AuthState {
             ))
         })?;
         let store = SqliteStore::open(config.sqlite_path.clone()).await?;
+        // Needs both halves of the pair, so it cannot live in
+        // `AuthConfig::validate`: the configured machine clients come from
+        // config, the registrations they could shadow live in the SQLite
+        // store that was only just opened. This is the first point where the
+        // two meet.
+        ensure_machine_clients_do_not_shadow_registrations(&config, &store).await?;
         let signing_keys = SigningKeys::load_or_create(&config.key_path)?;
         let providers = build_providers(&public_url, &config)?;
         if !providers.contains_key(&config.default_provider) {
@@ -525,6 +531,51 @@ fn build_providers(
     Ok(providers)
 }
 
+/// Refuse to start when a configured machine `client_id` could also be
+/// answered by the OAuth client registry.
+///
+/// `token_client_auth::authenticate_oauth_client` searches
+/// `config.machine_clients` first and returns on the first match, so a
+/// configured machine `client_id` that a registration also resolves silently
+/// wins on every `/token` path - including the `authorization_code` and
+/// `refresh_token` delegations, where it changes how an already-registered
+/// client must authenticate with no diagnostic anywhere. That precedence is
+/// deliberate and unchanged; resolving the ambiguity in silence is not, so a
+/// collision fails configuration instead of being picked in the dark.
+///
+/// A `client_id` is a public identifier, never a credential, so naming the
+/// offending id in the error is both safe and the entire point of the check.
+async fn ensure_machine_clients_do_not_shadow_registrations(
+    config: &AuthConfig,
+    store: &SqliteStore,
+) -> Result<(), AuthError> {
+    for client in &config.machine_clients {
+        // A Client ID Metadata Document `client_id` is any `https://` URL,
+        // resolved by fetching that URL when the request arrives. There is no
+        // local registry to diff it against, so refusing the shape outright is
+        // the only startup-time defense against that half of the collision.
+        #[cfg(feature = "http-axum")]
+        if crate::cimd::document::is_cimd_client_id(&client.client_id) {
+            return Err(AuthError::Config(format!(
+                "machine client `{}` uses the Client ID Metadata Document \
+                 `client_id` shape (`https://...`); the token endpoint would \
+                 authenticate it as a machine client instead of fetching its \
+                 metadata document. Give the machine client an opaque id",
+                client.client_id
+            )));
+        }
+        if store.find_client(&client.client_id).await?.is_some() {
+            return Err(AuthError::Config(format!(
+                "machine client `{}` collides with a registered OAuth client of the same \
+                 `client_id` and would silently shadow it at the token endpoint. Rename the \
+                 machine client or delete the registration",
+                client.client_id
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn build_provider_redirect_uri(public_url: &Url, callback_path: &str) -> Url {
     let mut redirect_uri = public_url.clone();
     let base_path = redirect_uri.path().trim_end_matches('/');
@@ -543,12 +594,14 @@ fn build_provider_redirect_uri(public_url: &Url, callback_path: &str) -> Url {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
     use std::time::Duration;
 
     use tempfile::tempdir;
 
     use super::*;
-    use crate::config::{GitHubConfig, GoogleConfig};
+    use crate::config::{GitHubConfig, GoogleConfig, MachineClientConfig};
+    use crate::types::RegisteredClient;
     use crate::util::now_unix;
 
     /// Builds a minimal `AuthState` for unit-testing `resolve_allowed_emails`.
@@ -646,6 +699,108 @@ mod tests {
                 .iter()
                 .map(|(key, provider)| (key.clone(), provider.provider_id()))
                 .collect::<Vec<_>>()
+        );
+    }
+
+    /// Minimal OAuth config carrying `machine_clients`, for the startup
+    /// collision guard.
+    fn machine_client_config(dir: &Path, machine_clients: Vec<MachineClientConfig>) -> AuthConfig {
+        AuthConfig {
+            mode: AuthMode::OAuth,
+            public_url: Some(Url::parse("https://lab.example.com").expect("url")),
+            sqlite_path: dir.join("auth.db"),
+            key_path: dir.join("auth.pem"),
+            admin_email: "admin@example.com".to_string(),
+            google: GoogleConfig {
+                client_id: "client-id".to_string(),
+                client_secret: "client-secret".to_string(),
+                callback_path: "/auth/google/callback".to_string(),
+                scopes: vec!["openid".to_string(), "email".to_string()],
+            },
+            default_provider: "google".to_string(),
+            machine_clients,
+            ..AuthConfig::default()
+        }
+    }
+
+    fn machine_client(client_id: &str) -> MachineClientConfig {
+        MachineClientConfig {
+            client_id: client_id.to_string(),
+            client_secret: Some("machine-secret".to_string()),
+            jwks: None,
+            scopes: vec!["lab".to_string()],
+            resources: vec!["https://lab.example.com/mcp".to_string()],
+        }
+    }
+
+    /// Write a DCR-registered client straight into the store the config under
+    /// test will open, so `AuthState::new` sees a pre-existing registration.
+    async fn seed_registered_client(sqlite_path: &Path, client_id: &str) {
+        let store = SqliteStore::open(sqlite_path.to_path_buf())
+            .await
+            .expect("seed store");
+        store
+            .register_client(RegisteredClient {
+                client_id: client_id.to_string(),
+                redirect_uris: vec!["https://client.example.com/callback".to_string()],
+                created_at: now_unix(),
+                token_endpoint_auth_method: "none".to_string(),
+                jwks: None,
+            })
+            .await
+            .expect("seed registered client");
+    }
+
+    #[tokio::test]
+    async fn auth_state_rejects_machine_client_shadowing_a_registered_client() {
+        let dir = tempdir().expect("tempdir");
+        let config = machine_client_config(dir.path(), vec![machine_client("shared-id")]);
+        seed_registered_client(&config.sqlite_path, "shared-id").await;
+
+        // `AuthState` is not `Debug`, so `expect_err` is unavailable here.
+        let Err(error) = AuthState::new(config).await else {
+            panic!("a machine client colliding with a registration must fail startup");
+        };
+        assert!(
+            matches!(&error, AuthError::Config(_)),
+            "expected a config error, got {error:?}"
+        );
+        assert!(
+            error.to_string().contains("shared-id"),
+            "the error must name the colliding client_id: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn auth_state_accepts_machine_client_with_no_registered_collision() {
+        let dir = tempdir().expect("tempdir");
+        let config = machine_client_config(dir.path(), vec![machine_client("machine")]);
+        seed_registered_client(&config.sqlite_path, "registered-id").await;
+
+        let state = AuthState::new(config).await.expect("auth state");
+        assert_eq!(state.config.machine_clients.len(), 1);
+    }
+
+    /// A CIMD `client_id` cannot be diffed against the local registry, so the
+    /// guard rejects the shape itself. Gated with the token endpoint that
+    /// does the shadowing.
+    #[cfg(feature = "http-axum")]
+    #[tokio::test]
+    async fn auth_state_rejects_cimd_shaped_machine_client_id() {
+        let dir = tempdir().expect("tempdir");
+        let client_id = "https://app.example.com/oauth/client-metadata.json";
+        let config = machine_client_config(dir.path(), vec![machine_client(client_id)]);
+
+        let Err(error) = AuthState::new(config).await else {
+            panic!("a CIMD-shaped machine client_id must fail startup");
+        };
+        assert!(
+            matches!(&error, AuthError::Config(_)),
+            "expected a config error, got {error:?}"
+        );
+        assert!(
+            error.to_string().contains(client_id),
+            "the error must name the offending client_id: {error}"
         );
     }
 

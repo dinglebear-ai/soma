@@ -9,6 +9,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [Unreleased]
+
+### Security
+
+* **auth:** refuse to start when a configured machine `client_id` would
+  silently shadow an OAuth client registration. `authenticate_oauth_client`
+  searches `AuthConfig.machine_clients` before falling back to the client
+  registry and short-circuits on the first match, so a machine `client_id`
+  that collides with a registered DCR client changed how that client had to
+  authenticate — on `authorization_code` and `refresh_token` too — with no
+  diagnostic anywhere. `AuthState::new` now rejects such a configuration with
+  an `AuthError::Config` naming the colliding id, and likewise rejects a
+  machine `client_id` shaped like a Client ID Metadata Document id
+  (`https://...`), which is resolved per request and so has no local registry
+  to be diffed against. The check lives in `AuthState::new` rather than
+  `AuthConfig::validate` because that is the first point where the configured
+  clients and the SQLite-backed registrations meet. The machine-clients-first
+  precedence itself is unchanged and now documented in `docs/AUTH.md` and on
+  `authenticate_oauth_client`.
+
+### Changed
+
+* **auth:** collapse the duplicated CIMD-vs-store branch in
+  `crates/shared/auth/src/registration.rs` into a single
+  `resolve_client_source()` helper. `resolve_client()` (the `/token` client
+  authentication path) and `resolve_client_redirect_uris()` (the `/authorize`
+  redirect-URI trust boundary) each re-implemented the same
+  `is_cimd_client_id()` test plus
+  `fetch_and_validate_client_metadata()`/`store.find_client()` dispatch, so the
+  two live request paths could drift and let a `client_id` resolve at one
+  endpoint but not the other. Both now branch on one `ResolvedClientSource`
+  enum. Behaviour is unchanged and the deliberate differences are preserved:
+  `/token` still answers `Ok(None)` for an unknown `client_id` while
+  `/authorize` still logs and returns `InvalidGrant("unknown client_id")`; the
+  detailed `CimdError` is still logged (with `client_state_id` and `kind`) only
+  on the `/authorize` path, via an injected callback, and is still collapsed to
+  the same generic `Validation` message on both; and CIMD `redirect_uris` are
+  still allowlist-filtered through `allowed_uris_from_cimd_document()` at
+  `/authorize` only. Adds three regression tests asserting the two resolvers
+  agree on whether a registered, unknown, or unreachable-CIMD `client_id`
+  resolves.
+
+* **auth:** split `crates/shared/auth/src/sqlite.rs` along two storage seams to
+  restore module-size headroom. The three `upstream_oauth_*` tables (provider
+  credentials, per-flow CSRF/PKCE state, dynamic client registrations) moved to
+  a new `sqlite_upstream_oauth.rs`, and the interactive login-session tables
+  (`browser_sessions`, `browser_login_states`, `native_authorization_results`)
+  moved to a new `sqlite_browser_sessions.rs`, both as sibling `impl
+  SqliteStore` blocks following the existing `sqlite_migrations.rs` /
+  `sqlite_rows.rs` / `sqlite_assertions.rs` pattern. `sqlite.rs` drops from
+  1373 to 905 effective lines, leaving 495 lines of headroom under the 1400
+  hard limit instead of 27. Pure refactor: `SqliteStore`'s public API, every
+  SQL statement, and the schema are unchanged, and no call site moved.
+
+* **xtask:** split `rmcp-release-monitor` along its real seams and retire its
+  bespoke module-size exemption. The module had grown to 1181 effective lines
+  against a hard limit of 1200 — 19 lines of headroom, so the next non-trivial
+  edit would have failed `cargo xtask patterns` and forced another emergency
+  extraction. It is now an orchestrator (300 lines: read options, detect the
+  pinned rmcp version, ask each watch, emit the Actions outputs) over five
+  focused submodules: `options.rs` (the CLI flag table), `schema.rs` and
+  `conformance.rs` (the two upstream watches, each owning its payload types,
+  report builder, and Markdown section), `impact.rs` (the identifier
+  extraction and repo scan both watches share), and `issue_body.rs` (issue
+  Markdown assembly and size clamping), alongside the existing
+  `diagnostics.rs`. Every file is now under the ordinary 350-line target, so
+  the `Some(600)` exemption in `xtask/src/patterns/util.rs` was removed rather
+  than raised — `xtask/src/scaffold.rs` keeps it. Pure refactor: the monitor's
+  stdout and generated issue body are byte-identical across the rmcp-drift,
+  schema-drift, conformance-drift, no-drift, truncation, and error paths.
+
+* **auth:** consolidate the duplicated OAuth response plumbing in
+  `crates/shared/auth`. The `Cache-Control: no-store` + `Pragma: no-cache`
+  stamp had six copies (`token.rs`, `revoke.rs`, `registration.rs`,
+  `error.rs`, and four `Cache-Control`-only sites in `authorize.rs`); the
+  RFC 6749 §5.2 error-object assembly had three (`TokenEndpointError`,
+  `RegistrationError`, `RevocationEndpointError`). Both now live in `util.rs`
+  as `apply_no_store`/`apply_cache_control_no_store` and
+  `oauth_error_response`. Each endpoint keeps its own variant-to-code,
+  variant-to-status, and variant-to-description mapping, which genuinely
+  differ per RFC. Purely internal: every status code, `error` code,
+  `error_description`, `Retry-After`, log `kind`, and cache header is
+  unchanged, including `authorize.rs`'s deliberate omission of `Pragma`.
+
+### Fixed
+
+* **auth:** stop a public client's token refreshes from depending on its own
+  metadata host. Wiring client authentication into `/token` made every
+  `authorization_code` and `refresh_token` exchange re-resolve the client,
+  which for a Client ID Metadata Document (CIMD) `client_id` is a live HTTPS
+  fetch — so a valid, unrevoked refresh token failed for as long as the
+  client's metadata host was unreachable, repeating until it recovered. The
+  `token_endpoint_auth_method` a grant was issued under is now recorded on the
+  authorization request, the authorization code, and the refresh token (schema
+  v5), and `/token` reads it from the grant instead. Public (`none`) clients
+  authenticate with no network call at all, while still being rejected if they
+  present a `client_secret` or `client_assertion`. `private_key_jwt` clients
+  are unchanged and still resolve, so their JWKS is always read fresh. The new
+  column is nullable: grants issued before the migration record `NULL`, which
+  means "unknown" and resolves the client exactly as before — never `"none"`,
+  which would downgrade a confidential client.
+
+### Security
+
+* **auth:** drop the `rsa` crate from the shipped `soma-auth` dependency graph.
+  It was a direct dependency but only ever used inside `#[cfg(test)]` modules
+  to mint throwaway RSA keypairs for the wiremock OIDC fixtures, so it moved to
+  `[dev-dependencies]`. This removes a release-candidate RSA implementation
+  (`0.10.0-rc.18`, flagged by RUSTSEC-2023-0071) from every released binary. No
+  runtime behaviour changes: RS256 verification of Google/Authelia ID tokens
+  still works, and token signing remains Ed25519/EdDSA. The remaining
+  `rsa 0.9.10` copy is transitive via `jsonwebtoken`'s `rust_crypto` backend and
+  is required for that RS256 verification; `deny.toml` now documents why the
+  advisory is not reachable (Soma holds no RSA private key, and the Marvin
+  timing attack targets private-key operations).
+
 ## [0.6.1](https://github.com/dinglebear-ai/soma/compare/v0.6.0...v0.6.1) (2026-07-26)
 
 
@@ -302,6 +418,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add RFC 7009 OAuth 2.0 token revocation. `POST /revoke` is now mounted by
+  both `soma_auth::routes::router` and `bearer_only_router`, shares the
+  `/token` per-IP rate limiter, requires the same client authentication as
+  `/token` (including HTTP Basic), and revokes only refresh tokens belonging to
+  the authenticated client. Unknown, expired, already-revoked, and
+  other-client tokens all return an identical empty `200`, so the endpoint is
+  never a token-existence oracle; `token_type_hint=access_token` returns
+  `unsupported_token_type` because access tokens are stateless JWTs. The
+  authorization server metadata document now advertises `revocation_endpoint`.
 - Add atomic activation of immutable Python provider environments:
   `ProviderRegistry::activate_python_candidate` revalidates a prepared
   candidate against the current provider source and cache before swapping it
@@ -326,10 +451,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Authorization-server metadata now advertises the grant types, client
   authentication methods, and signing algorithms that the configured machine
   clients and enterprise issuers actually enable.
-  The `token_client_auth` module is not yet called from the `/token` handler,
-  so none of it is reachable at runtime; the endpoint wiring and the RFC 7009
-  `/revoke` handler are tracked separately. `revocation_endpoint` is
-  deliberately omitted from metadata until that handler exists.
+  The RFC 7009 `/revoke` handler is still tracked separately, so
+  `revocation_endpoint` is deliberately omitted from metadata until it exists.
+- Wire `token_client_auth` into the `/token` handler, making OAuth 2.1 client
+  authentication and the machine grants reachable at runtime. The handler now
+  takes the request headers, folds RFC 6749 §2.3.1 HTTP Basic credentials into
+  the body parameters, and recovers `client_id` from a client assertion's
+  subject when the client sends none. `authorization_code` and `refresh_token`
+  authenticate the client before any grant-specific work, so a failed
+  authentication can never consume a single-use authorization code; public
+  clients (`token_endpoint_auth_method = "none"`) are unaffected.
+  `client_credentials` and `urn:ietf:params:oauth:grant-type:jwt-bearer` issue
+  machine tokens bounded by the machine client's configured scopes and
+  resources, with no refresh token (RFC 6749 §4.4.3). The JWT-bearer grant's
+  `assertion` is adopted as the client assertion and fully verified —
+  signature against the client's JWKS, audience, issuer/subject, expiry, and
+  single-use `jti` — rather than being ignored, so it can never degrade into a
+  bare alias for `client_credentials`. Ambiguous credentials (Basic *and* body
+  parameters, or two disagreeing assertions) are always rejected.
 - Add `SOMA_MCP_STATIC_TOKEN_WRITE` (default `false`): the static bearer token
   stays read-only (`soma:read`) unless the operator explicitly grants
   `soma:write`, applied through the single `build_auth_layer` call site so
@@ -955,6 +1094,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Rate-limit `POST /token`. `check_token_rate_limit` existed and was
+  documented as backing the endpoint but had no caller, so `/token` was the
+  only unauthenticated auth surface with no limiter. That became exploitable
+  once client authentication moved ahead of grant work: a CIMD-shaped
+  `client_id` triggers an outbound metadata fetch before any authorization
+  code is validated, so an attacker could force unbounded outbound HTTPS
+  requests to hosts of their choosing without credentials.
+- Fix the scheduled `rmcp release monitor` workflow, which had failed on every
+  run with `Error: failed to parse GitHub release metadata`. The
+  `setup-rust-soldr` action exports `CLICOLOR_FORCE=1` into `GITHUB_ENV`, so
+  every later step inherited it, and `gh` treats that as "force color on" even
+  when stdout is redirected to a file (`NO_COLOR` does not override it). Each
+  `gh api` redirect therefore wrote pretty-printed, ANSI-colorized JSON
+  starting with an ESC byte, which serde rejected at line 1 column 1. All five
+  `gh` steps now set `CLICOLOR_FORCE=0`, and a new `Validate fetched JSON
+  payloads` step rejects any payload that is not the expected JSON array or
+  object, printing the head with control characters escaped.
+- Make `cargo xtask rmcp-release-monitor` JSON parse failures diagnosable. All
+  five payload parses now report the payload size, an escaped preview, and a
+  diagnosis naming the fix for the shapes that actually occur in CI (ANSI
+  escapes, empty payloads, GitHub API error objects, HTML error pages) instead
+  of only a bare serde message that discards the payload.
+- Wire `xtask/src/rmcp_release_monitor_tests.rs` into the module tree. The file
+  existed and satisfied `cargo xtask check-test-siblings`, but was never
+  referenced by `rmcp_release_monitor.rs`, so nothing in it compiled or ran -
+  including the `exact_version` regression test added with the exact-pin fix.
 - Fix the container image build: `packages/` was not copied into the builder
   stage, so cargo refused to load the workspace once the Python provider
   package became a member.

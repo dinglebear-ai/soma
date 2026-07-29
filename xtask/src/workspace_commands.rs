@@ -1,4 +1,6 @@
 use anyhow::{Context, Result, bail};
+use std::fs;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use walkdir::WalkDir;
 
@@ -376,7 +378,22 @@ pub(crate) fn ci() -> Result<()> {
 
     println!("==> [15/15] cargo audit");
     if command_exists("cargo-audit") {
-        run_cargo(&["audit"]).context("cargo audit found vulnerabilities")?;
+        // cargo-audit does not read deny.toml, so without this it re-reports
+        // every advisory the repo has already reviewed and accepted there and
+        // step 15 can never pass locally. Derive the ignore list from deny.toml
+        // rather than keeping a second copy in .cargo/audit.toml: the two lists
+        // drift (deny.toml's own RUSTSEC-2023-0071 note was three facts stale
+        // before it was corrected), and a stale security exception is worse
+        // than none. cargo-deny remains the authoritative CI gate; this only
+        // makes the local convenience check agree with it.
+        let ignored = accepted_advisories().context("failed to read deny.toml advisories")?;
+        let mut args = vec!["audit"];
+        for id in &ignored {
+            args.push("--ignore");
+            args.push(id);
+        }
+        run_cargo(&args)
+            .context("cargo audit found vulnerabilities outside deny.toml's accepted set")?;
     } else {
         eprintln!(
             "  (cargo-audit not installed — skipping; install with `cargo install cargo-audit`)"
@@ -385,6 +402,41 @@ pub(crate) fn ci() -> Result<()> {
 
     println!("==> All CI checks passed!");
     Ok(())
+}
+
+/// Advisory IDs `deny.toml` explicitly accepts, so `cargo audit` can be held to
+/// the same policy as the authoritative `cargo deny` gate.
+///
+/// Returns an empty list when `deny.toml` has no `[advisories] ignore` array —
+/// that correctly makes `cargo audit` strict rather than silently permissive.
+fn accepted_advisories() -> Result<Vec<String>> {
+    let path = Path::new("deny.toml");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let text =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let value: toml::Value = toml::from_str(&text).context("deny.toml is not valid TOML")?;
+    let Some(entries) = value
+        .get("advisories")
+        .and_then(|advisories| advisories.get("ignore"))
+        .and_then(toml::Value::as_array)
+    else {
+        return Ok(Vec::new());
+    };
+    Ok(entries
+        .iter()
+        .filter_map(|entry| match entry {
+            // Both spellings are valid deny.toml: a bare id string, or a table
+            // carrying the documented reason.
+            toml::Value::String(id) => Some(id.clone()),
+            toml::Value::Table(table) => table
+                .get("id")
+                .and_then(toml::Value::as_str)
+                .map(ToOwned::to_owned),
+            _ => None,
+        })
+        .collect())
 }
 
 pub(crate) fn symlink_docs() -> Result<()> {

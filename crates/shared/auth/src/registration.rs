@@ -8,16 +8,16 @@
 use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Json, response::Response};
 use tracing::{info, warn};
 
-use crate::error::{AuthError, AuthErrorKind};
+use crate::error::AuthError;
 use crate::redirect_uri::is_allowed_redirect_uri;
 use crate::state::AuthState;
 use crate::types::{ClientRegistrationRequest, ClientRegistrationResponse, RegisteredClient};
-use crate::util::{now_unix, random_token, remote_ip};
+use crate::util::{now_unix, oauth_error_response, random_token, remote_ip};
 
 pub async fn register_client(
     State(state): State<AuthState>,
@@ -182,27 +182,13 @@ impl RegistrationError {
 
 impl IntoResponse for RegistrationError {
     fn into_response(self) -> Response {
-        let status = self.status();
-        let log_kind = self.log_kind();
-        let retry_after_ms = self.retry_after_ms();
-        let body = Json(serde_json::json!({
-            "error": self.oauth_error(),
-            "error_description": self.description(),
-        }));
-        let mut response = (status, body).into_response();
-        response.extensions_mut().insert(AuthErrorKind(log_kind));
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-        response
-            .headers_mut()
-            .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-        if let Some(retry_after_ms) = retry_after_ms
-            && let Ok(value) = HeaderValue::from_str(&(retry_after_ms / 1_000).max(1).to_string())
-        {
-            response.headers_mut().insert(header::RETRY_AFTER, value);
-        }
-        response
+        oauth_error_response(
+            self.status(),
+            self.oauth_error(),
+            self.description(),
+            self.log_kind(),
+            self.retry_after_ms(),
+        )
     }
 }
 
@@ -257,31 +243,91 @@ pub(crate) fn allowed_uris_from_cimd_document(
     Ok(allowed)
 }
 
-/// Resolve complete client authentication metadata from DCR or CIMD.
-// Consumed by `token_client_auth` once the token endpoint wiring lands.
-#[allow(dead_code)]
-pub(crate) async fn resolve_client(
+/// Where a `client_id` was resolved from, carrying that source's own
+/// payload.
+///
+/// This is the single place the CIMD-vs-DCR-store decision is made (see
+/// [`resolve_client_source`]). The two public resolvers — [`resolve_client`]
+/// for `/token` and [`resolve_client_redirect_uris`] for `/authorize` — both
+/// branch on this enum instead of re-testing
+/// [`crate::cimd::document::is_cimd_client_id`] themselves, so the two
+/// endpoints can never disagree about whether a given `client_id` resolves.
+///
+/// The CIMD variant deliberately carries the raw
+/// [`crate::cimd::document::ClientMetadataDocument`] rather than an already
+/// converted [`RegisteredClient`]: `/authorize` must run the document's
+/// `redirect_uris` through [`allowed_uris_from_cimd_document`], which is a
+/// pure, separately unit-tested function over the document itself.
+enum ResolvedClientSource {
+    /// `client_id` is a CIMD URL and its metadata document was fetched and
+    /// validated.
+    Cimd(crate::cimd::document::ClientMetadataDocument),
+    /// `client_id` is an opaque DCR-issued token; `None` when the clients
+    /// table has no such row. Turning that `None` into a caller-appropriate
+    /// answer is each resolver's own job — `/token` treats it as `Ok(None)`,
+    /// `/authorize` as `Err(InvalidGrant)`.
+    Registered(Option<RegisteredClient>),
+}
+
+/// The shared CIMD-vs-store branch behind [`resolve_client`] and
+/// [`resolve_client_redirect_uris`].
+///
+/// `on_cimd_error` runs before the `CimdError` is collapsed into the
+/// deliberately generic [`AuthError::Validation`] both callers return, so a
+/// caller that wants the detailed failure in its logs (the `/authorize` path
+/// does; the `/token` path does not) can record it without the detail ever
+/// reaching the anonymous HTTP caller.
+async fn resolve_client_source(
     state: &AuthState,
     client_id: &str,
-) -> Result<Option<RegisteredClient>, AuthError> {
+    on_cimd_error: impl FnOnce(&crate::cimd::document::CimdError),
+) -> Result<ResolvedClientSource, AuthError> {
     if crate::cimd::document::is_cimd_client_id(client_id) {
         let document =
             crate::cimd::document::fetch_and_validate_client_metadata(&state.cimd_cache, client_id)
                 .await
-                .map_err(|_| {
+                .map_err(|error| {
+                    on_cimd_error(&error);
+                    // Deliberately generic: the detailed CimdError string (which can
+                    // reveal e.g. "resolved only to private addresses" vs "does not
+                    // exist") is only ever exposed through `on_cimd_error`, NOT
+                    // returned to the anonymous caller, to avoid an
+                    // internal-network-topology mapping oracle.
                     AuthError::Validation(
                         "client_id metadata document is invalid or unreachable".to_string(),
                     )
                 })?;
-        return Ok(Some(RegisteredClient {
+        return Ok(ResolvedClientSource::Cimd(document));
+    }
+    Ok(ResolvedClientSource::Registered(
+        state.store.find_client(client_id).await?,
+    ))
+}
+
+/// Resolve complete client authentication metadata from DCR or CIMD.
+///
+/// Consumed by `token_client_auth::authenticate_oauth_client` to decide which
+/// `token_endpoint_auth_method` a client must satisfy at `/token`.
+///
+/// An unknown `client_id` is `Ok(None)`, not an error: `/token`'s client
+/// authentication has its own not-found handling and error shape (RFC 6749
+/// §5.2), unlike `/authorize` — see [`resolve_client_redirect_uris`].
+pub(crate) async fn resolve_client(
+    state: &AuthState,
+    client_id: &str,
+) -> Result<Option<RegisteredClient>, AuthError> {
+    // No logging hook: unlike /authorize, this path deliberately stays quiet
+    // about CIMD fetch failures.
+    match resolve_client_source(state, client_id, |_| {}).await? {
+        ResolvedClientSource::Cimd(document) => Ok(Some(RegisteredClient {
             client_id: document.client_id,
             redirect_uris: document.redirect_uris,
             created_at: 0,
             token_endpoint_auth_method: document.token_endpoint_auth_method,
             jwks: document.jwks,
-        }));
+        })),
+        ResolvedClientSource::Registered(client) => Ok(client),
     }
-    state.store.find_client(client_id).await
 }
 
 /// Resolve the set of trusted `redirect_uris` for `client_id`, either via
@@ -289,47 +335,180 @@ pub(crate) async fn resolve_client(
 /// `client_id`, by fetching and validating its CIMD document (see
 /// [`crate::cimd`]) and filtering its declared `redirect_uris` through
 /// [`allowed_uris_from_cimd_document`].
+///
+/// Shares [`resolve_client_source`] with [`resolve_client`] so both
+/// endpoints agree on whether a `client_id` resolves at all; what differs
+/// is only what each does afterwards. Here an unknown `client_id` is a
+/// logged [`AuthError::InvalidGrant`] rather than `Ok(None)`, because
+/// `/authorize` has no later step that could handle "unknown".
 pub(crate) async fn resolve_client_redirect_uris(
     state: &AuthState,
     client_id: &str,
     client_state_id: &str,
 ) -> Result<Vec<String>, AuthError> {
-    if crate::cimd::document::is_cimd_client_id(client_id) {
-        let document =
-            crate::cimd::document::fetch_and_validate_client_metadata(&state.cimd_cache, client_id)
-                .await
-                .map_err(|error| {
-                    warn!(
-                        client_id = %client_id,
-                        client_state_id = %client_state_id,
-                        kind = error.kind(),
-                        error = %error,
-                        "oauth authorize rejected: CIMD document fetch/validation failed"
-                    );
-                    // Deliberately generic: the detailed CimdError string (which can
-                    // reveal e.g. "resolved only to private addresses" vs "does not
-                    // exist") is logged above but NOT returned to the anonymous
-                    // /authorize caller, to avoid an internal-network-topology
-                    // mapping oracle.
-                    AuthError::Validation(
-                        "client_id metadata document is invalid or unreachable".to_string(),
-                    )
-                })?;
-        return allowed_uris_from_cimd_document(
+    let source = resolve_client_source(state, client_id, |error| {
+        warn!(
+            client_id = %client_id,
+            client_state_id = %client_state_id,
+            kind = error.kind(),
+            error = %error,
+            "oauth authorize rejected: CIMD document fetch/validation failed"
+        );
+    })
+    .await?;
+
+    match source {
+        ResolvedClientSource::Cimd(document) => allowed_uris_from_cimd_document(
             &document,
             client_id,
             client_state_id,
             &state.config.allowed_client_redirect_uris,
-        );
+        ),
+        ResolvedClientSource::Registered(Some(client)) => Ok(client.redirect_uris),
+        ResolvedClientSource::Registered(None) => {
+            warn!(
+                client_id = %client_id,
+                client_state_id = %client_state_id,
+                "oauth authorize rejected: unknown client_id"
+            );
+            Err(AuthError::InvalidGrant("unknown client_id".to_string()))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tempfile::tempdir;
+    use url::Url;
+
+    use super::*;
+    use crate::config::{AuthConfig, AuthMode, GoogleConfig};
+
+    /// A DCR-issued `client_id` is an opaque `random_token(18)` value, so it
+    /// can never start with `https://` and always takes the store branch.
+    const OPAQUE_CLIENT_ID: &str = "opaque-dcr-client-id";
+    /// An `https://` `client_id` always takes the CIMD branch. This one is
+    /// rejected by `validate_url_shape`'s private-address guard before any
+    /// DNS or network I/O happens, so the test stays hermetic.
+    const CIMD_CLIENT_ID: &str = "https://127.0.0.1/client-metadata.json";
+
+    async fn test_state() -> AuthState {
+        let dir = Box::leak(Box::new(tempdir().expect("tempdir")));
+        AuthState::new(AuthConfig {
+            mode: AuthMode::OAuth,
+            public_url: Some(Url::parse("https://lab.example.com").expect("url")),
+            sqlite_path: dir.path().join("auth.db"),
+            key_path: dir.path().join("auth.pem"),
+            bootstrap_secret: None,
+            allowed_client_redirect_uris: Vec::new(),
+            admin_email: "user@example.com".to_string(),
+            google: GoogleConfig {
+                client_id: "client-id".to_string(),
+                client_secret: "client-secret".to_string(),
+                callback_path: "/auth/google/callback".to_string(),
+                scopes: vec![
+                    "openid".to_string(),
+                    "email".to_string(),
+                    "profile".to_string(),
+                ],
+            },
+            access_token_ttl: Duration::from_secs(3600),
+            refresh_token_ttl: Duration::from_secs(3600),
+            auth_code_ttl: Duration::from_secs(300),
+            register_requests_per_minute: 10,
+            authorize_requests_per_minute: 20,
+            max_pending_oauth_states: 1024,
+            default_provider: "google".to_string(),
+            ..AuthConfig::default()
+        })
+        .await
+        .expect("auth state")
     }
 
-    let client = state.store.find_client(client_id).await?.ok_or_else(|| {
-        warn!(
-            client_id = %client_id,
-            client_state_id = %client_state_id,
-            "oauth authorize rejected: unknown client_id"
-        );
-        AuthError::InvalidGrant("unknown client_id".to_string())
-    })?;
-    Ok(client.redirect_uris)
+    /// The regression this pairing exists to prevent: `/token` resolves a
+    /// client through `resolve_client` and `/authorize` through
+    /// `resolve_client_redirect_uris`. If those two ever branch differently
+    /// on CIMD-vs-store, a `client_id` could authenticate at one endpoint
+    /// and be unknown at the other. Both now share
+    /// `resolve_client_source`, so assert they answer the same
+    /// resolves/does-not-resolve verdict for the same `client_id` -- while
+    /// still expressing that verdict in each endpoint's own shape.
+    #[tokio::test]
+    async fn both_resolvers_agree_a_registered_client_resolves() {
+        let state = test_state().await;
+        let registered = RegisteredClient {
+            client_id: OPAQUE_CLIENT_ID.to_string(),
+            redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
+            created_at: 0,
+            token_endpoint_auth_method: "none".to_string(),
+            jwks: None,
+        };
+        state
+            .store
+            .register_client(registered.clone())
+            .await
+            .expect("register client");
+
+        let client = resolve_client(&state, OPAQUE_CLIENT_ID)
+            .await
+            .expect("resolve_client")
+            .expect("registered client resolves at /token");
+        let redirect_uris = resolve_client_redirect_uris(&state, OPAQUE_CLIENT_ID, "state-id")
+            .await
+            .expect("registered client resolves at /authorize");
+
+        assert_eq!(client.client_id, OPAQUE_CLIENT_ID);
+        assert_eq!(client.redirect_uris, registered.redirect_uris);
+        assert_eq!(redirect_uris, registered.redirect_uris);
+    }
+
+    #[tokio::test]
+    async fn both_resolvers_agree_an_unknown_client_does_not_resolve() {
+        let state = test_state().await;
+
+        // /token: unknown is `Ok(None)`, left for client authentication to
+        // report in RFC 6749 section 5.2 shape.
+        let token_side = resolve_client(&state, OPAQUE_CLIENT_ID)
+            .await
+            .expect("resolve_client does not error on unknown clients");
+        assert!(token_side.is_none());
+
+        // /authorize: the same verdict, but reported as InvalidGrant because
+        // there is no later step that could handle "unknown".
+        let authorize_side = resolve_client_redirect_uris(&state, OPAQUE_CLIENT_ID, "state-id")
+            .await
+            .expect_err("unknown client_id must fail /authorize");
+        match authorize_side {
+            AuthError::InvalidGrant(message) => assert_eq!(message, "unknown client_id"),
+            other => panic!("expected InvalidGrant, got {other:?}"),
+        }
+    }
+
+    /// Both resolvers must route an `https://` `client_id` down the CIMD
+    /// branch, and both must collapse a CIMD failure into the same
+    /// deliberately generic message -- the detailed `CimdError` is for logs
+    /// only.
+    #[tokio::test]
+    async fn both_resolvers_agree_an_unreachable_cimd_client_does_not_resolve() {
+        let state = test_state().await;
+
+        let token_side = resolve_client(&state, CIMD_CLIENT_ID)
+            .await
+            .expect_err("unreachable CIMD client_id must fail /token");
+        let authorize_side = resolve_client_redirect_uris(&state, CIMD_CLIENT_ID, "state-id")
+            .await
+            .expect_err("unreachable CIMD client_id must fail /authorize");
+
+        for error in [token_side, authorize_side] {
+            match error {
+                AuthError::Validation(message) => assert_eq!(
+                    message,
+                    "client_id metadata document is invalid or unreachable",
+                ),
+                other => panic!("expected Validation, got {other:?}"),
+            }
+        }
+    }
 }
