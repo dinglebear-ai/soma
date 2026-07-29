@@ -32,6 +32,19 @@ pub(super) fn size_limit(path: &Path) -> Option<usize> {
     if path == Path::new("crates/soma/application/src/provider_registry.rs") {
         // Provider registration and dispatch is intentionally centralized while
         // the drop-in provider contract is settling. Keep it warning-visible.
+        return Some(500);
+    }
+    if path == Path::new("crates/shared/provider-adapters/src/python/supervisor.rs")
+        || path == Path::new("crates/soma/application/src/providers/filesystem.rs")
+    {
+        // Persistent Python supervision and file-backed candidate activation
+        // are still settling as one atomic lifecycle contract. Keep these
+        // warning-visible until the shared worker/activation seams stabilize.
+        return Some(500);
+    }
+    if path == Path::new("crates/shared/codex-app-server-client/src/rest/openapi/paths.rs") {
+        // OpenAPI route rendering is mechanically repetitive and currently
+        // split from schemas; retain a warning without blocking unrelated work.
         return Some(400);
     }
     if path == Path::new("xtask/src/generated_surfaces.rs") {

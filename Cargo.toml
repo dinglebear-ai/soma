@@ -47,7 +47,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.96"
+rust-version = "1.97.1"
 authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "Batteries-included RMCP runtime and scaffold for provider-backed Rust MCP servers with CLI, REST, HTTP MCP, and plugins."
 homepage = "https://soma.dinglebear.ai"

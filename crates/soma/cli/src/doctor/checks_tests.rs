@@ -222,6 +222,7 @@ fn auth_config(host: &str) -> Config {
             host: host.into(),
             ..McpConfig::default()
         },
+        python: Default::default(),
     }
 }
 

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Raise the workspace minimum supported Rust version to 1.97.1.
+
 ### Added
 
 - Add an opt-in, supervised persistent Python provider runner with negotiated

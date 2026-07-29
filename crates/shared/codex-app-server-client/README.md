@@ -8,7 +8,7 @@ interface Codex uses to power rich clients like the VS Code extension.
 lives in.** Every dependency is a published crate from crates.io. It can be
 copied into another project wholesale and will keep working.
 
-- **MSRV:** Rust 1.96 | **Edition:** 2021 | **License:** MIT
+- **MSRV:** Rust 1.97.1 | **Edition:** 2024 | **License:** MIT
 
 ## Contents
 
@@ -920,7 +920,7 @@ about even though they're not "limitations" per se:
   [Regenerating the schema](#regenerating-the-schema-after-upgrading-codex);
   `cargo xtask codex-schema drift` reports whether the installed CLI has moved
   ahead of the vendored schema.
-- **Rust.** MSRV is 1.96 (edition 2021). Raising it is a breaking change for
+- **Rust.** MSRV is 1.97.1 (edition 2024). Raising it is a breaking change for
   consumers pinned to an older toolchain.
 - **Crate API.** Pre-1.0 (`0.1.x`); the public API may change between minor
   versions. The `rest` wire surface is captured in [`openapi.json`](openapi.json),

@@ -884,85 +884,26 @@ fn terminate_process_tree(pid: Option<u32>) {
 }
 
 #[cfg(windows)]
-fn terminate_process_tree(_pid: Option<u32>) {
-    // Closing JobGuard after the direct child is reaped terminates descendants.
+fn terminate_process_tree(pid: Option<u32>) {
+    let Some(pid) = pid else {
+        return;
+    };
+    // `taskkill /T` is the safe Windows API available to this crate, which
+    // forbids all unsafe code. It terminates the worker and its descendants.
+    let _ = std::process::Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .status();
 }
 
 #[cfg(not(any(unix, windows)))]
 fn terminate_process_tree(_pid: Option<u32>) {}
 
-#[cfg(not(windows))]
 #[derive(Debug, Default)]
 struct JobGuard;
 
-#[cfg(not(windows))]
 impl JobGuard {
     fn new(_pid: Option<u32>) -> Result<Self, PythonSupervisorError> {
         Ok(Self)
-    }
-}
-
-#[cfg(windows)]
-#[derive(Debug)]
-struct JobGuard {
-    job: windows_sys::Win32::Foundation::HANDLE,
-}
-
-#[cfg(windows)]
-impl JobGuard {
-    fn new(pid: Option<u32>) -> Result<Self, PythonSupervisorError> {
-        use windows_sys::Win32::System::JobObjects::{
-            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject,
-        };
-        use windows_sys::Win32::System::Threading::{
-            OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
-        };
-        let Some(pid) = pid else {
-            return Err(start_error());
-        };
-        unsafe {
-            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-            if job.is_null() {
-                return Err(start_error());
-            }
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            if SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformation,
-                &raw mut info as *mut _,
-                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            ) == 0
-            {
-                windows_sys::Win32::Foundation::CloseHandle(job);
-                return Err(start_error());
-            }
-            let process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
-            if process.is_null() {
-                windows_sys::Win32::Foundation::CloseHandle(job);
-                return Err(start_error());
-            }
-            let assigned = AssignProcessToJobObject(job, process);
-            windows_sys::Win32::Foundation::CloseHandle(process);
-            if assigned == 0 {
-                windows_sys::Win32::Foundation::CloseHandle(job);
-                return Err(start_error());
-            }
-            Ok(Self { job })
-        }
-    }
-}
-
-#[cfg(windows)]
-impl Drop for JobGuard {
-    fn drop(&mut self) {
-        if !self.job.is_null() {
-            unsafe {
-                windows_sys::Win32::Foundation::CloseHandle(self.job);
-            }
-        }
     }
 }
 

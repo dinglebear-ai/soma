@@ -3,6 +3,7 @@ import socket
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 from soma_runner_protocol import decode_frame, encode_frame
 
@@ -10,8 +11,14 @@ from soma_runner_protocol import decode_frame, encode_frame
 class PersistentRunnerTests(unittest.TestCase):
     def test_isolated_module_supports_explicit_test_stdio_control_channel(self):
         env = dict(os.environ, SOMA_PYTHON_RUNNER_TEST_STDIO="1")
+        source_root = Path(__file__).resolve().parents[1] / "python"
+        bootstrap = (
+            "import runpy,sys;"
+            f"sys.path.insert(0,{str(source_root)!r});"
+            "runpy.run_module('soma_provider.runner',run_name='__main__')"
+        )
         process = subprocess.Popen(
-            [sys.executable, "-I", "-m", "soma_provider.runner"],
+            [sys.executable, "-I", "-c", bootstrap],
             env=env,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,

@@ -28,7 +28,7 @@ config cannot express (xtask alias, repo-specific linker overrides).
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| Rust stable ≥ 1.96 | Compiler | `rustup update stable` |
+| Rust stable ≥ 1.97.1 | Compiler | `rustup update stable` |
 | `clang` | Linker driver for the mold integration | `apt install clang` |
 | `mold` | High-speed linker; 5-10× faster than GNU `ld` on Linux | `apt install mold` |
 | `mingw-w64` | Cross-compiler for `x86_64-pc-windows-gnu` targets | `apt install mingw-w64` |

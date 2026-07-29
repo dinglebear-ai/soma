@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Rust 1.96+ (`rustup update stable`)
+- Rust 1.97.1+ (`rustup update stable`)
 - `clang` and `mold` for fast Linux builds: `apt install clang mold`
 - `just` command runner: `cargo install just` (optional but convenient)
 
