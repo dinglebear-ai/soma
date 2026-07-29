@@ -1,14 +1,14 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use thiserror::Error;
 
-use crate::dispatch_helpers::{structured_error, GatewayStructuredError};
+use crate::dispatch_helpers::{GatewayStructuredError, structured_error};
 use crate::gateway::catalog::{GatewayAction, GatewayActionCatalog};
 use crate::gateway::manager::GatewayManager;
 #[cfg(feature = "oauth")]
 use crate::gateway::params::string_param;
 use crate::gateway::params::{
-    object_params, required_string_param, test_upstream_config_from_params,
-    upstream_config_from_params, ParamsError,
+    ParamsError, object_params, required_string_param, test_upstream_config_from_params,
+    upstream_config_from_params,
 };
 use crate::process::guard::SpawnGuard;
 use crate::process::stdio::StdioProcessSpec;

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::path_safety::reject_path_traversal;
 use crate::ToolError;
+use crate::path_safety::reject_path_traversal;
 
 pub fn snippet_path(root: &Path, rel_path: &str) -> Result<PathBuf, ToolError> {
     reject_path_traversal(rel_path)?;

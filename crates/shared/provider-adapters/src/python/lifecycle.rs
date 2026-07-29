@@ -14,8 +14,8 @@ use thiserror::Error;
 
 use super::{
     environment::{
-        parse_pep723_metadata, plan_python_environment, PythonEnvironmentError,
-        PythonRuntimeFingerprint,
+        PythonEnvironmentError, PythonRuntimeFingerprint, parse_pep723_metadata,
+        plan_python_environment,
     },
     materializer::{
         PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonEnvironmentUpdateError,

@@ -20,7 +20,7 @@ use soma_gateway::config::{GatewayConfig, ProtectedMcpRouteConfig};
 use soma_mcp::McpState;
 
 use crate::server::{
-    gateway_product_state_from_config, AppState, AuthPolicy, GatewayProductState, SomaRuntime,
+    AppState, AuthPolicy, GatewayProductState, SomaRuntime, gateway_product_state_from_config,
 };
 
 /// Issuer used by every test token/route pair — matches `route().public_host`.

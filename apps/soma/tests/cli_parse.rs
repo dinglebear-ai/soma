@@ -2,7 +2,7 @@
 //!
 //! **Customize**: extend these tests when you add new CLI subcommands.
 
-use soma::cli::{parse_args_from, Command, SetupCommand};
+use soma::cli::{Command, SetupCommand, parse_args_from};
 
 #[test]
 fn test_greet_no_name_parsed() {

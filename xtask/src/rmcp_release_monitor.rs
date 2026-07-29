@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use semver::Version;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -208,11 +208,11 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
         options.max_body_bytes,
     )?;
 
-    if let Some(parent) = options.issue_body.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
+    if let Some(parent) = options.issue_body.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
     }
     fs::write(&options.issue_body, &report.issue_body)
         .with_context(|| format!("failed to write {}", options.issue_body.display()))?;
@@ -1321,15 +1321,21 @@ mod tests {
         assert_eq!(report.latest_version, "1.8.0");
         assert!(report.issue_title.contains("rmcp 1.8.0 released"));
         assert!(report.issue_body.contains("<!-- rmcp-release-monitor -->"));
-        assert!(report
-            .issue_body
-            .contains("<!-- rmcp-latest-version: 1.8.0 -->"));
-        assert!(report
-            .issue_body
-            .contains("Peer::peer_info() return type changed"));
-        assert!(report
-            .issue_body
-            .contains("strip and validate tool outputSchema"));
+        assert!(
+            report
+                .issue_body
+                .contains("<!-- rmcp-latest-version: 1.8.0 -->")
+        );
+        assert!(
+            report
+                .issue_body
+                .contains("Peer::peer_info() return type changed")
+        );
+        assert!(
+            report
+                .issue_body
+                .contains("strip and validate tool outputSchema")
+        );
         assert!(report.issue_body.contains(
             "https://github.com/modelcontextprotocol/rust-sdk/compare/rmcp-v1.7.0...rmcp-v1.8.0"
         ));
@@ -1370,15 +1376,21 @@ mod tests {
         assert!(report.issue_body.contains("## MCP Schema Watch"));
         assert!(report.issue_body.contains("mcp-schema-baseline-sha256"));
         assert!(report.issue_body.contains("mcp-schema-upstream-sha256"));
-        assert!(report
-            .issue_body
-            .contains("schema: allow null for Task.ttl"));
-        assert!(report
-            .issue_body
-            .contains("Potential schema impact in this repo"));
-        assert!(report
-            .issue_body
-            .contains("crates/soma/mcp/src/rmcp_server.rs"));
+        assert!(
+            report
+                .issue_body
+                .contains("schema: allow null for Task.ttl")
+        );
+        assert!(
+            report
+                .issue_body
+                .contains("Potential schema impact in this repo")
+        );
+        assert!(
+            report
+                .issue_body
+                .contains("crates/soma/mcp/src/rmcp_server.rs")
+        );
         assert!(report.issue_body.contains("`NewThing`"));
         assert!(report.issue_body.contains("+export interface NewThing {}"));
     }
@@ -1445,18 +1457,26 @@ mod tests {
         assert!(report.issue_body.contains("## MCP Conformance Watch"));
         assert!(report.issue_body.contains("mcp-conformance-baseline-sha"));
         assert!(report.issue_body.contains("feat: CIMD support check"));
-        assert!(report
-            .issue_body
-            .contains("authorization-server-metadata.ts"));
-        assert!(report
-            .issue_body
-            .contains("Potential conformance impact in this repo"));
-        assert!(report
-            .issue_body
-            .contains("crates/soma/runtime/src/server.rs"));
-        assert!(report
-            .issue_body
-            .contains("`client_id_metadata_document_supported`"));
+        assert!(
+            report
+                .issue_body
+                .contains("authorization-server-metadata.ts")
+        );
+        assert!(
+            report
+                .issue_body
+                .contains("Potential conformance impact in this repo")
+        );
+        assert!(
+            report
+                .issue_body
+                .contains("crates/soma/runtime/src/server.rs")
+        );
+        assert!(
+            report
+                .issue_body
+                .contains("`client_id_metadata_document_supported`")
+        );
     }
 
     #[test]

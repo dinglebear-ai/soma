@@ -5,12 +5,12 @@
 //! which is non-executing filesystem inspection that never touches the
 //! registry.
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 use soma_application::{ExecuteActionRequest, SomaApplication};
 use std::path::PathBuf;
 
-use crate::{cli_execution_context, Command};
+use crate::{Command, cli_execution_context};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProviderCommand {
@@ -145,7 +145,7 @@ fn parse_providers_dir_flags(command: &str, args: &[String]) -> Result<(Option<P
             unknown => {
                 return Err(anyhow!(
                     "providers {command} does not accept argument `{unknown}`"
-                ))
+                ));
             }
         }
     }

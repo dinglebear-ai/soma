@@ -4,7 +4,7 @@
 //! They preserve the behavior of the compatibility shell scripts and are ready
 //! for the parent integration pass to expose as xtask commands.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::Value;
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -73,9 +73,9 @@ pub fn generate_cli() -> Result<()> {
         "-o".into(),
         schema_json.as_os_str().to_owned(),
     ]);
-    run_cmd_os("timeout", curl_args).with_context(|| {
-        "error: failed to fetch tool schema from http://localhost:40060/mcp/tools/list"
-    })?;
+    run_cmd_os("timeout", curl_args).with_context(
+        || "error: failed to fetch tool schema from http://localhost:40060/mcp/tools/list",
+    )?;
 
     let current_hash = sha256sum(&schema_json)?;
     let cache_file = Path::new("dist/.cache/soma-cli.schema_hash");
@@ -227,7 +227,9 @@ pub fn test_mcp_auth(args: &[String]) -> Result<()> {
             ),
         );
     } else {
-        println!("SKIP  x-api-key acceptance (pass --check-x-api-key only for services that implement it)");
+        println!(
+            "SKIP  x-api-key acceptance (pass --check-x-api-key only for services that implement it)"
+        );
     }
 
     println!("\n{} passed, {} failed", results.pass, results.fail);
@@ -681,8 +683,8 @@ impl Drop for RemoveOnDrop {
 #[cfg(test)]
 mod tests {
     use super::{
-        base_url_from_mcp_url, cached_cli_is_current, post_jsonrpc_args, response_has_tools,
-        web_watch_args, AuthSmokeOptions, GenerateCliRequest,
+        AuthSmokeOptions, GenerateCliRequest, base_url_from_mcp_url, cached_cli_is_current,
+        post_jsonrpc_args, response_has_tools, web_watch_args,
     };
     use std::ffi::OsString;
     use std::fs;
@@ -711,14 +713,18 @@ mod tests {
             without_token.curl_headers,
             os_strings(&["-H", "Accept: application/json, text/event-stream"])
         );
-        assert!(!without_token
-            .mcporter_args
-            .contains(&OsString::from("--header")));
+        assert!(
+            !without_token
+                .mcporter_args
+                .contains(&OsString::from("--header"))
+        );
 
         let with_token = GenerateCliRequest::new(Some("secret"));
-        assert!(with_token
-            .curl_headers
-            .contains(&OsString::from("Authorization: Bearer secret")));
+        assert!(
+            with_token
+                .curl_headers
+                .contains(&OsString::from("Authorization: Bearer secret"))
+        );
         assert!(with_token.mcporter_args.windows(2).any(|pair| {
             pair == [
                 OsString::from("--header"),

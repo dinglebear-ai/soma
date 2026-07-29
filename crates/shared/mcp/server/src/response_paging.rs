@@ -1,17 +1,17 @@
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
 
 use rmcp::{
-    model::{CallToolResult, ContentBlock},
     ErrorData,
+    model::{CallToolResult, ContentBlock},
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 pub const RESPONSE_OFFSET_PARAM: &str = "_response_offset";
 pub const RESPONSE_PAGE_BYTES_PARAM: &str = "_response_page_bytes";

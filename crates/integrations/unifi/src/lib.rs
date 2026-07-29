@@ -37,6 +37,6 @@ mod util;
 
 pub use actions::{ActionDispatcher, ActionRequest};
 pub use client::UnifiClient;
-pub use config::{UnifiConfig, DEFAULT_REQUEST_TIMEOUT};
+pub use config::{DEFAULT_REQUEST_TIMEOUT, UnifiConfig};
 pub use error::{Result, UnifiError};
 pub use service::UnifiService;

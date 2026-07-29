@@ -7,8 +7,8 @@ use crate::trace_context::{
     parse_traceparent_value, validate_baggage_value, validate_tracestate_value,
 };
 use crate::{
-    TraceLimits, TraceParseError, TraceSummary, TraceTrust, BAGGAGE_KEY, TRACEPARENT_KEY,
-    TRACESTATE_KEY,
+    BAGGAGE_KEY, TRACEPARENT_KEY, TRACESTATE_KEY, TraceLimits, TraceParseError, TraceSummary,
+    TraceTrust,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

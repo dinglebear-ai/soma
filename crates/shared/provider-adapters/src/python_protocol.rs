@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use soma_provider_core::{ProviderCall, ProviderSurface};
 use thiserror::Error;

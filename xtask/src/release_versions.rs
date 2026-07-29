@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -105,13 +105,13 @@ pub fn check(
                 component.id, plan.version
             )
         })?;
-        if let Some(latest) = latest_version_from_plan(component, plan)? {
-            if candidate <= latest {
-                errors.push(format!(
-                    "{} changed but version {} is not greater than latest {} tag version {}",
-                    component.id, plan.version, component.tag_prefix, latest
-                ));
-            }
+        if let Some(latest) = latest_version_from_plan(component, plan)?
+            && candidate <= latest
+        {
+            errors.push(format!(
+                "{} changed but version {} is not greater than latest {} tag version {}",
+                component.id, plan.version, component.tag_prefix, latest
+            ));
         }
         if tag_exists(root, &plan.candidate_tag)? {
             errors.push(format!(

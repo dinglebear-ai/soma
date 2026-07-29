@@ -123,12 +123,14 @@ mod tests {
     fn capabilities_parses_the_bundled_inventory_and_appends_aliases() {
         let caps = capabilities();
 
-        assert!(caps
-            .iter()
-            .any(|cap| cap.action == "clients" && cap.source == ApiSourceFamily::Internal));
-        assert!(caps
-            .iter()
-            .any(|cap| cap.action == "list_clients" && cap.source == ApiSourceFamily::Hybrid));
+        assert!(
+            caps.iter()
+                .any(|cap| cap.action == "clients" && cap.source == ApiSourceFamily::Internal)
+        );
+        assert!(
+            caps.iter()
+                .any(|cap| cap.action == "list_clients" && cap.source == ApiSourceFamily::Hybrid)
+        );
     }
 
     #[test]

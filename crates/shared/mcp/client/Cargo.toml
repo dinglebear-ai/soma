@@ -1,8 +1,8 @@
 [package]
 name = "soma-mcp-client"
 version = "0.4.1"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Reusable outbound MCP client runtime for upstream discovery, pooling, and calls"
 homepage.workspace = true
@@ -39,3 +39,6 @@ axum = "0.8"
 rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
 tempfile = "3"
 toml = "1.1"
+
+[lints]
+workspace = true

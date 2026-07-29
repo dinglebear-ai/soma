@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use serial_test::serial;
 
+use crate::CodeModeConfig;
 use crate::host::NoopHost;
 use crate::types::{CodeModeCaller, CodeModeSurface, ToolScope};
-use crate::CodeModeConfig;
 
-use super::runner::{execute_in_subprocess, SubprocessExecution};
+use super::runner::{SubprocessExecution, execute_in_subprocess};
 
 #[tokio::test]
 #[serial(code_mode_soma_home, code_mode_runner_exe_env)]

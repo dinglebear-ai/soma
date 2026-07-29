@@ -1,9 +1,9 @@
 use serde_json::Value;
 
+use crate::ToolError;
 use crate::git::provider::GitProvider;
 use crate::state::provider::StateProvider;
 use crate::types::split_namespaced_id;
-use crate::ToolError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LocalProviderName {

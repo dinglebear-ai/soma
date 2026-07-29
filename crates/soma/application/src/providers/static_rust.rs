@@ -1,16 +1,15 @@
 use async_trait::async_trait;
-use serde_json::{json, Map, Value};
-use soma_domain::actions::{ActionTransport, SomaAction, ACTION_SPECS};
+use serde_json::{Map, Value, json};
+use soma_domain::actions::{ACTION_SPECS, ActionTransport, SomaAction};
 use soma_provider_core::{
     CliOverlay, DocsOverlay, McpOverlay, PaletteOverlay, ProviderCatalog, ProviderIdentity,
     ProviderKind, ProviderManifest, ProviderPrompt, ProviderTool, RestOverlay,
 };
 
 use crate::{
-    dispatch_action,
+    SomaService, dispatch_action,
     provider_errors::ProviderError,
     provider_registry::{Provider, ProviderCall, ProviderOutput},
-    SomaService,
 };
 
 /// Provider exposing Soma's built-in Rust actions (from `ACTION_SPECS`) as a

@@ -498,54 +498,54 @@ impl Config {
             "SOMA_MCP_TOKEN_ENCRYPTION_KEY",
             &mut config.mcp.auth.token_encryption_key,
         );
-        if let Ok(v) = std::env::var("SOMA_MCP_AUTH_MODE") {
-            if !v.is_empty() {
-                config.mcp.auth.mode = match v.to_lowercase().as_str() {
-                    "oauth" => AuthMode::OAuth,
-                    "bearer" => AuthMode::Bearer,
-                    other => {
-                        return Err(anyhow::anyhow!(
-                            "invalid SOMA_MCP_AUTH_MODE {:?}: must be \"bearer\" or \"oauth\"",
-                            other
-                        ));
-                    }
-                };
-            }
+        if let Ok(v) = std::env::var("SOMA_MCP_AUTH_MODE")
+            && !v.is_empty()
+        {
+            config.mcp.auth.mode = match v.to_lowercase().as_str() {
+                "oauth" => AuthMode::OAuth,
+                "bearer" => AuthMode::Bearer,
+                other => {
+                    return Err(anyhow::anyhow!(
+                        "invalid SOMA_MCP_AUTH_MODE {:?}: must be \"bearer\" or \"oauth\"",
+                        other
+                    ));
+                }
+            };
         }
-        if let Ok(v) = std::env::var("SOMA_MCP_TRACE_HEADERS") {
-            if !v.is_empty() {
-                config.mcp.trace_headers = match v.to_lowercase().as_str() {
-                    "off" => TraceHeaderMode::Off,
-                    "trusted" => TraceHeaderMode::Trusted,
-                    "trusted-with-baggage" => TraceHeaderMode::TrustedWithBaggage,
-                    other => {
-                        return Err(anyhow::anyhow!(
-                            "invalid SOMA_MCP_TRACE_HEADERS {:?}: must be \"off\", \"trusted\", \
+        if let Ok(v) = std::env::var("SOMA_MCP_TRACE_HEADERS")
+            && !v.is_empty()
+        {
+            config.mcp.trace_headers = match v.to_lowercase().as_str() {
+                "off" => TraceHeaderMode::Off,
+                "trusted" => TraceHeaderMode::Trusted,
+                "trusted-with-baggage" => TraceHeaderMode::TrustedWithBaggage,
+                other => {
+                    return Err(anyhow::anyhow!(
+                        "invalid SOMA_MCP_TRACE_HEADERS {:?}: must be \"off\", \"trusted\", \
                              or \"trusted-with-baggage\"",
-                            other
-                        ));
-                    }
-                };
-            }
+                        other
+                    ));
+                }
+            };
         }
 
         // Upstream service config
         env_str("SOMA_API_URL", &mut config.soma.api_url);
         env_str("SOMA_API_KEY", &mut config.soma.api_key);
-        if let Ok(v) = std::env::var("SOMA_RUNTIME_MODE") {
-            if !v.is_empty() {
-                config.soma.runtime_mode = match v.to_lowercase().as_str() {
-                    "auto" => RuntimeMode::Auto,
-                    "local" => RuntimeMode::Local,
-                    "remote" | "api" => RuntimeMode::Remote,
-                    other => {
-                        return Err(anyhow::anyhow!(
-                            "invalid SOMA_RUNTIME_MODE {:?}: must be \"auto\", \"local\", or \"remote\"",
-                            other
-                        ));
-                    }
-                };
-            }
+        if let Ok(v) = std::env::var("SOMA_RUNTIME_MODE")
+            && !v.is_empty()
+        {
+            config.soma.runtime_mode = match v.to_lowercase().as_str() {
+                "auto" => RuntimeMode::Auto,
+                "local" => RuntimeMode::Local,
+                "remote" | "api" => RuntimeMode::Remote,
+                other => {
+                    return Err(anyhow::anyhow!(
+                        "invalid SOMA_RUNTIME_MODE {:?}: must be \"auto\", \"local\", or \"remote\"",
+                        other
+                    ));
+                }
+            };
         }
 
         Ok(config)
@@ -555,40 +555,40 @@ impl Config {
 // ── env helpers ───────────────────────────────────────────────────────────────
 
 fn env_str(key: &str, target: &mut String) {
-    if let Ok(v) = std::env::var(key) {
-        if !v.is_empty() {
-            *target = v;
-        }
+    if let Ok(v) = std::env::var(key)
+        && !v.is_empty()
+    {
+        *target = v;
     }
 }
 
 fn env_opt_str(key: &str, target: &mut Option<String>) {
-    if let Ok(v) = std::env::var(key) {
-        if !v.is_empty() {
-            *target = Some(v);
-        }
+    if let Ok(v) = std::env::var(key)
+        && !v.is_empty()
+    {
+        *target = Some(v);
     }
 }
 
 fn env_parse<T: std::str::FromStr>(key: &str, target: &mut T) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key) {
-        if !v.is_empty() {
-            *target = v
-                .parse()
-                .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?;
-        }
+    if let Ok(v) = std::env::var(key)
+        && !v.is_empty()
+    {
+        *target = v
+            .parse()
+            .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?;
     }
     Ok(())
 }
 
 fn env_opt_parse<T: std::str::FromStr>(key: &str, target: &mut Option<T>) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key) {
-        if !v.is_empty() {
-            *target = Some(
-                v.parse()
-                    .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?,
-            );
-        }
+    if let Ok(v) = std::env::var(key)
+        && !v.is_empty()
+    {
+        *target = Some(
+            v.parse()
+                .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?,
+        );
     }
     Ok(())
 }

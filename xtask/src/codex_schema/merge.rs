@@ -5,8 +5,8 @@
 
 use std::collections::BTreeSet;
 
-use anyhow::{bail, Context, Result};
-use serde_json::{json, Map, Value};
+use anyhow::{Context, Result, bail};
+use serde_json::{Map, Value, json};
 
 use super::naming;
 
@@ -17,13 +17,12 @@ pub fn rewrite_v2_refs(value: &Value) -> Value {
         Value::Object(map) => {
             let mut out = Map::with_capacity(map.len());
             for (k, v) in map {
-                if k == "$ref" {
-                    if let Value::String(s) = v {
-                        if let Some(rest) = s.strip_prefix("#/definitions/v2/") {
-                            out.insert(k.clone(), Value::String(format!("#/definitions/{rest}")));
-                            continue;
-                        }
-                    }
+                if k == "$ref"
+                    && let Value::String(s) = v
+                    && let Some(rest) = s.strip_prefix("#/definitions/v2/")
+                {
+                    out.insert(k.clone(), Value::String(format!("#/definitions/{rest}")));
+                    continue;
                 }
                 out.insert(k.clone(), rewrite_v2_refs(v));
             }
@@ -316,20 +315,20 @@ pub fn params_type_for(method: &str, union_def: &Value) -> Result<ParamsType> {
                 optional: false,
             });
         }
-        if let Some(any_of) = params_schema.get("anyOf").and_then(Value::as_array) {
-            if any_of.len() == 2 {
-                let refs: Vec<&Value> = any_of.iter().filter(|b| b.get("$ref").is_some()).collect();
-                let nulls: Vec<&Value> = any_of
-                    .iter()
-                    .filter(|b| b.get("type").and_then(Value::as_str) == Some("null"))
-                    .collect();
-                if refs.len() == 1 && nulls.len() == 1 {
-                    let r = refs[0].get("$ref").and_then(Value::as_str).unwrap();
-                    return Ok(ParamsType {
-                        type_name: Some(ref_name(r)),
-                        optional: true,
-                    });
-                }
+        if let Some(any_of) = params_schema.get("anyOf").and_then(Value::as_array)
+            && any_of.len() == 2
+        {
+            let refs: Vec<&Value> = any_of.iter().filter(|b| b.get("$ref").is_some()).collect();
+            let nulls: Vec<&Value> = any_of
+                .iter()
+                .filter(|b| b.get("type").and_then(Value::as_str) == Some("null"))
+                .collect();
+            if refs.len() == 1 && nulls.len() == 1 {
+                let r = refs[0].get("$ref").and_then(Value::as_str).unwrap();
+                return Ok(ParamsType {
+                    type_name: Some(ref_name(r)),
+                    optional: true,
+                });
             }
         }
         bail!(

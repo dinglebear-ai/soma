@@ -16,9 +16,9 @@
 //!   - `_next/static/*`     → `public, max-age=31536000, immutable` (content-hashed)
 //!   - Other assets         → `public, max-age=3600` (bounded cache)
 
+use include_dir::{Dir as SourceDir, DirEntry, include_dir as include_source_dir};
 #[cfg(feature = "web")]
-use include_dir::{include_dir, Dir};
-use include_dir::{include_dir as include_source_dir, Dir as SourceDir, DirEntry};
+use include_dir::{Dir, include_dir};
 use std::{fs, path::Path};
 
 #[cfg(feature = "web")]

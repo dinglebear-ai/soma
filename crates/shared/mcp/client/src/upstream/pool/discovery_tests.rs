@@ -34,12 +34,13 @@ async fn caps_bound_discovery_payloads() {
     })
     .unwrap();
 
-    assert!(pool
-        .discover()
-        .await
-        .unwrap_err()
-        .to_string()
-        .contains("exceeding"));
+    assert!(
+        pool.discover()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("exceeding")
+    );
 }
 
 #[tokio::test]

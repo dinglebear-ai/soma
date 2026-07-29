@@ -167,9 +167,11 @@ fn metadata_layer_must_match_physical_path() {
         vec![],
     )]);
 
-    assert!(failures
-        .join("\n")
-        .contains("declares architecture layer \"product-surface\""));
+    assert!(
+        failures
+            .join("\n")
+            .contains("declares architecture layer \"product-surface\"")
+    );
 }
 
 #[test]
@@ -184,9 +186,11 @@ fn surfaces_must_not_depend_on_one_another() {
         pkg("soma-mcp", "crates/soma/mcp", "product-surface", vec![]),
     ]);
 
-    assert!(failures
-        .join("\n")
-        .contains("product-surface packages must not depend on one another"));
+    assert!(
+        failures
+            .join("\n")
+            .contains("product-surface packages must not depend on one another")
+    );
 }
 
 #[test]
@@ -201,9 +205,11 @@ fn all_product_surfaces_are_isolated_by_layer_not_name_list() {
         pkg("soma-api", "crates/soma/api", "product-surface", vec![]),
     ]);
 
-    assert!(failures
-        .join("\n")
-        .contains("product-surface packages must not depend on one another"));
+    assert!(
+        failures
+            .join("\n")
+            .contains("product-surface packages must not depend on one another")
+    );
 }
 
 #[test]
@@ -243,9 +249,11 @@ fn product_domain_rules_follow_layer_even_when_package_name_changes() {
         pkg("soma-api", "crates/soma/api", "product-surface", vec![]),
     ]);
 
-    assert!(failures
-        .join("\n")
-        .contains("product-domain packages must not depend outward"));
+    assert!(
+        failures
+            .join("\n")
+            .contains("product-domain packages must not depend outward")
+    );
 }
 
 #[test]
@@ -296,9 +304,11 @@ fn path_anchored_exceptions_cannot_be_spoofed_by_package_name() {
     };
 
     assert!(!exception.matches(&graph, &graph.edges[0]));
-    assert!(check_direct_edges(&graph, &[])
-        .join("\n")
-        .contains("shared package soma-application"));
+    assert!(
+        check_direct_edges(&graph, &[])
+            .join("\n")
+            .contains("shared package soma-application")
+    );
 }
 
 #[test]
@@ -330,9 +340,11 @@ fn temporary_exceptions_must_match_one_current_edge() {
     };
 
     assert!(check_exception_integrity(&graph, &[live_exception]).is_empty());
-    assert!(check_exception_integrity(&graph, &[stale_exception])
-        .join("\n")
-        .contains("does not match a current normal workspace edge"));
+    assert!(
+        check_exception_integrity(&graph, &[stale_exception])
+            .join("\n")
+            .contains("does not match a current normal workspace edge")
+    );
 }
 
 #[test]
@@ -361,9 +373,11 @@ fn only_app_or_integration_may_bridge_application_ports_to_engines() {
         ),
     ]);
 
-    assert!(failures
-        .join("\n")
-        .contains("depends on both product application ports and concrete shared engines"));
+    assert!(
+        failures
+            .join("\n")
+            .contains("depends on both product application ports and concrete shared engines")
+    );
 }
 
 #[test]
@@ -505,7 +519,9 @@ fn internal_dependency_cycles_fail() {
         ),
     ]);
 
-    assert!(failures
-        .join("\n")
-        .contains("internal dependency cycle detected"));
+    assert!(
+        failures
+            .join("\n")
+            .contains("internal dependency cycle detected")
+    );
 }

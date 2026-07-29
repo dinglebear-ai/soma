@@ -1,8 +1,8 @@
 [package]
 name = "soma-integrations"
 version = "0.0.0"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Product adapters wiring soma-application ports to Soma's shared engines (gateway, Code Mode, OpenAPI, upstream OAuth)"
 homepage.workspace = true
@@ -44,3 +44,6 @@ tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

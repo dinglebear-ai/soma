@@ -147,8 +147,7 @@ fn mcp_registry_manifest_advertises_rich_product_metadata() {
         "soma"
     );
     assert_eq!(
-        manifest["_meta"]["io.modelcontextprotocol.registry/publisher-provided"]["publisher"]
-            ["name"],
+        manifest["_meta"]["io.modelcontextprotocol.registry/publisher-provided"]["publisher"]["name"],
         "dinglebear.ai"
     );
     assert!(
@@ -175,11 +174,13 @@ fn mcp_registry_manifest_advertises_rich_product_metadata() {
         oci.get("registryBaseUrl").is_none(),
         "OCI packages encode the registry in the canonical image reference"
     );
-    assert!(oci["packageArguments"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|arg| arg["value"] == "mcp"));
+    assert!(
+        oci["packageArguments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|arg| arg["value"] == "mcp")
+    );
 
     let oci_envs: Vec<&str> = oci["environmentVariables"]
         .as_array()
@@ -198,8 +199,7 @@ fn mcp_registry_manifest_advertises_rich_product_metadata() {
     }
 
     assert_eq!(
-        manifest["_meta"]["io.modelcontextprotocol.registry/publisher-provided"]["distribution"]
-            ["ociImage"],
+        manifest["_meta"]["io.modelcontextprotocol.registry/publisher-provided"]["distribution"]["ociImage"],
         oci["identifier"]
     );
 }
@@ -233,11 +233,13 @@ fn generated_openapi_carries_product_metadata() {
     assert_eq!(openapi["x-soma"]["node_package"], "soma-rmcp");
     assert_eq!(openapi["x-soma"]["mcp_registry"], "server.json");
     assert_eq!(openapi["x-soma"]["publisher"]["name"], "dinglebear.ai");
-    assert!(openapi["x-soma"]["auth_modes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|mode| mode == "oauth"));
+    assert!(
+        openapi["x-soma"]["auth_modes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|mode| mode == "oauth")
+    );
 }
 
 #[test]
@@ -345,11 +347,13 @@ fn setup_plugin_hook_no_repair_emits_json_contract() {
     assert_eq!(json["ran_repair"], false);
     assert_eq!(json["no_repair"], true);
     assert!(json["blocking_failures"].as_array().unwrap().is_empty());
-    assert!(json["advisory_failures"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|failure| failure["code"] == "env_file_missing"));
+    assert!(
+        json["advisory_failures"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|failure| failure["code"] == "env_file_missing")
+    );
     assert!(!dir.path().join(".env").exists());
 }
 

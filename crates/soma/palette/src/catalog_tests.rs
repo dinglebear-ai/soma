@@ -102,10 +102,14 @@ fn flat_maps_tools_across_multiple_catalogs() {
     let entries = palette_entries(&snap);
 
     assert_eq!(entries.len(), 2);
-    assert!(entries
-        .iter()
-        .any(|entry| entry.id == "alpha_tool" && entry.provider == "alpha"));
-    assert!(entries
-        .iter()
-        .any(|entry| entry.id == "beta_tool" && entry.provider == "beta"));
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.id == "alpha_tool" && entry.provider == "alpha")
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.id == "beta_tool" && entry.provider == "beta")
+    );
 }

@@ -2,7 +2,7 @@ use rmcp::model::{
     CallToolResponse, CallToolResult, CreateTaskResult, GetPromptResponse, GetPromptResult,
     InputRequiredResult, Prompt, ReadResourceResponse, ReadResourceResult, Resource, Tool,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use soma_application::{
     ApplicationError, ExecutionContext, GatewayMcpOutcome, GatewayMcpRoundTrip, GatewayRouteScope,
     SomaApplication,

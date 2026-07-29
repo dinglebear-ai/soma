@@ -7,14 +7,14 @@ use std::{
 };
 
 use axum::{
-    extract::{rejection::JsonRejection, DefaultBodyLimit, Path, Query, State},
+    Router,
+    extract::{DefaultBodyLimit, Path, Query, State, rejection::JsonRejection},
     http::StatusCode,
     response::{
-        sse::{Event as SseEvent, KeepAlive, Sse},
         IntoResponse, Json, Response,
+        sse::{Event as SseEvent, KeepAlive, Sse},
     },
     routing::{delete, get, post},
-    Router,
 };
 use futures_core::Stream;
 use serde::Deserialize;

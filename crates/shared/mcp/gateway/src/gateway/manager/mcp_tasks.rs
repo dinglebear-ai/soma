@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    sync::{atomic::Ordering, Arc},
+    sync::{Arc, atomic::Ordering},
 };
 
 use serde_json::Value;

@@ -82,8 +82,8 @@ fn structured_result_json(result: &rmcp::model::CallToolResult) -> serde_json::V
     serde_json::from_str(text).expect("tool text content should be JSON")
 }
 
-async fn raw_stdio_child(
-) -> anyhow::Result<(Child, ChildStdin, BufReader<ChildStdout>, tempfile::TempDir)> {
+async fn raw_stdio_child()
+-> anyhow::Result<(Child, ChildStdin, BufReader<ChildStdout>, tempfile::TempDir)> {
     let binary = env!("CARGO_BIN_EXE_soma");
     let (temp, work_dir) = stdio_temp_context()?;
     let mut child = Command::new(binary)
@@ -270,11 +270,13 @@ async fn raw_stdio_json_rpc_preserves_structured_output_fields() -> anyhow::Resu
         tool["outputSchema"]["x-soma-action-discriminator"],
         "_soma_action"
     );
-    assert!(tool["outputSchema"]["oneOf"]
-        .as_array()
-        .expect("outputSchema.oneOf should be serialized")
-        .iter()
-        .any(|variant| variant["properties"]["_soma_action"]["const"] == "echo"));
+    assert!(
+        tool["outputSchema"]["oneOf"]
+            .as_array()
+            .expect("outputSchema.oneOf should be serialized")
+            .iter()
+            .any(|variant| variant["properties"]["_soma_action"]["const"] == "echo")
+    );
 
     write_json_line(
         &mut stdin,

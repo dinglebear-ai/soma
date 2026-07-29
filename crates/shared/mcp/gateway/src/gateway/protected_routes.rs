@@ -2,7 +2,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::config::{ProtectedGatewaySubsetTarget, ProtectedMcpRouteConfig};
-use crate::security::ssrf::{validate_url, OutboundPolicy};
+use crate::security::ssrf::{OutboundPolicy, validate_url};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProtectedRouteProjection {

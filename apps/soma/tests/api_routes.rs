@@ -4,20 +4,20 @@
 use async_trait::async_trait;
 use axum::{
     body::{Body, Bytes},
-    http::{header, HeaderMap, Method, Request, StatusCode},
+    http::{HeaderMap, Method, Request, StatusCode, header},
     response::IntoResponse,
     routing::post,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use soma::{
     api::REST_ROUTES,
     server::{self, AuthPolicy},
     testing::{bearer_state, loopback_state, loopback_state_with_registry},
 };
+use soma_application::ProviderError;
 use soma_application::provider_registry::{
     Provider, ProviderCall, ProviderOutput, ProviderRegistry,
 };
-use soma_application::ProviderError;
 use soma_domain::actions::ACTION_SPECS;
 use soma_gateway::config::{GatewayConfig, ProtectedMcpRouteConfig, UpstreamConfig};
 use soma_provider_core::{
@@ -424,22 +424,30 @@ async fn capabilities_advertises_direct_rest_routes() {
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["preferred_rest_style"], "direct_routes");
-    assert!(body["supported_routes"]
-        .as_array()
-        .expect("supported_routes should be an array")
-        .contains(&json!("POST /v1/echo")));
-    assert!(body["supported_routes"]
-        .as_array()
-        .expect("supported_routes should be an array")
-        .contains(&json!("POST /v1/tools/{action}")));
-    assert!(body["supported_routes"]
-        .as_array()
-        .expect("supported_routes should be an array")
-        .contains(&json!("POST /v1/gateway/{action}")));
-    assert!(!body["supported_routes"]
-        .as_array()
-        .expect("supported_routes should be an array")
-        .contains(&json!("POST /v1/soma")));
+    assert!(
+        body["supported_routes"]
+            .as_array()
+            .expect("supported_routes should be an array")
+            .contains(&json!("POST /v1/echo"))
+    );
+    assert!(
+        body["supported_routes"]
+            .as_array()
+            .expect("supported_routes should be an array")
+            .contains(&json!("POST /v1/tools/{action}"))
+    );
+    assert!(
+        body["supported_routes"]
+            .as_array()
+            .expect("supported_routes should be an array")
+            .contains(&json!("POST /v1/gateway/{action}"))
+    );
+    assert!(
+        !body["supported_routes"]
+            .as_array()
+            .expect("supported_routes should be an array")
+            .contains(&json!("POST /v1/soma"))
+    );
 }
 
 #[tokio::test]

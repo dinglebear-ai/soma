@@ -1,8 +1,8 @@
 [package]
 name = "soma-mcp-server"
 version = "0.4.1"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Reusable inbound MCP server helpers: response paging, protocol conversion, conformance fixtures, trace extraction, and optional Streamable HTTP transport wiring"
 homepage.workspace = true
@@ -26,3 +26,6 @@ url = { version = "2", optional = true }
 
 [dev-dependencies]
 serde_json = "1"
+
+[lints]
+workspace = true

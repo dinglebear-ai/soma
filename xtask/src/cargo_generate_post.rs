@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -644,34 +644,48 @@ mod tests {
 
         rename_paths(fixture.path(), &test_values()).unwrap();
 
-        assert!(fixture
-            .path()
-            .join("apps/myservice-mcp/Cargo.toml")
-            .exists());
-        assert!(fixture
-            .path()
-            .join("apps/myservice-mcp/src/bin/myservice.rs")
-            .exists());
-        assert!(fixture
-            .path()
-            .join("crates/myservice_mcp/api/Cargo.toml")
-            .exists());
-        assert!(fixture
-            .path()
-            .join("packages/myservice-mcp/package.json")
-            .exists());
-        assert!(fixture
-            .path()
-            .join("packages/myservice-mcp/bin/myservice-mcp.js")
-            .exists());
-        assert!(fixture
-            .path()
-            .join("plugins/myservice/.claude-plugin.json")
-            .exists());
-        assert!(fixture
-            .path()
-            .join("plugins/myservice/skills/myservice/SKILL.md")
-            .exists());
+        assert!(
+            fixture
+                .path()
+                .join("apps/myservice-mcp/Cargo.toml")
+                .exists()
+        );
+        assert!(
+            fixture
+                .path()
+                .join("apps/myservice-mcp/src/bin/myservice.rs")
+                .exists()
+        );
+        assert!(
+            fixture
+                .path()
+                .join("crates/myservice_mcp/api/Cargo.toml")
+                .exists()
+        );
+        assert!(
+            fixture
+                .path()
+                .join("packages/myservice-mcp/package.json")
+                .exists()
+        );
+        assert!(
+            fixture
+                .path()
+                .join("packages/myservice-mcp/bin/myservice-mcp.js")
+                .exists()
+        );
+        assert!(
+            fixture
+                .path()
+                .join("plugins/myservice/.claude-plugin.json")
+                .exists()
+        );
+        assert!(
+            fixture
+                .path()
+                .join("plugins/myservice/skills/myservice/SKILL.md")
+                .exists()
+        );
     }
 
     #[test]

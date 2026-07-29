@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::config::UpstreamConfig;
-use crate::upstream::pool::{InProcessUpstream, UpstreamPool};
 use crate::upstream::UpstreamError;
+use crate::upstream::pool::{InProcessUpstream, UpstreamPool};
 
 #[tokio::test]
 async fn task_operations_reject_unknown_upstreams() {

@@ -1,5 +1,5 @@
-use super::execute::execute_inline;
 use super::CodeModeConfig;
+use super::execute::execute_inline;
 use serial_test::serial;
 
 #[tokio::test]

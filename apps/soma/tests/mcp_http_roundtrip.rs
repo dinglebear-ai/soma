@@ -230,9 +230,11 @@ async fn modern_http_is_stateless_and_emits_typed_results() -> anyhow::Result<()
         "modern discovery must not create a protocol session"
     );
     assert_eq!(discover["result"]["resultType"], "complete");
-    assert!(discover["result"]["supportedVersions"]
-        .as_array()
-        .is_some_and(|versions| versions.iter().any(|version| version == "2026-07-28")));
+    assert!(
+        discover["result"]["supportedVersions"]
+            .as_array()
+            .is_some_and(|versions| versions.iter().any(|version| version == "2026-07-28"))
+    );
 
     let (list_headers, tools) = post_modern_request(&client, &url, 2, "tools/list").await?;
     assert!(

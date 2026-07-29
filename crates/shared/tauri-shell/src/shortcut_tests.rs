@@ -1,4 +1,4 @@
-use super::{parse_code, parse_modifier, parse_shortcut, ActiveShortcutState};
+use super::{ActiveShortcutState, parse_code, parse_modifier, parse_shortcut};
 use tauri_plugin_global_shortcut::{Code, Modifiers};
 
 #[test]

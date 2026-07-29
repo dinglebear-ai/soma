@@ -40,10 +40,23 @@ impl ColorMode {
 /// `Auto` also honors the `NO_COLOR` convention (<https://no-color.org>):
 /// any non-empty or empty `NO_COLOR` environment variable disables color.
 pub fn resolve_color(mode: ColorMode, stream_is_tty: bool) -> bool {
+    resolve_color_inner(mode, stream_is_tty, std::env::var_os("NO_COLOR").is_some())
+}
+
+/// Pure policy core of [`resolve_color`], with the `NO_COLOR` lookup lifted
+/// out into the `no_color_set` parameter.
+///
+/// Splitting the environment read from the decision keeps the unit tests
+/// free of process-global mutation: `std::env::set_var` is `unsafe` as of
+/// Rust 2024, and this crate is `#![forbid(unsafe_code)]`, so a test that
+/// toggled `NO_COLOR` in-process could not compile. Passing the flag in also
+/// makes the test deterministic under the parallel test harness, where a
+/// sibling test mutating the same variable could otherwise race.
+fn resolve_color_inner(mode: ColorMode, stream_is_tty: bool, no_color_set: bool) -> bool {
     match mode {
         ColorMode::Always => true,
         ColorMode::Plain => false,
-        ColorMode::Auto => stream_is_tty && std::env::var_os("NO_COLOR").is_none(),
+        ColorMode::Auto => stream_is_tty && !no_color_set,
     }
 }
 
@@ -100,15 +113,16 @@ mod tests {
 
     #[test]
     fn auto_respects_no_color_even_on_a_tty() {
-        // Save/restore so this test doesn't leak state into others sharing
-        // the process (NO_COLOR is process-global).
-        let previous = std::env::var_os("NO_COLOR");
-        std::env::set_var("NO_COLOR", "1");
-        let result = resolve_color(ColorMode::Auto, true);
-        match previous {
-            Some(value) => std::env::set_var("NO_COLOR", value),
-            None => std::env::remove_var("NO_COLOR"),
-        }
-        assert!(!result, "NO_COLOR should disable Auto color even on a tty");
+        // Drive the policy core directly rather than mutating the real
+        // process environment: `set_var` is `unsafe` in Rust 2024 and this
+        // crate is `#![forbid(unsafe_code)]`.
+        assert!(
+            !resolve_color_inner(ColorMode::Auto, true, true),
+            "NO_COLOR should disable Auto color even on a tty"
+        );
+        assert!(
+            resolve_color_inner(ColorMode::Auto, true, false),
+            "Auto color should stay enabled on a tty without NO_COLOR"
+        );
     }
 }

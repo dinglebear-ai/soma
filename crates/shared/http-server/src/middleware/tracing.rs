@@ -23,7 +23,7 @@ pub fn trace_layer() -> HttpTraceLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, http::Request, routing::get, Router};
+    use axum::{Router, body::Body, http::Request, routing::get};
     use tower::ServiceExt;
 
     #[tokio::test]

@@ -7,8 +7,8 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{Mutex, Notify};
 use tokio_util::codec::{FramedRead, LinesCodec};
 
-use crate::runner::limits::MAX_STDIO_LINE_BYTES;
 use crate::ToolError;
+use crate::runner::limits::MAX_STDIO_LINE_BYTES;
 
 use super::job_guard::JobGuard;
 

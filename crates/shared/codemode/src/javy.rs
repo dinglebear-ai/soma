@@ -2,10 +2,10 @@ pub use rquickjs as quickjs;
 
 use std::str;
 
-use anyhow::{bail, Error, Result};
+use anyhow::{Error, Result, bail};
 use quickjs::{
-    convert, prelude::Rest, Context, Ctx, Error as JsError, Exception, FromJs,
-    Runtime as QuickJsRuntime, String as JsString, Value,
+    Context, Ctx, Error as JsError, Exception, FromJs, Runtime as QuickJsRuntime,
+    String as JsString, Value, convert, prelude::Rest,
 };
 
 pub struct Config {
@@ -92,13 +92,14 @@ pub fn to_js_error(cx: Ctx<'_>, error: Error) -> JsError {
 
 pub fn val_to_string<'js>(cx: &Ctx<'js>, value: Value<'js>) -> Result<String> {
     if let Some(symbol) = value.as_symbol() {
-        if let Some(description) = symbol.description()?.into_string() {
-            let description = description
-                .to_string()
-                .unwrap_or_else(|err| to_string_lossy(cx, &description, err));
-            Ok(format!("Symbol({description})"))
-        } else {
-            Ok("Symbol()".to_string())
+        match symbol.description()?.into_string() {
+            Some(description) => {
+                let description = description
+                    .to_string()
+                    .unwrap_or_else(|err| to_string_lossy(cx, &description, err));
+                Ok(format!("Symbol({description})"))
+            }
+            _ => Ok("Symbol()".to_string()),
         }
     } else {
         let stringified = <convert::Coerced<JsString<'js>>>::from_js(cx, value).map(|string| {

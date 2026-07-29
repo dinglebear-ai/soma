@@ -1,7 +1,7 @@
 use serde_json::Value;
 pub use soma_mcp_proxy::{
-    parse_upstream_resource_uri, upstream_resource_uri, McpPromptRoute as GatewayPromptRoute,
-    McpResourceRoute as GatewayResourceRoute, McpToolRoute as GatewayToolRoute,
+    McpPromptRoute as GatewayPromptRoute, McpResourceRoute as GatewayResourceRoute,
+    McpToolRoute as GatewayToolRoute, parse_upstream_resource_uri, upstream_resource_uri,
 };
 
 use crate::upstream::{

@@ -6,11 +6,11 @@ use std::{
 };
 
 use rmcp::{
+    ServiceExt,
     model::CallToolRequestParams,
     transport::{ConfigureCommandExt, TokioChildProcess},
-    ServiceExt,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use soma_provider_adapters::gateway::UpstreamMcpProvider;
 use soma_provider_core::{Provider as CoreProvider, ProviderCall as CoreProviderCall};
 use tokio::{

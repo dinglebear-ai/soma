@@ -64,14 +64,18 @@ fn summary_collects_multiple_safe_invalid_reasons() {
 
     assert_eq!(summary.trace_id_prefix(), Some("0af76519"));
     assert_eq!(summary.invalid_count(), 2);
-    assert!(summary
-        .invalid_reasons()
-        .iter()
-        .any(|reason| reason == "tracestate exceeded 8 bytes (actual 12)"));
-    assert!(summary
-        .invalid_reasons()
-        .iter()
-        .any(|reason| reason == "baggage exceeded 2 members (actual at least 3)"));
+    assert!(
+        summary
+            .invalid_reasons()
+            .iter()
+            .any(|reason| reason == "tracestate exceeded 8 bytes (actual 12)")
+    );
+    assert!(
+        summary
+            .invalid_reasons()
+            .iter()
+            .any(|reason| reason == "baggage exceeded 2 members (actual at least 3)")
+    );
     assert!(!format!("{summary:?}").contains("vendor=value"));
     assert!(!format!("{summary:?}").contains("a=1"));
 }
@@ -112,14 +116,18 @@ fn summary_reports_invalid_optional_metadata_without_traceparent() {
 
     assert_eq!(summary.trace_id_prefix(), None);
     assert_eq!(summary.invalid_count(), 2);
-    assert!(summary
-        .invalid_reasons()
-        .iter()
-        .any(|reason| reason == "tracestate was not a string"));
-    assert!(summary
-        .invalid_reasons()
-        .iter()
-        .any(|reason| reason == "baggage exceeded 2 members (actual at least 3)"));
+    assert!(
+        summary
+            .invalid_reasons()
+            .iter()
+            .any(|reason| reason == "tracestate was not a string")
+    );
+    assert!(
+        summary
+            .invalid_reasons()
+            .iter()
+            .any(|reason| reason == "baggage exceeded 2 members (actual at least 3)")
+    );
 }
 
 #[test]

@@ -30,15 +30,15 @@ fn validate_value(
         };
         return validate_value(value, resolved, root, path);
     }
-    if let Some(values) = object.get("enum").and_then(Value::as_array) {
-        if !values.iter().any(|candidate| candidate == value) {
-            return Err(invalid(path, "must match enum"));
-        }
+    if let Some(values) = object.get("enum").and_then(Value::as_array)
+        && !values.iter().any(|candidate| candidate == value)
+    {
+        return Err(invalid(path, "must match enum"));
     }
-    if let Some(expected) = object.get("const") {
-        if expected != value {
-            return Err(invalid(path, "must match const"));
-        }
+    if let Some(expected) = object.get("const")
+        && expected != value
+    {
+        return Err(invalid(path, "must match const"));
     }
     if let Some(kind) = object.get("type") {
         let ok = match kind {
@@ -71,21 +71,21 @@ fn validate_value(
                 }
             }
         }
-        if object.get("additionalProperties").and_then(Value::as_bool) == Some(false) {
-            if let Some(properties) = object.get("properties").and_then(Value::as_object) {
-                for key in object_value.keys() {
-                    if !properties.contains_key(key) {
-                        return Err(invalid(&format!("{path}.{key}"), "is not allowed"));
-                    }
+        if object.get("additionalProperties").and_then(Value::as_bool) == Some(false)
+            && let Some(properties) = object.get("properties").and_then(Value::as_object)
+        {
+            for key in object_value.keys() {
+                if !properties.contains_key(key) {
+                    return Err(invalid(&format!("{path}.{key}"), "is not allowed"));
                 }
             }
         }
     }
-    if let Some(items) = object.get("items") {
-        if let Some(values) = value.as_array() {
-            for (index, child) in values.iter().enumerate() {
-                validate_value(child, items, root, &format!("{path}[{index}]"))?;
-            }
+    if let Some(items) = object.get("items")
+        && let Some(values) = value.as_array()
+    {
+        for (index, child) in values.iter().enumerate() {
+            validate_value(child, items, root, &format!("{path}[{index}]"))?;
         }
     }
     Ok(())

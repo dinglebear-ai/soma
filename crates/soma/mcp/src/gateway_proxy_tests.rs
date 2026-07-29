@@ -8,16 +8,16 @@ use rmcp::model::{
     UpdateTaskParams,
 };
 use rmcp::{
-    service::{ClientLifecycleMode, ClientServiceExt},
     ServiceExt,
+    service::{ClientLifecycleMode, ClientServiceExt},
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use soma_application::{
     ExecutionContext, GatewayExecuteRequest, GatewayMcpOutcome, GatewayMcpRoundTrip, GatewayPort,
     GatewayPromptRoute, GatewayReloadRequest, GatewayResourceRoute, GatewayRouteScope,
     GatewayToolRoute, PortError,
 };
-use soma_test_support::{tracing_test_lock, SharedBuf};
+use soma_test_support::{SharedBuf, tracing_test_lock};
 
 use crate::{rmcp_server, testing::loopback_state_with_gateway};
 

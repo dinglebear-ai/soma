@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,7 +54,11 @@ impl Options {
             match args[index].as_str() {
                 "--event" => {
                     index += 1;
-                    event = Some(args.get(index).context("--event requires a value")?.to_owned());
+                    event = Some(
+                        args.get(index)
+                            .context("--event requires a value")?
+                            .to_owned(),
+                    );
                 }
                 "--changed-files" => {
                     index += 1;

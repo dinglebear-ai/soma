@@ -24,13 +24,13 @@
 
 use super::*;
 use axum::{
+    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode, Uri},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use soma_config::{RuntimeMode, SomaConfig};
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
@@ -196,9 +196,11 @@ async fn test_client_forwards_actions_to_deployed_api_when_configured() {
 
     let observed = observed.lock().expect("observed requests should lock");
     assert_eq!(observed.len(), 3);
-    assert!(observed
-        .iter()
-        .all(|request| request.bearer == "Bearer secret-token"));
+    assert!(
+        observed
+            .iter()
+            .all(|request| request.bearer == "Bearer secret-token")
+    );
     assert_eq!(observed[0].path, "/v1/greet");
     assert_eq!(observed[0].body["name"], "Ada");
     assert_eq!(observed[1].path, "/v1/echo");

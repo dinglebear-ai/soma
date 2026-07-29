@@ -29,7 +29,7 @@ use std::sync::Arc;
 use crate::shape::shape_final_result;
 use crate::truncate::truncate_execution_response;
 use crate::types::{CodeModeExecutionResponse, UiLink};
-use crate::{normalize_user_code, CodeModeConfig, ToolError};
+use crate::{CodeModeConfig, ToolError, normalize_user_code};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CodeModeExecutionOutcome {

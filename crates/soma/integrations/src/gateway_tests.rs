@@ -1,7 +1,7 @@
 use soma_application::ExecutionContext;
 use soma_domain::{
-    actions::READ_SCOPE, scopes::ADMIN_SCOPE, AuthorizationMode, Principal, RequestId, ScopeSet,
-    Surface,
+    AuthorizationMode, Principal, RequestId, ScopeSet, Surface, actions::READ_SCOPE,
+    scopes::ADMIN_SCOPE,
 };
 
 use super::{gateway_access, gateway_subject};

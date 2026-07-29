@@ -12,7 +12,7 @@ use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
-use super::{Event, PendingMap, PendingServerRequest, PENDING_SERVER_REQUEST_TIMEOUT};
+use super::{Event, PENDING_SERVER_REQUEST_TIMEOUT, PendingMap, PendingServerRequest};
 use crate::protocol::{ServerNotification, ServerRequest};
 use crate::transport::OutgoingReply;
 
@@ -222,7 +222,9 @@ pub(super) fn dispatch_incoming_line(
                         if let Some(reply) = error_reply_line(
                             &id_value,
                             -32601,
-                            format!("codex-app-server-client: unrecognized or undecodable request: {err}"),
+                            format!(
+                                "codex-app-server-client: unrecognized or undecodable request: {err}"
+                            ),
                         ) {
                             let _ = write_tx.try_send(reply);
                         } else {

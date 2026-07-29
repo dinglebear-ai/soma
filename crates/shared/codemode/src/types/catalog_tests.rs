@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::catalog::{destructive_permitted, ToolDescriptor};
+use super::catalog::{ToolDescriptor, destructive_permitted};
 
 #[test]
 fn tool_descriptor_generates_signature() {

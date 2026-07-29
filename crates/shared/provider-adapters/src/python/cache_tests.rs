@@ -89,10 +89,12 @@ fn inventories_ready_incomplete_invalid_and_staging_entries() {
     assert_eq!(inventory.summary.staging, 1);
     assert!(inventory.summary.total_size_bytes > 0);
     assert!(inventory.summary.total_file_count >= 7);
-    assert!(inventory
-        .entries
-        .windows(2)
-        .all(|pair| pair[0].directory <= pair[1].directory));
+    assert!(
+        inventory
+            .entries
+            .windows(2)
+            .all(|pair| pair[0].directory <= pair[1].directory)
+    );
 
     let ready_entry = inventory
         .entries
@@ -119,11 +121,13 @@ fn inventories_ready_incomplete_invalid_and_staging_entries() {
         incomplete_entry.state,
         PythonEnvironmentCacheState::Incomplete
     );
-    assert!(incomplete_entry
-        .issue
-        .as_deref()
-        .unwrap()
-        .contains("readiness marker"));
+    assert!(
+        incomplete_entry
+            .issue
+            .as_deref()
+            .unwrap()
+            .contains("readiness marker")
+    );
 
     let invalid_entry = inventory
         .entries
@@ -131,11 +135,13 @@ fn inventories_ready_incomplete_invalid_and_staging_entries() {
         .find(|entry| entry.directory == invalid)
         .unwrap();
     assert_eq!(invalid_entry.state, PythonEnvironmentCacheState::Invalid);
-    assert!(invalid_entry
-        .issue
-        .as_deref()
-        .unwrap()
-        .contains("marker is invalid"));
+    assert!(
+        invalid_entry
+            .issue
+            .as_deref()
+            .unwrap()
+            .contains("marker is invalid")
+    );
 
     let staging_entry = inventory
         .entries
@@ -159,11 +165,13 @@ fn recognizes_abandoned_update_staging_directory() {
 
     assert_eq!(inventory.summary.staging, 1);
     assert_eq!(inventory.entries[0].directory, staging);
-    assert!(inventory.entries[0]
-        .issue
-        .as_deref()
-        .unwrap()
-        .contains("update candidate"));
+    assert!(
+        inventory.entries[0]
+            .issue
+            .as_deref()
+            .unwrap()
+            .contains("update candidate")
+    );
 }
 
 #[test]
@@ -196,9 +204,11 @@ fn detects_lock_marker_and_version_directory_mismatches() {
         .collect::<Vec<_>>();
     assert!(issues.iter().any(|issue| issue.contains("uv.lock digest")));
     assert!(issues.iter().any(|issue| issue.contains("directory name")));
-    assert!(issues
-        .iter()
-        .any(|issue| issue.contains("version directory")));
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue.contains("version directory"))
+    );
 }
 
 #[cfg(unix)]
@@ -227,11 +237,13 @@ fn accepts_uv_style_interpreter_symlink_with_regular_target() {
         .unwrap();
     assert_eq!(inventory.summary.ready, 0);
     assert_eq!(inventory.summary.invalid, 1);
-    assert!(inventory.entries[0]
-        .issue
-        .as_deref()
-        .unwrap()
-        .contains("interpreter is missing"));
+    assert!(
+        inventory.entries[0]
+            .issue
+            .as_deref()
+            .unwrap()
+            .contains("interpreter is missing")
+    );
 }
 
 #[cfg(unix)]
@@ -268,11 +280,13 @@ fn rejects_symlink_roots_and_never_follows_symlink_entries() {
     assert_eq!(inventory.summary.invalid, 1);
     assert_eq!(inventory.entries[0].directory, linked_entry);
     assert_eq!(inventory.entries[0].file_count, 0);
-    assert!(inventory.entries[0]
-        .issue
-        .as_deref()
-        .unwrap()
-        .contains("symbolic link"));
+    assert!(
+        inventory.entries[0]
+            .issue
+            .as_deref()
+            .unwrap()
+            .contains("symbolic link")
+    );
 }
 
 #[test]
@@ -295,10 +309,11 @@ fn prune_plan_is_a_dry_run_and_never_selects_ready_entries() {
         .unwrap();
 
     assert_eq!(plan.candidates.len(), 3);
-    assert!(plan
-        .candidates
-        .iter()
-        .all(|candidate| candidate.entry.state != PythonEnvironmentCacheState::Ready));
+    assert!(
+        plan.candidates
+            .iter()
+            .all(|candidate| candidate.entry.state != PythonEnvironmentCacheState::Ready)
+    );
     assert!(plan.reclaimable_size_bytes > 0);
     assert!(ready.exists());
     assert!(incomplete.exists());

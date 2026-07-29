@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use rmcp::{
-    service::{RequestContext, SubscriptionContext},
     ErrorData, RoleServer, ServerHandler,
+    service::{RequestContext, SubscriptionContext},
 };
 
 use super::SomaRmcpServer;

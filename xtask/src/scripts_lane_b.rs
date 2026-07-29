@@ -3,7 +3,7 @@
 //! The shell scripts remain as thin wrappers; these functions are the
 //! canonical implementations.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::Value;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -811,8 +811,8 @@ fn display_relative<'a>(root: &'a Path, path: &'a Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        contains_json_key, json_has_no_version, parse_bump_wrapper_level, skill_has_description,
-        skill_has_name, PreReleaseOptions,
+        PreReleaseOptions, contains_json_key, json_has_no_version, parse_bump_wrapper_level,
+        skill_has_description, skill_has_name,
     };
     use crate::release_versions::BumpLevel;
     use serde_json::json;
@@ -822,14 +822,18 @@ mod tests {
         assert_eq!(parse_bump_wrapper_level("patch").unwrap(), BumpLevel::Patch);
         assert_eq!(parse_bump_wrapper_level("minor").unwrap(), BumpLevel::Minor);
         assert_eq!(parse_bump_wrapper_level("major").unwrap(), BumpLevel::Major);
-        assert!(parse_bump_wrapper_level("")
-            .unwrap_err()
-            .to_string()
-            .contains("Usage:"));
-        assert!(parse_bump_wrapper_level("soma")
-            .unwrap_err()
-            .to_string()
-            .contains("component-aware bumps"));
+        assert!(
+            parse_bump_wrapper_level("")
+                .unwrap_err()
+                .to_string()
+                .contains("Usage:")
+        );
+        assert!(
+            parse_bump_wrapper_level("soma")
+                .unwrap_err()
+                .to_string()
+                .contains("component-aware bumps")
+        );
     }
 
     #[test]

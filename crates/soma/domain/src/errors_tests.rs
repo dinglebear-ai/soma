@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use serde_json::json;
 
-use super::{classify_execution_error, ServiceErrorKind, ToolError};
+use super::{ServiceErrorKind, ToolError, classify_execution_error};
 use crate::actions::ActionValidationError;
 
 #[test]

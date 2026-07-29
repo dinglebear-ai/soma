@@ -66,21 +66,21 @@ pub(super) fn apply_directory_wide_checks(
             continue;
         }
 
-        if let Some(catalog) = catalog {
-            if let Some(message) = namespace.find_conflict(catalog) {
-                files[index].status = ProviderFileInspectionStatus::Invalid;
-                files[index].actions = Vec::new();
-                files[index].error = Some(message);
-                continue;
-            }
+        if let Some(catalog) = catalog
+            && let Some(message) = namespace.find_conflict(catalog)
+        {
+            files[index].status = ProviderFileInspectionStatus::Invalid;
+            files[index].actions = Vec::new();
+            files[index].error = Some(message);
+            continue;
         }
-        if let Some(template) = template {
-            if let Some(message) = namespace.find_template_conflict(template) {
-                files[index].status = ProviderFileInspectionStatus::Invalid;
-                files[index].actions = Vec::new();
-                files[index].error = Some(message);
-                continue;
-            }
+        if let Some(template) = template
+            && let Some(message) = namespace.find_template_conflict(template)
+        {
+            files[index].status = ProviderFileInspectionStatus::Invalid;
+            files[index].actions = Vec::new();
+            files[index].error = Some(message);
+            continue;
         }
 
         if let Some(catalog) = catalog {
@@ -154,39 +154,39 @@ impl DirectoryNamespace {
             if let Some(other) = self.action_names.get(&tool.name) {
                 return Some(conflict_message("action", &tool.name, other));
             }
-            if let Some(rest) = &tool.rest {
-                if rest.enabled {
-                    let key = rest_route_key(tool.name.as_str(), rest);
-                    let label = format!("{} {}", key.0, key.1);
-                    if is_shadowed_by_generic_tools_route(&key.1) {
-                        return Some(conflict_message(
-                            "REST route",
-                            &label,
-                            "Soma's built-in `/v1/tools/{action}` dispatch route",
-                        ));
-                    }
-                    if RESERVED_INFRASTRUCTURE_PATHS.contains(&key.1.as_str()) {
-                        return Some(conflict_message(
-                            "REST route",
-                            &label,
-                            INFRASTRUCTURE_ROUTE_LABEL,
-                        ));
-                    }
-                    if let Some(other) = self.rest_routes.get(&key) {
-                        return Some(conflict_message("REST route", &label, other));
-                    }
+            if let Some(rest) = &tool.rest
+                && rest.enabled
+            {
+                let key = rest_route_key(tool.name.as_str(), rest);
+                let label = format!("{} {}", key.0, key.1);
+                if is_shadowed_by_generic_tools_route(&key.1) {
+                    return Some(conflict_message(
+                        "REST route",
+                        &label,
+                        "Soma's built-in `/v1/tools/{action}` dispatch route",
+                    ));
+                }
+                if RESERVED_INFRASTRUCTURE_PATHS.contains(&key.1.as_str()) {
+                    return Some(conflict_message(
+                        "REST route",
+                        &label,
+                        INFRASTRUCTURE_ROUTE_LABEL,
+                    ));
+                }
+                if let Some(other) = self.rest_routes.get(&key) {
+                    return Some(conflict_message("REST route", &label, other));
                 }
             }
-            if let Some(cli) = &tool.cli {
-                if cli.enabled {
-                    let command = cli_command(tool.name.as_str(), cli);
-                    if let Some(other) = self.cli_commands.get(&command) {
-                        return Some(conflict_message("CLI command", &command, other));
-                    }
-                    for alias in &cli.aliases {
-                        if let Some(other) = self.cli_commands.get(alias) {
-                            return Some(conflict_message("CLI alias", alias, other));
-                        }
+            if let Some(cli) = &tool.cli
+                && cli.enabled
+            {
+                let command = cli_command(tool.name.as_str(), cli);
+                if let Some(other) = self.cli_commands.get(&command) {
+                    return Some(conflict_message("CLI command", &command, other));
+                }
+                for alias in &cli.aliases {
+                    if let Some(other) = self.cli_commands.get(alias) {
+                        return Some(conflict_message("CLI alias", alias, other));
                     }
                 }
             }
@@ -216,14 +216,14 @@ impl DirectoryNamespace {
             }
         }
         for (uri, owner) in &self.exact_resource_uris {
-            if let Some(exact_path) = literal_resource_path(uri) {
-                if template.path.is_ambiguous_with(&exact_path) {
-                    return Some(conflict_message(
-                        "resource template",
-                        &template.uri_template(),
-                        owner,
-                    ));
-                }
+            if let Some(exact_path) = literal_resource_path(uri)
+                && template.path.is_ambiguous_with(&exact_path)
+            {
+                return Some(conflict_message(
+                    "resource template",
+                    &template.uri_template(),
+                    owner,
+                ));
             }
         }
         None
@@ -244,19 +244,19 @@ impl DirectoryNamespace {
         for tool in &catalog.tools {
             self.action_names
                 .insert(tool.name.clone(), owner.to_owned());
-            if let Some(rest) = &tool.rest {
-                if rest.enabled {
-                    self.rest_routes
-                        .insert(rest_route_key(tool.name.as_str(), rest), owner.to_owned());
-                }
+            if let Some(rest) = &tool.rest
+                && rest.enabled
+            {
+                self.rest_routes
+                    .insert(rest_route_key(tool.name.as_str(), rest), owner.to_owned());
             }
-            if let Some(cli) = &tool.cli {
-                if cli.enabled {
-                    self.cli_commands
-                        .insert(cli_command(tool.name.as_str(), cli), owner.to_owned());
-                    for alias in &cli.aliases {
-                        self.cli_commands.insert(alias.clone(), owner.to_owned());
-                    }
+            if let Some(cli) = &tool.cli
+                && cli.enabled
+            {
+                self.cli_commands
+                    .insert(cli_command(tool.name.as_str(), cli), owner.to_owned());
+                for alias in &cli.aliases {
+                    self.cli_commands.insert(alias.clone(), owner.to_owned());
                 }
             }
         }

@@ -1,6 +1,6 @@
 use crate::config::{GatewayConfig, UpstreamConfig};
-use crate::upstream::pool::{InProcessUpstream, UpstreamPool};
 use crate::upstream::ToolDescriptor;
+use crate::upstream::pool::{InProcessUpstream, UpstreamPool};
 use crate::usage::MemoryUsageSink;
 
 use super::*;

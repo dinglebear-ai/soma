@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::upstream::{CapScope, UpstreamError};
 
-use super::{ensure_routable, UpstreamPool};
+use super::{UpstreamPool, ensure_routable};
 
 impl UpstreamPool {
     pub async fn get_task(&self, upstream: &str, task_id: &str) -> Result<Value, UpstreamError> {

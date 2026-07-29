@@ -1,4 +1,4 @@
-use super::{has_admin_scope, ADMIN_SCOPE};
+use super::{ADMIN_SCOPE, has_admin_scope};
 
 #[test]
 fn detects_gateway_admin_scope() {

@@ -97,9 +97,10 @@ fn resolve_response_honors_known_void_response_methods() {
 fn resolve_response_hard_fails_when_nothing_matches() {
     let defs = Map::new();
     let err = resolve_response("totally/unknown/method", &defs).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("could not resolve a response type"));
+    assert!(
+        err.to_string()
+            .contains("could not resolve a response type")
+    );
 }
 
 #[test]
@@ -125,9 +126,10 @@ fn fuzzy_response_match_bails_on_a_tie_for_shortest() {
     // must not silently pick one.
     let names = vec!["ThreadSetNameAResponse", "ThreadSetNameBResponse"];
     let err = fuzzy_response_match("thread/name/set", names.into_iter()).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("ambiguous fuzzy response-type match"));
+    assert!(
+        err.to_string()
+            .contains("ambiguous fuzzy response-type match")
+    );
 }
 
 #[test]

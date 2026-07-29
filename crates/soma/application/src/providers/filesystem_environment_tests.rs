@@ -13,7 +13,7 @@ use soma_provider_adapters::python::{
     lifecycle::{PythonEnvironmentLifecycle, PythonEnvironmentSpec},
     materializer::UvRunner,
 };
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 use crate::provider_registry::{
     Provider, ProviderAuthMode, ProviderCall, ProviderPrincipal, ProviderRequestLimits,

@@ -1,4 +1,4 @@
-use super::{python_bridge_program, PYTHON_BRIDGE, PYTHON_SDK};
+use super::{PYTHON_BRIDGE, PYTHON_SDK, python_bridge_program};
 
 #[test]
 fn embedded_bridge_contains_versioned_catalog_and_call_modes() {

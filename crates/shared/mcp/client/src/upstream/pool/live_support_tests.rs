@@ -12,7 +12,8 @@ fn bearer_value_normalization_accepts_raw_or_prefixed_tokens() {
 #[test]
 fn bearer_token_env_supports_plain_http_and_websocket_auth() {
     let var = "SOMA_MCP_CLIENT_TEST_BEARER";
-    std::env::set_var(var, "Bearer secret");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(var, "Bearer secret") };
     let config = UpstreamConfig {
         name: "bearer".to_owned(),
         bearer_token_env: Some(var.to_owned()),
@@ -25,7 +26,8 @@ fn bearer_token_env_supports_plain_http_and_websocket_auth() {
         Some("Bearer secret")
     );
 
-    std::env::remove_var(var);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var(var) };
 }
 
 #[test]

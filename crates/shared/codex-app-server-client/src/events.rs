@@ -1,5 +1,5 @@
-use crate::protocol::{ServerNotification, TurnError, TurnStatus};
 use crate::Event;
+use crate::protocol::{ServerNotification, TurnError, TurnStatus};
 
 #[derive(Clone, Debug, Default)]
 pub struct EventCollector {

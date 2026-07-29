@@ -13,7 +13,7 @@ use anyhow::Result;
 use serde_json::{Map, Value};
 
 use super::typify_probe::{self, ProbeOutcome};
-use super::{load_combined_defs, merge, parse_gen_dir, PROTOCOL_SCHEMA_PATH};
+use super::{PROTOCOL_SCHEMA_PATH, load_combined_defs, merge, parse_gen_dir};
 
 pub fn run(args: &[String]) -> Result<()> {
     let gen_dir = parse_args(args)?;

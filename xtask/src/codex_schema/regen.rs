@@ -7,11 +7,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use super::{
-    load_combined_defs, merge, parse_gen_dir, CODEX_VERSION_PATH, METHODS_JSON_PATH,
-    PROTOCOL_SCHEMA_PATH,
+    CODEX_VERSION_PATH, METHODS_JSON_PATH, PROTOCOL_SCHEMA_PATH, load_combined_defs, merge,
+    parse_gen_dir,
 };
 
 pub fn run(args: &[String]) -> Result<()> {

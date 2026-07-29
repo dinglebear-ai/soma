@@ -7,7 +7,7 @@ use rmcp::model::{
 use serde_json::json;
 use soma_domain::Confirmation;
 
-use super::{destructive_confirmation, DestructiveConfirmation, DESTRUCTIVE_CONFIRMATION_INPUT};
+use super::{DESTRUCTIVE_CONFIRMATION_INPUT, DestructiveConfirmation, destructive_confirmation};
 
 fn capable_meta() -> RequestMetaObject {
     let capabilities = ClientCapabilities::builder()

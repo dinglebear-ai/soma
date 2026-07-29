@@ -19,5 +19,5 @@ pub mod rejection;
 pub mod server;
 pub mod shutdown;
 
-pub use server::{bind, serve, serve_with_shutdown, ServerError};
+pub use server::{ServerError, bind, serve, serve_with_shutdown};
 pub use shutdown::shutdown_signal;

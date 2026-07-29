@@ -3,7 +3,7 @@
 //! or schema name - see `super::schemas` and `super::paths` for the
 //! domain-specific document pieces built on top of these.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Builds a JSON object from `entries`, sorting by key first so the result
 /// is identical regardless of whether the ambient build's `serde_json::Map`

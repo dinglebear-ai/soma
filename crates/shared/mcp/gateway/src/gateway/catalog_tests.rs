@@ -4,11 +4,13 @@ use super::*;
 fn non_discovery_actions_require_admin_and_unknown_fails_closed() {
     let catalog = GatewayActionCatalog::standard();
 
-    assert!(catalog
-        .list()
-        .into_iter()
-        .filter(|action| !action.discovery)
-        .all(|action| action.admin_required));
+    assert!(
+        catalog
+            .list()
+            .into_iter()
+            .filter(|action| !action.discovery)
+            .all(|action| action.admin_required)
+    );
     assert!(catalog.get("gateway.nope").is_none());
 }
 

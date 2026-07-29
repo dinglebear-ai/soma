@@ -6,17 +6,17 @@
 //! **Customize**: mirror this file for your service. Add one test per action.
 
 use async_trait::async_trait;
-use rmcp::{model::CallToolRequestParams, service::ServiceError, ServiceExt};
+use rmcp::{ServiceExt, model::CallToolRequestParams, service::ServiceError};
 use serde_json::json;
 use soma::{
     actions::SomaAction,
     mcp::{execute_tool_without_peer_for_test, rmcp_server},
     testing::{bearer_state, loopback_state, loopback_state_with_registry, mcp_state},
 };
+use soma_application::ProviderError;
 use soma_application::provider_registry::{
     Provider, ProviderCall, ProviderOutput, ProviderRegistry,
 };
-use soma_application::ProviderError;
 use soma_provider_core::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderTool,
 };
@@ -196,8 +196,8 @@ async fn test_real_call_tool_path_returns_status_json() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn test_real_call_tool_missing_http_context_returns_structured_auth_error(
-) -> anyhow::Result<()> {
+async fn test_real_call_tool_missing_http_context_returns_structured_auth_error()
+-> anyhow::Result<()> {
     let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
 
     let server_handle = tokio::spawn(async move {

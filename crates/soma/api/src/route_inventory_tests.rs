@@ -4,10 +4,12 @@ use super::*;
 fn capabilities_routes_include_gateway_dispatch() {
     let response = capabilities_response();
 
-    assert!(response
-        .supported_routes
-        .iter()
-        .any(|route| route == "POST /v1/gateway/{action}"));
+    assert!(
+        response
+            .supported_routes
+            .iter()
+            .any(|route| route == "POST /v1/gateway/{action}")
+    );
     assert!(response.routes.iter().any(|route| {
         route.method == "POST" && route.path == "/v1/gateway/{action}" && route.action.is_none()
     }));

@@ -14,7 +14,7 @@
 //! that hazard.
 
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 // ── Action error types ────────────────────────────────────────────────────────
 
@@ -54,9 +54,7 @@ pub enum ActionValidationError {
         field: String,
     },
     /// The action exists but is MCP-only and cannot be called over REST.
-    #[error(
-        "action={action} is not available over REST; use MCP or action=help for documentation"
-    )]
+    #[error("action={action} is not available over REST; use MCP or action=help for documentation")]
     NotAvailableOverRest {
         /// The requested action name.
         action: String,
@@ -136,7 +134,7 @@ impl ActionValidationError {
 // Re-exported here so `soma_domain::actions::{READ_SCOPE, WRITE_SCOPE,
 // DENY_SCOPE, scopes_satisfy}` keeps working for every call site that
 // imports scope names through the action-metadata path.
-pub use crate::scopes::{scopes_satisfy, DENY_SCOPE, READ_SCOPE, WRITE_SCOPE};
+pub use crate::scopes::{DENY_SCOPE, READ_SCOPE, WRITE_SCOPE, scopes_satisfy};
 
 /// Which transports an action is reachable over.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

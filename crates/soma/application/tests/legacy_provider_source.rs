@@ -6,11 +6,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::json;
 use soma_application::{
+    ProviderError,
     provider_registry::{
         Provider, ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal,
         ProviderRegistry, ProviderRequestLimits, ProviderSurface,
     },
-    ProviderError,
 };
 use soma_provider_core::{
     McpOverlay, ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderPrompt,

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 
 use crate::release_versions;
@@ -66,7 +66,9 @@ impl ReleaseCommandOptions {
                 }
                 "--json" => json = true,
                 "--help" | "-h" => {
-                    bail!("Usage: cargo xtask <check-release-versions|release-plan> [--base REF] [--head REF] [--mode pr|main] [--json]");
+                    bail!(
+                        "Usage: cargo xtask <check-release-versions|release-plan> [--base REF] [--head REF] [--mode pr|main] [--json]"
+                    );
                 }
                 unknown => bail!("unknown release option: {unknown}"),
             }

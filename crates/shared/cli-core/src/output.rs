@@ -15,11 +15,7 @@ pub enum OutputFormat {
 impl OutputFormat {
     /// Map the conventional `--json` boolean flag to a format.
     pub fn from_json_flag(json: bool) -> Self {
-        if json {
-            Self::Json
-        } else {
-            Self::Human
-        }
+        if json { Self::Json } else { Self::Human }
     }
 
     pub fn is_json(self) -> bool {

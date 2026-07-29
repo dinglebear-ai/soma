@@ -1,4 +1,4 @@
-use super::wrapper::{async_iife, code_mode_main_invoker, CODE_MODE_VALUE_CODEC_JS};
+use super::wrapper::{CODE_MODE_VALUE_CODEC_JS, async_iife, code_mode_main_invoker};
 
 #[test]
 fn wrapper_invokes_async_function_contract() {

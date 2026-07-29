@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde_json::json;
-use soma_codemode::{execute::execute_inline, CodeModeConfig, UiLink};
+use soma_codemode::{CodeModeConfig, UiLink, execute::execute_inline};
 use soma_provider_core::{Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput};
 
 /// Runs one fixed JS snippet on every call, ignoring `call.params` beyond

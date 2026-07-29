@@ -182,12 +182,12 @@ async fn read_path_capped(
     cap: usize,
     label: &str,
 ) -> Result<String, OpenApiError> {
-    if let Ok(metadata) = tokio::fs::metadata(path).await {
-        if metadata.len() > cap as u64 {
-            return Err(OpenApiError::SpecTooLarge {
-                label: label.to_string(),
-            });
-        }
+    if let Ok(metadata) = tokio::fs::metadata(path).await
+        && metadata.len() > cap as u64
+    {
+        return Err(OpenApiError::SpecTooLarge {
+            label: label.to_string(),
+        });
     }
 
     let file = tokio::fs::File::open(path)

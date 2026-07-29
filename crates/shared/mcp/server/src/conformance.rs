@@ -13,10 +13,9 @@ use rmcp::model::{
     ImageContent, Prompt, PromptArgument, PromptMessage, ReadResourceResult, Resource,
     ResourceContents, ResourceTemplate, Role, Tool,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-const PNG_1X1_RED: &str =
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lZc47wAAAABJRU5ErkJggg==";
+const PNG_1X1_RED: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lZc47wAAAABJRU5ErkJggg==";
 const WAV_SILENCE: &str = "UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
 
 pub fn tool_definitions() -> Vec<Tool> {
@@ -121,20 +120,26 @@ pub fn resource_templates() -> Vec<ResourceTemplate> {
 
 pub fn read_resource(uri: &str) -> Option<ReadResourceResult> {
     let contents = match uri {
-        "test://static-text" => vec![ResourceContents::text(
-            "This is the content of the static text resource.",
-            "test://static-text",
-        )
-        .with_mime_type("text/plain")],
+        "test://static-text" => vec![
+            ResourceContents::text(
+                "This is the content of the static text resource.",
+                "test://static-text",
+            )
+            .with_mime_type("text/plain"),
+        ],
         "test://static-binary" => {
-            vec![ResourceContents::blob(PNG_1X1_RED, "test://static-binary")
-                .with_mime_type("image/png")]
+            vec![
+                ResourceContents::blob(PNG_1X1_RED, "test://static-binary")
+                    .with_mime_type("image/png"),
+            ]
         }
-        "test://template/123/data" => vec![ResourceContents::text(
-            r#"{"id":"123","templateTest":true,"data":"Data for ID: 123"}"#,
-            "test://template/123/data",
-        )
-        .with_mime_type("application/json")],
+        "test://template/123/data" => vec![
+            ResourceContents::text(
+                r#"{"id":"123","templateTest":true,"data":"Data for ID: 123"}"#,
+                "test://template/123/data",
+            )
+            .with_mime_type("application/json"),
+        ],
         _ => return None,
     };
     Some(ReadResourceResult::new(contents))
@@ -162,9 +167,11 @@ pub fn prompts() -> Vec<Prompt> {
         Prompt::new(
             "test_prompt_with_embedded_resource",
             Some("MCP conformance embedded-resource prompt fixture"),
-            Some(vec![PromptArgument::new("resourceUri")
-                .with_description("URI of the resource to embed")
-                .with_required(true)]),
+            Some(vec![
+                PromptArgument::new("resourceUri")
+                    .with_description("URI of the resource to embed")
+                    .with_required(true),
+            ]),
         ),
         Prompt::new(
             "test_prompt_with_image",

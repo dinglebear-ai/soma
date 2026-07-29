@@ -33,10 +33,12 @@ fn schema_advertises_action_costs_and_agent_guidance() {
         tools[0]["x-soma-agent-guidance"]["cost_order"],
         serde_json::json!(["cheap", "moderate", "expensive", "write"])
     );
-    assert!(tools[0]["x-soma-agent-guidance"]["first_pass"]
-        .as_array()
-        .expect("first_pass should be an array")
-        .contains(&serde_json::json!("status")));
+    assert!(
+        tools[0]["x-soma-agent-guidance"]["first_pass"]
+            .as_array()
+            .expect("first_pass should be an array")
+            .contains(&serde_json::json!("status"))
+    );
     assert_eq!(status["output_schema"]["type"], "object");
 }
 
@@ -114,20 +116,26 @@ fn schema_advertises_structured_output_contract() {
     assert_eq!(output_schema["type"], "object");
     assert_eq!(output_schema["additionalProperties"], true);
     assert_eq!(output_schema["x-soma-action-discriminator"], "_soma_action");
-    assert!(output_schema["description"]
-        .as_str()
-        .expect("output schema should describe structured content")
-        .contains("structuredContent"));
-    assert!(output_schema["oneOf"]
-        .as_array()
-        .expect("output schema should include exact variants")
-        .iter()
-        .any(|variant| variant["properties"]["kind"]["const"] == "mcp_response_page"));
-    assert!(output_schema["oneOf"]
-        .as_array()
-        .expect("output schema should include error variants")
-        .iter()
-        .any(|variant| variant["properties"]["kind"]["const"] == "mcp_tool_error"));
+    assert!(
+        output_schema["description"]
+            .as_str()
+            .expect("output schema should describe structured content")
+            .contains("structuredContent")
+    );
+    assert!(
+        output_schema["oneOf"]
+            .as_array()
+            .expect("output schema should include exact variants")
+            .iter()
+            .any(|variant| variant["properties"]["kind"]["const"] == "mcp_response_page")
+    );
+    assert!(
+        output_schema["oneOf"]
+            .as_array()
+            .expect("output schema should include error variants")
+            .iter()
+            .any(|variant| variant["properties"]["kind"]["const"] == "mcp_tool_error")
+    );
 }
 
 #[test]
@@ -231,10 +239,12 @@ fn schema_preserves_provider_action_output_schemas() {
         .iter()
         .find(|variant| variant["properties"]["_soma_action"]["const"] == "weather")
         .expect("weather output schema should be discriminated by action");
-    assert!(weather_variant["required"]
-        .as_array()
-        .expect("weather variant should declare required fields")
-        .contains(&json!("_soma_action")));
+    assert!(
+        weather_variant["required"]
+            .as_array()
+            .expect("weather variant should declare required fields")
+            .contains(&json!("_soma_action"))
+    );
     assert_eq!(weather_variant["properties"]["forecast"]["type"], "string");
 
     let opaque_variant = variants
@@ -242,8 +252,10 @@ fn schema_preserves_provider_action_output_schemas() {
         .find(|variant| variant["properties"]["_soma_action"]["const"] == "opaque_weather")
         .expect("actions without output schemas should still get discriminator branches");
     assert_eq!(opaque_variant["additionalProperties"], true);
-    assert!(opaque_variant["required"]
-        .as_array()
-        .expect("opaque variant should require the discriminator")
-        .contains(&json!("_soma_action")));
+    assert!(
+        opaque_variant["required"]
+            .as_array()
+            .expect("opaque variant should require the discriminator")
+            .contains(&json!("_soma_action"))
+    );
 }

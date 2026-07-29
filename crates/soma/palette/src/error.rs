@@ -9,9 +9,9 @@
 //! same `shared/*` crate instead.
 
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use soma_application::ApplicationError;
 

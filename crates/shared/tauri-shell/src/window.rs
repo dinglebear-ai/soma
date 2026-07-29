@@ -15,10 +15,10 @@ pub fn hide(window: &WebviewWindow) -> CommandResult<()> {
 
 /// Show, un-maximize (if needed), focus, and raise `window`.
 pub fn show_and_focus(window: &WebviewWindow) -> CommandResult<()> {
-    if window.is_maximized().unwrap_or(false) {
-        if let Err(err) = window.unmaximize() {
-            tracing::warn!("failed to unmaximize window before showing: {err}");
-        }
+    if window.is_maximized().unwrap_or(false)
+        && let Err(err) = window.unmaximize()
+    {
+        tracing::warn!("failed to unmaximize window before showing: {err}");
     }
     window.show().command_result()?;
     window.set_focus().command_result()
@@ -33,10 +33,10 @@ pub fn resize_and_center(
     height: f64,
     shadow: bool,
 ) -> CommandResult<()> {
-    if window.is_maximized().unwrap_or(false) {
-        if let Err(err) = window.unmaximize() {
-            tracing::warn!("failed to unmaximize window before resizing: {err}");
-        }
+    if window.is_maximized().unwrap_or(false)
+        && let Err(err) = window.unmaximize()
+    {
+        tracing::warn!("failed to unmaximize window before resizing: {err}");
     }
     window
         .set_size(Size::Logical(LogicalSize { width, height }))

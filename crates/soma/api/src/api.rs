@@ -11,7 +11,7 @@ mod route_inventory;
 
 use anyhow::Result;
 use axum::{
-    extract::{rejection::JsonRejection, Extension, Path, State},
+    extract::{Extension, Path, State, rejection::JsonRejection},
     http::{Method, StatusCode},
     response::{IntoResponse, Json},
 };
@@ -23,18 +23,18 @@ pub struct AuthContext {
     scopes: Vec<String>,
 }
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use soma_application::ExecuteActionRequest;
 use soma_domain::actions::SomaAction;
-use soma_http_api::json::{json_body_or_else, JsonBodyOutcome};
+use soma_http_api::json::{JsonBodyOutcome, json_body_or_else};
 
+use crate::ApiState;
 use crate::responses::{
     application_error_response, rest_error_response, rest_json_rejection_response,
 };
-use crate::ApiState;
 pub use probes::{health, readyz, status};
-pub use route_inventory::{CapabilitiesResponse, RestRoute, REST_ROUTES};
+pub use route_inventory::{CapabilitiesResponse, REST_ROUTES, RestRoute};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

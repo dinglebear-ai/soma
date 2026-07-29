@@ -91,10 +91,10 @@ fn sibling_runner_candidates(current_exe: &Path) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Some(dir) = current_exe.parent() {
         candidates.push(dir.join(runner_binary_name()));
-        if dir.file_name() == Some(OsStr::new("deps")) {
-            if let Some(parent) = dir.parent() {
-                candidates.push(parent.join(runner_binary_name()));
-            }
+        if dir.file_name() == Some(OsStr::new("deps"))
+            && let Some(parent) = dir.parent()
+        {
+            candidates.push(parent.join(runner_binary_name()));
         }
     }
     candidates

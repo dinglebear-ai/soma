@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    CompatibilityReport, Error, SessionOptions, TextTurnResult, DEFAULT_EVENTS_CHANNEL_CAPACITY,
+    CompatibilityReport, DEFAULT_EVENTS_CHANNEL_CAPACITY, Error, SessionOptions, TextTurnResult,
 };
 
 pub type RestResult<T> = std::result::Result<T, RestError>;

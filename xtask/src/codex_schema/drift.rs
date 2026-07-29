@@ -20,11 +20,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{load_combined_defs, merge, CODEX_VERSION_PATH, METHODS_JSON_PATH};
+use super::{CODEX_VERSION_PATH, METHODS_JSON_PATH, load_combined_defs, merge};
 
 const USAGE: &str = "Usage: cargo xtask codex-schema drift [--dir <path-to-codex-generate-json-schema-output-dir>] [--json] [--strict]
 

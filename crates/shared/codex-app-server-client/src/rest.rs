@@ -4,7 +4,7 @@ mod openapi;
 mod routes;
 mod types;
 
-pub use auth::{bearer_auth, BearerAuthLayer, BearerAuthService};
+pub use auth::{BearerAuthLayer, BearerAuthService, bearer_auth};
 pub use backend::CodexRestBackend;
 pub use openapi::openapi_spec;
 pub use routes::{

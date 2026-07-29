@@ -2,10 +2,10 @@ use std::fmt;
 use std::time::Duration;
 
 use reqwest::{Client, Method};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::error::{GotifyError, Result};
-use crate::{http, GotifyConfig};
+use crate::{GotifyConfig, http};
 
 /// HTTP REST client for Gotify push-notification servers.
 ///

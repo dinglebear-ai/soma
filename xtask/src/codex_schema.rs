@@ -24,7 +24,7 @@ mod naming;
 mod regen;
 mod typify_probe;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 

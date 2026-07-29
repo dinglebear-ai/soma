@@ -23,16 +23,16 @@
 use std::{convert::Infallible, str::FromStr};
 
 use axum::{
+    Json, Router,
     body::Body,
     extract::State,
-    http::{header, HeaderValue, Method, Request, StatusCode, Uri},
+    http::{HeaderValue, Method, Request, StatusCode, Uri, header},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json, Router,
 };
 use serde_json::json;
 use soma_gateway::{
-    config::{protected_routes::normalize_public_host, ProtectedMcpRouteConfig},
+    config::{ProtectedMcpRouteConfig, protected_routes::normalize_public_host},
     gateway::protected_routes::resolve_scope,
 };
 use tower::ServiceExt;

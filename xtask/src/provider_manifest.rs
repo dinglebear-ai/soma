@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use jsonschema::Validator;
 use serde_json::Value;
 use std::{fs, path::Path};

@@ -1,8 +1,8 @@
 [package]
 name = "soma-palette"
 version = "0.4.1"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Palette product API for soma: /v1/palette/* routes, DTOs, and product launcher policy"
 homepage.workspace = true
@@ -33,3 +33,6 @@ tracing = "0.1"
 soma-test-support = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt"] }
 tower = { version = "0.5", features = ["util"] }
+
+[lints]
+workspace = true

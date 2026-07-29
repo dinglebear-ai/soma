@@ -1,7 +1,7 @@
 use soma_domain::{AuthorizationMode, Surface};
 use soma_test_support::default_application;
 
-use super::{palette_execution_context, AuthContext};
+use super::{AuthContext, palette_execution_context};
 use crate::state::PaletteState;
 
 #[cfg(feature = "auth")]

@@ -2,11 +2,11 @@
 //! wrappers, path/query parameter definitions, and the per-[`RouteDef`]
 //! operation bodies read from [`super::route_table::ROUTES`].
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::{
     json::{obj, schema_ref},
-    route_table::{RouteDef, ROUTES},
+    route_table::{ROUTES, RouteDef},
 };
 
 /// A JSON `application/json` request body wrapper.
@@ -294,9 +294,17 @@ fn operation_definition(route: &RouteDef) -> Value {
             ("summary", json!("Liveness probe")),
             (
                 "description",
-                json!("Always returns `200`. Never requires authentication, even when `rest::bearer_auth` is layered on (see `BearerAuthLayer::allow_unauthenticated_health`, default `true`)."),
+                json!(
+                    "Always returns `200`. Never requires authentication, even when `rest::bearer_auth` is layered on (see `BearerAuthLayer::allow_unauthenticated_health`, default `true`)."
+                ),
             ),
-            ("operationId", json!(format!("get{}", route.path_template.replace(['/', '-'], "_")))),
+            (
+                "operationId",
+                json!(format!(
+                    "get{}",
+                    route.path_template.replace(['/', '-'], "_")
+                )),
+            ),
             (
                 "responses",
                 obj(vec![json_response(
@@ -306,7 +314,10 @@ fn operation_definition(route: &RouteDef) -> Value {
             ),
         ]),
         ("get", "/v1/compatibility") => obj(vec![
-            ("summary", json!("Schema/installed-version compatibility report")),
+            (
+                "summary",
+                json!("Schema/installed-version compatibility report"),
+            ),
             (
                 "description",
                 json!(
@@ -355,7 +366,10 @@ fn operation_definition(route: &RouteDef) -> Value {
                 "responses",
                 obj(vec![
                     json_response("The turn reached a terminal state.", "RestTextTurnResponse"),
-                    error_response("400", "Malformed JSON body, or `prompt` is empty/whitespace-only."),
+                    error_response(
+                        "400",
+                        "Malformed JSON body, or `prompt` is empty/whitespace-only.",
+                    ),
                     error_response(
                         "403",
                         "`approvalPolicy: \"allow_all\"` or a `client.command`/`extraArgs`/`config` \
@@ -410,7 +424,10 @@ fn operation_definition(route: &RouteDef) -> Value {
                 "responses",
                 obj(vec![
                     json_response("The call returned a result.", "RestCallResponse"),
-                    error_response("400", "Malformed JSON body, or the `{method}` path segment was empty."),
+                    error_response(
+                        "400",
+                        "Malformed JSON body, or the `{method}` path segment was empty.",
+                    ),
                     error_response(
                         "403",
                         "A `client.command`/`extraArgs`/`config` override was requested without \
@@ -430,7 +447,13 @@ fn operation_definition(route: &RouteDef) -> Value {
         ]),
         ("get", "/v1/sessions") => obj(vec![
             ("summary", json!("List active bridge sessions")),
-            ("description", json!(format!("Lists session IDs for currently open stateful bridge sessions.{}", route.gate.note()))),
+            (
+                "description",
+                json!(format!(
+                    "Lists session IDs for currently open stateful bridge sessions.{}",
+                    route.gate.note()
+                )),
+            ),
             ("operationId", json!("getV1Sessions")),
             (
                 "responses",
@@ -454,7 +477,11 @@ fn operation_definition(route: &RouteDef) -> Value {
             ("operationId", json!("postV1Sessions")),
             (
                 "requestBody",
-                json_request_body("Optional client overrides.", "RestSessionCreateRequest", false),
+                json_request_body(
+                    "Optional client overrides.",
+                    "RestSessionCreateRequest",
+                    false,
+                ),
             ),
             (
                 "responses",
@@ -500,7 +527,10 @@ fn operation_definition(route: &RouteDef) -> Value {
             ),
         ]),
         ("post", "/v1/sessions/{sessionId}/call/{method}") => obj(vec![
-            ("summary", json!("Call a method on an existing bridge session")),
+            (
+                "summary",
+                json!("Call a method on an existing bridge session"),
+            ),
             (
                 "description",
                 json!(format!(
@@ -559,7 +589,10 @@ fn operation_definition(route: &RouteDef) -> Value {
                 )),
             ),
             ("operationId", json!("getV1SessionsBySessionIdEvents")),
-            ("parameters", json!([session_id_param(), timeout_ms_param()])),
+            (
+                "parameters",
+                json!([session_id_param(), timeout_ms_param()]),
+            ),
             (
                 "responses",
                 obj(vec![
@@ -587,7 +620,10 @@ fn operation_definition(route: &RouteDef) -> Value {
             ),
         ]),
         ("get", "/v1/sessions/{sessionId}/events/stream") => obj(vec![
-            ("summary", json!("Server-Sent Events counterpart to the long-poll route")),
+            (
+                "summary",
+                json!("Server-Sent Events counterpart to the long-poll route"),
+            ),
             (
                 "description",
                 json!(format!(
@@ -629,7 +665,10 @@ fn operation_definition(route: &RouteDef) -> Value {
             ),
         ]),
         ("post", "/v1/sessions/{sessionId}/requests/{requestKey}/result") => obj(vec![
-            ("summary", json!("Reply to a pending server-originated request with a result")),
+            (
+                "summary",
+                json!("Reply to a pending server-originated request with a result"),
+            ),
             (
                 "description",
                 json!(format!(
@@ -639,11 +678,21 @@ fn operation_definition(route: &RouteDef) -> Value {
                     route.gate.note()
                 )),
             ),
-            ("operationId", json!("postV1SessionsBySessionIdRequestsByRequestKeyResult")),
-            ("parameters", json!([session_id_param(), request_key_param()])),
+            (
+                "operationId",
+                json!("postV1SessionsBySessionIdRequestsByRequestKeyResult"),
+            ),
+            (
+                "parameters",
+                json!([session_id_param(), request_key_param()]),
+            ),
             (
                 "requestBody",
-                json_request_body("The JSON-RPC result value.", "RestRequestReplyResultRequest", true),
+                json_request_body(
+                    "The JSON-RPC result value.",
+                    "RestRequestReplyResultRequest",
+                    true,
+                ),
             ),
             (
                 "responses",
@@ -665,7 +714,10 @@ fn operation_definition(route: &RouteDef) -> Value {
             ),
         ]),
         ("post", "/v1/sessions/{sessionId}/requests/{requestKey}/error") => obj(vec![
-            ("summary", json!("Reply to a pending server-originated request with an error")),
+            (
+                "summary",
+                json!("Reply to a pending server-originated request with an error"),
+            ),
             (
                 "description",
                 json!(format!(
@@ -674,11 +726,21 @@ fn operation_definition(route: &RouteDef) -> Value {
                     route.gate.note()
                 )),
             ),
-            ("operationId", json!("postV1SessionsBySessionIdRequestsByRequestKeyError")),
-            ("parameters", json!([session_id_param(), request_key_param()])),
+            (
+                "operationId",
+                json!("postV1SessionsBySessionIdRequestsByRequestKeyError"),
+            ),
+            (
+                "parameters",
+                json!([session_id_param(), request_key_param()]),
+            ),
             (
                 "requestBody",
-                json_request_body("The JSON-RPC error code/message/data.", "RestErrorReplyRequest", true),
+                json_request_body(
+                    "The JSON-RPC error code/message/data.",
+                    "RestErrorReplyRequest",
+                    true,
+                ),
             ),
             (
                 "responses",

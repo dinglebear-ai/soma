@@ -1,6 +1,6 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use super::{provider_tool_surface_enabled, ProviderSurface, RegistrySnapshot};
+use super::{ProviderSurface, RegistrySnapshot, provider_tool_surface_enabled};
 
 impl RegistrySnapshot {
     /// A compact JSON summary confirming the snapshot validated: fingerprint,

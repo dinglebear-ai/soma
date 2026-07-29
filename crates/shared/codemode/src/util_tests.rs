@@ -17,7 +17,9 @@ fn utf8_prefix_keeps_char_boundaries() {
 
 #[test]
 fn unknown_provider_uses_soma_wording() {
-    assert!(unknown_local_provider("openapi")
-        .user_message()
-        .contains("Code Mode"));
+    assert!(
+        unknown_local_provider("openapi")
+            .user_message()
+            .contains("Code Mode")
+    );
 }

@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, path::Path};
 
-use super::{provider_tool_surface_enabled, ProviderSurface, RegistrySnapshot};
+use super::{ProviderSurface, RegistrySnapshot, provider_tool_surface_enabled};
 
 pub(super) struct ProviderRefreshEvent {
     fingerprint: String,

@@ -2,7 +2,7 @@
 //! sent none" helper — the shape every REST handler in this workspace that
 //! accepts an optional body already needs.
 
-use axum::{extract::rejection::JsonRejection, response::Response, Json};
+use axum::{Json, extract::rejection::JsonRejection, response::Response};
 use serde::de::DeserializeOwned;
 
 use crate::response::json_rejection_response;

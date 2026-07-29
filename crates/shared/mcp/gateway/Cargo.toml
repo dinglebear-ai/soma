@@ -1,8 +1,8 @@
 [package]
 name = "soma-gateway"
 version = "0.4.1"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Reusable MCP aggregation gateway runtime"
 homepage.workspace = true
@@ -48,3 +48,6 @@ url = "2"
 [dev-dependencies]
 axum = "0.8"
 tempfile = "3"
+
+[lints]
+workspace = true

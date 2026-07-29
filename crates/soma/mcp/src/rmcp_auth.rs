@@ -1,5 +1,5 @@
-use rmcp::{service::RequestContext, ErrorData, RoleServer};
-use serde_json::{json, Value};
+use rmcp::{ErrorData, RoleServer, service::RequestContext};
+use serde_json::{Value, json};
 use soma_domain::{AuthorizationMode, Principal, ScopeSet};
 
 use super::state::{McpRouteScope, McpState};

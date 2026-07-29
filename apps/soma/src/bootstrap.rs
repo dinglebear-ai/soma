@@ -27,14 +27,14 @@ use soma_config::Config;
 ))]
 use soma_application::ProviderRegistry;
 use soma_application::{ApplicationPorts, SomaApplication};
-#[cfg(any(feature = "mcp-stdio", feature = "mcp-http"))]
-use soma_runtime::server::gateway_product_state_from_env;
 #[cfg(feature = "mcp")]
 use soma_runtime::server::AppState;
 #[cfg(any(feature = "mcp-stdio", feature = "mcp-http", feature = "oauth"))]
 use soma_runtime::server::AuthPolicy;
+#[cfg(any(feature = "mcp-stdio", feature = "mcp-http"))]
+use soma_runtime::server::gateway_product_state_from_env;
 #[cfg(feature = "mcp-http")]
-use soma_runtime::server::{resolve_auth_policy_kind, AuthPolicyKind};
+use soma_runtime::server::{AuthPolicyKind, resolve_auth_policy_kind};
 #[cfg(any(
     feature = "mcp-stdio",
     feature = "mcp-http",
@@ -45,7 +45,7 @@ use soma_runtime::server::{resolve_auth_policy_kind, AuthPolicyKind};
 ))]
 use soma_runtime::server::{GatewayProductState, SomaRuntime};
 #[cfg(all(feature = "cli", feature = "mcp-stdio"))]
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 /// Initialize tracing at `level` unless `RUST_LOG` overrides it.
 ///

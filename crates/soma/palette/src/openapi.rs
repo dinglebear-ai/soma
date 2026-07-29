@@ -5,7 +5,7 @@
 //! routes this crate owns but that the generic provider-route generator
 //! doesn't know about.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const CATALOG_PATH: &str = "/v1/palette/catalog";
 pub const SEARCH_PATH: &str = "/v1/palette/search";

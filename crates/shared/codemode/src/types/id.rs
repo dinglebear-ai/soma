@@ -1,4 +1,4 @@
-use crate::{util::invalid_code_mode_id, ToolError};
+use crate::{ToolError, util::invalid_code_mode_id};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeModeToolId {

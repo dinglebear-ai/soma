@@ -1,4 +1,4 @@
-use super::{parse_providers_command, ProviderCommand};
+use super::{ProviderCommand, parse_providers_command};
 use crate::Command;
 
 #[test]
@@ -55,24 +55,32 @@ fn rejects_empty_and_unknown_subcommands() {
 fn only_the_three_filesystem_variants_are_non_executing() {
     assert!(!ProviderCommand::Validate.is_non_executing());
     assert!(!ProviderCommand::Inspect.is_non_executing());
-    assert!(!ProviderCommand::Test {
-        action: "greet".to_owned(),
-        json: serde_json::json!({}),
-    }
-    .is_non_executing());
-    assert!(ProviderCommand::List {
-        dir: None,
-        json: false
-    }
-    .is_non_executing());
-    assert!(ProviderCommand::Lint {
-        dir: None,
-        json: false
-    }
-    .is_non_executing());
-    assert!(ProviderCommand::Status {
-        dir: None,
-        json: false
-    }
-    .is_non_executing());
+    assert!(
+        !ProviderCommand::Test {
+            action: "greet".to_owned(),
+            json: serde_json::json!({}),
+        }
+        .is_non_executing()
+    );
+    assert!(
+        ProviderCommand::List {
+            dir: None,
+            json: false
+        }
+        .is_non_executing()
+    );
+    assert!(
+        ProviderCommand::Lint {
+            dir: None,
+            json: false
+        }
+        .is_non_executing()
+    );
+    assert!(
+        ProviderCommand::Status {
+            dir: None,
+            json: false
+        }
+        .is_non_executing()
+    );
 }

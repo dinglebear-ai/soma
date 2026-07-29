@@ -2,7 +2,7 @@ use serde_json::json;
 use soma_domain::{AuthorizationMode, Confirmation};
 use soma_provider_core::{ProviderId, ProviderManifest, ToolSpec};
 
-use super::{confirmation_for, execute_launcher, ExecuteOutcome};
+use super::{ExecuteOutcome, confirmation_for, execute_launcher};
 use crate::{dto::LauncherExecuteRequest, state::PaletteState};
 
 #[test]

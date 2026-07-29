@@ -15,21 +15,25 @@ url = "https://example.com/mcp"
 
 #[test]
 fn validate_rejects_missing_or_ambiguous_transport() {
-    assert!(UpstreamConfig {
-        name: "missing".to_owned(),
-        ..UpstreamConfig::default()
-    }
-    .validate()
-    .is_err());
+    assert!(
+        UpstreamConfig {
+            name: "missing".to_owned(),
+            ..UpstreamConfig::default()
+        }
+        .validate()
+        .is_err()
+    );
 
-    assert!(UpstreamConfig {
-        name: "both".to_owned(),
-        url: Some("https://example.com/mcp".to_owned()),
-        command: Some("node".to_owned()),
-        ..UpstreamConfig::default()
-    }
-    .validate()
-    .is_err());
+    assert!(
+        UpstreamConfig {
+            name: "both".to_owned(),
+            url: Some("https://example.com/mcp".to_owned()),
+            command: Some("node".to_owned()),
+            ..UpstreamConfig::default()
+        }
+        .validate()
+        .is_err()
+    );
 }
 
 #[test]

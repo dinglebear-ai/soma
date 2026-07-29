@@ -8,21 +8,20 @@
 //! product's MCP server.
 
 use rmcp::{
+    ErrorData, RoleServer, ServerHandler,
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, ListToolsResult,
         PaginatedRequestParams,
     },
     service::RequestContext,
-    ErrorData, RoleServer, ServerHandler,
 };
 use serde_json::{Map, Value};
 
 use soma_mcp_server::{
-    conformance,
+    ResponsePageStore, conformance,
     error_result::unknown_tool_error,
     protocol::tool_from_descriptor,
-    response_paging::{response_page_request, tool_result_from_json, ResponsePagingOptions},
-    ResponsePageStore,
+    response_paging::{ResponsePagingOptions, response_page_request, tool_result_from_json},
 };
 
 /// A stand-in for an unrelated product's inbound MCP server. It exposes one

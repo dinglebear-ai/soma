@@ -143,7 +143,7 @@ async fn run(raw_args: Vec<String>, env: &dyn Fn(&str) -> Option<String>) -> Exi
             return fail(&format!(
                 "invalid bind address `{}:{}`: {error}",
                 config.host, config.port
-            ))
+            ));
         }
     };
 

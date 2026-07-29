@@ -57,10 +57,10 @@ pub fn handle_close_requested(window: &Window, api: &tauri::CloseRequestApi) {
 /// [`should_hide_on_blur`] allows it. `hide_on_blur_pref` is the caller's
 /// product-owned settings value (not this crate's concern).
 pub fn handle_focus_lost(window: &Window, state: &BlurDismissState, hide_on_blur_pref: bool) {
-    if should_hide_on_blur(state.enabled(), hide_on_blur_pref) {
-        if let Err(err) = window.hide() {
-            tracing::warn!("failed to hide window on focus loss: {err}");
-        }
+    if should_hide_on_blur(state.enabled(), hide_on_blur_pref)
+        && let Err(err) = window.hide()
+    {
+        tracing::warn!("failed to hide window on focus loss: {err}");
     }
 }
 

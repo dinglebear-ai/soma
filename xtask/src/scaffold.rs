@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -907,11 +907,7 @@ fn join_or_none(values: &[String]) -> String {
 }
 
 fn empty_as_none(value: &str) -> &str {
-    if value.is_empty() {
-        "none"
-    } else {
-        value
-    }
+    if value.is_empty() { "none" } else { value }
 }
 
 fn default_host() -> String {
@@ -1338,9 +1334,11 @@ mod tests {
         .unwrap();
 
         let errors = verify_generated_project(fixture.path()).expect_err("version rejected");
-        assert!(errors
-            .to_string()
-            .contains("must not contain a version field"));
+        assert!(
+            errors
+                .to_string()
+                .contains("must not contain a version field")
+        );
     }
 
     #[test]

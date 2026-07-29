@@ -1,7 +1,7 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::error::Result;
 use crate::GotifyClient;
+use crate::error::Result;
 
 /// Business-logic facade over [`GotifyClient`]: the same endpoints, plus
 /// client-side filtering and pagination shaping that any embedder is likely

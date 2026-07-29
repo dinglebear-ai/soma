@@ -35,6 +35,6 @@ mod trace_context;
 pub mod http;
 
 pub use trace_context::{
-    TraceLimits, TraceParseError, TraceSummary, TraceTrust, BAGGAGE_KEY, TRACEPARENT_KEY,
-    TRACESTATE_KEY,
+    BAGGAGE_KEY, TRACEPARENT_KEY, TRACESTATE_KEY, TraceLimits, TraceParseError, TraceSummary,
+    TraceTrust,
 };

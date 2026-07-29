@@ -1,8 +1,8 @@
 use super::*;
 use crate::config::ClientConfig;
 use crate::transport::{
-    unix::tests::{json_response, spawn_fake_daemon},
     Client,
+    unix::tests::{json_response, spawn_fake_daemon},
 };
 
 fn instance_json(name: &str) -> String {
@@ -102,10 +102,12 @@ async fn update_instance_sends_if_match_header_when_etag_is_provided() {
         .await
         .expect("update_instance should succeed");
 
-    assert!(seen_request
-        .lock()
-        .unwrap()
-        .contains("If-Match: \"abc123\""));
+    assert!(
+        seen_request
+            .lock()
+            .unwrap()
+            .contains("If-Match: \"abc123\"")
+    );
 }
 
 #[tokio::test]

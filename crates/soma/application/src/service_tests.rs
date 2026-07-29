@@ -141,10 +141,12 @@ fn test_elicited_name_greeting_transformation_lives_in_service() {
     let result = service.elicited_name_greeting(ElicitedNameOutcome::Accepted("  Ada  "));
 
     assert_eq!(result["name"], "Ada");
-    assert!(result["greeting"]
-        .as_str()
-        .expect("greeting should be a string")
-        .contains("Ada"));
+    assert!(
+        result["greeting"]
+            .as_str()
+            .expect("greeting should be a string")
+            .contains("Ada")
+    );
 }
 
 #[test]

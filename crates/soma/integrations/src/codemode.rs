@@ -28,10 +28,10 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use soma_application::{CodeModeExecuteRequest, CodeModePort, ExecutionContext, PortError};
-use soma_codemode::{execute::execute_inline, CodeModeConfig, ToolError, UiLink};
+use soma_codemode::{CodeModeConfig, ToolError, UiLink, execute::execute_inline};
 
 #[derive(Clone, Default)]
 pub struct CodeModeApplicationPort {

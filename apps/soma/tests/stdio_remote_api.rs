@@ -4,18 +4,18 @@ use std::{
 };
 
 use axum::{
+    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode, Uri},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use rmcp::{
+    ServiceExt,
     model::CallToolRequestParams,
     transport::{ConfigureCommandExt, TokioChildProcess},
-    ServiceExt,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tempfile::tempdir;
 use tokio::{net::TcpListener, process::Command};
 

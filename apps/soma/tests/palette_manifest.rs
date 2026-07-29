@@ -8,10 +8,12 @@ fn palette_manifest_is_bounded_and_disables_builtin_capabilities() {
             .expect("palette manifest JSON");
 
     assert_eq!(value["schema_version"], 1);
-    assert!(value["provider_fingerprint"]
-        .as_str()
-        .expect("fingerprint string")
-        .starts_with("sha256:"));
+    assert!(
+        value["provider_fingerprint"]
+            .as_str()
+            .expect("fingerprint string")
+            .starts_with("sha256:")
+    );
     assert_eq!(value["builtins"]["file_explorer"], false);
     assert_eq!(value["builtins"]["github"], false);
     assert_eq!(value["builtins"]["browser"], false);

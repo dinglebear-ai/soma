@@ -195,29 +195,35 @@ mod tests {
 
     #[test]
     fn validate_connector_path_rejects_traversal() {
-        assert!(validate_connector_path(
-            "/proxy/network/integration/../secret",
-            &["/proxy/network/integration/"]
-        )
-        .is_err());
+        assert!(
+            validate_connector_path(
+                "/proxy/network/integration/../secret",
+                &["/proxy/network/integration/"]
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn validate_connector_path_rejects_encoded_separators() {
-        assert!(validate_connector_path(
-            "/proxy/network/integration/%2e%2e",
-            &["/proxy/network/integration/"]
-        )
-        .is_err());
+        assert!(
+            validate_connector_path(
+                "/proxy/network/integration/%2e%2e",
+                &["/proxy/network/integration/"]
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn validate_connector_path_accepts_an_allowed_path() {
-        assert!(validate_connector_path(
-            "/proxy/network/integration/v1/sites",
-            &["/proxy/network/integration/"]
-        )
-        .is_ok());
+        assert!(
+            validate_connector_path(
+                "/proxy/network/integration/v1/sites",
+                &["/proxy/network/integration/"]
+            )
+            .is_ok()
+        );
     }
 
     #[test]

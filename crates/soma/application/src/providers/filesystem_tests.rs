@@ -3,7 +3,7 @@ use std::fs;
 use serde_json::json;
 use tempfile::tempdir;
 
-use super::{load_catalog, FileProviderSource, ProviderFileInspectionStatus};
+use super::{FileProviderSource, ProviderFileInspectionStatus, load_catalog};
 
 #[test]
 fn inspect_reports_loaded_disabled_and_invalid_files_without_executing_handlers() {
@@ -74,11 +74,13 @@ fn inspect_reports_loaded_disabled_and_invalid_files_without_executing_handlers(
         .find(|file| file.file_name == "broken.json")
         .unwrap();
     assert_eq!(broken.status, ProviderFileInspectionStatus::Invalid);
-    assert!(broken
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("broken.json"));
+    assert!(
+        broken
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("broken.json")
+    );
 }
 
 #[test]
@@ -221,11 +223,13 @@ fn inspect_marks_manifest_validation_failures_as_invalid() {
         report.files[0].status,
         ProviderFileInspectionStatus::Invalid
     );
-    assert!(report.files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("duplicate"));
+    assert!(
+        report.files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("duplicate")
+    );
 }
 
 #[test]
@@ -264,11 +268,13 @@ fn inspect_marks_uncompilable_input_schema_as_invalid() {
         report.files[0].status,
         ProviderFileInspectionStatus::Invalid
     );
-    assert!(report.files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("input_schema"));
+    assert!(
+        report.files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("input_schema")
+    );
 }
 
 #[test]
@@ -310,11 +316,13 @@ fn inspect_marks_invalid_when_rest_path_does_not_match_the_v1_prefix_schema_cons
         report.files[0].status,
         ProviderFileInspectionStatus::Invalid
     );
-    assert!(report.files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("rest/path"));
+    assert!(
+        report.files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("rest/path")
+    );
 }
 
 #[test]
@@ -457,16 +465,20 @@ fn inspect_marks_second_file_invalid_on_duplicate_provider_name_across_files() {
         .find(|file| file.file_name == "b-second.json")
         .unwrap();
     assert_eq!(second.status, ProviderFileInspectionStatus::Invalid);
-    assert!(second
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("duplicate provider"));
-    assert!(second
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("a-first.json"));
+    assert!(
+        second
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("duplicate provider")
+    );
+    assert!(
+        second
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("a-first.json")
+    );
 }
 
 #[test]
@@ -500,11 +512,13 @@ fn inspect_marks_second_file_invalid_on_duplicate_action_across_files() {
         .find(|file| file.file_name == "b-second.json")
         .unwrap();
     assert_eq!(second.status, ProviderFileInspectionStatus::Invalid);
-    assert!(second
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("duplicate action"));
+    assert!(
+        second
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("duplicate action")
+    );
 }
 
 #[test]
@@ -538,11 +552,13 @@ fn inspect_marks_second_file_invalid_on_duplicate_cli_command_across_files() {
         .find(|file| file.file_name == "b-second.json")
         .unwrap();
     assert_eq!(second.status, ProviderFileInspectionStatus::Invalid);
-    assert!(second
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("duplicate CLI command"));
+    assert!(
+        second
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("duplicate CLI command")
+    );
 }
 
 #[test]
@@ -570,16 +586,20 @@ fn inspect_marks_invalid_when_provider_name_collides_with_the_builtin_static_rus
         report.files[0].status,
         ProviderFileInspectionStatus::Invalid
     );
-    assert!(report.files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("duplicate provider"));
-    assert!(report.files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("built-in"));
+    assert!(
+        report.files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("duplicate provider")
+    );
+    assert!(
+        report.files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("built-in")
+    );
 }
 
 #[test]
@@ -602,16 +622,20 @@ fn inspect_marks_invalid_when_action_collides_with_a_builtin_action() {
 
     assert_eq!(report.providers_loaded, 0);
     assert_eq!(report.providers_invalid, 1);
-    assert!(report.files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("duplicate action"));
-    assert!(report.files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("built-in"));
+    assert!(
+        report.files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("duplicate action")
+    );
+    assert!(
+        report.files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("built-in")
+    );
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
-use futures::{stream::BoxStream, StreamExt};
+use futures::{StreamExt, stream::BoxStream};
 use http::{HeaderName, HeaderValue};
 use reqwest::header::{ACCEPT, WWW_AUTHENTICATE};
 use rmcp::{
@@ -244,10 +244,9 @@ async fn non_success_response(
     if content_type
         .as_deref()
         .is_some_and(|ct| ct.as_bytes().starts_with(JSON_MIME_TYPE.as_bytes()))
+        && let Some(message) = parse_json_rpc_error(&body)
     {
-        if let Some(message) = parse_json_rpc_error(&body) {
-            return Ok(StreamableHttpPostResponse::Json(message, None));
-        }
+        return Ok(StreamableHttpPostResponse::Json(message, None));
     }
     Err(StreamableHttpError::UnexpectedServerResponse(Cow::Owned(
         format!("HTTP {status}: {body}"),
@@ -258,12 +257,12 @@ async fn read_body_capped(
     response: reqwest::Response,
     max_bytes: usize,
 ) -> Result<Vec<u8>, StreamableHttpError<reqwest::Error>> {
-    if let Some(length) = response.content_length() {
-        if length > max_bytes as u64 {
-            return Err(too_large(format!(
-                "response_too_large: declared {length} bytes, max {max_bytes}"
-            )));
-        }
+    if let Some(length) = response.content_length()
+        && length > max_bytes as u64
+    {
+        return Err(too_large(format!(
+            "response_too_large: declared {length} bytes, max {max_bytes}"
+        )));
     }
     let mut stream = response.bytes_stream();
     let mut bytes = Vec::new();

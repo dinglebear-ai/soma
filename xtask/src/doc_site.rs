@@ -16,7 +16,7 @@
 //! so what Pages deploys is exactly what this module writes — the workflow no
 //! longer carries its own inline HTML step.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 use std::process::{Command, Stdio};
 

@@ -91,12 +91,11 @@ fn newest_mtime_for_path(path: PathBuf) -> Option<SystemTime> {
             };
             if metadata.is_dir() {
                 stack.push(path);
-            } else if metadata.is_file() {
-                if let Ok(mtime) = metadata.modified() {
-                    if newest.is_none_or(|current| mtime > current) {
-                        newest = Some(mtime);
-                    }
-                }
+            } else if metadata.is_file()
+                && let Ok(mtime) = metadata.modified()
+                && newest.is_none_or(|current| mtime > current)
+            {
+                newest = Some(mtime);
             }
         }
     }

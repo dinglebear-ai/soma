@@ -9,7 +9,7 @@
 #[cfg(test)]
 use std::sync::OnceLock;
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use soma_provider_core::{ProviderCatalog, ProviderTool};
 

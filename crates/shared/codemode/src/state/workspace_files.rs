@@ -3,13 +3,13 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::path_safety::reject_existing_symlink_ancestors;
 use crate::ToolError;
+use crate::path_safety::reject_existing_symlink_ancestors;
 
 use super::path::VirtualPath;
 use super::workspace::{
-    internal_io, not_found_or_internal, serialize_error, DetectFileResult, HashFileResult,
-    JsonReadResult, MutationResult, ReadFileResult, StateWorkspace,
+    DetectFileResult, HashFileResult, JsonReadResult, MutationResult, ReadFileResult,
+    StateWorkspace, internal_io, not_found_or_internal, serialize_error,
 };
 
 impl StateWorkspace {

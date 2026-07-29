@@ -1,20 +1,20 @@
 use std::{
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
 use async_trait::async_trait;
 use serde_json::json;
+use soma_application::ProviderError;
 use soma_application::capabilities::CapabilityBroker;
 use soma_application::provider_registry::{
     DynamicResourceTemplate, Provider, ProviderAuthMode, ProviderCall, ProviderOutput,
     ProviderPrincipal, ProviderRegistry, ProviderRequestLimits, ProviderSurface,
     ResourceReadOutput,
 };
-use soma_application::ProviderError;
 use soma_provider_core::{
     CapabilityGrant, HostCapabilities, McpOverlay, NetworkCapability, ProviderCatalog,
     ProviderIdentity, ProviderKind, ProviderManifest, ProviderPrompt, ProviderResource,
@@ -743,9 +743,11 @@ async fn destructive_provider_actions_require_confirmation() {
     });
     let registry = ProviderRegistry::new(vec![provider]).expect("registry");
 
-    assert!(registry
-        .snapshot()
-        .action_requires_confirmation("delete_note"));
+    assert!(
+        registry
+            .snapshot()
+            .action_requires_confirmation("delete_note")
+    );
     let error = registry
         .dispatch(call("delete_note", json!({})))
         .await

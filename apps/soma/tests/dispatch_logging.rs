@@ -9,7 +9,7 @@
 use serde_json::json;
 use soma_application::{ExecuteActionRequest, ExecutionContext};
 use soma_domain::{RequestId, Surface};
-use soma_test_support::{tracing_test_lock, SharedBuf};
+use soma_test_support::{SharedBuf, tracing_test_lock};
 
 // The capture lock is intentionally held across the await: this is a
 // single-threaded test (current_thread) whose whole purpose is to serialize the

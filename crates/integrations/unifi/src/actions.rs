@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::capabilities::find_capability;
 use crate::error::{Result, UnifiError};
-use crate::{api::ApiSourceFamily, UnifiClient};
+use crate::{UnifiClient, api::ApiSourceFamily};
 
 /// A dynamically-dispatched UniFi action: an action name matched against
 /// [`crate::capabilities::all_capabilities`], plus its JSON parameters.

@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::error::{Error, Result};
 use crate::transport::{
-    resource_error_or, sync_metadata, Client, Method, RecursionQuery, WithEtag,
+    Client, Method, RecursionQuery, WithEtag, resource_error_or, sync_metadata,
 };
 
 #[derive(Debug, Clone, Deserialize)]

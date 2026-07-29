@@ -17,7 +17,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use soma_config::Config;
-use soma_runtime::server::{resolve_auth_policy_kind, AuthPolicyKind};
+use soma_runtime::server::{AuthPolicyKind, resolve_auth_policy_kind};
 
 use super::DoctorCheck;
 

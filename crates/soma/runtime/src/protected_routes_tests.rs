@@ -1,7 +1,8 @@
 use axum::{
-    body::{to_bytes, Body},
-    http::{header, Method, Request, StatusCode},
-    middleware, Router,
+    Router,
+    body::{Body, to_bytes},
+    http::{Method, Request, StatusCode, header},
+    middleware,
 };
 use soma_gateway::config::ProtectedMcpRouteConfig;
 use tower::ServiceExt;
@@ -9,7 +10,7 @@ use tower::ServiceExt;
 use crate::test_support;
 
 use super::{
-    is_reserved_public_path, is_route_metadata_path, route_metadata_url, ProtectedMcpState,
+    ProtectedMcpState, is_reserved_public_path, is_route_metadata_path, route_metadata_url,
 };
 
 fn route() -> ProtectedMcpRouteConfig {

@@ -1,8 +1,8 @@
 [package]
 name = "incus-client"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Async Rust client for the Incus REST API (system container and VM management)."
 homepage.workspace = true
@@ -44,3 +44,6 @@ uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 tempfile = "3"
+
+[lints]
+workspace = true

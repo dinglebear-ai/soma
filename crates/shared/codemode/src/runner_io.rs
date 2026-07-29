@@ -1,8 +1,8 @@
 use tokio::io::AsyncWriteExt;
 
+use crate::ToolError;
 use crate::protocol::{CodeModeRunnerInput, CodeModeRunnerOutput};
 use crate::runner::limits::MAX_STDIO_LINE_BYTES;
-use crate::ToolError;
 
 pub fn encode_runner_input(input: &CodeModeRunnerInput) -> Result<String, ToolError> {
     encode_json_line(input, "input")

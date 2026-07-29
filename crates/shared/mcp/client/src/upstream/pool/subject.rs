@@ -8,7 +8,7 @@ use crate::upstream::{
 };
 
 use super::tools::matches_filter;
-use super::{live, SubjectPoolEntry, ToolCall, UpstreamPool};
+use super::{SubjectPoolEntry, ToolCall, UpstreamPool, live};
 
 impl UpstreamPool {
     pub fn install_oauth_provider(&self, provider: std::sync::Arc<dyn UpstreamOAuthProvider>) {

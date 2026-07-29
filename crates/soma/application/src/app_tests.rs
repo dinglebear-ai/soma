@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use soma_client::SomaClient;
 use soma_config::SomaConfig;
 use soma_domain::{
-    scopes::{READ_SCOPE, WRITE_SCOPE},
     AuthorizationMode, Confirmation, Principal, RequestId, ScopeSet, Surface, TraceContext,
+    scopes::{READ_SCOPE, WRITE_SCOPE},
 };
 use soma_provider_core::{ProviderCatalog, ProviderResource};
 
@@ -15,9 +15,10 @@ use super::{
     OpenApiExecuteRequest, ScaffoldIntentRequest, SomaApplication,
 };
 use crate::{
-    provider_registry::Provider, ApplicationError, ApplicationErrorDetails, ApplicationPorts,
-    CodeModePort, DynamicResourceTemplate, ExecutionContext, GatewayPort, OpenApiPort, PortError,
-    ProviderCall, ProviderError, ProviderOutput, ProviderRegistry, SomaService, StaticRustProvider,
+    ApplicationError, ApplicationErrorDetails, ApplicationPorts, CodeModePort,
+    DynamicResourceTemplate, ExecutionContext, GatewayPort, OpenApiPort, PortError, ProviderCall,
+    ProviderError, ProviderOutput, ProviderRegistry, SomaService, StaticRustProvider,
+    provider_registry::Provider,
 };
 
 struct RecordingProvider {
@@ -527,9 +528,11 @@ fn rest_catalog_queries_and_openapi_stay_behind_the_application_facade() {
             .as_deref(),
         Some("echo")
     );
-    assert!(application.openapi_document().unwrap()["paths"]
-        .get("/v1/echo")
-        .is_some());
+    assert!(
+        application.openapi_document().unwrap()["paths"]
+            .get("/v1/echo")
+            .is_some()
+    );
 }
 
 #[test]

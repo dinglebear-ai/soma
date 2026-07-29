@@ -1,11 +1,11 @@
 use rmcp::{
+    ServiceExt,
     model::{CallToolRequestParams, Meta},
     service::ServiceError,
-    ServiceExt,
 };
 use rmcp_traces::TraceTrust;
 use serde_json::json;
-use soma_test_support::{tracing_test_lock, SharedBuf};
+use soma_test_support::{SharedBuf, tracing_test_lock};
 
 use soma_application::{ApplicationError, ApplicationErrorDetails};
 use soma_domain::token_limit::MAX_RESPONSE_BYTES;
@@ -53,10 +53,12 @@ fn application_errors_become_structured_tool_errors() {
     assert_eq!(structured["code"], "missing_field");
     assert_eq!(structured["tool"], "soma");
     assert_eq!(structured["action"], "echo");
-    assert!(structured["remediation"]
-        .as_str()
-        .unwrap_or_default()
-        .contains("message"));
+    assert!(
+        structured["remediation"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("message")
+    );
 }
 
 #[test]
@@ -385,9 +387,11 @@ async fn call_tool_response_page_rejection_logs_without_trace_or_request_fields(
     let ServiceError::McpError(error) = error else {
         panic!("expected MCP protocol error, got: {error}");
     };
-    assert!(error
-        .message
-        .contains("_response_cursor exceeded 256 bytes"));
+    assert!(
+        error
+            .message
+            .contains("_response_cursor exceeded 256 bytes")
+    );
 
     client.close().await.expect("client should close");
     server_handle.await.expect("server task should join");

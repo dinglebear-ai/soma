@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 
 use crate::gateway::manager::GatewayManager;
-use crate::gateway::protected_routes::{project_route, route_matches, ProtectedRouteProjection};
+use crate::gateway::protected_routes::{ProtectedRouteProjection, project_route, route_matches};
 use crate::upstream::UpstreamHealth;
 
 impl GatewayManager {

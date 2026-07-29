@@ -10,8 +10,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use super::{
-    inspect_entry, PythonEnvironmentCache, PythonEnvironmentCacheEntry,
-    PythonEnvironmentCacheError, PythonEnvironmentCacheState,
+    PythonEnvironmentCache, PythonEnvironmentCacheEntry, PythonEnvironmentCacheError,
+    PythonEnvironmentCacheState, inspect_entry,
 };
 
 static PRUNE_SEQUENCE: AtomicU64 = AtomicU64::new(0);

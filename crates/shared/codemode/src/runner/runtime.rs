@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::protocol::{
-    CodeModeRunnerInput, CodeModeRunnerOutput, CodeModeRunnerResult, CODE_MODE_STACK_SIZE_LIMIT,
+    CODE_MODE_STACK_SIZE_LIMIT, CodeModeRunnerInput, CodeModeRunnerOutput, CodeModeRunnerResult,
     RUNNER_STATE,
 };
 use crate::runner::jail::reset_execution_jail;

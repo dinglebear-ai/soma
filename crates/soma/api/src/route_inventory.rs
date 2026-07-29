@@ -26,8 +26,7 @@ pub const REST_ROUTES: &[RestRoute] = &[
         path: "/metrics",
         action: None,
         auth: "public",
-        description:
-            "Prometheus metrics (text exposition format; requires the observability feature).",
+        description: "Prometheus metrics (text exposition format; requires the observability feature).",
     },
     RestRoute {
         method: "GET",
@@ -68,8 +67,7 @@ pub const REST_ROUTES: &[RestRoute] = &[
         method: "POST",
         path: GATEWAY_ROUTE_PATH,
         action: None,
-        auth:
-            "mounted auth policy; read actions require soma:read, admin actions require soma:admin",
+        auth: "mounted auth policy; read actions require soma:read, admin actions require soma:admin",
         description: "Gateway management and discovery action dispatch.",
     },
     RestRoute {

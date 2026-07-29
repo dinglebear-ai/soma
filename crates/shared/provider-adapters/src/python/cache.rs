@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use super::{
     environment::{PythonRuntimeFingerprint, PythonWheelTag},
-    materializer::{ReadyMarker, READY_FILE, READY_SCHEMA_VERSION},
+    materializer::{READY_FILE, READY_SCHEMA_VERSION, ReadyMarker},
 };
 
 #[path = "cache_prune.rs"]

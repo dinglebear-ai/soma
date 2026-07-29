@@ -1,15 +1,15 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use soma_provider_core::{
     CliOverlay, EnvRequirement, McpOverlay, ProviderCatalog, ProviderIdentity, ProviderKind,
     ProviderManifest, ProviderPrompt, ProviderResource, ProviderTool, RestOverlay,
 };
 
 use crate::{
+    SomaService,
     provider_errors::ProviderError,
     provider_registry::{Provider, ProviderCall, ProviderOutput},
-    SomaService,
 };
 
 /// Provider serving a catalog sourced from a remote inspection report and

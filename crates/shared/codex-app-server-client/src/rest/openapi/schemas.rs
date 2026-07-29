@@ -5,7 +5,7 @@
 //! rather than derived, and `super::tests` (in `openapi.rs`) for how that
 //! transcription is checked.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::json::{
     any_value_schema, array_schema, integer_schema, nonneg_integer_schema, nullable_string_schema,
@@ -49,8 +49,18 @@ pub(super) fn build_schemas() -> Value {
             "RestClientOptions",
             object_schema(
                 vec![
-                    ("name", nullable_string_schema("Client name reported to the app-server's `initialize` call. Defaults to a per-route value (e.g. `codex_app_server_rest`) when omitted.")),
-                    ("version", nullable_string_schema("Client version reported to `initialize`. Defaults to this crate's own version when omitted.")),
+                    (
+                        "name",
+                        nullable_string_schema(
+                            "Client name reported to the app-server's `initialize` call. Defaults to a per-route value (e.g. `codex_app_server_rest`) when omitted.",
+                        ),
+                    ),
+                    (
+                        "version",
+                        nullable_string_schema(
+                            "Client version reported to `initialize`. Defaults to this crate's own version when omitted.",
+                        ),
+                    ),
                     (
                         "command",
                         nullable_string_schema(
@@ -85,7 +95,9 @@ pub(super) fn build_schemas() -> Value {
                     ),
                     (
                         "callTimeoutMs",
-                        integer_schema("Per-call JSON-RPC timeout override in milliseconds. Defaults to `codex_app_server_client::DEFAULT_CALL_TIMEOUT` (120s) when omitted."),
+                        integer_schema(
+                            "Per-call JSON-RPC timeout override in milliseconds. Defaults to `codex_app_server_client::DEFAULT_CALL_TIMEOUT` (120s) when omitted.",
+                        ),
                     ),
                 ],
                 &[],
@@ -96,8 +108,18 @@ pub(super) fn build_schemas() -> Value {
             "RestTextTurnRequest",
             object_schema(
                 vec![
-                    ("prompt", string_schema("The text prompt to send. Rejected with `400` if empty or whitespace-only.")),
-                    ("model", nullable_string_schema("Model override for the ephemeral thread. Uses the app-server's own default when omitted.")),
+                    (
+                        "prompt",
+                        string_schema(
+                            "The text prompt to send. Rejected with `400` if empty or whitespace-only.",
+                        ),
+                    ),
+                    (
+                        "model",
+                        nullable_string_schema(
+                            "Model override for the ephemeral thread. Uses the app-server's own default when omitted.",
+                        ),
+                    ),
                     ("approvalPolicy", schema_ref("RestApprovalPolicy")),
                     ("client", schema_ref("RestClientOptions")),
                 ],
@@ -111,18 +133,42 @@ pub(super) fn build_schemas() -> Value {
                 vec![
                     ("threadId", string_schema("The ephemeral thread's id.")),
                     ("turnId", string_schema("The turn's id.")),
-                    ("turnStatus", nullable_string_schema("The turn's terminal status (e.g. `\"completed\"`), or `null` if it could not be determined.")),
-                    ("agentMessage", string_schema("Concatenated assistant message text observed for the turn. Empty string if none.")),
-                    ("latestDiff", nullable_string_schema("The most recent unified diff observed for the turn, or `null` if none.")),
+                    (
+                        "turnStatus",
+                        nullable_string_schema(
+                            "The turn's terminal status (e.g. `\"completed\"`), or `null` if it could not be determined.",
+                        ),
+                    ),
+                    (
+                        "agentMessage",
+                        string_schema(
+                            "Concatenated assistant message text observed for the turn. Empty string if none.",
+                        ),
+                    ),
+                    (
+                        "latestDiff",
+                        nullable_string_schema(
+                            "The most recent unified diff observed for the turn, or `null` if none.",
+                        ),
+                    ),
                     (
                         "errors",
                         array_schema(
-                            any_value_schema("One turn-level error event, in the app-server's own shape."),
+                            any_value_schema(
+                                "One turn-level error event, in the app-server's own shape.",
+                            ),
                             "Turn error events observed while collecting the turn. Empty array if none.",
                         ),
                     ),
                 ],
-                &["threadId", "turnId", "turnStatus", "agentMessage", "latestDiff", "errors"],
+                &[
+                    "threadId",
+                    "turnId",
+                    "turnStatus",
+                    "agentMessage",
+                    "latestDiff",
+                    "errors",
+                ],
                 None,
             ),
         ),
@@ -130,7 +176,12 @@ pub(super) fn build_schemas() -> Value {
             "RestCallBody",
             object_schema(
                 vec![
-                    ("params", any_value_schema("JSON-RPC params for the target method. Defaults to `null` when omitted.")),
+                    (
+                        "params",
+                        any_value_schema(
+                            "JSON-RPC params for the target method. Defaults to `null` when omitted.",
+                        ),
+                    ),
                     ("client", schema_ref("RestClientOptions")),
                 ],
                 &[],
@@ -141,7 +192,10 @@ pub(super) fn build_schemas() -> Value {
             "RestCallResponse",
             object_schema(
                 vec![
-                    ("method", string_schema("The method that was called (echoes the path parameter).")),
+                    (
+                        "method",
+                        string_schema("The method that was called (echoes the path parameter)."),
+                    ),
                     ("result", any_value_schema("The raw JSON-RPC result.")),
                 ],
                 &["method", "result"],
@@ -150,14 +204,26 @@ pub(super) fn build_schemas() -> Value {
         ),
         (
             "RestSessionCreateRequest",
-            object_schema(vec![("client", schema_ref("RestClientOptions"))], &[], Some(false)),
+            object_schema(
+                vec![("client", schema_ref("RestClientOptions"))],
+                &[],
+                Some(false),
+            ),
         ),
         (
             "RestSessionCreateResponse",
             object_schema(
                 vec![
-                    ("sessionId", string_schema("Opaque session identifier for use in subsequent bridge calls.")),
-                    ("initializeResponse", any_value_schema("The raw app-server `initialize` response.")),
+                    (
+                        "sessionId",
+                        string_schema(
+                            "Opaque session identifier for use in subsequent bridge calls.",
+                        ),
+                    ),
+                    (
+                        "initializeResponse",
+                        any_value_schema("The raw app-server `initialize` response."),
+                    ),
                 ],
                 &["sessionId", "initializeResponse"],
                 None,
@@ -165,14 +231,21 @@ pub(super) fn build_schemas() -> Value {
         ),
         (
             "RestSessionSummary",
-            object_schema(vec![("sessionId", string_schema("Opaque session identifier."))], &["sessionId"], None),
+            object_schema(
+                vec![("sessionId", string_schema("Opaque session identifier."))],
+                &["sessionId"],
+                None,
+            ),
         ),
         (
             "RestListSessionsResponse",
             object_schema(
                 vec![(
                     "sessions",
-                    array_schema(schema_ref("RestSessionSummary"), "Currently open bridge sessions."),
+                    array_schema(
+                        schema_ref("RestSessionSummary"),
+                        "Currently open bridge sessions.",
+                    ),
                 )],
                 &["sessions"],
                 None,
@@ -180,20 +253,45 @@ pub(super) fn build_schemas() -> Value {
         ),
         (
             "RestStatusResponse",
-            object_schema(vec![("status", string_schema("A short status word, e.g. `\"deleted\"`."))], &["status"], None),
+            object_schema(
+                vec![(
+                    "status",
+                    string_schema("A short status word, e.g. `\"deleted\"`."),
+                )],
+                &["status"],
+                None,
+            ),
         ),
         ("RestEventResponse", build_rest_event_response_schema()),
         (
             "RestRequestReplyResultRequest",
-            object_schema(vec![("result", any_value_schema("The JSON-RPC result to send back to the app-server."))], &["result"], Some(false)),
+            object_schema(
+                vec![(
+                    "result",
+                    any_value_schema("The JSON-RPC result to send back to the app-server."),
+                )],
+                &["result"],
+                Some(false),
+            ),
         ),
         (
             "RestErrorReplyRequest",
             object_schema(
                 vec![
-                    ("code", integer_schema("JSON-RPC error code sent back to the app-server.")),
-                    ("message", string_schema("JSON-RPC error message sent back to the app-server.")),
-                    ("data", any_value_schema("Optional JSON-RPC error data. Omitted (defaults to `null`) when not supplied.")),
+                    (
+                        "code",
+                        integer_schema("JSON-RPC error code sent back to the app-server."),
+                    ),
+                    (
+                        "message",
+                        string_schema("JSON-RPC error message sent back to the app-server."),
+                    ),
+                    (
+                        "data",
+                        any_value_schema(
+                            "Optional JSON-RPC error data. Omitted (defaults to `null`) when not supplied.",
+                        ),
+                    ),
                 ],
                 &["code", "message"],
                 Some(false),
@@ -201,16 +299,35 @@ pub(super) fn build_schemas() -> Value {
         ),
         (
             "RestRequestReplyResponse",
-            object_schema(vec![("status", string_schema("Always `\"ok\"` on success."))], &["status"], None),
+            object_schema(
+                vec![("status", string_schema("Always `\"ok\"` on success."))],
+                &["status"],
+                None,
+            ),
         ),
         (
             "RestErrorResponse",
             object_schema(
                 vec![
-                    ("error", string_schema("Short machine-readable error kind, e.g. `\"not_found\"`, `\"rate_limited\"`, `\"json_rpc_error\"`.")),
+                    (
+                        "error",
+                        string_schema(
+                            "Short machine-readable error kind, e.g. `\"not_found\"`, `\"rate_limited\"`, `\"json_rpc_error\"`.",
+                        ),
+                    ),
                     ("message", string_schema("Human-readable error message.")),
-                    ("code", integer_schema("JSON-RPC error code, present only for `error: \"json_rpc_error\"` (a JSON-RPC error propagated from the app-server). Omitted otherwise.")),
-                    ("data", any_value_schema("JSON-RPC error data, present only for `error: \"json_rpc_error\"` when the app-server supplied one. Omitted otherwise.")),
+                    (
+                        "code",
+                        integer_schema(
+                            "JSON-RPC error code, present only for `error: \"json_rpc_error\"` (a JSON-RPC error propagated from the app-server). Omitted otherwise.",
+                        ),
+                    ),
+                    (
+                        "data",
+                        any_value_schema(
+                            "JSON-RPC error data, present only for `error: \"json_rpc_error\"` when the app-server supplied one. Omitted otherwise.",
+                        ),
+                    ),
                 ],
                 &["error", "message"],
                 None,
@@ -224,8 +341,18 @@ pub(super) fn build_schemas() -> Value {
             // (snake_case) field names. Getting this right is the entire point of this file.
             object_schema(
                 vec![
-                    ("schema_codex_version", string_schema("The Codex version this crate's vendored protocol schema was generated from (`schema/CODEX_VERSION.txt`).")),
-                    ("installed_codex_version", nullable_string_schema("Output of the local `codex --version`, or `null` if `codex` is not on `PATH` or the check failed.")),
+                    (
+                        "schema_codex_version",
+                        string_schema(
+                            "The Codex version this crate's vendored protocol schema was generated from (`schema/CODEX_VERSION.txt`).",
+                        ),
+                    ),
+                    (
+                        "installed_codex_version",
+                        nullable_string_schema(
+                            "Output of the local `codex --version`, or `null` if `codex` is not on `PATH` or the check failed.",
+                        ),
+                    ),
                     ("surface", schema_ref("SurfaceSummary")),
                 ],
                 &["schema_codex_version", "installed_codex_version", "surface"],
@@ -236,12 +363,37 @@ pub(super) fn build_schemas() -> Value {
             "SurfaceSummary",
             object_schema(
                 vec![
-                    ("client_requests", nonneg_integer_schema("Number of client->server request methods in the vendored schema.")),
-                    ("server_requests", nonneg_integer_schema("Number of server->client request methods in the vendored schema.")),
-                    ("server_notifications", nonneg_integer_schema("Number of server->client notification methods in the vendored schema.")),
-                    ("client_notifications", nonneg_integer_schema("Number of client->server notification methods in the vendored schema.")),
+                    (
+                        "client_requests",
+                        nonneg_integer_schema(
+                            "Number of client->server request methods in the vendored schema.",
+                        ),
+                    ),
+                    (
+                        "server_requests",
+                        nonneg_integer_schema(
+                            "Number of server->client request methods in the vendored schema.",
+                        ),
+                    ),
+                    (
+                        "server_notifications",
+                        nonneg_integer_schema(
+                            "Number of server->client notification methods in the vendored schema.",
+                        ),
+                    ),
+                    (
+                        "client_notifications",
+                        nonneg_integer_schema(
+                            "Number of client->server notification methods in the vendored schema.",
+                        ),
+                    ),
                 ],
-                &["client_requests", "server_requests", "server_notifications", "client_notifications"],
+                &[
+                    "client_requests",
+                    "server_requests",
+                    "server_notifications",
+                    "client_notifications",
+                ],
                 None,
             ),
         ),
@@ -304,10 +456,30 @@ fn rest_event_response_variant_schemas() -> Vec<(&'static str, Value)> {
             object_schema(
                 vec![
                     ("event", obj(vec![("const", json!("request"))])),
-                    ("requestKey", string_schema("Opaque key for replying via the `.../requests/{requestKey}/result` or `/error` routes.")),
-                    ("requestId", any_value_schema("The JSON-RPC request id (typically a number or string) as sent by the app-server.")),
-                    ("method", string_schema("The server-originated JSON-RPC method name, e.g. `currentTime/read`.")),
-                    ("request", any_value_schema("The raw server-originated JSON-RPC request (`id`, `method`, `params`).")),
+                    (
+                        "requestKey",
+                        string_schema(
+                            "Opaque key for replying via the `.../requests/{requestKey}/result` or `/error` routes.",
+                        ),
+                    ),
+                    (
+                        "requestId",
+                        any_value_schema(
+                            "The JSON-RPC request id (typically a number or string) as sent by the app-server.",
+                        ),
+                    ),
+                    (
+                        "method",
+                        string_schema(
+                            "The server-originated JSON-RPC method name, e.g. `currentTime/read`.",
+                        ),
+                    ),
+                    (
+                        "request",
+                        any_value_schema(
+                            "The raw server-originated JSON-RPC request (`id`, `method`, `params`).",
+                        ),
+                    ),
                 ],
                 &["event", "requestKey", "requestId", "method", "request"],
                 None,

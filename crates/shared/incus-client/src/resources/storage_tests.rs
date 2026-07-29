@@ -1,7 +1,7 @@
 use crate::config::ClientConfig;
 use crate::transport::{
-    unix::tests::{json_response, spawn_fake_daemon},
     Client,
+    unix::tests::{json_response, spawn_fake_daemon},
 };
 
 fn pool_json(name: &str) -> String {
@@ -122,10 +122,12 @@ async fn list_storage_volumes_is_scoped_to_a_specific_pool() {
 
     assert_eq!(volumes.len(), 1);
     assert_eq!(volumes[0]["name"], "vol1");
-    assert!(seen_request
-        .lock()
-        .unwrap()
-        .contains("/1.0/storage-pools/default/volumes"));
+    assert!(
+        seen_request
+            .lock()
+            .unwrap()
+            .contains("/1.0/storage-pools/default/volumes")
+    );
 }
 
 #[tokio::test]
@@ -202,10 +204,12 @@ async fn update_storage_pool_sends_if_match_header_when_etag_is_provided() {
         .await
         .expect("update_storage_pool should succeed synchronously");
 
-    assert!(seen_request
-        .lock()
-        .unwrap()
-        .contains("If-Match: \"pool-etag\""));
+    assert!(
+        seen_request
+            .lock()
+            .unwrap()
+            .contains("If-Match: \"pool-etag\"")
+    );
 }
 
 #[tokio::test]

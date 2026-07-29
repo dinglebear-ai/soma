@@ -113,10 +113,12 @@ fn generated_distribution_plugin_points_at_all_artifacts() {
     assert_eq!(plugin["skills"], "plugins/soma/skills");
     assert_eq!(plugin["node_package"], "packages/soma-rmcp/package.json");
     assert_eq!(plugin["docs"], "docs/generated/provider-surfaces.md");
-    assert!(plugin["provider_fingerprint"]
-        .as_str()
-        .unwrap_or_default()
-        .starts_with("sha256:"));
+    assert!(
+        plugin["provider_fingerprint"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("sha256:")
+    );
 }
 
 #[test]

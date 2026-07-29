@@ -19,7 +19,7 @@ mod trace_resolution;
 #[cfg(feature = "http")]
 mod transport;
 
-pub use rmcp_server::{rmcp_server, SomaRmcpServer};
+pub use rmcp_server::{SomaRmcpServer, rmcp_server};
 pub use state::{McpRouteScope, McpState};
 #[cfg(feature = "http")]
 pub use transport::{allowed_origins, streamable_http_config, streamable_http_service};
