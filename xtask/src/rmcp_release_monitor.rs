@@ -21,11 +21,11 @@ mod issue_body;
 mod options;
 mod schema;
 
-use conformance::{build_conformance_report, ConformanceMonitorInput};
+use conformance::{ConformanceMonitorInput, build_conformance_report};
 use diagnostics::json_parse_context;
 use issue_body::render_issue_body;
 use options::Options;
-use schema::{build_schema_report, SchemaMonitorInput};
+use schema::{SchemaMonitorInput, build_schema_report};
 
 const MARKER: &str = "<!-- rmcp-release-monitor -->";
 const DEFAULT_MAX_BODY_BYTES: usize = 60_000;

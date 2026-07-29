@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use super::diagnostics::json_parse_context;
-use super::impact::{append_impact_section, collect_identifiers, scan_repo_impacts, RepoImpact};
+use super::impact::{RepoImpact, append_impact_section, collect_identifiers, scan_repo_impacts};
 use super::short_sha;
 
 #[derive(Debug)]

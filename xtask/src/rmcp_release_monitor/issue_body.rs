@@ -8,8 +8,8 @@
 use anyhow::Result;
 use semver::Version;
 
-use super::conformance::{append_conformance_section, ConformanceReport};
-use super::schema::{append_schema_section, SchemaReport};
+use super::conformance::{ConformanceReport, append_conformance_section};
+use super::schema::{SchemaReport, append_schema_section};
 use super::{CrateVersion, CratesIoResponse, GithubRelease, MARKER};
 
 pub(super) fn render_issue_body(

@@ -4,13 +4,13 @@
 //! the two watch inputs. Keeping the flag table here means adding a monitor
 //! input touches one module instead of the orchestrator.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::PathBuf;
 
+use super::DEFAULT_MAX_BODY_BYTES;
 use super::conformance::ConformanceMonitorInput;
 use super::schema::SchemaMonitorInput;
-use super::DEFAULT_MAX_BODY_BYTES;
 
 #[derive(Debug)]
 pub(super) struct Options {
