@@ -24,6 +24,13 @@ config.runtime.json
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
+# Compiled PyO3 extension built into the source tree by `just
+# test-python-package` / maturin. A build artifact, never source: it was
+# committed once by accident (7.3 MB) and made `just test-python` fail in
+# every fresh checkout, because that suite asserts the pure-Python SDK
+# works with no native extension present.
+packages/python/python/soma_provider/_soma_native*.so
+packages/python/python/soma_provider/_soma_native*.pyd
 *.py[cod]
 *.pyo
 .venv/
