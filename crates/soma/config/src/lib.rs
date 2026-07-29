@@ -9,6 +9,6 @@ pub mod config;
 pub mod env_registry;
 
 pub use config::{
-    AuthConfig, AuthMode, Config, EffectiveRuntimeMode, McpConfig, RuntimeMode, SomaConfig,
-    TraceHeaderMode, default_data_dir, load_dotenv,
+    AuthConfig, AuthMode, Config, EffectiveRuntimeMode, McpConfig, PythonRunnerConfig,
+    PythonRunnerMode, RuntimeMode, SomaConfig, TraceHeaderMode, default_data_dir, load_dotenv,
 };

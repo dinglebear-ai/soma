@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add an opt-in, supervised persistent Python provider runner with negotiated
+  framing, installed-wheel isolation, serial busy rejection, bounded stderr and
+  pending bytes, restart quarantine, process-tree teardown, source-integrity
+  checks, async candidate preflight, and bounded generation retirement.
+- Add typed `SOMA_PYTHON_*` runner configuration and fail-closed eligibility for
+  provider or tool runtime environment declarations.
+
 ### Security
 
 * **auth:** refuse to start when a configured machine `client_id` would

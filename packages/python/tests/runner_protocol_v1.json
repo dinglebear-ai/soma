@@ -13,6 +13,8 @@
       "provider": "demo",
       "action": "lookup",
       "arguments": {"query": "soma"},
+      "surface": "mcp",
+      "snapshot_id": "snapshot-1",
       "deadline_unix_ms": 1900000000000,
       "trace": {
         "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",

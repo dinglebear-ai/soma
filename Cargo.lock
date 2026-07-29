@@ -5762,6 +5762,7 @@ name = "soma-provider-adapters"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "nix",
  "pep440_rs",
  "reqwest 0.13.4",
  "rmcp",
@@ -5780,6 +5781,7 @@ dependencies = [
  "tracing",
  "url",
  "wasmtime",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

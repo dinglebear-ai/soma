@@ -58,6 +58,7 @@ def main() -> None:
     else:
         raise AssertionError("native validation accepted invalid JSON")
     assert find_spec("soma_provider._soma_native") is not None
+    assert find_spec("soma_provider.runner") is not None
     assert find_spec("soma_runner_protocol") is None
 
 

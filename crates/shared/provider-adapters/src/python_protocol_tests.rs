@@ -4,9 +4,10 @@ use soma_provider_core::{ProviderCall, ProviderSurface};
 use super::{
     ONE_SHOT_REQUEST_ID, PYTHON_RUNNER_MAX_FRAME_BYTES, PYTHON_WORKER_SCHEMA_VERSION,
     PythonActorContext, PythonInvocationRequest, PythonInvocationState, PythonProtocolError,
-    PythonRunnerError, PythonRunnerErrorCode, PythonRunnerErrorPhase, PythonRunnerFeature,
-    PythonRunnerHello, PythonRunnerHostCall, PythonRunnerHostRequest, PythonRunnerProtocolVersion,
-    PythonRunnerReply, PythonRuntimeIdentity, PythonTraceContext, PythonWorkerHealth,
+    PythonRequestState, PythonRunnerError, PythonRunnerErrorCode, PythonRunnerErrorPhase,
+    PythonRunnerFeature, PythonRunnerHello, PythonRunnerHostCall, PythonRunnerHostMessage,
+    PythonRunnerHostRequest, PythonRunnerProtocolVersion, PythonRunnerReply,
+    PythonRunnerWorkerMessage, PythonRuntimeIdentity, PythonTraceContext, PythonWorkerHealth,
     PythonWorkerRequest, PythonWorkerResponse, decode_python_response, decode_runner_frame,
     encode_python_request, encode_runner_frame, negotiate_runner_features,
     validate_python_response,
@@ -205,12 +206,40 @@ fn runner_handshake_negotiates_minor_version_and_features() {
 }
 
 #[test]
+fn executable_handshake_and_request_state_round_trip() {
+    let initialize = PythonRunnerHostMessage::Initialize {
+        protocol: PythonRunnerProtocolVersion::current(),
+        features: vec![PythonRunnerFeature::Describe, PythonRunnerFeature::Health],
+        generation_id: "generation-1".to_owned(),
+    };
+    let frame = encode_runner_frame(&initialize).expect("initialize frame");
+    assert_eq!(
+        decode_runner_frame::<PythonRunnerHostMessage>(&frame).expect("initialize decode"),
+        initialize
+    );
+    let ready = PythonRunnerWorkerMessage::Ready {
+        protocol: PythonRunnerProtocolVersion::current(),
+        features: vec![PythonRunnerFeature::Describe, PythonRunnerFeature::Health],
+        generation_id: "generation-1".to_owned(),
+    };
+    let frame = encode_runner_frame(&ready).expect("ready frame");
+    assert_eq!(
+        decode_runner_frame::<PythonRunnerWorkerMessage>(&frame).expect("ready decode"),
+        ready
+    );
+    assert!(PythonRequestState::Accepted.is_pending());
+    assert!(!PythonRequestState::Terminal.is_pending());
+}
+
+#[test]
 fn every_host_request_round_trips_with_at_most_once_context() {
     let invocation = PythonInvocationRequest {
         invocation_id: "invoke-7".to_owned(),
         provider: "demo".to_owned(),
         action: "lookup".to_owned(),
         arguments: json!({"query": "soma"}),
+        surface: ProviderSurface::Mcp,
+        snapshot_id: "snapshot-1".to_owned(),
         deadline_unix_ms: 1_900_000_000_000,
         trace: Some(PythonTraceContext {
             traceparent: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01".to_owned(),

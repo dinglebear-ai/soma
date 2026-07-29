@@ -40,12 +40,15 @@ pub use provider_registry::{
     DynamicResourceTemplate, ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal,
     ProviderRegistry, ProviderRequestLimits, ProviderSurface, RegistrySnapshot, ResourceReadOutput,
 };
-pub use providers::filesystem::{FileProviderSource, PythonProviderEnvironmentPreparer};
+pub use providers::filesystem::{
+    FileProviderSource, PythonProviderEnvironmentPreparer, PythonRunnerSelection,
+};
 pub use providers::remote::RemoteCatalogProvider;
 pub use providers::static_rust::StaticRustProvider;
 pub use service::{
     ElicitedNameOutcome, ScaffoldIntent, ScaffoldIntentValidationError, SomaService,
 };
+pub use soma_provider_adapters::python::supervisor::PythonSupervisorConfig;
 pub use types::CodeModeExecuteRequest;
 pub use types::{
     CatalogSnapshot, DoctorReport, ElicitedName, ExecuteActionRequest, ExecuteActionResponse,
@@ -104,6 +107,15 @@ pub fn dynamic_provider_registry(service: SomaService) -> anyhow::Result<Provide
     dynamic_provider_registry_from_dir(service, default_provider_dir())
 }
 
+/// Builds a dynamic registry with an explicit Python execution strategy.
+pub async fn dynamic_provider_registry_with_python(
+    service: SomaService,
+    python_runner: PythonRunnerSelection,
+) -> anyhow::Result<ProviderRegistry> {
+    dynamic_provider_registry_from_dir_with_python(service, default_provider_dir(), python_runner)
+        .await
+}
+
 /// Build a registry combining the static provider with file-backed providers
 /// loaded from the given directory.
 pub fn dynamic_provider_registry_from_dir(
@@ -115,6 +127,21 @@ pub fn dynamic_provider_registry_from_dir(
         crate::capabilities::CapabilityBroker::default_deny(),
         FileProviderSource::new(provider_dir),
     )
+    .map_err(|error| anyhow::anyhow!(error.to_string()))
+}
+
+/// Builds a dynamic registry from a directory with explicit Python execution.
+pub async fn dynamic_provider_registry_from_dir_with_python(
+    service: SomaService,
+    provider_dir: impl Into<std::path::PathBuf>,
+    python_runner: PythonRunnerSelection,
+) -> anyhow::Result<ProviderRegistry> {
+    ProviderRegistry::with_file_source_async(
+        vec![std::sync::Arc::new(StaticRustProvider::new(service))],
+        crate::capabilities::CapabilityBroker::default_deny(),
+        FileProviderSource::new(provider_dir).with_python_runner(python_runner),
+    )
+    .await
     .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 

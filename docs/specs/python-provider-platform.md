@@ -16,7 +16,7 @@ upstream_refs:
   - "crates/shared/provider-adapters/src/python_protocol.rs"
   - "crates/shared/provider-adapters/src/python/"
   - "packages/python/"
-last_reviewed: "2026-07-28"
+last_reviewed: "2026-07-29"
 ---
 
 # Python Provider Platform Plan
@@ -82,8 +82,8 @@ Post-merge CI repairs `f9860585` and `12fc929b` are also on `main`.
 | Native binding | Thin PyO3 abi3 module delegates manifest validation to Rust. |
 | Dependencies | PEP 723 is parsed without executing provider code. |
 | Environments | Content-addressed `uv` environments can be planned, materialized, verified, inventoried, pruned, repaired, updated, and activated. |
-| Execution | Production still uses the bounded one-shot Python bridge. |
-| Persistent protocol | Framing, negotiation, messages, codecs, and fixtures exist, but are not active. |
+| Execution | One-shot remains the default; `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised workers. |
+| Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, and async candidate preflight are active in persistent mode. |
 | Context capabilities | Request identity is injected; HTTP, secrets, state, logging, metrics, progress, and cancellation are not live broker services. |
 | Isolation | Out of process with filtered environment and bounded I/O, but not OS-sandboxed. |
 | Wasm graduation | Contract boundary exists; WIT components and graduation tooling do not. |
@@ -176,8 +176,8 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 3. Python SDK | Complete baseline | Facade, Context identity, schemas, examples, and compatibility paths exist. |
 | 4. PyO3/maturin | Complete baseline | Thin abi3 validation binding and wheel CI exist. |
 | 5. PEP 723 and `uv` lifecycle | Complete | Plan through immutable activation is implemented. |
-| 6. Persistent supervised runner | Planned, next | Production catalog/invoke uses supervised workers. |
-| 7. Generation-aware reload | Partial | Registry snapshots exist; joint registry/worker activation remains. |
+| 6. Persistent supervised runner | Complete, opt-in | Typed persistent mode uses installed-wheel supervised workers; one-shot is rollback. |
+| 7. Generation-aware reload | Partial | Candidate preflight, atomic swap, refresh coalescing, and bounded retirement exist; debounce/operator rollback remain. |
 | 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
 | 9. WIT/WASI components | Planned | Versioned component ABI and reference provider exist. |
 | 10. Graduation tooling | Planned | Scaffold, compare, promote, and rollback manual rewrites. |
@@ -186,12 +186,12 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 
 ## Phase 6: Persistent Supervised Runner
 
-**Next major milestone.**
+**Delivered as an explicit opt-in with one-shot rollback.**
 
 Scope:
 
 - add `python -I -m soma_provider.runner`;
-- use a dedicated duplex control channel;
+- use reserved stdin/stdout pipes as a cross-platform duplex control channel;
 - keep protocol traffic separate from stdout/stderr;
 - negotiate the protocol before accepting work;
 - support persistent `describe` and `invoke`;
@@ -200,7 +200,7 @@ Scope:
 - capture bounded structured logs;
 - define restart budgets and crash-loop behavior;
 - recycle workers after uninterruptible synchronous timeouts;
-- retain the one-shot bridge only as an explicit migration fallback.
+- retain the one-shot bridge as the default migration and rollback mode.
 
 Exit gates:
 
@@ -210,6 +210,20 @@ Exit gates:
 - timeouts cannot poison later calls;
 - restart loops are bounded and visible;
 - all existing Python/framework fixtures pass through the new path.
+
+Implementation notes:
+
+- Workers require the matching installed `soma-provider` wheel and start with
+  `python -I -m soma_provider.runner`.
+- Provider stdout is redirected to stderr; the host retains a bounded stderr
+  ring while continuously discarding overflow.
+- One invocation is active per worker. Concurrent work receives
+  `python_provider_busy` without queueing.
+- Provider/tool runtime environment declarations are rejected in persistent
+  mode. Phase-8 broker capabilities, actor scopes, and trace propagation are
+  intentionally unavailable.
+- Unix workers own a process group and Windows workers own a kill-on-close Job
+  Object so timeout and retirement include descendants.
 
 ## Phase 7: Generation-Aware Reload
 

@@ -40,11 +40,13 @@ use crate::{
         run_bounded_sidecar, sidecar_base_env,
     },
 };
+use supervisor::{PythonSupervisorConfig, PythonWorkerIdentity, PythonWorkerSupervisor};
 
 pub mod cache;
 pub mod environment;
 pub mod lifecycle;
 pub mod materializer;
+pub mod supervisor;
 
 /// Selects the Python interpreter used when no provider-level command override
 /// is configured. `Ambient` preserves the historical platform launcher, while
@@ -61,7 +63,7 @@ impl PythonInterpreter {
         Self::Prepared(environment.python.clone())
     }
 
-    fn command(&self) -> String {
+    pub(crate) fn command(&self) -> String {
         match self {
             Self::Ambient => default_python_command().to_owned(),
             Self::Prepared(path) => path.to_string_lossy().into_owned(),
@@ -94,9 +96,30 @@ pub struct PythonProvider {
     catalog: ProviderCatalog,
     env_prefix: String,
     interpreter: PythonInterpreter,
+    supervisor: Option<Arc<PythonWorkerSupervisor>>,
 }
 
 impl PythonProvider {
+    /// Starts, negotiates, describes, and health-checks a persistent worker.
+    /// One-shot providers have no persistent preflight and return immediately.
+    pub async fn preflight(&self) -> Result<(), ProviderError> {
+        let Some(supervisor) = &self.supervisor else {
+            return Ok(());
+        };
+        supervisor.preflight().await.map(|_| ()).map_err(|error| {
+            ProviderError::new(
+                error.code(),
+                &self.catalog.provider.name,
+                None,
+                error.to_string(),
+                "Install the matching soma-provider wheel and inspect the provider source.",
+            )
+            .with_provider_kind(self.catalog.provider.kind.as_str())
+            .with_source(self.path.display().to_string())
+            .with_phase("persistent-preflight")
+        })
+    }
+
     pub fn new(path: PathBuf, catalog: ProviderCatalog, env_prefix: impl Into<String>) -> Self {
         Self::new_with_interpreter(path, catalog, env_prefix, PythonInterpreter::Ambient)
     }
@@ -112,7 +135,65 @@ impl PythonProvider {
             catalog,
             env_prefix: env_prefix.into(),
             interpreter,
+            supervisor: None,
         }
+    }
+
+    /// Builds a provider backed by one lazily-started persistent worker.
+    pub fn new_persistent(
+        path: PathBuf,
+        catalog: ProviderCatalog,
+        env_prefix: impl Into<String>,
+        interpreter: PythonInterpreter,
+        config: PythonSupervisorConfig,
+    ) -> Result<Self, ProviderError> {
+        if !catalog.env.is_empty() || catalog.tools.iter().any(|tool| !tool.env.is_empty()) {
+            return Err(ProviderError::validation(
+                &catalog.provider.name,
+                "",
+                "python_persistent_env_unsupported",
+                "Persistent Python providers cannot declare runtime environment requirements",
+            ));
+        }
+        let source = std::fs::read(&path).map_err(|error| {
+            ProviderError::execution(&catalog.provider.name, "", error)
+                .with_phase("persistent-preflight")
+        })?;
+        let source_digest = sha256_hex(&source);
+        let catalog_fingerprint = sha256_hex(
+            &serde_json::to_vec(&catalog)
+                .map_err(|error| ProviderError::execution(&catalog.provider.name, "", error))?,
+        );
+        let environment_fingerprint = sha256_hex(interpreter.command().as_bytes());
+        let generation_id = format!("{}-{}", catalog.provider.name, &source_digest[..16]);
+        let supervisor = PythonWorkerSupervisor::new(
+            PythonWorkerIdentity {
+                path: path.clone(),
+                generation_id,
+                source_digest,
+                environment_fingerprint,
+                catalog_fingerprint,
+            },
+            interpreter.clone(),
+            config,
+        );
+        Ok(Self {
+            path,
+            catalog,
+            env_prefix: env_prefix.into(),
+            interpreter,
+            supervisor: Some(supervisor),
+        })
+    }
+
+    pub fn arc_persistent(
+        path: PathBuf,
+        catalog: ProviderCatalog,
+        env_prefix: impl Into<String>,
+        interpreter: PythonInterpreter,
+        config: PythonSupervisorConfig,
+    ) -> Result<Arc<Self>, ProviderError> {
+        Self::new_persistent(path, catalog, env_prefix, interpreter, config).map(Arc::new)
     }
 
     pub fn arc(
@@ -136,6 +217,14 @@ impl PythonProvider {
             interpreter,
         ))
     }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[async_trait]
@@ -176,6 +265,45 @@ impl Provider for PythonProvider {
             .with_provider_kind(self.catalog.provider.kind.as_str())
             .with_source(source)
             .with_phase("input-validation"));
+        }
+
+        if let Some(supervisor) = &self.supervisor {
+            let value = supervisor
+                .invoke(
+                    &call.provider,
+                    &call.action,
+                    call.params.clone(),
+                    call.surface,
+                    &call.snapshot_id,
+                    Duration::from_millis(runtime.timeout_ms),
+                )
+                .await
+                .map_err(|error| {
+                    ProviderError::new(
+                        error.code(),
+                        &self.catalog.provider.name,
+                        Some(call.action.clone()),
+                        error.to_string(),
+                        "Inspect the Python provider and persistent worker status, then retry.",
+                    )
+                    .with_provider_kind(self.catalog.provider.kind.as_str())
+                    .with_source(source.clone())
+                    .with_phase("persistent-execution")
+                })?;
+            let payload_size = serde_json::to_vec(&value)
+                .map_err(|error| {
+                    ProviderError::execution(&self.catalog.provider.name, &call.action, error)
+                })?
+                .len();
+            if payload_size > runtime.max_output_bytes {
+                return Err(ProviderError::validation(
+                    &self.catalog.provider.name,
+                    &call.action,
+                    "python_output_too_large",
+                    output_exceeded_message("result", runtime.max_output_bytes),
+                ));
+            }
+            return Ok(ProviderOutput::json(value));
         }
 
         let started = TokioInstant::now();
@@ -320,6 +448,12 @@ impl Provider for PythonProvider {
             .with_phase("output-validation"));
         }
         Ok(ProviderOutput::json(value))
+    }
+
+    async fn retire(&self) {
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.drain_and_shutdown().await;
+        }
     }
 }
 
@@ -469,12 +603,12 @@ impl PythonRuntime {
 }
 
 #[cfg(windows)]
-fn default_python_command() -> &'static str {
+pub(crate) fn default_python_command() -> &'static str {
     "python"
 }
 
 #[cfg(not(windows))]
-fn default_python_command() -> &'static str {
+pub(crate) fn default_python_command() -> &'static str {
     "python3"
 }
 

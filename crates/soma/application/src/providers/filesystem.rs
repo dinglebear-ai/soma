@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use soma_domain::provider_validation::{validate_manifest_schema, validate_provider_manifest};
 use soma_provider_adapters::{
     manifest_file,
-    python::{PythonInterpreter, PythonProvider},
+    python::{supervisor::PythonSupervisorConfig, PythonInterpreter, PythonProvider},
 };
 use soma_provider_core::{ProviderCatalog, ProviderKind};
 
@@ -48,6 +48,17 @@ use filesystem_python::{
 pub struct FileProviderSource {
     root: PathBuf,
     python_environment_preparer: Option<Arc<dyn PythonProviderEnvironmentPreparer>>,
+    python_runner: PythonRunnerSelection,
+}
+
+/// Python execution strategy applied to file-backed Python providers.
+#[derive(Debug, Clone, Default)]
+pub enum PythonRunnerSelection {
+    /// Start a fresh bounded bridge process for each catalog or invocation.
+    #[default]
+    OneShot,
+    /// Keep one serial supervised worker alive per Python provider.
+    Persistent(PythonSupervisorConfig),
 }
 
 impl fmt::Debug for FileProviderSource {
@@ -59,6 +70,7 @@ impl fmt::Debug for FileProviderSource {
                 "python_environment_preparer",
                 &self.python_environment_preparer.is_some(),
             )
+            .field("python_runner", &self.python_runner)
             .finish()
     }
 }
@@ -121,6 +133,7 @@ impl FileProviderSource {
         Self {
             root: root.into(),
             python_environment_preparer: None,
+            python_runner: PythonRunnerSelection::OneShot,
         }
     }
 
@@ -131,6 +144,12 @@ impl FileProviderSource {
         preparer: Arc<dyn PythonProviderEnvironmentPreparer>,
     ) -> Self {
         self.python_environment_preparer = Some(preparer);
+        self
+    }
+
+    /// Selects persistent execution for eligible Python providers.
+    pub fn with_python_runner(mut self, runner: PythonRunnerSelection) -> Self {
+        self.python_runner = runner;
         self
     }
 
@@ -324,14 +343,97 @@ impl FileProviderSource {
         selections: &PythonProviderEnvironmentSelections,
     ) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
         self.validate_python_environment_selections(selections)?;
-        let mut providers = Vec::new();
+        let mut providers: Vec<std::sync::Arc<dyn Provider>> = Vec::new();
         for path in self.provider_paths()? {
             let interpreter = self.python_interpreter_with_environments(&path, selections)?;
             let catalog = load_catalog_with_interpreter(&path, &interpreter)?;
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
-            providers.push(provider_for_catalog(path, catalog, interpreter)?);
+            providers.push(provider_for_catalog(
+                path,
+                catalog,
+                interpreter,
+                &self.python_runner,
+            )?);
+        }
+        for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
+            let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
+                .map_err(|ResourceFileError(message)| FileProviderLoadError {
+                    path: absolute,
+                    message,
+                })?;
+            providers.push(provider);
+        }
+        Ok(providers)
+    }
+
+    /// Loads providers and preflights every persistent Python worker before
+    /// returning a candidate set to the registry.
+    pub async fn load_with_python_environments_async(
+        &self,
+        selections: &PythonProviderEnvironmentSelections,
+    ) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
+        if matches!(self.python_runner, PythonRunnerSelection::OneShot) {
+            return self.load_with_python_environments(selections);
+        }
+        self.validate_python_environment_selections(selections)?;
+        let mut providers: Vec<std::sync::Arc<dyn Provider>> = Vec::new();
+        for path in self.provider_paths()? {
+            if path.extension().and_then(|value| value.to_str()) == Some("py") {
+                let metadata =
+                    fs::symlink_metadata(&path).map_err(|error| FileProviderLoadError {
+                        path: path.clone(),
+                        message: format!("failed to inspect Python provider source: {error}"),
+                    })?;
+                if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+                    return Err(FileProviderLoadError {
+                        path,
+                        message:
+                            "persistent Python provider source must be a regular non-symlink file"
+                                .to_owned(),
+                    });
+                }
+            }
+            let interpreter = self.python_interpreter_with_environments(&path, selections)?;
+            let catalog = load_catalog_with_interpreter(&path, &interpreter)?;
+            if catalog.provider.enabled == Some(false) {
+                continue;
+            }
+            if matches!(
+                catalog.provider.kind,
+                ProviderKind::Python | ProviderKind::Langchain | ProviderKind::Llamaindex
+            ) {
+                let PythonRunnerSelection::Persistent(config) = &self.python_runner else {
+                    unreachable!("one-shot returned above")
+                };
+                let provider = PythonProvider::arc_persistent(
+                    path.clone(),
+                    catalog,
+                    PROVIDER_ENV_PREFIX,
+                    interpreter,
+                    config.clone(),
+                )
+                .map_err(|error| FileProviderLoadError {
+                    path: path.clone(),
+                    message: error.to_string(),
+                })?;
+                provider
+                    .preflight()
+                    .await
+                    .map_err(|error| FileProviderLoadError {
+                        path,
+                        message: error.to_string(),
+                    })?;
+                providers.push(SharedAdapter::wrap(provider));
+            } else {
+                providers.push(provider_for_catalog(
+                    path,
+                    catalog,
+                    interpreter,
+                    &self.python_runner,
+                )?);
+            }
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
             let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
@@ -523,18 +625,33 @@ fn provider_for_catalog(
     path: PathBuf,
     catalog: ProviderCatalog,
     interpreter: PythonInterpreter,
+    runner: &PythonRunnerSelection,
 ) -> Result<std::sync::Arc<dyn Provider>, FileProviderLoadError> {
     let kind = catalog.provider.kind;
     if matches!(
         kind,
         ProviderKind::Python | ProviderKind::Langchain | ProviderKind::Llamaindex
     ) {
-        return Ok(SharedAdapter::wrap(PythonProvider::arc_with_interpreter(
-            path,
-            catalog,
-            PROVIDER_ENV_PREFIX,
-            interpreter,
-        )));
+        let provider = match runner {
+            PythonRunnerSelection::OneShot => PythonProvider::arc_with_interpreter(
+                path,
+                catalog,
+                PROVIDER_ENV_PREFIX,
+                interpreter,
+            ),
+            PythonRunnerSelection::Persistent(config) => PythonProvider::arc_persistent(
+                path.clone(),
+                catalog,
+                PROVIDER_ENV_PREFIX,
+                interpreter,
+                config.clone(),
+            )
+            .map_err(|error| FileProviderLoadError {
+                path,
+                message: error.to_string(),
+            })?,
+        };
+        return Ok(SharedAdapter::wrap(provider));
     }
     manifest_file::build_provider(path.clone(), catalog, PROVIDER_ENV_PREFIX)
         .map(SharedAdapter::wrap)
