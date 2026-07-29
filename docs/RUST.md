@@ -50,21 +50,15 @@ machine. **This file is not committed to any repo** — it lives only in
 `~/.cargo/config.toml`.
 
 ```toml
-# sccache is enabled globally. The user service owns the long-lived server; keep
-# dev incremental disabled so Rust artifacts are cacheable across worktrees.
+# kache is the compiler cache: a plain RUSTC_WRAPPER, content-addressed
+# (blake3). There is NO PATH front door — the ~/.local/bin/cargo shim was
+# deleted with soldr on 2026-07-28. Keep dev incremental disabled: incremental
+# compilation does not compose with any compile wrapper.
 
 [build]
-# Fallback for callers that bypass ~/.local/bin/cargo. The cargo wrapper computes
-# CARGO_BUILD_JOBS dynamically from the active build count, so a solo wrapper-run
-# build gets more parallelism while concurrent builds divide the CPU budget.
-jobs = 8
-# Wrapper, not sccache directly: resolves per-project rustup toolchains and
-# passes -vV/--print probes straight to rustc.
-rustc-wrapper = "/home/jmagar/.local/bin/sccache-wrapper"
-
-[env]
-SCCACHE_SERVER_UDS = "/home/jmagar/.local/state/sccache/sccache.sock"
-SCCACHE_BASEDIRS = "/home/jmagar/workspace:/home/jmagar/.codex/worktrees"
+# Stable across builds so cache keys do not churn.
+jobs = 12
+rustc-wrapper = "kache"
 
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
@@ -101,14 +95,17 @@ config is needed. **Do not add `rustflags` to `[target.x86_64-unknown-linux-gnu]
 in a per-repo config** — that would replace, not extend, the global rustflags
 and silently drop the mold flag.
 
-### Why sccache globally?
+### Why kache globally?
 
-The host-level Cargo config enables `sccache-wrapper` once, and the user systemd
-service owns the long-lived cache daemon. That keeps dependency compilation
-cacheable across all worktrees without asking each repo to carry its own wrapper
-hook. The local `/home/jmagar/.local/bin/cargo` shim computes
-`CARGO_BUILD_JOBS` dynamically: a single build gets most cores, while concurrent
-builds divide the CPU budget so the host stays usable.
+The host-level Cargo config sets `rustc-wrapper = "kache"` once, so dependency
+compilation is cacheable across every worktree without any repo carrying its own
+wrapper hook. kache normalizes paths to sentinels internally, so unlike sccache
+there is no basedir list to maintain and no daemon socket to configure — the
+daemon is optional for local-only use.
+
+**kache never fails a build on a cache problem.** A dead daemon or a broken
+remote produces a green, slow build. Read `kache stats`; never infer cache
+health from a passing build. Full reference: `~/docs/dev/toolchain/kache.md`.
 
 ### Profile settings rationale
 
@@ -117,7 +114,7 @@ builds divide the CPU budget so the host stays usable.
 | `profile.dev.debug` | `1` | Line tables only — enough for backtraces, without the 3× binary-size penalty of full DWARF |
 | `profile.dev.codegen-units` | `8` | Parallelises compilation within a crate; 8 balances parallelism and optimisation quality |
 | `profile.dev.split-debuginfo` | `"unpacked"` | Keeps debug info in separate `.dwo` files, reducing link-step memory pressure |
-| `profile.dev.incremental` | `false` | Keeps dev artifacts cacheable by sccache across repos and worktrees |
+| `profile.dev.incremental` | `false` | Required: incremental compilation does not compose with a compile wrapper |
 | `profile.dev.opt-level` | `0` | No optimisation for the crate under active development |
 | `profile.dev.package."*".opt-level` | `1` | Light optimisation for dependencies — prevents debug-only slowness in heavy crates like `serde` and `tokio` |
 | `profile.test.debug` | `1` | Same as dev — enough for test failure backtraces |

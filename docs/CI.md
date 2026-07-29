@@ -68,7 +68,7 @@ Path classifiers, aggregate gates, and Linux jobs use the self-hosted Unraid
 runner pool (`runs-on: [self-hosted, unraid]`, see `docs/LINUX-RUNNER.md`).
 The native Windows job uses GitHub-hosted Windows
 (`runs-on: windows-latest`, see `docs/WINDOWS-RUNNER.md`). Linux Rust builds
-route through soldr and its zccache-backed persistent cache; the native Windows
+route through kache and its shared filesystem remote; the native Windows
 job runs Cargo without a compile wrapper.
 
 Self-hosted jobs, including `changes`, `ci-gate`, `MSRV Changes`, and
@@ -112,7 +112,7 @@ Use for: proving the declared `rust-version` remains honest.
 Do not use for: full behavior testing; it only checks that the workspace still
 builds on the minimum supported toolchain.
 
-Runs on PRs and pushes to `main` with Rust 1.96.0 and sccache. It is also
+Runs on PRs and pushes to `main` with Rust 1.96.0 and kache. It is also
 path-aware: `MSRV Changes` skips the self-hosted MSRV build unless Rust, native,
 TOML, or workflow files changed. Require `MSRV Gate` if this workflow is part of
 branch protection.
@@ -144,7 +144,7 @@ It runs when release-please publishes a GitHub Release, or by manual dispatch
 with an existing tag. It checks out the release tag, builds Linux and Windows
 release artifacts, writes SHA256 sums, publishes the `soma-rmcp` npm launcher
 package with provenance/trusted publishing support, and uploads artifacts to the
-existing GitHub Release. Release Cargo builds use sccache through the same
+existing GitHub Release. Release Cargo builds use kache through the same
 wrapper environment as CI. Linux release jobs cross-compile the Windows GNU
 target from the TOOTIE runner; the native Windows build is a PR-time `ci.yml`
 check, not the release packaging path. The workflow never commits generated

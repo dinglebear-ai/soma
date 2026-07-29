@@ -47,14 +47,14 @@ The PR-time Windows path:
 2. Builds the shared web export on Unraid.
 3. Starts `build-windows` on `windows-latest`.
 4. Downloads the web export.
-5. Installs stable Rust and soldr without Cargo shims.
+5. Installs stable Rust with no compile cache.
 6. Checks and tests the self-update surface.
 7. Runs the native Windows workspace tests.
 8. Builds the local-adapter and full release binaries.
 9. Uploads `target/release/soma.exe`.
 
 The native job intentionally runs Cargo without a compile wrapper. It still
-installs soldr because the shared setup action owns Rust toolchain installation
+installs no compile cache: the GitHub-hosted Windows runner has no route to the shared filesystem remote on tootie, so `setup-rust-kache` is called with `enable-cache: "false"`
 and integrity checks.
 
 ## Portable Windows CPU Flags
