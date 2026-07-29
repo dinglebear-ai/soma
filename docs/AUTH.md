@@ -158,6 +158,41 @@ compatibility with already-issued sessions and refresh tokens.
 
 ---
 
+## Machine clients
+
+`AuthConfig.machine_clients` (`{PREFIX}_AUTH_MACHINE_CLIENTS_JSON`, or the
+matching `config.toml` key) declares out-of-band machine identities that
+authenticate at `/token` with a shared secret or a `private_key_jwt`
+assertion, without a browser login or a dynamic client registration.
+
+**Precedence — configured machine clients win.** When a request authenticates
+a client at `/token`, `soma-auth` looks in `machine_clients` first and stops on
+the first match; only if no configured machine client owns that `client_id`
+does it fall through to the OAuth client registry (an RFC 7591 dynamically
+registered client, or an `https://`-shaped Client ID Metadata Document
+`client_id`). This applies to *every* grant that authenticates a client,
+including `authorization_code` and `refresh_token` — so a `client_id` present
+on both sides would change how an already-registered client must prove itself.
+
+That ambiguity is refused rather than resolved silently. `AuthState::new`
+fails startup with an `AuthError::Config` naming the offending id when a
+configured machine `client_id`:
+
+- matches a client already present in the `registered_clients` table, or
+- is shaped like a CIMD `client_id` (starts with `https://`) — those are
+  resolved by fetching the URL per request, so there is no local registry to
+  compare against and the shape itself is rejected.
+
+The check lives in `AuthState::new` rather than `AuthConfig::validate` because
+it needs both halves of the pair: the configured clients come from config, the
+registrations they could shadow live in the SQLite store, which is only opened
+once `AuthState` is being built.
+
+Fix a reported collision by renaming the machine client or deleting the
+registration — not by reordering the lookup.
+
+---
+
 ## The startup guard
 
 **The HTTP server will refuse to start if it is binding to a non-loopback address with no authentication configured.**
