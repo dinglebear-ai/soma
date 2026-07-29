@@ -4,8 +4,8 @@ use std::{
     collections::VecDeque,
     path::PathBuf,
     sync::{
+        Arc, OnceLock, Weak,
         atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, OnceLock,
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -14,7 +14,9 @@ use serde::Serialize;
 use serde_json::Value;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    net::TcpListener,
+    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
+    process::{Child, Command},
     sync::{Mutex, OwnedSemaphorePermit, Semaphore},
     task::JoinHandle,
     time::timeout,
@@ -23,10 +25,10 @@ use tokio::{
 use crate::{
     python::PythonInterpreter,
     python_protocol::{
-        negotiate_runner_features, PythonInvocationRequest, PythonProtocolError,
-        PythonRunnerErrorCode, PythonRunnerFeature, PythonRunnerHostMessage,
-        PythonRunnerHostRequest, PythonRunnerProtocolVersion, PythonRunnerReply,
-        PythonRunnerWorkerMessage, PYTHON_RUNNER_MAX_FRAME_BYTES,
+        PYTHON_RUNNER_MAX_FRAME_BYTES, PythonInvocationRequest, PythonInvocationState,
+        PythonProtocolError, PythonRequestState, PythonRunnerErrorCode, PythonRunnerFeature,
+        PythonRunnerHostMessage, PythonRunnerHostRequest, PythonRunnerProtocolVersion,
+        PythonRunnerReply, PythonRunnerWorkerMessage, negotiate_runner_features,
     },
     sidecar::{resolve_sidecar_command, sidecar_base_env},
 };
@@ -71,7 +73,6 @@ pub struct PythonWorkerIdentity {
     pub path: PathBuf,
     pub generation_id: String,
     pub source_digest: String,
-    pub environment_fingerprint: String,
     pub catalog_fingerprint: String,
 }
 
@@ -105,11 +106,21 @@ struct Worker {
     child_pid: Option<u32>,
     _job_guard: JobGuard,
     _worker_permit: OwnedSemaphorePermit,
-    stdin: ChildStdin,
-    stdout: ChildStdout,
+    stdin: OwnedWriteHalf,
+    stdout: OwnedReadHalf,
     stderr_task: JoinHandle<()>,
     stderr: Arc<Mutex<VecDeque<u8>>>,
     described: bool,
+}
+
+impl Drop for Worker {
+    fn drop(&mut self) {
+        // `Child::kill_on_drop` only covers the direct child. The worker owns
+        // the whole process tree, including descendants created by provider
+        // code, so rollback and failed unpublished candidates must signal it.
+        terminate_process_tree(self.child_pid);
+        self.stderr_task.abort();
+    }
 }
 
 /// One persistent worker per Python provider. Invocations are deliberately
@@ -123,6 +134,8 @@ pub struct PythonWorkerSupervisor {
     request_id: AtomicU64,
     restarts: Mutex<VecDeque<Instant>>,
     quarantined: AtomicBool,
+    started_once: AtomicBool,
+    discard_worker: AtomicBool,
 }
 
 impl PythonWorkerSupervisor {
@@ -141,6 +154,8 @@ impl PythonWorkerSupervisor {
             request_id: AtomicU64::new(1),
             restarts: Mutex::new(VecDeque::new()),
             quarantined: AtomicBool::new(false),
+            started_once: AtomicBool::new(false),
+            discard_worker: AtomicBool::new(false),
         })
     }
 
@@ -172,6 +187,7 @@ impl PythonWorkerSupervisor {
                 "Python provider is busy",
             ));
         }
+        let mut busy = BusyGuard::new(&self.busy, &self.discard_worker);
         let result = self
             .invoke_inner(
                 provider,
@@ -182,7 +198,7 @@ impl PythonWorkerSupervisor {
                 timeout_override,
             )
             .await;
-        self.busy.store(false, Ordering::Release);
+        busy.complete();
         result
     }
 
@@ -205,9 +221,13 @@ impl PythonWorkerSupervisor {
             ));
         }
         let mut slot = self.worker.lock().await;
+        if self.discard_worker.swap(false, Ordering::AcqRel) {
+            terminate_worker(slot.take()).await;
+        }
         self.ensure_worker(&mut slot).await?;
         let worker = slot.as_mut().expect("worker was ensured");
         let request_id = self.next_request_id();
+        let invocation_id = format!("{}-{request_id}", self.identity.generation_id);
         let deadline = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -218,7 +238,7 @@ impl PythonWorkerSupervisor {
             request: PythonRunnerHostRequest::Invoke {
                 request_id,
                 invocation: Box::new(PythonInvocationRequest {
-                    invocation_id: format!("{}-{request_id}", self.identity.generation_id),
+                    invocation_id: invocation_id.clone(),
                     provider: provider.to_owned(),
                     action: action.to_owned(),
                     arguments,
@@ -234,16 +254,21 @@ impl PythonWorkerSupervisor {
         };
         let exchange = async {
             write_frame(&mut worker.stdin, &request).await?;
-            let mut accepted = false;
+            let mut state = PythonRequestState::Written;
             loop {
                 match read_frame::<PythonRunnerWorkerMessage>(&mut worker.stdout).await? {
                     PythonRunnerWorkerMessage::Reply {
                         reply:
                             PythonRunnerReply::Accepted {
-                                request_id: actual, ..
+                                request_id: actual,
+                                invocation_id: actual_invocation_id,
+                                state: PythonInvocationState::Accepted,
                             },
-                    } if actual == request_id && !accepted => {
-                        accepted = true;
+                    } if actual == request_id
+                        && actual_invocation_id == invocation_id
+                        && state == PythonRequestState::Written =>
+                    {
+                        state = PythonRequestState::Accepted;
                         continue;
                     }
                     PythonRunnerWorkerMessage::Reply {
@@ -252,14 +277,16 @@ impl PythonWorkerSupervisor {
                                 request_id: actual,
                                 result,
                             },
-                    } if actual == request_id => return Ok(result),
+                    } if actual == request_id && state == PythonRequestState::Accepted => {
+                        return Ok(result);
+                    }
                     PythonRunnerWorkerMessage::Reply {
                         reply:
                             PythonRunnerReply::Error {
                                 request_id: actual,
                                 error,
                             },
-                    } if actual == request_id => {
+                    } if actual == request_id && state == PythonRequestState::Accepted => {
                         return Err(map_worker_error(error.code));
                     }
                     PythonRunnerWorkerMessage::HostCall { call } => {
@@ -291,7 +318,18 @@ impl PythonWorkerSupervisor {
         };
         let wait = self.config.request_timeout.min(timeout_override);
         match timeout(wait, exchange).await {
-            Ok(result) => result,
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(error))
+                if error.code() == "python_provider_failed"
+                    || error.code() == "python_provider_cancelled"
+                    || error.code() == "python_output_too_large" =>
+            {
+                Err(error)
+            }
+            Ok(Err(error)) => {
+                terminate_worker(slot.take()).await;
+                Err(error)
+            }
             Err(_) => {
                 terminate_worker(slot.take()).await;
                 Err(PythonSupervisorError::new(
@@ -314,8 +352,11 @@ impl PythonWorkerSupervisor {
         }
         if slot.is_none() {
             self.verify_source_digest()?;
-            self.record_restart().await?;
-            if !self.config.restart_backoff.is_zero() {
+            let restarting = self.started_once.swap(true, Ordering::AcqRel);
+            if restarting {
+                self.record_restart().await?;
+            }
+            if restarting && !self.config.restart_backoff.is_zero() {
                 tokio::time::sleep(self.config.restart_backoff).await;
             }
             *slot = Some(self.spawn_worker().await?);
@@ -355,8 +396,29 @@ impl PythonWorkerSupervisor {
             }
         };
         self.verify_source_digest()?;
+        let manifest = soma_provider_core::validate_provider_manifest_value(&described)
+            .map_err(|_| protocol_error())?;
+        let actual_catalog = {
+            use sha2::{Digest, Sha256};
+            Sha256::digest(serde_json::to_vec(&manifest).map_err(|_| protocol_error())?)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        };
+        if !self.identity.catalog_fingerprint.is_empty()
+            && actual_catalog != self.identity.catalog_fingerprint
+        {
+            terminate_worker(slot.take()).await;
+            return Err(PythonSupervisorError::new(
+                "python_catalog_changed",
+                "Python provider catalog changed during worker activation",
+            ));
+        }
+        if self.health_check(worker).await.is_err() {
+            terminate_worker(slot.take()).await;
+            return Err(start_error());
+        }
         worker.described = true;
-        self.health_check(worker).await?;
         Ok(described)
     }
 
@@ -393,22 +455,45 @@ impl PythonWorkerSupervisor {
             PythonInterpreter::Prepared(path) => path.to_string_lossy().into_owned(),
         };
         let mut process = Command::new(resolve_sidecar_command(&command));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|_| start_error())?;
+        let address = listener.local_addr().map_err(|_| start_error())?;
+        let token = {
+            use sha2::{Digest, Sha256};
+            Sha256::digest(format!(
+                "{}-{}-{:?}",
+                self.identity.generation_id,
+                std::process::id(),
+                SystemTime::now()
+            ))
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+        };
         process
             .args(["-I", "-m", "soma_provider.runner"])
             .kill_on_drop(true)
             .env_clear()
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
+            .env("SOMA_PYTHON_RUNNER_ADDR", address.to_string())
+            .env("SOMA_PYTHON_RUNNER_TOKEN", &token)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped());
         #[cfg(unix)]
         process.process_group(0);
         for (key, value) in sidecar_base_env() {
             process.env(key, value);
         }
-        let worker_permit = worker_budget(self.config.max_workers)
-            .acquire_owned()
-            .await
-            .map_err(|_| start_error())?;
+        // Atomic publication may briefly own both the active and replacement
+        // generations. `max_workers` remains the per-generation bound.
+        let worker_permit = timeout(
+            self.config.startup_timeout,
+            worker_budget(self.config.max_workers.saturating_mul(2)).acquire_owned(),
+        )
+        .await
+        .map_err(|_| start_error())?
+        .map_err(|_| start_error())?;
         let mut child = process.spawn().map_err(|_| {
             PythonSupervisorError::new(
                 "python_worker_start_failed",
@@ -416,9 +501,25 @@ impl PythonWorkerSupervisor {
             )
         })?;
         let child_pid = child.id();
-        let job_guard = JobGuard::new(child_pid);
-        let stdin = child.stdin.take().ok_or_else(protocol_error)?;
-        let stdout = child.stdout.take().ok_or_else(protocol_error)?;
+        let job_guard = JobGuard::new(child_pid)?;
+        let (stream, _) = timeout(self.config.startup_timeout, listener.accept())
+            .await
+            .map_err(|_| start_error())?
+            .map_err(|_| start_error())?;
+        let (mut stdout, stdin) = stream.into_split();
+        let mut actual_token = vec![0_u8; token.len()];
+        timeout(
+            self.config.startup_timeout,
+            stdout.read_exact(&mut actual_token),
+        )
+        .await
+        .map_err(|_| start_error())?
+        .map_err(|_| start_error())?;
+        if actual_token != token.as_bytes() {
+            terminate_process_tree(child_pid);
+            let _ = child.kill().await;
+            return Err(protocol_error());
+        }
         let stderr = child.stderr.take().ok_or_else(protocol_error)?;
         let retained = Arc::new(Mutex::new(VecDeque::new()));
         let stderr_task = tokio::spawn(drain_stderr(
@@ -495,7 +596,10 @@ impl PythonWorkerSupervisor {
             {
                 Ok(worker)
             }
-            _ => Err(protocol_error()),
+            _ => {
+                terminate_worker(Some(worker)).await;
+                Err(protocol_error())
+            }
         }
     }
 
@@ -586,17 +690,59 @@ fn start_error() -> PythonSupervisorError {
 }
 
 fn worker_budget(limit: usize) -> Arc<Semaphore> {
-    static BUDGET: OnceLock<Arc<Semaphore>> = OnceLock::new();
-    BUDGET
-        .get_or_init(|| Arc::new(Semaphore::new(limit.max(1))))
-        .clone()
+    shared_budget(limit, &WORKER_BUDGETS)
 }
 
 fn candidate_budget(limit: usize) -> Arc<Semaphore> {
-    static BUDGET: OnceLock<Arc<Semaphore>> = OnceLock::new();
-    BUDGET
-        .get_or_init(|| Arc::new(Semaphore::new(limit.max(1))))
-        .clone()
+    shared_budget(limit, &CANDIDATE_BUDGETS)
+}
+
+type BudgetMap = std::sync::Mutex<std::collections::BTreeMap<usize, Weak<Semaphore>>>;
+static WORKER_BUDGETS: OnceLock<BudgetMap> = OnceLock::new();
+static CANDIDATE_BUDGETS: OnceLock<BudgetMap> = OnceLock::new();
+
+fn shared_budget(limit: usize, budgets: &'static OnceLock<BudgetMap>) -> Arc<Semaphore> {
+    let limit = limit.max(1);
+    let mut budgets = budgets
+        .get_or_init(|| std::sync::Mutex::new(std::collections::BTreeMap::new()))
+        .lock()
+        .expect("Python worker budget lock should not be poisoned");
+    if let Some(budget) = budgets.get(&limit).and_then(Weak::upgrade) {
+        return budget;
+    }
+    let budget = Arc::new(Semaphore::new(limit));
+    budgets.insert(limit, Arc::downgrade(&budget));
+    budget
+}
+
+struct BusyGuard<'a> {
+    busy: &'a AtomicBool,
+    discard_worker: &'a AtomicBool,
+    completed: bool,
+}
+
+impl<'a> BusyGuard<'a> {
+    fn new(busy: &'a AtomicBool, discard_worker: &'a AtomicBool) -> Self {
+        Self {
+            busy,
+            discard_worker,
+            completed: false,
+        }
+    }
+
+    fn complete(&mut self) {
+        self.completed = true;
+        self.busy.store(false, Ordering::Release);
+    }
+}
+
+impl Drop for BusyGuard<'_> {
+    fn drop(&mut self) {
+        if !self.completed {
+            self.discard_worker.store(true, Ordering::Release);
+            self.busy.store(false, Ordering::Release);
+        }
+    }
 }
 
 fn host_call_request_id(call: &crate::python_protocol::PythonRunnerHostCall) -> u64 {
@@ -660,7 +806,7 @@ impl From<std::io::Error> for PythonSupervisorError {
 }
 
 async fn write_frame<T: Serialize>(
-    writer: &mut ChildStdin,
+    writer: &mut OwnedWriteHalf,
     message: &T,
 ) -> Result<(), PythonSupervisorError> {
     let payload = serde_json::to_vec(message).map_err(|_| invalid_output())?;
@@ -679,7 +825,7 @@ async fn write_frame<T: Serialize>(
 }
 
 async fn read_frame<T: serde::de::DeserializeOwned>(
-    reader: &mut ChildStdout,
+    reader: &mut OwnedReadHalf,
 ) -> Result<T, PythonSupervisorError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header).await?;
@@ -704,6 +850,9 @@ async fn drain_stderr<R: AsyncRead + Unpin>(
         };
         if read == 0 {
             return;
+        }
+        if limit == 0 {
+            continue;
         }
         let mut retained = retained.lock().await;
         for byte in &buffer[..read] {
@@ -748,8 +897,8 @@ struct JobGuard;
 
 #[cfg(not(windows))]
 impl JobGuard {
-    fn new(_pid: Option<u32>) -> Self {
-        Self
+    fn new(_pid: Option<u32>) -> Result<Self, PythonSupervisorError> {
+        Ok(Self)
     }
 }
 
@@ -761,39 +910,47 @@ struct JobGuard {
 
 #[cfg(windows)]
 impl JobGuard {
-    fn new(pid: Option<u32>) -> Self {
+    fn new(pid: Option<u32>) -> Result<Self, PythonSupervisorError> {
         use windows_sys::Win32::System::JobObjects::{
-            AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
         };
         use windows_sys::Win32::System::Threading::{
             OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
         };
         let Some(pid) = pid else {
-            return Self {
-                job: std::ptr::null_mut(),
-            };
+            return Err(start_error());
         };
         unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
             if job.is_null() {
-                return Self { job };
+                return Err(start_error());
             }
             let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
             info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            let _ = SetInformationJobObject(
+            if SetInformationJobObject(
                 job,
                 JobObjectExtendedLimitInformation,
                 &raw mut info as *mut _,
                 std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            );
-            let process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
-            if !process.is_null() {
-                let _ = AssignProcessToJobObject(job, process);
-                windows_sys::Win32::Foundation::CloseHandle(process);
+            ) == 0
+            {
+                windows_sys::Win32::Foundation::CloseHandle(job);
+                return Err(start_error());
             }
-            Self { job }
+            let process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
+            if process.is_null() {
+                windows_sys::Win32::Foundation::CloseHandle(job);
+                return Err(start_error());
+            }
+            let assigned = AssignProcessToJobObject(job, process);
+            windows_sys::Win32::Foundation::CloseHandle(process);
+            if assigned == 0 {
+                windows_sys::Win32::Foundation::CloseHandle(job);
+                return Err(start_error());
+            }
+            Ok(Self { job })
         }
     }
 }
@@ -835,8 +992,7 @@ mod tests {
             path: path.to_owned(),
             generation_id: "supervisor-test-generation".to_owned(),
             source_digest,
-            environment_fingerprint: "installed-test-wheel".to_owned(),
-            catalog_fingerprint: "test-catalog".to_owned(),
+            catalog_fingerprint: String::new(),
         }
     }
 

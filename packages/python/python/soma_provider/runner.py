@@ -1,9 +1,8 @@
 """Persistent Soma Python provider worker.
 
-The installed module uses reserved stdin/stdout pipes as its framed control
-channel on every supported platform. Provider-level Python stdout is redirected
-to stderr, keeping it out of the channel without an inheritable side descriptor.
-Tests may supply ``SOMA_PYTHON_RUNNER_FD`` to exercise a socket transport.
+Production uses an authenticated loopback socket so provider code and native
+extensions cannot corrupt framed control traffic through process stdio.
+Descriptor and stdio transports are retained only for protocol unit tests.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import socket
 import struct
 import sys
 from pathlib import Path
@@ -57,7 +57,15 @@ def decode_frame(frame: bytes) -> dict[str, Any]:
 
 
 class FramedChannel:
-    def __init__(self, fd: int | None) -> None:
+    def __init__(self, fd: int | None, address: str | None = None, token: str | None = None) -> None:
+        if address is not None:
+            host, port = address.rsplit(":", 1)
+            connection = socket.create_connection((host, int(port)), timeout=10)
+            connection.set_inheritable(False)
+            connection.sendall((token or "").encode("ascii"))
+            self._reader = connection.makefile("rb", buffering=0)
+            self._writer = connection.makefile("wb", buffering=0)
+            return
         if fd is None:
             self._reader = sys.stdin.buffer
             self._writer = sys.stdout.buffer
@@ -135,8 +143,8 @@ class Worker:
         if path.suffix != ".py":
             return _error(message.get("request_id"), "python_import_failed", "Python provider source must be a .py file")
         with contextlib.redirect_stdout(sys.stderr):
-            catalog = _runtime.catalog(path)
             module = _runtime.load_module(path)
+            catalog = _runtime.catalog(path, module)
         self.module = module
         self.catalog = catalog
         return {"type": "reply", "status": "ok", "request_id": message["request_id"], "result": catalog}
@@ -212,9 +220,13 @@ class Worker:
 
 
 def main() -> int:
-    raw = os.environ.get("SOMA_PYTHON_RUNNER_FD")
+    raw = os.environ.pop("SOMA_PYTHON_RUNNER_FD", None)
+    address = os.environ.pop("SOMA_PYTHON_RUNNER_ADDR", None)
+    token = os.environ.pop("SOMA_PYTHON_RUNNER_TOKEN", None)
+    if raw is None and address is None and os.environ.pop("SOMA_PYTHON_RUNNER_TEST_STDIO", None) != "1":
+        raise ProtocolError("private Python runner control channel is required")
     descriptor = int(raw) if raw is not None else None
-    return asyncio.run(Worker(FramedChannel(descriptor)).serve())
+    return asyncio.run(Worker(FramedChannel(descriptor, address, token)).serve())
 
 
 if __name__ == "__main__":

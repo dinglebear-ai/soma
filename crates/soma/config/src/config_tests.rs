@@ -200,10 +200,12 @@ fn python_runner_rejects_unknown_mode_and_zero_limits() {
     {
         let _mode = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MODE", "persistent");
         let _workers = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MAX_WORKERS", "0");
-        assert!(Config::load()
-            .unwrap_err()
-            .to_string()
-            .contains("MAX_WORKERS"));
+        assert!(
+            Config::load()
+                .unwrap_err()
+                .to_string()
+                .contains("MAX_WORKERS")
+        );
     }
 }
 

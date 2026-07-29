@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use soma_domain::provider_validation::{validate_manifest_schema, validate_provider_manifest};
 use soma_provider_adapters::{
     manifest_file,
-    python::{supervisor::PythonSupervisorConfig, PythonInterpreter, PythonProvider},
+    python::{PythonInterpreter, PythonProvider, supervisor::PythonSupervisorConfig},
 };
 use soma_provider_core::{ProviderCatalog, ProviderKind};
 
@@ -342,6 +342,13 @@ impl FileProviderSource {
         &self,
         selections: &PythonProviderEnvironmentSelections,
     ) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
+        if matches!(self.python_runner, PythonRunnerSelection::Persistent(_)) {
+            return Err(FileProviderLoadError {
+                path: self.root.clone(),
+                message: "persistent Python providers require the async preflight loading path"
+                    .to_owned(),
+            });
+        }
         self.validate_python_environment_selections(selections)?;
         let mut providers: Vec<std::sync::Arc<dyn Provider>> = Vec::new();
         for path in self.provider_paths()? {
@@ -396,7 +403,16 @@ impl FileProviderSource {
                 }
             }
             let interpreter = self.python_interpreter_with_environments(&path, selections)?;
-            let catalog = load_catalog_with_interpreter(&path, &interpreter)?;
+            let catalog_path = path.clone();
+            let catalog_interpreter = interpreter.clone();
+            let catalog = tokio::task::spawn_blocking(move || {
+                load_catalog_with_interpreter(&catalog_path, &catalog_interpreter)
+            })
+            .await
+            .map_err(|error| FileProviderLoadError {
+                path: path.clone(),
+                message: format!("Python catalog task failed: {error}"),
+            })??;
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
@@ -418,13 +434,16 @@ impl FileProviderSource {
                     path: path.clone(),
                     message: error.to_string(),
                 })?;
-                provider
-                    .preflight()
-                    .await
-                    .map_err(|error| FileProviderLoadError {
+                if let Err(error) = provider.preflight().await {
+                    for started in &providers {
+                        started.retire().await;
+                    }
+                    soma_provider_core::Provider::retire(provider.as_ref()).await;
+                    return Err(FileProviderLoadError {
                         path,
                         message: error.to_string(),
-                    })?;
+                    });
+                }
                 providers.push(SharedAdapter::wrap(provider));
             } else {
                 providers.push(provider_for_catalog(

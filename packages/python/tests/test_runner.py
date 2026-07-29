@@ -8,9 +8,11 @@ from soma_runner_protocol import decode_frame, encode_frame
 
 
 class PersistentRunnerTests(unittest.TestCase):
-    def test_isolated_module_uses_reserved_stdio_control_channel(self):
+    def test_isolated_module_supports_explicit_test_stdio_control_channel(self):
+        env = dict(os.environ, SOMA_PYTHON_RUNNER_TEST_STDIO="1")
         process = subprocess.Popen(
             [sys.executable, "-I", "-m", "soma_provider.runner"],
+            env=env,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

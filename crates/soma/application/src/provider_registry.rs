@@ -534,9 +534,6 @@ impl ProviderRegistry {
     pub async fn refresh_file_providers_async(
         &self,
     ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
-        // Coalesce concurrent refresh requests. Candidate discovery and
-        // preflight still happen outside the registry's synchronous locks.
-        let _refresh_guard = self.refresh_gate.lock().await;
         let Some(file_source) = &self.file_source else {
             return Ok(self.snapshot());
         };
@@ -549,6 +546,19 @@ impl ProviderRegistry {
                 state.file_fingerprint.clone(),
                 state.python_environments.clone(),
             )
+        };
+        if file_source
+            .fingerprint_with_python_environments(&active_environments)
+            .ok()
+            .as_deref()
+            == baseline_fingerprint.as_deref()
+        {
+            return Ok(self.snapshot());
+        }
+        // A refresh already in progress must never queue unrelated request
+        // paths. They continue on the last atomically published snapshot.
+        let Ok(_refresh_guard) = self.refresh_gate.try_lock() else {
+            return Ok(self.snapshot());
         };
         let file_fingerprint =
             match file_source.fingerprint_with_python_environments(&active_environments) {
@@ -626,7 +636,7 @@ impl ProviderRegistry {
     }
 
     /// Validates and atomically activates one immutable Python environment candidate.
-    pub fn activate_python_candidate(
+    pub async fn activate_python_candidate(
         &self,
         provider_path: &Path,
         candidate: PreparedPythonEnvironment,
@@ -656,7 +666,8 @@ impl ProviderRegistry {
         next_environments.insert(provider_path, candidate);
 
         let dynamic_providers = file_source
-            .load_with_python_environments(&next_environments)
+            .load_with_python_environments_async(&next_environments)
+            .await
             .map_err(|error| {
                 ProviderValidationError::new(
                     "provider_candidate_validation_failed",

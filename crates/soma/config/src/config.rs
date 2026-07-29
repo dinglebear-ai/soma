@@ -639,16 +639,16 @@ impl Config {
             };
         }
 
-        if let Ok(value) = std::env::var("SOMA_PYTHON_RUNNER_MODE") {
-            if !value.is_empty() {
-                config.python.mode = match value.to_ascii_lowercase().as_str() {
-                    "one-shot" | "oneshot" => PythonRunnerMode::OneShot,
-                    "persistent" => PythonRunnerMode::Persistent,
-                    other => anyhow::bail!(
-                        "invalid SOMA_PYTHON_RUNNER_MODE {other:?}: must be \"one-shot\" or \"persistent\""
-                    ),
-                };
-            }
+        if let Ok(value) = std::env::var("SOMA_PYTHON_RUNNER_MODE")
+            && !value.is_empty()
+        {
+            config.python.mode = match value.to_ascii_lowercase().as_str() {
+                "one-shot" | "oneshot" => PythonRunnerMode::OneShot,
+                "persistent" => PythonRunnerMode::Persistent,
+                other => anyhow::bail!(
+                    "invalid SOMA_PYTHON_RUNNER_MODE {other:?}: must be \"one-shot\" or \"persistent\""
+                ),
+            };
         }
         env_parse(
             "SOMA_PYTHON_RUNNER_STARTUP_TIMEOUT_MS",

@@ -384,8 +384,9 @@ def tool_schema(tool, kind):
     return langchain_schema(tool)
 
 
-def catalog(path):
-    module = load_module(path)
+def catalog(path, module=None):
+    if module is None:
+        module = load_module(path)
     config = provider_config(module)
     tools = provider_tools(module)
     kind = detect_kind(module, tools, config)
@@ -525,5 +526,4 @@ async def execute(path, action, params, payload):
     if kind == "llamaindex":
         return await call_llamaindex(tool, params)
     return await call_langchain(tool, params)
-
 

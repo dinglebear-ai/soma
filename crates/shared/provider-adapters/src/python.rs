@@ -164,14 +164,12 @@ impl PythonProvider {
             &serde_json::to_vec(&catalog)
                 .map_err(|error| ProviderError::execution(&catalog.provider.name, "", error))?,
         );
-        let environment_fingerprint = sha256_hex(interpreter.command().as_bytes());
         let generation_id = format!("{}-{}", catalog.provider.name, &source_digest[..16]);
         let supervisor = PythonWorkerSupervisor::new(
             PythonWorkerIdentity {
                 path: path.clone(),
                 generation_id,
                 source_digest,
-                environment_fingerprint,
                 catalog_fingerprint,
             },
             interpreter.clone(),
