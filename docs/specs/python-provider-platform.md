@@ -46,9 +46,10 @@ path must use it and its failure behavior must be verified.
 
 ## Verified Snapshot
 
-Last reconciled on **2026-07-28** against `origin/main` at `e9273ba8`.
+Last reconciled on **2026-07-29** against `origin/main` at `47bb3131`.
 
-The Python stack was merged by `749bc026` and ends at `4993e57e`:
+The immutable-environment stack was merged by `749bc026` and ends at
+`4993e57e`; the supervised persistent runner was merged by `47bb3131`:
 
 ```text
 1d4b3e1b  Python authoring contract
@@ -68,9 +69,11 @@ cb6c957b  cache inventory
 4a55996d  cache repair
 305b00dd  immutable environment updates
 4993e57e  immutable candidate activation
+47bb3131  supervised persistent runner activation
 ```
 
-Post-merge CI repairs `f9860585` and `12fc929b` are also on `main`.
+Post-environment-merge CI repairs `f9860585` and `12fc929b` are also on
+`main`.
 
 ## Current Runtime Truth
 
@@ -148,7 +151,9 @@ does not claim automatic translation of arbitrary Python into Rust or Wasm.
 - stable states and errors
 - Rust/Python codecs and shared fixtures
 
-This seam is **foundation complete**. The one-shot bridge is still active.
+The protocol seam and its supervised worker implementation are complete for the
+opt-in persistent mode. The one-shot bridge remains the default migration and
+rollback path.
 
 ### Immutable environment lifecycle
 
@@ -183,6 +188,11 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 10. Graduation tooling | Planned | Scaffold, compare, promote, and rollback manual rewrites. |
 | 11. `componentize-py` | Experimental | Narrow compatibility-scanned Python component path. |
 | 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
+
+The earlier session-local implementation plan numbered the `uv` lifecycle as
+Phase 4 and the persistent runner as Phase 5. Both are implemented. This
+canonical plan separates PyO3/maturin into its own Phase 4, so those same
+delivered slices appear here as Phases 5 and 6.
 
 ## Phase 6: Persistent Supervised Runner
 
