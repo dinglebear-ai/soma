@@ -106,9 +106,15 @@ jobs:
       - name: Go cold — clear this runner's private store and target dir
         run: |
           set -euo pipefail
+          # Stop the container-lifetime daemon before deleting the store out
+          # from under its open SQLite index, then restart it (same user —
+          # the supervise loop would also revive it within 10 s, but an
+          # explicit start keeps this step deterministic).
+          kache daemon stop || true
           rm -rf "${KACHE_CACHE_DIR:?}"
           mkdir -p "$KACHE_CACHE_DIR"
           cargo clean
+          kache daemon start
           echo "local store and target cleared — every unit must now come from the shared remote or a fresh compile"
 
       - name: kache gate baseline
@@ -125,12 +131,37 @@ jobs:
           KACHE_GATE_REQUIRE_DAEMON: "1"
         run: ./scripts/kache-gate.sh
 
-      # The runner's post-job cleanup terminates the daemon as an orphan, which
-      # truncates the async upload queue mid-drain — run 1 of this canary lost
-      # ~half its 938 seeded artifacts that way. `kache daemon stop` is a
-      # graceful shutdown that drains pending uploads first (verified on dookie
-      # 2026-07-29). Runs AFTER the gate so the gate still sees a live daemon;
-      # the setup action starts a fresh daemon next job.
-      - name: Drain kache uploads
+      # No drain step any more, deliberately: the farm image supervises a
+      # container-lifetime daemon that is OUTSIDE job process groups, so the
+      # post-job orphan reaper cannot kill it and pending uploads finish after
+      # the job ends. (The per-job-daemon era lost ~half of each seeding run's
+      # uploads to that reaper; a bounded `kache daemon stop` drain recovered
+      # only part of the tail. Stopping the shared daemon at job end would now
+      # be actively harmful.)
+
+      # Lockstep probe: dookie and the runners only share one cache-key
+      # population while glibc, cargo profiles, and RUSTFLAGS stay aligned.
+      # dookie publishes the key it computes for the frozen probe crate; this
+      # step recomputes it here and fails on drift. The weekly canary cannot
+      # catch this any other way — runner↔runner sharing keeps it green while
+      # dookie↔runner sharing silently splits.
+      - name: kache key lockstep probe (dookie ↔ runners)
         if: always()
-        run: kache daemon stop || true
+        run: |
+          set -euo pipefail
+          ref=/home/runner/kache-remote/key-probe-reference.txt
+          if [ ! -r "$ref" ]; then
+            echo "no dookie reference at $ref — skipping lockstep check"
+            exit 0
+          fi
+          kache purge --crate-name kache_key_probe >/dev/null 2>&1 || true
+          cargo build --quiet --manifest-path ci/kache-key-probe/Cargo.toml --target-dir /tmp/key-probe-target
+          key="$(kache list kache_key_probe | grep -m1 'Cache key' | awk '{print $3}')"
+          exp="$(cut -d' ' -f1 "$ref")"
+          echo "runner key: $key"
+          echo "dookie ref: $(cat "$ref")"
+          if [ "$key" != "$exp" ]; then
+            echo "::error::kache key drift: runner and dookie no longer compute the same cache key for the frozen probe. Check glibc generation, cargo profile blocks, and RUSTFLAGS lockstep (runner image vs dookie ~/.cargo/config.toml)."
+            exit 1
+          fi
+          echo "lockstep OK — dookie and runners share one key population"

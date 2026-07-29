@@ -84,6 +84,14 @@ runs:
         KACHE_VERSION: "0.12.0"
       run: |
         set -euo pipefail
+        # The farm image bakes an exactly-pinned kache at /usr/local/bin/kache
+        # (and runs the daemon for the container lifetime). Download only when
+        # the baked binary is absent or the wrong version — e.g. a runner
+        # image that predates the bake, or a non-farm self-hosted box.
+        if [ -x /usr/local/bin/kache ] && /usr/local/bin/kache --version | grep -q " ${KACHE_VERSION}\$"; then
+          echo "kache ${KACHE_VERSION} baked into the runner image — skipping download"
+          exit 0
+        fi
         target=x86_64-unknown-linux-musl
         # The release's .sha256 names the ORIGINAL asset filename, so the
         # tarball must be saved under that exact name. Downloading it as
@@ -107,13 +115,18 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        # The LOCAL store is per-runner and must never be shared: kache's
-        # SQLite index cannot be held across containers, and a shared index
-        # degrades silently to uncached builds. GITHUB_WORKSPACE is
-        # /_work/<repo>/<repo> and the farm bind-mounts /_work persistently
-        # per runner, so ../.kache is persistent AND private. Same placement
-        # the soldr setup used, for the same reason.
-        cache_dir="$(cd "$GITHUB_WORKSPACE/.." && pwd)/.kache"
+        # ONE local store per runner container at /_work/.kache — /_work is
+        # this runner's PRIVATE persistent host mount, so the store survives
+        # jobs and recycles without ever crossing an OS boundary (the
+        # forbidden case is cross-CONTAINER sharing, not cross-repo: a single
+        # store dedups every repo on this runner and is the store the
+        # container-lifetime daemon serves). Fall back to the old
+        # workspace-parent path only where /_work does not exist.
+        if [ -d /_work ] && [ -w /_work ]; then
+          cache_dir=/_work/.kache
+        else
+          cache_dir="$(cd "$GITHUB_WORKSPACE/.." && pwd)/.kache"
+        fi
         mkdir -p "$cache_dir"
 
         # The REMOTE is the shared surface: one directory on tootie's raidz1
@@ -128,7 +141,12 @@ runs:
         # the gate enforces. Do not move enforcement into this step.
         remote_dir=/home/runner/kache-remote
         mkdir -p "$HOME/.config/kache"
-        if [ -w "$remote_dir" ]; then
+        # The farm image bakes a config carrying local_store + the remote;
+        # the container daemon read it at boot. Never overwrite it — a
+        # per-job rewrite would race the daemon's view of the store.
+        if grep -qs "^local_store" "$HOME/.config/kache/config.toml"; then
+          echo "baked kache config present — leaving it alone"
+        elif [ -w "$remote_dir" ]; then
           cat > "$HOME/.config/kache/config.toml" <<TOML
         [cache]
         local_max_size = "40GiB"
@@ -163,15 +181,18 @@ runs:
           echo "KACHE_MAX_SIZE=40GiB"
         } >> "$GITHUB_ENV"
 
-    - name: Start kache daemon
+    - name: Ensure kache daemon
       if: inputs.enable-cache == 'true' && runner.os == 'Linux'
       shell: bash
       run: |
         set -euo pipefail
-        # Explicit start, not lazy. The daemon is the ONLY path that uploads
-        # dependency artifacts (sync --push covers workspace members only) and
-        # the ONLY path that performs remote lookups.
-        kache daemon start
+        # The farm image supervises a container-lifetime daemon (started at
+        # boot, outside job process groups, so the post-job orphan reaper
+        # cannot kill it and the upload queue survives job end). This step is
+        # therefore normally a no-op verification; the start covers non-farm
+        # runners. The daemon is the ONLY path that uploads dependency
+        # artifacts and the ONLY path that performs remote lookups.
+        kache daemon status >/dev/null 2>&1 || kache daemon start
         kache daemon
 
     - name: Print cache evidence
