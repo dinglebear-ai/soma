@@ -1,0 +1,12 @@
+# FROZEN — never edit this crate. Its only purpose is that dookie and the CI
+# runners compile byte-identical source and compare the resulting kache cache
+# key; any edit here must be mirrored in dookie's reference writer
+# (~/.local/bin/kache-key-probe.sh) or the lockstep check false-alarms forever.
+[package]
+name = "kache_key_probe"
+version = "0.0.1"
+edition = "2021"
+
+# Detach from the soma workspace: this crate must key identically when built
+# from any checkout of any repo that carries a copy of it.
+[workspace]
