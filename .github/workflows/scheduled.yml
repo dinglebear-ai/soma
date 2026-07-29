@@ -115,7 +115,18 @@ jobs:
           mkdir -p "$KACHE_CACHE_DIR"
           cargo clean
           kache daemon start
-          echo "local store and target cleared — every unit must now come from the shared remote or a fresh compile"
+          # Wait until the daemon actually answers before unleashing hundreds
+          # of parallel rustc wrappers at it: kache is fail-open, so every RPC
+          # that races daemon initialization silently skips the remote check
+          # and compiles — a 0%-hit build that looks like a cache regression
+          # but is only a settle race (observed on canary run 6: 0/938).
+          for _ in $(seq 1 30); do
+            kache daemon status >/dev/null 2>&1 && break
+            sleep 1
+          done
+          kache daemon status >/dev/null 2>&1 || { echo "::error::kache daemon did not come back after store wipe"; exit 1; }
+          sleep 3
+          echo "local store and target cleared, daemon answering — every unit must now come from the shared remote or a fresh compile"
 
       - name: kache gate baseline
         run: ./scripts/kache-gate.sh --baseline

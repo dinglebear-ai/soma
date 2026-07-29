@@ -191,8 +191,15 @@ runs:
         # cannot kill it and the upload queue survives job end). This step is
         # therefore normally a no-op verification; the start covers non-farm
         # runners. The daemon is the ONLY path that uploads dependency
-        # artifacts and the ONLY path that performs remote lookups.
+        # artifacts and the ONLY path that performs remote lookups — and kache
+        # is fail-open, so wrappers that race daemon initialization silently
+        # skip the remote and compile. Wait until it answers.
         kache daemon status >/dev/null 2>&1 || kache daemon start
+        for _ in $(seq 1 30); do
+          kache daemon status >/dev/null 2>&1 && break
+          sleep 1
+        done
+        kache daemon status >/dev/null 2>&1 || { echo "::error::kache daemon is not answering"; exit 1; }
         kache daemon
 
     - name: Print cache evidence
