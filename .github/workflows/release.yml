@@ -76,7 +76,7 @@ jobs:
       - name: Install Rust and kache
         uses: ./.github/actions/setup-rust-kache
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
           targets: ${{ matrix.target }}
 
       - name: Build web assets
