@@ -23,18 +23,17 @@
 //! happened. Revoking the refresh token still severs renewal; outstanding
 //! access tokens age out on their own (one hour by default).
 
-use axum::Json;
 use axum::extract::{ConnectInfo, Form, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use std::net::SocketAddr;
 use tracing::{info, warn};
 
-use crate::error::{AuthError, AuthErrorKind};
+use crate::error::AuthError;
 use crate::state::AuthState;
 use crate::token_client_auth;
 use crate::types::{RevocationRequest, TokenRequest};
-use crate::util::{fingerprint, remote_ip};
+use crate::util::{apply_no_store, fingerprint, oauth_error_response, remote_ip};
 
 /// RFC 7009 section 2.1 `token_type_hint` value naming the one token type this
 /// server cannot revoke.
@@ -157,16 +156,6 @@ fn revocation_success() -> Response {
     apply_no_store(StatusCode::OK.into_response())
 }
 
-fn apply_no_store(mut response: Response) -> Response {
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
-        .headers_mut()
-        .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-    response
-}
-
 /// Failures that reach the client as an RFC 6749 section 5.2 error object,
 /// which RFC 7009 section 2.2.1 adopts wholesale for this endpoint.
 enum RevocationEndpointError {
@@ -255,21 +244,13 @@ impl RevocationEndpointError {
 
 impl IntoResponse for RevocationEndpointError {
     fn into_response(self) -> Response {
-        let status = self.status();
-        let log_kind = self.log_kind();
-        let retry_after_ms = self.retry_after_ms();
-        let body = Json(serde_json::json!({
-            "error": self.oauth_error(),
-            "error_description": self.description(),
-        }));
-        let mut response = (status, body).into_response();
-        response.extensions_mut().insert(AuthErrorKind(log_kind));
-        if let Some(retry_after_ms) = retry_after_ms
-            && let Ok(value) = HeaderValue::from_str(&(retry_after_ms / 1_000).max(1).to_string())
-        {
-            response.headers_mut().insert(header::RETRY_AFTER, value);
-        }
-        apply_no_store(response)
+        oauth_error_response(
+            self.status(),
+            self.oauth_error(),
+            self.description(),
+            self.log_kind(),
+            self.retry_after_ms(),
+        )
     }
 }
 

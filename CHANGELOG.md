@@ -42,6 +42,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stdout and generated issue body are byte-identical across the rmcp-drift,
   schema-drift, conformance-drift, no-drift, truncation, and error paths.
 
+* **auth:** consolidate the duplicated OAuth response plumbing in
+  `crates/shared/auth`. The `Cache-Control: no-store` + `Pragma: no-cache`
+  stamp had six copies (`token.rs`, `revoke.rs`, `registration.rs`,
+  `error.rs`, and four `Cache-Control`-only sites in `authorize.rs`); the
+  RFC 6749 §5.2 error-object assembly had three (`TokenEndpointError`,
+  `RegistrationError`, `RevocationEndpointError`). Both now live in `util.rs`
+  as `apply_no_store`/`apply_cache_control_no_store` and
+  `oauth_error_response`. Each endpoint keeps its own variant-to-code,
+  variant-to-status, and variant-to-description mapping, which genuinely
+  differ per RFC. Purely internal: every status code, `error` code,
+  `error_description`, `Retry-After`, log `kind`, and cache header is
+  unchanged, including `authorize.rs`'s deliberate omission of `Pragma`.
+
 ### Fixed
 
 * **auth:** stop a public client's token refreshes from depending on its own

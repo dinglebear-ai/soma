@@ -1,7 +1,7 @@
 use axum::extract::{ConnectInfo, Form, State};
 use axum::{
     Json,
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
 use base64::Engine;
@@ -11,15 +11,15 @@ use std::net::SocketAddr;
 use subtle::ConstantTimeEq;
 use tracing::{info, warn};
 
-use crate::error::{AuthError, AuthErrorKind};
+use crate::error::AuthError;
 use crate::jwt::AccessClaims;
 use crate::state::AuthState;
 use crate::token_client_auth;
 use crate::types::AuthorizationCodeRow;
 use crate::types::{RefreshTokenRow, TokenRequest, TokenResponse};
 use crate::util::{
-    duration_secs_usize, expires_at, fingerprint, now_unix, random_token, remote_ip,
-    timestamp_usize,
+    apply_no_store, duration_secs_usize, expires_at, fingerprint, now_unix, oauth_error_response,
+    random_token, remote_ip, timestamp_usize,
 };
 
 pub async fn token(
@@ -278,21 +278,13 @@ impl TokenEndpointError {
 
 impl IntoResponse for TokenEndpointError {
     fn into_response(self) -> Response {
-        let status = self.status();
-        let log_kind = self.log_kind();
-        let retry_after_ms = self.retry_after_ms();
-        let body = Json(serde_json::json!({
-            "error": self.oauth_error(),
-            "error_description": self.description(),
-        }));
-        let mut response = (status, body).into_response();
-        response.extensions_mut().insert(AuthErrorKind(log_kind));
-        if let Some(retry_after_ms) = retry_after_ms
-            && let Ok(value) = HeaderValue::from_str(&(retry_after_ms / 1_000).max(1).to_string())
-        {
-            response.headers_mut().insert(header::RETRY_AFTER, value);
-        }
-        apply_token_cache_headers(response)
+        oauth_error_response(
+            self.status(),
+            self.oauth_error(),
+            self.description(),
+            self.log_kind(),
+            self.retry_after_ms(),
+        )
     }
 }
 
@@ -300,18 +292,8 @@ struct TokenResponseWithCache(Json<TokenResponse>);
 
 impl IntoResponse for TokenResponseWithCache {
     fn into_response(self) -> Response {
-        apply_token_cache_headers(self.0.into_response())
+        apply_no_store(self.0.into_response())
     }
-}
-
-fn apply_token_cache_headers(mut response: Response) -> Response {
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
-        .headers_mut()
-        .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-    response
 }
 
 async fn authorization_code_grant(
