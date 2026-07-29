@@ -14,7 +14,6 @@ permissions:
 
 env:
   CARGO_INCREMENTAL: "0"
-  SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
 
 jobs:
   release-meta:
@@ -74,8 +73,8 @@ jobs:
         with:
           ref: ${{ needs.release-meta.outputs.tag_name }}
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.90.0
           targets: ${{ matrix.target }}

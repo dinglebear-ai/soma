@@ -31,7 +31,6 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   CARGO_INCREMENTAL: "0"
-  SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
 
 jobs:
   # ── fmt: cargo fmt --check ──────────────────────────────────────────────────
@@ -42,8 +41,8 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
           components: rustfmt
@@ -59,8 +58,8 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
           components: clippy
@@ -76,8 +75,8 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
 
@@ -94,8 +93,8 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
 
@@ -117,8 +116,8 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
 
@@ -269,8 +268,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
 
@@ -318,8 +317,8 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install Rust + soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
 
