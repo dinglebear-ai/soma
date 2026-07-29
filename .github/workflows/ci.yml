@@ -204,6 +204,14 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-nextest
 
+      # This job runs `just test-python*` below but never installed `just` - it
+      # inherited whatever the runner happened to have. Provision it explicitly.
+      - name: Set up mise tools
+        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        with:
+          install_args: just
+          cache: true
+
       - name: Build stdio test binary
         run: cargo build --bin soma
 
