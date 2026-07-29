@@ -113,14 +113,18 @@ runs:
 
         # The REMOTE is the shared surface: one directory on tootie's raidz1
         # cache pool, bind-mounted into every runner.
+        #
+        # A missing mount degrades to local-only rather than failing the job:
+        # runners are rolled out one image build at a time, so hard-failing here
+        # would break every runner that has not been recreated yet. The
+        # DEGRADATION IS NOT SILENT — it is annotated here and enforced by
+        # scripts/kache-gate.sh, which fails the job when
+        # KACHE_GATE_REQUIRE_REMOTE=1 and no remote hit occurred. Setup degrades;
+        # the gate enforces. Do not move enforcement into this step.
         remote_dir=/home/runner/kache-remote
-        if [ ! -w "$remote_dir" ]; then
-          echo "::error::shared kache remote $remote_dir is missing or not writable"
-          exit 1
-        fi
-
         mkdir -p "$HOME/.config/kache"
-        cat > "$HOME/.config/kache/config.toml" <<TOML
+        if [ -w "$remote_dir" ]; then
+          cat > "$HOME/.config/kache/config.toml" <<TOML
         [cache]
         local_max_size = "40GiB"
 
@@ -129,6 +133,14 @@ runs:
         path = "$remote_dir"
         prefix = "artifacts"
         TOML
+          echo "kache remote: $remote_dir"
+        else
+          cat > "$HOME/.config/kache/config.toml" <<TOML
+        [cache]
+        local_max_size = "40GiB"
+        TOML
+          echo "::warning::shared kache remote $remote_dir is missing or not writable — running LOCAL-ONLY. This runner neither reads from nor contributes to the shared cache."
+        fi
 
         {
           echo "RUSTC_WRAPPER=kache"
