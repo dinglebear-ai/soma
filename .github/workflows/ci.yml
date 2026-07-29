@@ -45,7 +45,7 @@ jobs:
       - name: Install Rust + soldr
         uses: ./.github/actions/setup-rust-soldr
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
           components: rustfmt
 
       - name: cargo fmt --check
@@ -62,7 +62,7 @@ jobs:
       - name: Install Rust + soldr
         uses: ./.github/actions/setup-rust-soldr
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
           components: clippy
 
       - name: cargo clippy -- -D warnings
@@ -79,7 +79,7 @@ jobs:
       - name: Install Rust + soldr
         uses: ./.github/actions/setup-rust-soldr
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-nextest
@@ -97,7 +97,7 @@ jobs:
       - name: Install Rust + soldr
         uses: ./.github/actions/setup-rust-soldr
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-llvm-cov
@@ -120,7 +120,7 @@ jobs:
       - name: Install Rust + soldr
         uses: ./.github/actions/setup-rust-soldr
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
 
       - name: Configure disposable localhost SSH fixture
         shell: bash
@@ -272,7 +272,7 @@ jobs:
       - name: Install Rust + soldr
         uses: ./.github/actions/setup-rust-soldr
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
 
       - name: Check PATTERNS.md contracts
         run: cargo xtask patterns
@@ -321,7 +321,7 @@ jobs:
       - name: Install Rust + soldr
         uses: ./.github/actions/setup-rust-soldr
         with:
-          toolchain: 1.90.0
+          toolchain: 1.97.1
 
       - name: cargo deny check
         uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2
