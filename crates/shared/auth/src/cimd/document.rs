@@ -136,7 +136,7 @@ pub enum CimdError {
 impl CimdError {
     /// Stable kind string for structured logging. Deliberately NOT surfaced
     /// verbatim (via `Display`/`to_string()`) to the anonymous `/authorize`
-    /// caller — see `authorize::resolve_client_redirect_uris`, which logs
+    /// caller — see `registration::resolve_client_redirect_uris`, which logs
     /// the full error server-side via this `kind()` plus `Display` but
     /// returns only a generic message in the HTTP response.
     /// A detailed message returned to an unauthenticated caller lets them

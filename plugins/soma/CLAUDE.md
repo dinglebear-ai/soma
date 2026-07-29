@@ -60,7 +60,7 @@ The three-tier structure must be preserved:
 This package ships **no** lifecycle hooks, so nothing runs `soma setup
 plugin-hook` automatically — run it manually after install or a settings
 change. Do not add a `hooks` key or a `hooks/hooks.json`: `just
-validate-plugin`, `cargo xtask check-patterns`, and
+validate-plugin`, `cargo xtask patterns`, and
 `apps/soma/tests/plugin_contract.rs` all assert their absence.
 
 Sensitive fields declared `"sensitive": true` in `plugin.json` are **never** substituted into skill content.
