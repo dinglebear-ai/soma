@@ -95,17 +95,11 @@ impl IntoResponse for AuthError {
         }));
         let mut response = (status, body).into_response();
         response.extensions_mut().insert(AuthErrorKind(self.kind()));
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-        response
-            .headers_mut()
-            .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
         if let Self::RateLimited { retry_after_ms, .. } = self
             && let Ok(value) = HeaderValue::from_str(&(retry_after_ms / 1_000).max(1).to_string())
         {
             response.headers_mut().insert(header::RETRY_AFTER, value);
         }
-        response
+        crate::util::apply_no_store(response)
     }
 }

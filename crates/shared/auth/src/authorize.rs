@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Query, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect};
 use axum::{Json, response::Response};
 use base64::Engine;
@@ -19,7 +19,9 @@ use crate::types::{
     BrowserLoginStateRow, CallbackQuery, NativeAuthorizationResultRow, NativePollQuery,
     NativePollResponse,
 };
-use crate::util::{expires_at, fingerprint, now_unix, random_token, remote_ip};
+use crate::util::{
+    apply_cache_control_no_store, expires_at, fingerprint, now_unix, random_token, remote_ip,
+};
 
 const AUTH_REQUEST_TTL_SECS: i64 = 300;
 const NATIVE_SUCCESS_PAGE: &str = r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Signed in</h2><p>You can close this tab and return to the app.</p></body></html>"#;
@@ -167,11 +169,7 @@ fn render_provider_picker(state: &AuthState, return_to: &str) -> Response {
     let body = format!(
         r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Sign in</h2><ul style="list-style:none;padding:0;font-size:1.1rem;line-height:2.5">{links}</ul></body></html>"#
     );
-    let mut response = axum::response::Html(body).into_response();
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
+    apply_cache_control_no_store(axum::response::Html(body).into_response())
 }
 
 fn provider_label(provider_id: &str) -> &'static str {
@@ -501,10 +499,8 @@ pub async fn callback(
                 )?,
             })
             .await?;
-        let mut response = axum::response::Html(NATIVE_SUCCESS_PAGE).into_response();
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        let response =
+            apply_cache_control_no_store(axum::response::Html(NATIVE_SUCCESS_PAGE).into_response());
         debug!(
             auth_code_id = %auth_code_id,
             native_callback_endpoint = %native_callback_endpoint,
@@ -550,15 +546,13 @@ pub async fn native_callback(Query(query): Query<NativePollQuery>) -> Result<Res
             "missing `state` parameter".to_string(),
         ));
     }
-    let mut response = (
-        StatusCode::GONE,
-        axum::response::Html(NATIVE_CALLBACK_EXPIRED_PAGE),
-    )
-        .into_response();
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    Ok(response)
+    Ok(apply_cache_control_no_store(
+        (
+            StatusCode::GONE,
+            axum::response::Html(NATIVE_CALLBACK_EXPIRED_PAGE),
+        )
+            .into_response(),
+    ))
 }
 
 pub async fn native_poll(
@@ -571,7 +565,7 @@ pub async fn native_poll(
             "missing `state` parameter".to_string(),
         ));
     }
-    let mut response = if let Some(row) = state
+    let response = if let Some(row) = state
         .store
         .take_native_authorization_result(state_param)
         .await?
@@ -587,10 +581,7 @@ pub async fn native_poll(
         )
             .into_response()
     };
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    Ok(response)
+    Ok(apply_cache_control_no_store(response))
 }
 
 fn sanitize_return_to(state: &AuthState, requested: Option<&str>) -> String {

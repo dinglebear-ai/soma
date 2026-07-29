@@ -8,16 +8,16 @@
 use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Json, response::Response};
 use tracing::{info, warn};
 
-use crate::error::{AuthError, AuthErrorKind};
+use crate::error::AuthError;
 use crate::redirect_uri::is_allowed_redirect_uri;
 use crate::state::AuthState;
 use crate::types::{ClientRegistrationRequest, ClientRegistrationResponse, RegisteredClient};
-use crate::util::{now_unix, random_token, remote_ip};
+use crate::util::{now_unix, oauth_error_response, random_token, remote_ip};
 
 pub async fn register_client(
     State(state): State<AuthState>,
@@ -182,27 +182,13 @@ impl RegistrationError {
 
 impl IntoResponse for RegistrationError {
     fn into_response(self) -> Response {
-        let status = self.status();
-        let log_kind = self.log_kind();
-        let retry_after_ms = self.retry_after_ms();
-        let body = Json(serde_json::json!({
-            "error": self.oauth_error(),
-            "error_description": self.description(),
-        }));
-        let mut response = (status, body).into_response();
-        response.extensions_mut().insert(AuthErrorKind(log_kind));
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-        response
-            .headers_mut()
-            .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-        if let Some(retry_after_ms) = retry_after_ms
-            && let Ok(value) = HeaderValue::from_str(&(retry_after_ms / 1_000).max(1).to_string())
-        {
-            response.headers_mut().insert(header::RETRY_AFTER, value);
-        }
-        response
+        oauth_error_response(
+            self.status(),
+            self.oauth_error(),
+            self.description(),
+            self.log_kind(),
+            self.retry_after_ms(),
+        )
     }
 }
 
