@@ -5,7 +5,7 @@
 use serde_json::{Value, json};
 
 use super::{
-    json::{obj, schema_ref},
+    json::obj,
     route_table::{ROUTES, RouteDef},
 };
 
