@@ -93,6 +93,8 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `check-file-size.sh` | Bash wrapper | `cargo xtask check-file-size`, `just file-size-check`, lefthook pre-commit | Delegates to xtask to enforce staged source-file size budgets. |
 | `asciicheck.py` | Python wrapper | `cargo xtask asciicheck`, through `run-ascii-check.sh` | Delegates to xtask to check files for unexpected non-ASCII characters and optionally fix common smart punctuation. |
 | `run-ascii-check.sh` | Bash wrapper | `cargo xtask run-ascii-check`, `just ascii-check`, `just ascii-fix`, CI | Delegates to xtask to collect tracked text-like files and run `asciicheck.py`. |
+| `kache-gate.sh` | Bash | `.github/workflows/ci.yml` (before/after each cached build) | Fails the job when the kache compiler cache silently degrades - dead daemon, unreachable remote, or a hit rate under the configured floor. kache is fail-open, so without this a broken cache is a green, slow build. |
+| `kache-gate-selftest.sh` | Bash | `scripts/kache-gate-selftest.sh` | Proves the gate rejects a degraded build *and* passes a healthy one, plus its baseline scoping. A gate that always passes hides breakage; one that always fails gets ignored. |
 | `build-web.sh` | Bash wrapper | `cargo xtask build-web`, `just build-web` | Delegates to xtask to build the optional Next.js static web UI export. |
 | `web-watch.sh` | Bash wrapper | `cargo xtask web-watch`, `just web-watch` | Delegates to xtask to rebuild the optional web UI on changes using `watchexec`. |
 
@@ -514,6 +516,50 @@ when `dist/.cache/soma-cli.schema_hash` already matches and `dist/soma-cli`
 exists. The generated CLI embeds the token; do not commit or share it.
 
 Soma adopters must update the port, generated binary name, and token env var.
+
+### `kache-gate.sh`
+
+```bash
+scripts/kache-gate.sh --baseline    # before the build: snapshot cumulative counters
+scripts/kache-gate.sh               # after the build: diff and enforce
+```
+
+Turns a silently-degraded compiler cache into a red job.
+
+kache is **fail-open by design**: it never fails a build over a cache problem.
+A dead daemon, an unreachable remote, or a mis-normalized cache key all present
+as a green build that is merely slow. soldr degraded exactly that way for a
+full day before anyone noticed, which is why this gate exists.
+
+It works by **baseline-and-diff**, not `kache report --since`. In kache 0.12.0
+`--since` does not actually bound the event window - the summary counters are
+cumulative over the whole event log - so a `--since`-based gate would go
+permanently red after one historical store failure, and pass forever after one
+historical remote hit. Snapshotting before the build and diffing after is exact
+rather than time-windowed, and stays correct if upstream later fixes `--since`.
+
+| Variable | Default | Meaning |
+|---|---:|---|
+| `KACHE_GATE_BASELINE` | `$RUNNER_TEMP`/`/tmp` + `/kache-gate-baseline.json` | Snapshot path. |
+| `KACHE_GATE_MIN_HIT_RATE` | `0` | Integer percent floor, applied to this build's delta. |
+| `KACHE_GATE_REQUIRE_REMOTE` | `0` | `1` requires new remote hits this build. |
+| `KACHE_GATE_REQUIRE_DAEMON` | `0` | `1` requires a reachable daemon. |
+| `KACHE_GATE_ROOT` | `$PWD` | Build tree to scope to. |
+
+Exit codes: `0` pass, `1` gate violation, `2` report unusable.
+
+### `kache-gate-selftest.sh`
+
+```bash
+scripts/kache-gate-selftest.sh
+```
+
+Proves `kache-gate.sh` rejects a degraded build and its baseline-and-diff
+scoping works.
+
+Both failure directions are tested deliberately: a gate that only ever passes
+converts "the cache broke" into "CI is green", and a gate that always fails
+trains people to ignore it.
 
 ### `pre-release-check.sh`
 
