@@ -39,8 +39,15 @@ just install-local
 ```
 
 `monitors/monitors.json` is optional and only useful for HTTP deployments. Its
-command uses `${user_config.server_url}` substitution — this is resolved at
-runtime from the user's plugin settings. Do not hardcode URLs in `monitors.json`.
+command must **not** reference `${user_config.*}`: Claude Code v2.1.207+ rejects
+that in monitor commands and the monitor silently never starts. Monitor processes
+also receive no `CLAUDE_PLUGIN_OPTION_*`. `soma watch` therefore takes no `--url`
+and resolves its own default from config; if a monitor ever needs a non-default
+URL, read it from a config file inside the script — the documented alternative.
+Do not hardcode URLs in `monitors.json` either.
+
+**This is scaffold text.** Whatever shape this takes is inherited by every server
+generated from soma, so keep it correct.
 
 When adding a new monitor: add an entry to `monitors.json` and reference the installed `soma` binary or scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/`.
 
