@@ -31,7 +31,6 @@ permissions:
 
 env:
   CARGO_INCREMENTAL: "0"
-  SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -46,8 +45,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-deny
@@ -64,10 +63,10 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_audit }}
         run: cargo deny check all
 
-  # NOTE: the soldr compile store is now a persistent host bind mount on the
-  # runner farm (CACHE_MOUNTS soldr:/home/runner/.cache/soldr), shared across
+  # NOTE: the kache LOCAL store is per-runner under /_work/<repo>/../.kache
+  # (never shared); the shared surface is the filesystem remote, mounted across
   # runners and repos. Bounding it is handled where it belongs — zccache's own
   # LRU eviction plus the farm's host-side `prune-cache` — NOT a CI job. A
   # weekly `rm -rf` from inside one runner would race live builds on the other
-  # runners and delete a cache shared by every repo. The earlier soldr-store-gc
+  # runners and delete a cache shared by every repo. The earlier store-gc
   # job was removed for that reason.

@@ -30,8 +30,7 @@ env:
   # CUSTOMIZE: Replace "soma" with your binary name.
   BINARY_NAME: soma
   CARGO_INCREMENTAL: "0"
-  # Release builds route through soldr (cargo tool shims) and its compiler cache.
-  SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
+  # Release builds route through kache (RUSTC_WRAPPER) and its compiler cache.
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
 
 jobs:
@@ -49,8 +48,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Validate release tag
         id: validate
@@ -84,7 +83,7 @@ jobs:
             exit 1
           fi
           # Keep this short validation build isolated from any stale shared-runner
-          # target entries while retaining soldr's compiler and zccache layers.
+          # target entries while retaining kache's compiler cache layers.
           CARGO_TARGET_DIR="${RUNNER_TEMP}/soma-version-sync-target" \
             cargo xtask check-version-sync
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
@@ -155,8 +154,8 @@ jobs:
           name: web-out
           path: apps/web/out
 
-      - name: Install Rust target and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust target and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           targets: ${{ matrix.target }}
 
@@ -166,7 +165,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
-          # setup-soldr exports target-specific CC/CXX values for the host
+          # the setup action exports target-specific CC/CXX values for the host
           # compiler. Override them after setup so native dependencies such as
           # aws-lc-sys are compiled with MinGW for the requested Windows target.
           {

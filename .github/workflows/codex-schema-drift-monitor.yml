@@ -57,7 +57,6 @@ jobs:
     timeout-minutes: 15
     env:
       CARGO_INCREMENTAL: "0"
-      SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,8 +67,8 @@ jobs:
           install_args: gh
           cache: true
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Run codex-schema drift check
         id: drift
@@ -90,7 +89,7 @@ jobs:
         if: steps.drift.outputs.skipped == 'false' && steps.drift.outputs.in_sync == 'false'
         run: cargo xtask codex-schema drift > codex-schema-drift.txt
 
-      # CLICOLOR_FORCE=0 is load-bearing, not cosmetic. The setup-rust-soldr
+      # CLICOLOR_FORCE=0 is load-bearing, not cosmetic. A runner setup
       # action exports CLICOLOR_FORCE=1 into GITHUB_ENV, so every later step
       # inherits it, and gh treats that as "force color on" even in command
       # substitution - NO_COLOR does not override it. Without this the --jq

@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 15
     env:
       CARGO_INCREMENTAL: "0"
-      SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
       GH_TOKEN: ${{ github.token }}
       MCP_SCHEMA_PATH: schema/2025-11-25/schema.ts
       MCP_SCHEMA_RAW_URL: https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-11-25/schema.ts
@@ -37,8 +36,8 @@ jobs:
           install_args: gh
           cache: true
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Fetch rmcp crate metadata
         run: |
@@ -47,7 +46,7 @@ jobs:
             https://crates.io/api/v1/crates/rmcp \
             -o rmcp-crate.json
 
-      # CLICOLOR_FORCE=0 is load-bearing, not cosmetic. The setup-rust-soldr
+      # CLICOLOR_FORCE=0 is load-bearing, not cosmetic. A runner setup
       # action exports CLICOLOR_FORCE=1 into GITHUB_ENV, so every later step
       # inherits it, and gh treats that as "force color on" even when stdout is
       # redirected to a file - NO_COLOR does not override it. Without this the

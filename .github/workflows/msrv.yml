@@ -15,7 +15,6 @@ concurrency:
 
 env:
   CARGO_INCREMENTAL: "0"
-  SOLDR_CACHE_DIR: ${{ github.workspace }}/../.soldr-cache
 
 jobs:
   changes:
@@ -32,8 +31,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
 
       - name: Classify changed paths
         id: classify
@@ -66,8 +65,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust 1.96.0 and soldr
-        uses: ./.github/actions/setup-rust-soldr
+      - name: Install Rust 1.96.0 and kache
+        uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.96.0
 
