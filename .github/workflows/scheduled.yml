@@ -124,3 +124,13 @@ jobs:
           KACHE_GATE_REQUIRE_REMOTE: "1"
           KACHE_GATE_REQUIRE_DAEMON: "1"
         run: ./scripts/kache-gate.sh
+
+      # The runner's post-job cleanup terminates the daemon as an orphan, which
+      # truncates the async upload queue mid-drain — run 1 of this canary lost
+      # ~half its 938 seeded artifacts that way. `kache daemon stop` is a
+      # graceful shutdown that drains pending uploads first (verified on dookie
+      # 2026-07-29). Runs AFTER the gate so the gate still sees a live daemon;
+      # the setup action starts a fresh daemon next job.
+      - name: Drain kache uploads
+        if: always()
+        run: kache daemon stop || true
