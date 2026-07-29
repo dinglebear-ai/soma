@@ -25,6 +25,11 @@ on:
         required: false
         default: true
         type: boolean
+      remote_canary:
+        description: "Run the kache cold cross-runner canary (clears this runner's local store)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -65,8 +70,57 @@ jobs:
 
   # NOTE: the kache LOCAL store is per-runner under /_work/<repo>/../.kache
   # (never shared); the shared surface is the filesystem remote, mounted across
-  # runners and repos. Bounding it is handled where it belongs — zccache's own
-  # LRU eviction plus the farm's host-side `prune-cache` — NOT a CI job. A
-  # weekly `rm -rf` from inside one runner would race live builds on the other
-  # runners and delete a cache shared by every repo. The earlier store-gc
-  # job was removed for that reason.
+  # runners and repos. Bounding it is handled where it belongs — kache's own
+  # cost-aware local GC (0.12.0) plus the weekly kache-reaper.sh cron on tootie
+  # for the never-evicting remote — NOT a CI job. A weekly `rm -rf` from inside
+  # one runner would race live builds on the other runners and delete a cache
+  # shared by every repo. The earlier store-gc job was removed for that reason.
+
+  # ── kache-remote-canary: cold cross-runner proof of the shared remote ────────
+  #
+  # WHY THIS EXISTS INSTEAD OF KACHE_GATE_REQUIRE_REMOTE=1 ON EVERY JOB:
+  # the gate measures per-build deltas, and a runner whose private store and
+  # target dir are already warm legitimately serves everything locally — zero
+  # NEW remote hits is the HEALTHY outcome there. A standing REQUIRE_REMOTE=1
+  # would red exactly the builds that need the remote least. The failure mode
+  # that actually needs coverage — the shared remote silently degrading while
+  # every warm runner keeps passing — is only observable from a COLD start, so
+  # this job manufactures one: clear this runner's private store, clear the
+  # workspace target dir, rebuild, and require that the artifacts come from the
+  # shared remote seeded by earlier CI runs and canaries.
+  #
+  # First-ever run on an empty remote reds by design (it seeds; nothing could
+  # have served it). Every later weekly run must go green or the shared remote
+  # has regressed.
+  kache-remote-canary:
+    name: kache remote canary (cold cross-runner)
+    if: ${{ github.event_name == 'schedule' || inputs.remote_canary }}
+    runs-on: [self-hosted, unraid]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
+
+      - name: Go cold — clear this runner's private store and target dir
+        run: |
+          set -euo pipefail
+          rm -rf "${KACHE_CACHE_DIR:?}"
+          mkdir -p "$KACHE_CACHE_DIR"
+          cargo clean
+          echo "local store and target cleared — every unit must now come from the shared remote or a fresh compile"
+
+      - name: kache gate baseline
+        run: ./scripts/kache-gate.sh --baseline
+
+      - name: Build cold against the shared remote
+        run: cargo check --workspace --all-targets --locked
+
+      - name: kache gate (remote hits required)
+        if: always()
+        env:
+          KACHE_GATE_MIN_HIT_RATE: "50"
+          KACHE_GATE_REQUIRE_REMOTE: "1"
+          KACHE_GATE_REQUIRE_DAEMON: "1"
+        run: ./scripts/kache-gate.sh
