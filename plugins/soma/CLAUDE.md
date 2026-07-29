@@ -29,6 +29,21 @@ together. Do not assume a shared `.mcp.json` exists in this plugin.
 
 When changing user-configurable settings, update all three manifests: `userConfig` in the Claude and Codex `plugin.json` files, and `settings` in `gemini-extension.json`. Keep field names and descriptions consistent across all three.
 
+**These settings are declarative, not auto-applied — know this before copying
+the pattern.** This package deliberately ships no `.mcp.json` (see
+`plugins/README.md`: the server is expected to be reached through the user's
+existing gateway or local MCP setup), so there is no `env` block for
+`${user_config.*}` to flow into, and no lifecycle hook to bridge them either.
+The fields exist to *declare* what an operator must wire into their own
+gateway config; `apps/soma/tests/plugin_contract.rs` asserts the core five are
+present. Filling them in the settings UI configures nothing by itself.
+
+Every server generated from this scaffold does the opposite: it ships an
+`.mcp.json` whose `env` block maps each `userConfig` key to a `<SERVICE>_*`
+variable, which is what actually delivers config to a stdio server. If you are
+deriving a server, wire the env block — do not inherit soma's gateway-oriented
+shape by accident.
+
 ## Monitors (Claude Code v2.1.105+)
 
 The default stdio MCP registration runs `soma mcp`. The binary must be installed
