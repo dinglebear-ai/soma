@@ -34,7 +34,7 @@
 #   KACHE_GATE_REQUIRE_DAEMON 1 => require a reachable daemon               (default 0)
 #   KACHE_GATE_ROOT           build tree to scope to  (default $PWD; --root DOES work)
 #
-# Exit: 0 pass · 1 gate violation · 2 report unusable
+# Exit: 0 pass | 1 gate violation | 2 report unusable
 set -uo pipefail
 
 BASELINE="${KACHE_GATE_BASELINE:-${RUNNER_TEMP:-/tmp}/kache-gate-baseline.json}"
