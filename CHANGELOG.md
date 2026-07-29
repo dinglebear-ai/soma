@@ -25,6 +25,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hard limit instead of 27. Pure refactor: `SqliteStore`'s public API, every
   SQL statement, and the schema are unchanged, and no call site moved.
 
+* **xtask:** split `rmcp-release-monitor` along its real seams and retire its
+  bespoke module-size exemption. The module had grown to 1181 effective lines
+  against a hard limit of 1200 — 19 lines of headroom, so the next non-trivial
+  edit would have failed `cargo xtask patterns` and forced another emergency
+  extraction. It is now an orchestrator (300 lines: read options, detect the
+  pinned rmcp version, ask each watch, emit the Actions outputs) over five
+  focused submodules: `options.rs` (the CLI flag table), `schema.rs` and
+  `conformance.rs` (the two upstream watches, each owning its payload types,
+  report builder, and Markdown section), `impact.rs` (the identifier
+  extraction and repo scan both watches share), and `issue_body.rs` (issue
+  Markdown assembly and size clamping), alongside the existing
+  `diagnostics.rs`. Every file is now under the ordinary 350-line target, so
+  the `Some(600)` exemption in `xtask/src/patterns/util.rs` was removed rather
+  than raised — `xtask/src/scaffold.rs` keeps it. Pure refactor: the monitor's
+  stdout and generated issue body are byte-identical across the rmcp-drift,
+  schema-drift, conformance-drift, no-drift, truncation, and error paths.
+
 ### Fixed
 
 * **auth:** stop a public client's token refreshes from depending on its own
