@@ -27,8 +27,8 @@ unless Jacob asks for that variant by name.
 | Remote | `git@github.com:dinglebear-ai/soma.git` |
 | Default branch | `main` |
 | Former names | `rmcp-template`, then `rtemplate-mcp` — both GitHub names now redirect here. Fix any local remote still pointing at `jmagar/*`. |
-| Workspace | 34 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `apps/*`, plus `xtask` |
-| rmcp pin | `rmcp = { version = "=2.2.0", default-features = false }` — an **exact** pin in `[workspace.dependencies]`, deliberately duplicated on the `rmcp-client` alias entry because TOML cannot cross-reference. Bump both together. |
+| Workspace | 35 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `crates/integrations/*`, `apps/soma`, `packages/python`, plus `xtask`. Note `apps/web` and `apps/palette` are **not** cargo members — they are frontend assets. |
+| rmcp pin | `rmcp = { version = "=3.0.0-beta.2", default-features = false }` — an **exact** pin in `[workspace.dependencies]`, deliberately duplicated on the `rmcp-client` alias entry (`Cargo.toml:81`) because TOML cannot cross-reference. Bump both together. |
 
 `crates/soma/*` is product code (this server). `crates/shared/*` is reusable
 engine code (auth, gateway, mcp client/server/proxy, provider adapters,
@@ -275,7 +275,7 @@ and the CLI subcommand/flag documented.
 
 The plugin package ships **no Claude Code lifecycle hooks**: no manifest
 declares a `hooks` key and there is no `plugins/soma/hooks/hooks.json`.
-`just validate-plugin`, `cargo xtask check-patterns`, and
+`just validate-plugin`, `cargo xtask patterns`, and
 `apps/soma/tests/plugin_contract.rs` all assert their absence — do not add them
 back. The `soma setup plugin-hook` subcommand still exists (it is the
 cross-repo standard the other Rust MCP servers wire up, and

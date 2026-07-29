@@ -638,16 +638,18 @@ just validate-plugin
 
 ### Workspace layout
 
-34 cargo members:
+35 cargo members:
 
 | Path | Contents |
 |---|---|
 | `crates/soma/*` | Product code for this server — domain, application, config, client, api, cli, mcp, runtime, integrations, palette, web, test-support |
 | `crates/shared/*` | Reusable engine crates other servers consume — auth, mcp (client/server/proxy/gateway), provider-core, provider-adapters, http-api, http-server, observability, openapi, self-update, traces, codemode, cli-core |
-| `apps/*` | Binaries and frontends — `apps/soma` (the `soma` binary and integration tests), `apps/web`, `apps/palette` |
+| `crates/integrations/*` | Upstream service bridges — `gotify`, `unifi` |
+| `apps/soma` | The `soma` binary and its integration tests. **The only cargo member under `apps/`** — `apps/web` (Next.js) and `apps/palette` (assets) are not Rust crates. |
+| `packages/python` | pyo3 Python provider platform (`abi3-py311`) |
 | `xtask` | All repository automation; `scripts/*.py` are thin wrappers over it |
 
-`rmcp` is pinned exactly — `rmcp = { version = "=2.2.0", default-features = false }`
+`rmcp` is pinned exactly — `rmcp = { version = "=3.0.0-beta.2", default-features = false }`
 in `[workspace.dependencies]`, duplicated on the `rmcp-client` alias entry
 because TOML cannot cross-reference. Bump both together.
 

@@ -69,7 +69,7 @@ See `.codex-plugin/README.md` for a full field reference and `brandColor` guide.
 
 **This plugin package ships no lifecycle hooks.** No manifest declares a
 `hooks` key and there is no `hooks/hooks.json`. Do not add one — `just
-validate-plugin`, `cargo xtask check-patterns`, and the `plugin_contract` tests
+validate-plugin`, `cargo xtask patterns`, and the `plugin_contract` tests
 all assert their absence.
 
 ### `soma setup plugin-hook`
