@@ -85,13 +85,18 @@ runs:
       run: |
         set -euo pipefail
         target=x86_64-unknown-linux-musl
-        url="https://github.com/kunobi-ninja/kache/releases/download/v${KACHE_VERSION}/kache-${target}.tar.gz"
+        # The release's .sha256 names the ORIGINAL asset filename, so the
+        # tarball must be saved under that exact name. Downloading it as
+        # kache.tar.gz makes `sha256sum -c` look for a file that does not
+        # exist and report a "mismatch" that is really a naming bug.
+        asset="kache-${target}.tar.gz"
+        url="https://github.com/kunobi-ninja/kache/releases/download/v${KACHE_VERSION}/${asset}"
         tmp="$(mktemp -d)"
-        curl -fsSL --retry 3 -o "$tmp/kache.tar.gz" "$url"
-        curl -fsSL --retry 3 -o "$tmp/kache.tar.gz.sha256" "${url}.sha256"
-        ( cd "$tmp" && sha256sum -c --status kache.tar.gz.sha256 ) \
-          || { echo "::error::kache checksum mismatch"; exit 1; }
-        tar -xzf "$tmp/kache.tar.gz" -C "$tmp"
+        curl -fsSL --retry 3 -o "$tmp/${asset}" "$url"
+        curl -fsSL --retry 3 -o "$tmp/${asset}.sha256" "${url}.sha256"
+        ( cd "$tmp" && sha256sum -c "${asset}.sha256" ) \
+          || { echo "::error::kache checksum verification failed for ${asset}"; exit 1; }
+        tar -xzf "$tmp/${asset}" -C "$tmp"
         install -Dm755 "$(find "$tmp" -type f -name kache | head -n1)" "$HOME/.local/bin/kache"
         rm -rf "$tmp"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
