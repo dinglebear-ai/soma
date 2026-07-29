@@ -52,7 +52,7 @@ jobs:
         run: cat changed-files.txt || true
 
   msrv:
-    name: Minimum Supported Rust Version (1.97.1)
+    name: Minimum Supported Rust Version
     needs: [changes]
     if: ${{ (needs.changes.outputs.rust == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.toml == 'true' || needs.changes.outputs.workflow == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, unraid]
@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust 1.97.1 and kache
+      - name: Install Rust and kache
         uses: ./.github/actions/setup-rust-kache
         with:
           toolchain: 1.97.1
