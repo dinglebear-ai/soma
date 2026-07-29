@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+* **auth:** split `crates/shared/auth/src/sqlite.rs` along two storage seams to
+  restore module-size headroom. The three `upstream_oauth_*` tables (provider
+  credentials, per-flow CSRF/PKCE state, dynamic client registrations) moved to
+  a new `sqlite_upstream_oauth.rs`, and the interactive login-session tables
+  (`browser_sessions`, `browser_login_states`, `native_authorization_results`)
+  moved to a new `sqlite_browser_sessions.rs`, both as sibling `impl
+  SqliteStore` blocks following the existing `sqlite_migrations.rs` /
+  `sqlite_rows.rs` / `sqlite_assertions.rs` pattern. `sqlite.rs` drops from
+  1373 to 905 effective lines, leaving 495 lines of headroom under the 1400
+  hard limit instead of 27. Pure refactor: `SqliteStore`'s public API, every
+  SQL statement, and the schema are unchanged, and no call site moved.
+
 ### Fixed
 
 * **auth:** stop a public client's token refreshes from depending on its own
