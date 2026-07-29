@@ -1,9 +1,11 @@
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use crate::python_protocol::PYTHON_PROTOCOL_HEADROOM_BYTES;
+use serde_json::json;
+use soma_provider_core::validate_provider_manifest_value;
 
 use super::{
-    PythonInterpreter,
+    PythonInterpreter, PythonProvider,
     environment::{PythonRuntimeFingerprint, PythonWheelTag},
     materializer::PreparedPythonEnvironment,
     protocol_output_limit, select_python_command,
@@ -89,4 +91,42 @@ fn protocol_capture_limit_adds_bounded_headroom() {
         256 * 1024 + PYTHON_PROTOCOL_HEADROOM_BYTES
     );
     assert_eq!(protocol_output_limit(usize::MAX), usize::MAX);
+}
+
+#[test]
+fn persistent_mode_rejects_provider_and_tool_runtime_environment_requirements() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("provider.py");
+    fs::write(&path, "PROVIDER = {'name': 'env-test', 'kind': 'python'}\n").unwrap();
+    for manifest in [
+        json!({
+            "schema_version": 1,
+            "provider": {"name": "env-test", "kind": "python"},
+            "env": [{"name": "TOKEN", "required": false}],
+            "tools": []
+        }),
+        json!({
+            "schema_version": 1,
+            "provider": {"name": "env-test", "kind": "python"},
+            "tools": [{
+                "name": "run",
+                "description": "run",
+                "input_schema": {"type": "object"},
+                "env": [{"name": "TOKEN", "required": false}]
+            }]
+        }),
+    ] {
+        let catalog = validate_provider_manifest_value(&manifest).unwrap();
+        let error = match PythonProvider::new_persistent(
+            path.clone(),
+            catalog,
+            "SOMA",
+            PythonInterpreter::Ambient,
+            Default::default(),
+        ) {
+            Ok(_) => panic!("environment requirement must fail closed"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code.as_ref(), "python_persistent_env_unsupported");
+    }
 }

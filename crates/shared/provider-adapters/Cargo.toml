@@ -40,7 +40,7 @@ toml = "1.1"
 tracing = "0.1"
 
 # ai-sdk / python / sidecar / wasm
-tokio = { version = "1", features = ["io-util", "process", "rt", "time"], optional = true }
+tokio = { version = "1", features = ["io-util", "net", "process", "rt", "sync", "time"], optional = true }
 wasmtime = { version = "47.0.2", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"], optional = true }
 
 # codemode bridge
@@ -62,6 +62,9 @@ url = { version = "2", optional = true }
 # openapi.rs module docs) instead of hand-rolling a second one.
 soma-openapi = { workspace = true, optional = true }
 pep440_rs = { version = "0.7.3", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", features = ["process", "signal"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -10,6 +10,7 @@ fn config(host: &str) -> Config {
             ..McpConfig::default()
         },
         soma: SomaConfig::default(),
+        python: Default::default(),
     }
 }
 

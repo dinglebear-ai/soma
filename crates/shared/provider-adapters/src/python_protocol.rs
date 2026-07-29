@@ -159,6 +159,8 @@ pub enum PythonRunnerFeature {
     Invoke,
     Cancel,
     Health,
+    Drain,
+    Shutdown,
     HostCalls,
 }
 
@@ -177,6 +179,74 @@ pub struct PythonRunnerHello {
     pub python: PythonRuntimeIdentity,
     #[serde(default)]
     pub features: Vec<PythonRunnerFeature>,
+}
+
+/// Host-to-worker messages on the persistent control channel.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum PythonRunnerHostMessage {
+    Initialize {
+        protocol: PythonRunnerProtocolVersion,
+        #[serde(default)]
+        features: Vec<PythonRunnerFeature>,
+        generation_id: String,
+    },
+    Request {
+        #[serde(flatten)]
+        request: PythonRunnerHostRequest,
+    },
+    HostReply {
+        request_id: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        result: Option<Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<PythonRunnerError>,
+    },
+}
+
+/// Worker-to-host messages on the persistent control channel.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum PythonRunnerWorkerMessage {
+    Hello {
+        protocol: PythonRunnerProtocolVersion,
+        sdk_version: String,
+        python: PythonRuntimeIdentity,
+        #[serde(default)]
+        features: Vec<PythonRunnerFeature>,
+    },
+    Ready {
+        protocol: PythonRunnerProtocolVersion,
+        #[serde(default)]
+        features: Vec<PythonRunnerFeature>,
+        generation_id: String,
+    },
+    Reply {
+        #[serde(flatten)]
+        reply: PythonRunnerReply,
+    },
+    HostCall {
+        #[serde(flatten)]
+        call: PythonRunnerHostCall,
+    },
+}
+
+/// Host-side lifecycle for one at-most-once invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PythonRequestState {
+    Queued,
+    Written,
+    Accepted,
+    Terminal,
+    TimedOut,
+    WorkerLost,
+}
+
+impl PythonRequestState {
+    #[must_use]
+    pub const fn is_pending(self) -> bool {
+        matches!(self, Self::Queued | Self::Written | Self::Accepted)
+    }
 }
 
 /// Return the deterministic feature intersection in host preference order.
@@ -214,6 +284,8 @@ pub struct PythonInvocationRequest {
     pub provider: String,
     pub action: String,
     pub arguments: Value,
+    pub surface: ProviderSurface,
+    pub snapshot_id: String,
     pub deadline_unix_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trace: Option<PythonTraceContext>,

@@ -52,12 +52,12 @@ jobs:
         run: cat changed-files.txt || true
 
   msrv:
-    name: Minimum Supported Rust Version (1.96)
+    name: Minimum Supported Rust Version (1.97.1)
     needs: [changes]
     if: ${{ (needs.changes.outputs.rust == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.toml == 'true' || needs.changes.outputs.workflow == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, unraid]
     # Was 20; the workspace now includes a Tauri desktop app (GTK/webkit2gtk/
-    # wasmtime), which is a lot to compile from scratch under the 1.96
+    # wasmtime), which is a lot to compile from scratch under the 1.97.1
     # toolchain's own compile-cache namespace the first time it builds post-refactor.
     # Subsequent runs reuse that cache and should be much faster; raise
     # again if 40 stops being enough headroom.
@@ -65,10 +65,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust 1.96.0 and kache
+      - name: Install Rust 1.97.1 and kache
         uses: ./.github/actions/setup-rust-kache
         with:
-          toolchain: 1.96.0
+          toolchain: 1.97.1
 
       # Cache only target/ — the cargo registry lives in the runner's isolated
       # CARGO_HOME (outside the workspace), never the dev user's ~/.cargo.

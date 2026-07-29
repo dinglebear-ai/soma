@@ -98,6 +98,7 @@ fn valid_config() -> Config {
             no_auth: true,
             ..McpConfig::default()
         },
+        python: Default::default(),
     }
 }
 

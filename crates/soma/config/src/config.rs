@@ -18,6 +18,97 @@ const SERVICE_HOME_DIRNAME: &str = ".soma";
 pub struct Config {
     pub mcp: McpConfig,
     pub soma: SomaConfig,
+    pub python: PythonRunnerConfig,
+}
+
+/// Python provider execution mode.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum PythonRunnerMode {
+    /// Spawn one bounded interpreter for each catalog or invocation request.
+    #[default]
+    OneShot,
+    /// Reuse one supervised interpreter per active Python provider.
+    Persistent,
+}
+
+/// Limits for the optional persistent Python provider runner.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct PythonRunnerConfig {
+    pub mode: PythonRunnerMode,
+    pub startup_timeout_ms: u64,
+    pub request_timeout_ms: u64,
+    pub shutdown_grace_ms: u64,
+    pub max_restarts: u32,
+    pub restart_window_ms: u64,
+    pub restart_backoff_ms: u64,
+    pub max_stderr_bytes: usize,
+    pub max_pending_bytes: usize,
+    pub max_workers: usize,
+    pub max_candidate_starts: usize,
+}
+
+impl Default for PythonRunnerConfig {
+    fn default() -> Self {
+        Self {
+            mode: PythonRunnerMode::OneShot,
+            startup_timeout_ms: 10_000,
+            request_timeout_ms: 10_000,
+            shutdown_grace_ms: 2_000,
+            max_restarts: 3,
+            restart_window_ms: 60_000,
+            restart_backoff_ms: 250,
+            max_stderr_bytes: 64 * 1024,
+            max_pending_bytes: 512 * 1024,
+            max_workers: 32,
+            max_candidate_starts: 4,
+        }
+    }
+}
+
+impl PythonRunnerConfig {
+    fn validate(&self) -> anyhow::Result<()> {
+        for (name, value) in [
+            (
+                "SOMA_PYTHON_RUNNER_STARTUP_TIMEOUT_MS",
+                self.startup_timeout_ms,
+            ),
+            (
+                "SOMA_PYTHON_RUNNER_REQUEST_TIMEOUT_MS",
+                self.request_timeout_ms,
+            ),
+            (
+                "SOMA_PYTHON_RUNNER_SHUTDOWN_GRACE_MS",
+                self.shutdown_grace_ms,
+            ),
+            (
+                "SOMA_PYTHON_RUNNER_RESTART_WINDOW_MS",
+                self.restart_window_ms,
+            ),
+        ] {
+            if value == 0 {
+                anyhow::bail!("{name} must be greater than zero");
+            }
+        }
+        for (name, value) in [
+            ("SOMA_PYTHON_RUNNER_MAX_STDERR_BYTES", self.max_stderr_bytes),
+            (
+                "SOMA_PYTHON_RUNNER_MAX_PENDING_BYTES",
+                self.max_pending_bytes,
+            ),
+            ("SOMA_PYTHON_RUNNER_MAX_WORKERS", self.max_workers),
+            (
+                "SOMA_PYTHON_RUNNER_MAX_CANDIDATE_STARTS",
+                self.max_candidate_starts,
+            ),
+        ] {
+            if value == 0 {
+                anyhow::bail!("{name} must be greater than zero");
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Config for the Soma runtime or deployed platform API.
@@ -547,6 +638,59 @@ impl Config {
                 }
             };
         }
+
+        if let Ok(value) = std::env::var("SOMA_PYTHON_RUNNER_MODE")
+            && !value.is_empty()
+        {
+            config.python.mode = match value.to_ascii_lowercase().as_str() {
+                "one-shot" | "oneshot" => PythonRunnerMode::OneShot,
+                "persistent" => PythonRunnerMode::Persistent,
+                other => anyhow::bail!(
+                    "invalid SOMA_PYTHON_RUNNER_MODE {other:?}: must be \"one-shot\" or \"persistent\""
+                ),
+            };
+        }
+        env_parse(
+            "SOMA_PYTHON_RUNNER_STARTUP_TIMEOUT_MS",
+            &mut config.python.startup_timeout_ms,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_REQUEST_TIMEOUT_MS",
+            &mut config.python.request_timeout_ms,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_SHUTDOWN_GRACE_MS",
+            &mut config.python.shutdown_grace_ms,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_MAX_RESTARTS",
+            &mut config.python.max_restarts,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_RESTART_WINDOW_MS",
+            &mut config.python.restart_window_ms,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_RESTART_BACKOFF_MS",
+            &mut config.python.restart_backoff_ms,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_MAX_STDERR_BYTES",
+            &mut config.python.max_stderr_bytes,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_MAX_PENDING_BYTES",
+            &mut config.python.max_pending_bytes,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_MAX_WORKERS",
+            &mut config.python.max_workers,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_RUNNER_MAX_CANDIDATE_STARTS",
+            &mut config.python.max_candidate_starts,
+        )?;
+        config.python.validate()?;
 
         Ok(config)
     }

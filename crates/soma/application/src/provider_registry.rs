@@ -46,6 +46,10 @@ pub trait Provider: Send + Sync {
     /// Executes one provider action call and returns its output.
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError>;
 
+    /// Drains and releases provider-owned runtime resources after a registry
+    /// generation swap.
+    async fn retire(&self) {}
+
     /// Dynamic resource templates this provider serves. Every provider
     /// inherits the empty default — only file-based dynamic resource
     /// readers (`providers/resources/*.ts`) override it.
@@ -321,6 +325,7 @@ impl RegistrySnapshot {
 #[derive(Clone)]
 pub struct ProviderRegistry {
     state: Arc<RwLock<RegistryState>>,
+    refresh_gate: Arc<tokio::sync::Mutex<()>>,
     capabilities: CapabilityBroker,
     base_providers: Arc<Vec<Arc<dyn Provider>>>,
     file_source: Option<FileProviderSource>,
@@ -355,6 +360,7 @@ impl ProviderRegistry {
                 file_fingerprint: None,
                 python_environments: PythonProviderEnvironmentSelections::new(),
             })),
+            refresh_gate: Arc::new(tokio::sync::Mutex::new(())),
             capabilities,
             base_providers: Arc::new(Vec::new()),
             file_source: None,
@@ -386,6 +392,45 @@ impl ProviderRegistry {
                 file_fingerprint: Some(file_fingerprint),
                 python_environments: PythonProviderEnvironmentSelections::new(),
             })),
+            refresh_gate: Arc::new(tokio::sync::Mutex::new(())),
+            capabilities,
+            base_providers,
+            file_source: Some(file_source),
+        })
+    }
+
+    /// Async constructor that preflights persistent Python workers before the
+    /// first registry snapshot becomes visible.
+    pub async fn with_file_source_async(
+        providers: Vec<Arc<dyn Provider>>,
+        capabilities: CapabilityBroker,
+        file_source: FileProviderSource,
+    ) -> Result<Self, ProviderValidationError> {
+        let selections = PythonProviderEnvironmentSelections::new();
+        let file_fingerprint = file_source
+            .fingerprint_with_python_environments(&selections)
+            .map_err(|error| {
+                ProviderValidationError::new("provider_file_load_failed", error.to_string())
+            })?;
+        let dynamic_providers = file_source
+            .load_with_python_environments_async(&selections)
+            .await
+            .map_err(|error| {
+                ProviderValidationError::new("provider_file_load_failed", error.to_string())
+            })?;
+        let base_providers = Arc::new(providers);
+        let mut all_providers = base_providers.iter().cloned().collect::<Vec<_>>();
+        all_providers.extend(dynamic_providers);
+        let (providers, core_registry, snapshot) = build_registry(all_providers)?;
+        Ok(Self {
+            state: Arc::new(RwLock::new(RegistryState {
+                providers,
+                core_registry,
+                snapshot,
+                file_fingerprint: Some(file_fingerprint),
+                python_environments: selections,
+            })),
+            refresh_gate: Arc::new(tokio::sync::Mutex::new(())),
             capabilities,
             base_providers,
             file_source: Some(file_source),
@@ -484,8 +529,114 @@ impl ProviderRegistry {
         Ok(state.snapshot.clone())
     }
 
+    /// Refresh variant that preflights persistent Python candidates outside
+    /// the registry write lock before publishing the candidate snapshot.
+    pub async fn refresh_file_providers_async(
+        &self,
+    ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
+        let Some(file_source) = &self.file_source else {
+            return Ok(self.snapshot());
+        };
+        let (baseline_fingerprint, active_environments) = {
+            let state = self
+                .state
+                .read()
+                .expect("provider registry lock should not be poisoned");
+            (
+                state.file_fingerprint.clone(),
+                state.python_environments.clone(),
+            )
+        };
+        if file_source
+            .fingerprint_with_python_environments(&active_environments)
+            .ok()
+            .as_deref()
+            == baseline_fingerprint.as_deref()
+        {
+            return Ok(self.snapshot());
+        }
+        // A refresh already in progress must never queue unrelated request
+        // paths. They continue on the last atomically published snapshot.
+        let Ok(_refresh_guard) = self.refresh_gate.try_lock() else {
+            return Ok(self.snapshot());
+        };
+        let file_fingerprint =
+            match file_source.fingerprint_with_python_environments(&active_environments) {
+                Ok(fingerprint) => fingerprint,
+                Err(error) => {
+                    return Ok(self.snapshot_after_refresh_failure(
+                        file_source,
+                        "provider_file_fingerprint_failed",
+                        &error.to_string(),
+                    ));
+                }
+            };
+        if baseline_fingerprint.as_deref() == Some(file_fingerprint.as_str()) {
+            return Ok(self.snapshot());
+        }
+        let dynamic_providers = match file_source
+            .load_with_python_environments_async(&active_environments)
+            .await
+        {
+            Ok(providers) => providers,
+            Err(error) => {
+                return Ok(self.snapshot_after_refresh_failure(
+                    file_source,
+                    "provider_file_load_failed",
+                    &error.to_string(),
+                ));
+            }
+        };
+        let mut all_providers = self.base_providers.iter().cloned().collect::<Vec<_>>();
+        all_providers.extend(dynamic_providers);
+        let (providers, core_registry, snapshot) = match build_registry(all_providers) {
+            Ok(parts) => parts,
+            Err(error) => {
+                return Ok(self.snapshot_after_refresh_failure(
+                    file_source,
+                    error.code(),
+                    error.message(),
+                ));
+            }
+        };
+        let mut state = self
+            .state
+            .write()
+            .expect("provider registry lock should not be poisoned");
+        if state.file_fingerprint != baseline_fingerprint
+            || state.python_environments != active_environments
+        {
+            return Ok(state.snapshot.clone());
+        }
+        let previous = state.snapshot.clone();
+        let retired = state
+            .providers
+            .values()
+            .filter(|old| !providers.values().any(|new| Arc::ptr_eq(old, new)))
+            .cloned()
+            .collect::<Vec<_>>();
+        let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
+        state.providers = providers;
+        state.core_registry = core_registry;
+        if public_catalog_changed {
+            state.snapshot = snapshot.clone();
+        }
+        state.file_fingerprint = Some(file_fingerprint);
+        if public_catalog_changed {
+            ProviderRefreshEvent::new(&previous, &snapshot).log(file_source.root());
+        }
+        let active = state.snapshot.clone();
+        drop(state);
+        for provider in retired {
+            tokio::spawn(async move {
+                provider.retire().await;
+            });
+        }
+        Ok(active)
+    }
+
     /// Validates and atomically activates one immutable Python environment candidate.
-    pub fn activate_python_candidate(
+    pub async fn activate_python_candidate(
         &self,
         provider_path: &Path,
         candidate: PreparedPythonEnvironment,
@@ -515,7 +666,8 @@ impl ProviderRegistry {
         next_environments.insert(provider_path, candidate);
 
         let dynamic_providers = file_source
-            .load_with_python_environments(&next_environments)
+            .load_with_python_environments_async(&next_environments)
+            .await
             .map_err(|error| {
                 ProviderValidationError::new(
                     "provider_candidate_validation_failed",
@@ -724,6 +876,10 @@ impl Provider for SharedAdapter {
 
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
         self.0.call(call.provider_invocation()).await
+    }
+
+    async fn retire(&self) {
+        self.0.retire().await;
     }
 }
 

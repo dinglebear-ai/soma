@@ -209,6 +209,30 @@ impl SomaApplication {
             })
     }
 
+    /// Asynchronously reload file-backed providers, preflighting persistent
+    /// Python candidates before publishing a replacement snapshot.
+    pub async fn refresh_providers_async(&self) -> Result<CatalogSnapshot, ApplicationError> {
+        self.refresh_providers_in_place_async().await?;
+        Ok(self.catalog_snapshot())
+    }
+
+    /// Async in-place refresh used by production HTTP and MCP surfaces.
+    pub async fn refresh_providers_in_place_async(&self) -> Result<(), ApplicationError> {
+        self.legacy_registry
+            .refresh_file_providers_async()
+            .await
+            .map(|_| ())
+            .map_err(|error| {
+                let diagnostic = crate::provider_errors::redact_public(&error.to_string());
+                ApplicationError::new(
+                    "provider_refresh_failed",
+                    format!("provider refresh failed: {diagnostic}"),
+                    false,
+                    "Fix invalid provider files and retry.",
+                )
+            })
+    }
+
     /// Read a provider resource by URI and return its text or blob content.
     pub async fn read_resource(
         &self,

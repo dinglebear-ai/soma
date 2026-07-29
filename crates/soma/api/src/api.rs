@@ -54,7 +54,7 @@ pub async fn v1_capabilities() -> impl IntoResponse {
 }
 
 pub async fn v1_providers(State(state): State<ApiState>) -> axum::response::Response {
-    if let Some(response) = refresh_file_providers(&state) {
+    if let Some(response) = refresh_file_providers(&state).await {
         return response;
     }
     Json(state.application().provider_inspection_report()).into_response()
@@ -151,7 +151,7 @@ pub async fn v1_dynamic_provider_route(
 ) -> axum::response::Response {
     let route_path = format!("/v1/{path}");
     let method = method.as_str().to_ascii_uppercase();
-    if let Some(response) = refresh_file_providers(&state) {
+    if let Some(response) = refresh_file_providers(&state).await {
         return response;
     }
     let action = match state.application().resolve_rest_route(&method, &route_path) {
@@ -204,7 +204,7 @@ async fn run_provider_rest_action(
     action_name: String,
     params: Value,
 ) -> axum::response::Response {
-    if let Some(response) = refresh_file_providers(&state) {
+    if let Some(response) = refresh_file_providers(&state).await {
         return response;
     }
     let request = ExecuteActionRequest {
@@ -262,7 +262,7 @@ pub async fn openapi_json(State(state): State<ApiState>) -> axum::response::Resp
 /// route augmentation (e.g. Palette's `/v1/palette/*`) on top without
 /// `soma-api` depending on a peer product-surface crate.
 pub async fn build_openapi_document(state: &ApiState) -> Result<Value, axum::response::Response> {
-    if let Some(response) = refresh_file_providers(state) {
+    if let Some(response) = refresh_file_providers(state).await {
         return Err(response);
     }
     match state.application().openapi_document() {
@@ -274,8 +274,8 @@ pub async fn build_openapi_document(state: &ApiState) -> Result<Value, axum::res
     }
 }
 
-fn refresh_file_providers(state: &ApiState) -> Option<axum::response::Response> {
-    match state.application().refresh_providers() {
+async fn refresh_file_providers(state: &ApiState) -> Option<axum::response::Response> {
+    match state.application().refresh_providers_async().await {
         Ok(_) => None,
         Err(error) => {
             tracing::error!(%error, "provider refresh failed");

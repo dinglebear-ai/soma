@@ -112,7 +112,7 @@ Use for: proving the declared `rust-version` remains honest.
 Do not use for: full behavior testing; it only checks that the workspace still
 builds on the minimum supported toolchain.
 
-Runs on PRs and pushes to `main` with Rust 1.96.0 and kache. It is also
+Runs on PRs and pushes to `main` with Rust 1.97.1 and kache. It is also
 path-aware: `MSRV Changes` skips the self-hosted MSRV build unless Rust, native,
 TOML, or workflow files changed. Require `MSRV Gate` if this workflow is part of
 branch protection.

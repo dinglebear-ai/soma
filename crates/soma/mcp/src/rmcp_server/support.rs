@@ -122,10 +122,11 @@ pub(super) fn rmcp_tool_definitions(state: &McpState) -> Result<Vec<Tool>, Error
         .collect()
 }
 
-pub(super) fn refresh_file_providers(state: &McpState) -> Result<(), ErrorData> {
+pub(super) async fn refresh_file_providers(state: &McpState) -> Result<(), ErrorData> {
     state
         .application()
-        .refresh_providers_in_place()
+        .refresh_providers_in_place_async()
+        .await
         .map_err(|error| ErrorData::internal_error(error.to_string(), None))
 }
 

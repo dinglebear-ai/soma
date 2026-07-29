@@ -8,7 +8,7 @@ audience:
   - "agents"
 scope: "soma"
 source_of_truth: true
-last_reviewed: "2026-06-27"
+last_reviewed: "2026-07-28"
 ---
 
 # Documentation
@@ -76,6 +76,7 @@ docs/
   │
   ├── specs/                          ← implementation specs and handoff docs
   │   ├── mcp-draft-2026-07-28-migration.md
+  │   ├── python-provider-platform.md
   │   └── scaffold-intent-handoff.md
   │
   ├── sessions/                       ← saved session logs (transient)

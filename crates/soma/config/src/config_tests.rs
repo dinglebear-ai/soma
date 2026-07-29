@@ -182,6 +182,35 @@ fn call_env_list(key: &str, raw: &str) -> Vec<String> {
 
 #[test]
 #[serial]
+fn python_runner_mode_and_limits_are_typed() {
+    let _mode = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MODE", "persistent");
+    let _workers = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MAX_WORKERS", "7");
+    let config = Config::load().expect("valid persistent runner config");
+    assert_eq!(config.python.mode, PythonRunnerMode::Persistent);
+    assert_eq!(config.python.max_workers, 7);
+}
+
+#[test]
+#[serial]
+fn python_runner_rejects_unknown_mode_and_zero_limits() {
+    {
+        let _mode = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MODE", "pool");
+        assert!(Config::load().unwrap_err().to_string().contains("one-shot"));
+    }
+    {
+        let _mode = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MODE", "persistent");
+        let _workers = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MAX_WORKERS", "0");
+        assert!(
+            Config::load()
+                .unwrap_err()
+                .to_string()
+                .contains("MAX_WORKERS")
+        );
+    }
+}
+
+#[test]
+#[serial]
 fn env_list_splits_comma_separated() {
     let result = call_env_list("TEST_ENV_LIST_CSV", "a,b,c");
     assert_eq!(result, vec!["a", "b", "c"]);

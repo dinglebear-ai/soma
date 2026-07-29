@@ -11,7 +11,7 @@ source_of_truth: false
 upstream_refs:
   - "docs/DOCS.md"
   - "docs/CLAUDE.md"
-last_reviewed: "2026-06-27"
+last_reviewed: "2026-07-28"
 ---
 
 # Documentation Index
@@ -26,6 +26,7 @@ and historical session notes. Pick the right layer before editing.
 |---|---|
 | Run Soma quickly | `QUICKSTART.md` |
 | Understand the architecture | `ARCHITECTURE.md`, then `PATTERNS.md` |
+| Plan Python provider work | `specs/python-provider-platform.md` |
 | Generate a new server | `SCAFFOLD.md`, `CARGO_GENERATE.md`, `contracts/scaffold-intent.schema.json` |
 | Write or refresh an RMCP server README | `RMCP_README_GUIDE.md`, then `PATTERNS.md` |
 | Add or change actions | `MCP_SCHEMA.md`, `API.md`, `AGENTS-FIRST.md`, `PATTERNS.md` |

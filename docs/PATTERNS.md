@@ -815,7 +815,7 @@ The hook script must not own Docker/systemd orchestration, config file rewriting
 
 ```dockerfile
 # syntax=docker/dockerfile:1.7
-FROM rust:1.96-slim-bookworm AS builder
+FROM rust:1.97.1-slim-bookworm AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
@@ -1462,7 +1462,7 @@ individual path-skipped jobs.
 
 ### `.github/workflows/msrv.yml`
 Runs on PRs and pushes to `main`. It uses `cargo xtask changed-paths` and only
-runs the Rust 1.96 MSRV build for Rust, native, TOML, or workflow changes.
+runs the Rust 1.97.1 MSRV build for Rust, native, TOML, or workflow changes.
 Require the stable aggregate `MSRV Gate` status when MSRV is protected.
 
 ### `.github/workflows/docker-publish.yml`

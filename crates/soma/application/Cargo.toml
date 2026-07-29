@@ -39,12 +39,13 @@ soma-provider-adapters = { workspace = true, features = [
 ] }
 soma-provider-core = { workspace = true }
 tracing = "0.1"
+tokio = { version = "1", features = ["rt", "sync"] }
 url = "2"
 
 [dev-dependencies]
 soma-config = { workspace = true }
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 
 [lints]
 workspace = true

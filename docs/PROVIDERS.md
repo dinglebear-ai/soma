@@ -191,9 +191,47 @@ and LlamaIndex providers remain unchanged.
 Use `provider(...)` to build a validated `PROVIDER` mapping. A parameter
 annotated as `soma_provider.Context` is omitted from the public input schema and
 injected during dispatch. Its immutable `request` carries the request ID,
-provider, action, surface, and snapshot. The current one-shot runner exposes
-explicit unavailable handles for HTTP, secrets, state, structured logging, and
-metrics until those calls are connected to the persistent capability broker.
+provider, action, surface, and snapshot.
+
+### Persistent Python runner
+
+One-shot execution remains the default and rollback path. Set
+`SOMA_PYTHON_RUNNER_MODE=persistent` to prestart one supervised, serial worker
+per Python provider. Persistent mode requires the matching `soma-provider`
+wheel in the selected interpreter because workers start with
+`python -I -m soma_provider.runner`; startup fails closed instead of silently
+falling back to one-shot.
+
+Persistent workers use a length-prefixed JSON control protocol over reserved
+stdin/stdout pipes. Provider stdout is redirected to the continuously drained
+stderr stream. The host negotiates features, describes and health-checks every
+candidate before publishing it, rejects concurrent calls with
+`python_provider_busy`, kills the worker process tree on timeout or protocol
+failure, and permits a later serialized restart within the configured
+restart-window budget. Repeated failures quarantine that provider generation.
+Source files must be regular non-symlink files and are hashed immediately
+before launch and again after describe.
+
+Persistent mode deliberately rejects provider- or tool-level runtime
+environment declarations with `python_persistent_env_unsupported`. It does not
+forward actor scopes or trace context, and HTTP, secrets, state, logging,
+metrics, progress, and cancellation broker services remain unavailable.
+
+The main controls are:
+
+| Variable | Default |
+|---|---:|
+| `SOMA_PYTHON_RUNNER_MODE` | `one-shot` |
+| `SOMA_PYTHON_RUNNER_STARTUP_TIMEOUT_MS` | `10000` |
+| `SOMA_PYTHON_RUNNER_REQUEST_TIMEOUT_MS` | `10000` |
+| `SOMA_PYTHON_RUNNER_SHUTDOWN_GRACE_MS` | `2000` |
+| `SOMA_PYTHON_RUNNER_MAX_RESTARTS` | `3` |
+| `SOMA_PYTHON_RUNNER_RESTART_WINDOW_MS` | `60000` |
+| `SOMA_PYTHON_RUNNER_RESTART_BACKOFF_MS` | `250` |
+| `SOMA_PYTHON_RUNNER_MAX_STDERR_BYTES` | `65536` |
+| `SOMA_PYTHON_RUNNER_MAX_PENDING_BYTES` | `524288` |
+| `SOMA_PYTHON_RUNNER_MAX_WORKERS` | `32` |
+| `SOMA_PYTHON_RUNNER_MAX_CANDIDATE_STARTS` | `4` |
 
 Python providers are trusted executable code. Environment clearing and bounded
 sidecar I/O are safety controls, not an OS sandbox; imported code retains the

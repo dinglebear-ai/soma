@@ -98,7 +98,7 @@ impl ServerHandler for SomaRmcpServer {
         let route_scope = protected_route_scope(&context);
         let execution_context = execution_context(&self.state, &context, auth);
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
-        refresh_file_providers(&self.state)?;
+        refresh_file_providers(&self.state).await?;
         let mut tools = if soma_allowed {
             rmcp_tool_definitions(&self.state)?
         } else {
@@ -417,7 +417,7 @@ impl ServerHandler for SomaRmcpServer {
         let auth = require_auth_context(&self.state, &context)?;
         let route_scope = protected_route_scope(&context);
         let execution_context = execution_context(&self.state, &context, auth);
-        refresh_file_providers(&self.state)?;
+        refresh_file_providers(&self.state).await?;
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
         let mut resources = if soma_allowed {
             let mut resources = vec![schema_resource()];
@@ -452,7 +452,7 @@ impl ServerHandler for SomaRmcpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
         require_auth_context(&self.state, &context)?;
-        refresh_file_providers(&self.state)?;
+        refresh_file_providers(&self.state).await?;
         let mut resource_templates: Vec<ResourceTemplate> = self
             .state
             .application()
@@ -509,7 +509,7 @@ impl ServerHandler for SomaRmcpServer {
                 None,
             ));
         }
-        refresh_file_providers(&self.state)?;
+        refresh_file_providers(&self.state).await?;
         if request.uri == SCHEMA_RESOURCE_URI {
             let schema = tool_definitions_for_state(&self.state);
             let text = serde_json::to_string_pretty(&schema).map_err(|e| {
@@ -559,7 +559,7 @@ impl ServerHandler for SomaRmcpServer {
         } else {
             ListPromptsResult::default()
         };
-        refresh_file_providers(&self.state)?;
+        refresh_file_providers(&self.state).await?;
         if soma_allowed {
             result.prompts.extend(prompts::provider_prompts(
                 &self.state.application().list_prompts(),
@@ -616,7 +616,7 @@ impl ServerHandler for SomaRmcpServer {
                 None,
             ));
         }
-        refresh_file_providers(&self.state)?;
+        refresh_file_providers(&self.state).await?;
         match self
             .state
             .application()

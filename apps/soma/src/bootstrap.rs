@@ -131,6 +131,38 @@ pub(crate) async fn cli_application(config: &Config) -> Result<Arc<SomaApplicati
     cli_application_with_provider_dir(config, None).await
 }
 
+fn python_runner_selection(config: &Config) -> soma_application::PythonRunnerSelection {
+    match config.python.mode {
+        soma_config::PythonRunnerMode::OneShot => soma_application::PythonRunnerSelection::OneShot,
+        soma_config::PythonRunnerMode::Persistent => {
+            soma_application::PythonRunnerSelection::Persistent(
+                soma_application::PythonSupervisorConfig {
+                    startup_timeout: std::time::Duration::from_millis(
+                        config.python.startup_timeout_ms,
+                    ),
+                    request_timeout: std::time::Duration::from_millis(
+                        config.python.request_timeout_ms,
+                    ),
+                    shutdown_grace: std::time::Duration::from_millis(
+                        config.python.shutdown_grace_ms,
+                    ),
+                    max_restarts: config.python.max_restarts,
+                    restart_window: std::time::Duration::from_millis(
+                        config.python.restart_window_ms,
+                    ),
+                    restart_backoff: std::time::Duration::from_millis(
+                        config.python.restart_backoff_ms,
+                    ),
+                    max_stderr_bytes: config.python.max_stderr_bytes,
+                    max_pending_bytes: config.python.max_pending_bytes,
+                    max_workers: config.python.max_workers,
+                    max_candidate_starts: config.python.max_candidate_starts,
+                },
+            )
+        }
+    }
+}
+
 #[cfg(feature = "cli")]
 pub(crate) async fn cli_application_with_provider_dir(
     config: &Config,
@@ -142,12 +174,24 @@ pub(crate) async fn cli_application_with_provider_dir(
     } else {
         let registry = match provider_dir {
             Some(provider_dir) => {
-                soma_application::dynamic_provider_registry_from_dir(service.clone(), provider_dir)?
+                soma_application::dynamic_provider_registry_from_dir_with_python(
+                    service.clone(),
+                    provider_dir,
+                    python_runner_selection(config),
+                )
+                .await?
             }
-            None => soma_application::dynamic_provider_registry(service.clone())?,
+            None => {
+                soma_application::dynamic_provider_registry_with_python(
+                    service.clone(),
+                    python_runner_selection(config),
+                )
+                .await?
+            }
         };
         registry
-            .refresh_file_providers()
+            .refresh_file_providers_async()
+            .await
             .map_err(|error| anyhow::anyhow!(error.to_string()))?;
         registry
     };
@@ -169,7 +213,11 @@ pub(crate) async fn stdio_state() -> Result<AppState> {
     let provider_registry = if remote_adapter {
         soma_application::remote_provider_registry(service.clone()).await?
     } else {
-        soma_application::dynamic_provider_registry(service.clone())?
+        soma_application::dynamic_provider_registry_with_python(
+            service.clone(),
+            python_runner_selection(&config),
+        )
+        .await?
     };
     let gateway = gateway_product_state_from_env()?;
     #[cfg(feature = "oauth")]
@@ -189,7 +237,11 @@ pub(crate) async fn http_state() -> Result<AppState> {
     let config = Config::load()?;
     let auth_policy = http_auth_policy(&config).await?;
     let service = SomaService::new(SomaClient::new(&config.soma)?);
-    let provider_registry = soma_application::dynamic_provider_registry(service.clone())?;
+    let provider_registry = soma_application::dynamic_provider_registry_with_python(
+        service.clone(),
+        python_runner_selection(&config),
+    )
+    .await?;
     let gateway = gateway_product_state_from_env()?;
     #[cfg(feature = "oauth")]
     configure_gateway_upstream_oauth_for_policy(&gateway, &auth_policy, &config.mcp.auth).await?;
