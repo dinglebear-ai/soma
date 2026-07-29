@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+* **auth:** refuse to start when a configured machine `client_id` would
+  silently shadow an OAuth client registration. `authenticate_oauth_client`
+  searches `AuthConfig.machine_clients` before falling back to the client
+  registry and short-circuits on the first match, so a machine `client_id`
+  that collides with a registered DCR client changed how that client had to
+  authenticate — on `authorization_code` and `refresh_token` too — with no
+  diagnostic anywhere. `AuthState::new` now rejects such a configuration with
+  an `AuthError::Config` naming the colliding id, and likewise rejects a
+  machine `client_id` shaped like a Client ID Metadata Document id
+  (`https://...`), which is resolved per request and so has no local registry
+  to be diffed against. The check lives in `AuthState::new` rather than
+  `AuthConfig::validate` because that is the first point where the configured
+  clients and the SQLite-backed registrations meet. The machine-clients-first
+  precedence itself is unchanged and now documented in `docs/AUTH.md` and on
+  `authenticate_oauth_client`.
+
 ### Changed
 
 * **auth:** split `crates/shared/auth/src/sqlite.rs` along two storage seams to

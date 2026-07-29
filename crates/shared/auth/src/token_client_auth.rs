@@ -153,6 +153,22 @@ fn apply_basic_client_credentials(
     Ok(())
 }
 
+/// Authenticate the client presenting credentials at `/token`.
+///
+/// **Precedence: configured machine clients win over registrations.**
+/// `state.config.machine_clients` is searched first and short-circuits on a
+/// match; only if no configured machine client owns `client_id` does this
+/// fall through to [`crate::registration::resolve_client`] (DCR row or CIMD
+/// document). This matters on every grant that authenticates a client -
+/// including `authorization_code` and `refresh_token` - because it decides
+/// *how* that `client_id` must prove itself.
+///
+/// A `client_id` that both sides could answer is therefore an operator
+/// mistake with no safe resolution, so it never reaches this function:
+/// `state::ensure_machine_clients_do_not_shadow_registrations` refuses such a
+/// configuration at startup, naming the colliding id. Keep that guard in sync
+/// with this ordering - do not reorder these two lookups without revisiting
+/// it (and `docs/AUTH.md`'s "Machine clients" section).
 pub(super) async fn authenticate_oauth_client(
     state: &AuthState,
     client_id: &str,
