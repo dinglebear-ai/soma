@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* **auth:** collapse the duplicated CIMD-vs-store branch in
+  `crates/shared/auth/src/registration.rs` into a single
+  `resolve_client_source()` helper. `resolve_client()` (the `/token` client
+  authentication path) and `resolve_client_redirect_uris()` (the `/authorize`
+  redirect-URI trust boundary) each re-implemented the same
+  `is_cimd_client_id()` test plus
+  `fetch_and_validate_client_metadata()`/`store.find_client()` dispatch, so the
+  two live request paths could drift and let a `client_id` resolve at one
+  endpoint but not the other. Both now branch on one `ResolvedClientSource`
+  enum. Behaviour is unchanged and the deliberate differences are preserved:
+  `/token` still answers `Ok(None)` for an unknown `client_id` while
+  `/authorize` still logs and returns `InvalidGrant("unknown client_id")`; the
+  detailed `CimdError` is still logged (with `client_state_id` and `kind`) only
+  on the `/authorize` path, via an injected callback, and is still collapsed to
+  the same generic `Validation` message on both; and CIMD `redirect_uris` are
+  still allowlist-filtered through `allowed_uris_from_cimd_document()` at
+  `/authorize` only. Adds three regression tests asserting the two resolvers
+  agree on whether a registered, unknown, or unreachable-CIMD `client_id`
+  resolves.
+
 * **auth:** split `crates/shared/auth/src/sqlite.rs` along two storage seams to
   restore module-size headroom. The three `upstream_oauth_*` tables (provider
   credentials, per-flow CSRF/PKCE state, dynamic client registrations) moved to
