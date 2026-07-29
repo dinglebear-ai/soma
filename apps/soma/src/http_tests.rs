@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use axum::{
     body::{Body, Bytes},
-    http::{header, HeaderMap, Request, StatusCode},
+    http::{HeaderMap, Request, StatusCode, header},
     response::IntoResponse,
     routing::post,
 };
@@ -116,7 +116,8 @@ async fn protected_route_missing_bearer_returns_route_challenge() {
 async fn protected_route_proxy_strips_public_bearer_and_adds_upstream_auth() {
     let seen_auth = Arc::new(Mutex::new(Vec::new()));
     let backend = backend_server(seen_auth.clone()).await;
-    std::env::set_var("SOMA_TEST_UPSTREAM_TOKEN", "Bearer upstream-secret");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("SOMA_TEST_UPSTREAM_TOKEN", "Bearer upstream-secret") };
     let temp = tempfile::tempdir().unwrap();
     let state = oauth_state_with_gateway(
         &temp,
@@ -139,7 +140,8 @@ async fn protected_route_proxy_strips_public_bearer_and_adds_upstream_auth() {
         .await
         .unwrap();
 
-    std::env::remove_var("SOMA_TEST_UPSTREAM_TOKEN");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("SOMA_TEST_UPSTREAM_TOKEN") };
     assert_eq!(response.status(), StatusCode::OK);
     let seen = seen_auth.lock().await;
     assert_eq!(seen.as_slice(), ["Bearer upstream-secret"]);
@@ -406,12 +408,14 @@ async fn upstream_oauth_provider_error_consumes_state_without_reflecting_descrip
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    assert!(auth_state
-        .store
-        .find_upstream_oauth_state_owner("denied-state", now)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        auth_state
+            .store
+            .find_upstream_oauth_state_owner("denied-state", now)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[cfg(feature = "oauth")]

@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use soma_application::providers::filesystem::{
     FileProviderSource, ProviderDirectoryInspection, ProviderFileInspectionStatus,
 };

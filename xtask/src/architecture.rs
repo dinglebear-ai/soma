@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -297,10 +297,10 @@ fn find_cycle(graph: &Graph) -> Option<Vec<String>> {
     let mut states = BTreeMap::new();
     let mut stack = Vec::new();
     for id in graph.packages.keys() {
-        if states.get(id).copied().unwrap_or(0) == 0 {
-            if let Some(cycle) = visit_cycle(graph, id, &mut states, &mut stack) {
-                return Some(cycle);
-            }
+        if states.get(id).copied().unwrap_or(0) == 0
+            && let Some(cycle) = visit_cycle(graph, id, &mut states, &mut stack)
+        {
+            return Some(cycle);
         }
     }
     None

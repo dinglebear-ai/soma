@@ -2,10 +2,10 @@ use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::path_safety::{reject_existing_symlink_ancestors, rel_to_unix_string};
 use crate::ToolError;
+use crate::path_safety::{reject_existing_symlink_ancestors, rel_to_unix_string};
 
-use super::path::{is_reserved_metadata_path, VirtualPath};
+use super::path::{VirtualPath, is_reserved_metadata_path};
 use super::quota::StateWorkspaceLimits;
 
 #[derive(Debug, Clone)]

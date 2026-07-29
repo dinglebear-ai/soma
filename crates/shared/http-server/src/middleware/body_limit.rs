@@ -10,7 +10,7 @@ pub fn body_limit_layer(bytes: usize) -> RequestBodyLimitLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, body::Bytes, http::Request, routing::post, Router};
+    use axum::{Router, body::Body, body::Bytes, http::Request, routing::post};
     use tower::ServiceExt;
 
     // Handlers extract `Bytes` so the body is actually streamed and read —

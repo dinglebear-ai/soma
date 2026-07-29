@@ -46,10 +46,10 @@ pub fn redact_url(raw: &str) -> String {
 
 #[must_use]
 pub fn redact_stdio_value(value: &str) -> String {
-    if let Some((key, _)) = value.split_once('=') {
-        if is_sensitive_key(key) {
-            return format!("{key}={REDACTED}");
-        }
+    if let Some((key, _)) = value.split_once('=')
+        && is_sensitive_key(key)
+    {
+        return format!("{key}={REDACTED}");
     }
 
     if let Some(flag) = value.strip_prefix("--") {

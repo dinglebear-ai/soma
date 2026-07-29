@@ -106,8 +106,8 @@ mod wrapper_tests;
 pub const CRATE_NAME: &str = "soma-codemode";
 
 pub use config::{
-    install_call_budget_config_defaults, CodeModeConfig, CodeModeResultShapePolicy,
-    SemanticSearchConfig, MAX_SOURCE_BYTES, SERVICE,
+    CodeModeConfig, CodeModeResultShapePolicy, MAX_SOURCE_BYTES, SERVICE, SemanticSearchConfig,
+    install_call_budget_config_defaults,
 };
 pub use error::ToolError;
 pub use home::{env_non_empty, home_dir, soma_home};
@@ -121,9 +121,9 @@ pub use shape::CodeModeResultShapeMetadata;
 pub use trace::{code_mode_execute_trace, redact_trace_value};
 pub use truncate::redact_secret_like_segments;
 pub use types::{
-    namespaced_tool_id, split_namespaced_id, CodeModeCaller, CodeModeCallerCapabilities,
-    CodeModeCatalogKind, CodeModeExecutedCall, CodeModeExecutionError, CodeModeExecutionResponse,
-    CodeModeExecutionSource, CodeModeHistory, CodeModeHistoryEntry, CodeModeHistoryKind,
-    CodeModeSnippetInputEntry, CodeModeSourceLookup, CodeModeSourceStore, CodeModeSurface,
-    ToolDescriptor, ToolScope, UiLink,
+    CodeModeCaller, CodeModeCallerCapabilities, CodeModeCatalogKind, CodeModeExecutedCall,
+    CodeModeExecutionError, CodeModeExecutionResponse, CodeModeExecutionSource, CodeModeHistory,
+    CodeModeHistoryEntry, CodeModeHistoryKind, CodeModeSnippetInputEntry, CodeModeSourceLookup,
+    CodeModeSourceStore, CodeModeSurface, ToolDescriptor, ToolScope, UiLink, namespaced_tool_id,
+    split_namespaced_id,
 };

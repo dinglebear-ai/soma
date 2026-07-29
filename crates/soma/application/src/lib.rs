@@ -8,6 +8,12 @@
 //! REST, CLI) calls into, along with the [`SomaService`] business layer, the
 //! provider registry, and the free functions that dispatch actions across
 //! surfaces with consistent observability.
+
+// Docs rollout (see `[workspace.lints]` in the root Cargo.toml): this crate has
+// completed its public-API docs pass and holds itself to it. The workspace lint
+// table cannot carry this — `[lints] workspace = true` is all-or-nothing — so the
+// commitment lives here, where it overrides the table's `-A missing_docs`.
+#![warn(missing_docs)]
 mod app;
 pub mod capabilities;
 mod context;
@@ -21,7 +27,7 @@ mod types;
 
 use serde_json::Value;
 use soma_domain::{
-    actions::{action_validation_error, rest_help, SomaAction},
+    actions::{SomaAction, action_validation_error, rest_help},
     errors::{ServiceError, ToolError},
 };
 

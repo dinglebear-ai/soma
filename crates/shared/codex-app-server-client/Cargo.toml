@@ -1,8 +1,8 @@
 [package]
 name = "codex-app-server-client"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "Standalone, fully-typed async Rust client for the Codex CLI's app-server v2 JSON-RPC protocol."
 homepage = "https://soma.dinglebear.ai"
@@ -112,3 +112,6 @@ required-features = ["rest"]
 [[example]]
 name = "rest_admin_unsafe"
 required-features = ["rest"]
+
+[lints]
+workspace = true

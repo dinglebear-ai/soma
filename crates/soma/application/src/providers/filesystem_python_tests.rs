@@ -4,8 +4,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -92,9 +92,11 @@ fn python_environment_preparation_runs_before_catalog_introspection() {
     };
 
     assert_eq!(calls.load(Ordering::SeqCst), 1);
-    assert!(error
-        .to_string()
-        .contains("failed to prepare Python provider environment: environment unavailable"));
+    assert!(
+        error
+            .to_string()
+            .contains("failed to prepare Python provider environment: environment unavailable")
+    );
     assert!(!error.to_string().contains("invalid Python provider"));
 }
 

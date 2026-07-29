@@ -19,12 +19,12 @@ use soma_application::{
     GatewayToolRoute, PortError,
 };
 use soma_domain::{
-    actions::{scopes_satisfy, READ_SCOPE},
-    scopes::has_admin_scope,
     AuthorizationMode,
+    actions::{READ_SCOPE, scopes_satisfy},
+    scopes::has_admin_scope,
 };
 use soma_gateway::gateway::dispatch::{
-    dispatch_gateway_action, GatewayAccess, GatewayDispatchError,
+    GatewayAccess, GatewayDispatchError, dispatch_gateway_action,
 };
 use soma_gateway::{
     gateway::{

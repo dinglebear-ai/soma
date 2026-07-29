@@ -7,7 +7,7 @@
 //! presence booleans are recorded.
 
 use rmcp::model::Meta;
-use rmcp_traces::{TraceSummary, TraceTrust, BAGGAGE_KEY, TRACEPARENT_KEY, TRACESTATE_KEY};
+use rmcp_traces::{BAGGAGE_KEY, TRACEPARENT_KEY, TRACESTATE_KEY, TraceSummary, TraceTrust};
 use soma_config::TraceHeaderMode;
 use soma_domain::TraceContext;
 

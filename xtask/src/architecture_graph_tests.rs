@@ -1,5 +1,5 @@
 use super::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 #[test]
 fn layer_paths_match_architecture_taxonomy() {

@@ -10,9 +10,9 @@ use std::{
 
 use sha2::{Digest, Sha256};
 use soma_provider_adapters::python::{
+    PythonInterpreter,
     lifecycle::PythonEnvironmentLifecycle,
     materializer::{PreparedPythonEnvironment, UvRunner},
-    PythonInterpreter,
 };
 
 use super::{FileProviderLoadError, FileProviderSource};

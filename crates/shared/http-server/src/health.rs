@@ -13,7 +13,7 @@
 
 use std::future::Future;
 
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use soma_http_api::probe::{liveness_response, readiness_response};
 
 /// Mount `GET /health`, an always-`200 OK` liveness probe.
@@ -48,7 +48,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::to_bytes, body::Body, http::Request, http::StatusCode};
+    use axum::{body::Body, body::to_bytes, http::Request, http::StatusCode};
     use tower::ServiceExt;
 
     #[tokio::test]

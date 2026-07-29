@@ -2,8 +2,8 @@
 name = "unifi"
 description = "Core UniFi Network Controller API client: auth, official + internal REST bindings, capability detection, and actions."
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 repository.workspace = true
 license = "MIT"
@@ -28,3 +28,6 @@ tracing = "0.1"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 wiremock = "0.6"
+
+[lints]
+workspace = true

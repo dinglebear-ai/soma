@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use soma_gateway::config::{GatewayConfig, ProtectedMcpRouteConfig, UpstreamConfig};
 
-use crate::server::{gateway_product_state_from_config, AppState};
+use crate::server::{AppState, gateway_product_state_from_config};
 use crate::test_support;
 
 use super::{append_proxy_suffix, configured_bearer_token, protected_route_upstream_target};
@@ -17,14 +17,16 @@ fn append_proxy_suffix_preserves_backend_base_and_query() {
 
 #[test]
 fn configured_bearer_token_normalizes_optional_scheme() {
-    std::env::set_var("SOMA_TEST_PROXY_TOKEN", "Bearer secret");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("SOMA_TEST_PROXY_TOKEN", "Bearer secret") };
 
     assert_eq!(
         configured_bearer_token("SOMA_TEST_PROXY_TOKEN").as_deref(),
         Some("secret")
     );
 
-    std::env::remove_var("SOMA_TEST_PROXY_TOKEN");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("SOMA_TEST_PROXY_TOKEN") };
 }
 
 // --- `protected_route_upstream_target` branch coverage ---
@@ -148,7 +150,8 @@ async fn upstream_with_valid_http_url_and_no_auth_resolves() {
 
 #[tokio::test]
 async fn upstream_with_bearer_token_env_resolves_the_configured_token() {
-    std::env::set_var("SOMA_TEST_UPSTREAM_TOKEN", "secret-value");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("SOMA_TEST_UPSTREAM_TOKEN", "secret-value") };
     let state = app_state_with_upstreams(vec![UpstreamConfig {
         name: "http-up".to_owned(),
         url: Some("http://backend.example.com/mcp".to_owned()),
@@ -161,6 +164,7 @@ async fn upstream_with_bearer_token_env_resolves_the_configured_token() {
         .await
         .expect("http upstream with bearer_token_env should resolve");
 
-    std::env::remove_var("SOMA_TEST_UPSTREAM_TOKEN");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("SOMA_TEST_UPSTREAM_TOKEN") };
     assert_eq!(token.as_deref(), Some("secret-value"));
 }

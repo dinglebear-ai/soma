@@ -9,10 +9,11 @@ fn identity_matrix_accepts_caller_subject_only_for_admin_oauth() {
             .unwrap()
             .caller_supplied_subject_accepted
     );
-    assert!(rows
-        .iter()
-        .filter(|row| row.surface != GatewayOAuthSurface::AdminOAuthOperation)
-        .all(|row| !row.caller_supplied_subject_accepted));
+    assert!(
+        rows.iter()
+            .filter(|row| row.surface != GatewayOAuthSurface::AdminOAuthOperation)
+            .all(|row| !row.caller_supplied_subject_accepted)
+    );
 
     assert_eq!(
         resolve_subject(

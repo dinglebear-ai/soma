@@ -1,5 +1,5 @@
-use crate::config::virtual_servers::VirtualServerSurfacesConfig;
 use crate::config::VirtualServerConfig;
+use crate::config::virtual_servers::VirtualServerSurfacesConfig;
 
 use super::*;
 

@@ -14,6 +14,12 @@
 //! a transport-shape concern, not business logic, and stays here rather than
 //! in `soma-service`.
 
+// Docs rollout (see `[workspace.lints]` in the root Cargo.toml): this crate has
+// completed its public-API docs pass and holds itself to it. The workspace lint
+// table cannot carry this — `[lints] workspace = true` is all-or-nothing — so the
+// commitment lives here, where it overrides the table's `-A missing_docs`.
+#![warn(missing_docs)]
+
 mod client;
 
 pub use client::SomaClient;

@@ -8,9 +8,9 @@ use std::{
 
 use serde_json::json;
 use soma_application::{
-    dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
+    SomaService, dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
     provider_registry::ProviderCall, provider_registry::ProviderPrincipal,
-    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface, SomaService,
+    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface,
 };
 use soma_client::SomaClient;
 use soma_config::SomaConfig;
@@ -327,10 +327,12 @@ def _private() -> str:
         .expect("plain python provider catalog");
     assert_eq!(catalog.provider.kind.as_str(), "python");
     assert!(catalog.tools.iter().any(|tool| tool.name == "add"));
-    assert!(catalog
-        .tools
-        .iter()
-        .any(|tool| tool.name == "reflect_message"));
+    assert!(
+        catalog
+            .tools
+            .iter()
+            .any(|tool| tool.name == "reflect_message")
+    );
     assert!(!catalog.tools.iter().any(|tool| tool.name == "_private"));
 
     let add = catalog
@@ -352,8 +354,8 @@ def _private() -> str:
 }
 
 #[tokio::test]
-async fn decorated_python_provider_imports_embedded_sdk_and_dispatches_renamed_tool(
-) -> anyhow::Result<()> {
+async fn decorated_python_provider_imports_embedded_sdk_and_dispatches_renamed_tool()
+-> anyhow::Result<()> {
     let temp = test_dir("decorated")?;
     let providers = temp.join("providers");
     fs::create_dir(&providers)?;
@@ -973,8 +975,8 @@ async fn json_manifests_cannot_claim_executable_provider_kinds() -> anyhow::Resu
 }
 
 #[tokio::test]
-async fn python_provider_rejects_framework_tool_names_outside_manifest_contract(
-) -> anyhow::Result<()> {
+async fn python_provider_rejects_framework_tool_names_outside_manifest_contract()
+-> anyhow::Result<()> {
     let temp = test_dir("invalid-tool-name")?;
     let providers = temp.join("providers");
     fs::create_dir(&providers)?;

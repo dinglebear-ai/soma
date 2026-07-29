@@ -1,8 +1,8 @@
 #![cfg(feature = "http")]
 
 use http::{HeaderMap, HeaderValue};
-use rmcp_traces::http::{extract_http_trace, HttpTracePolicy};
-use rmcp_traces::{TraceLimits, TraceTrust, BAGGAGE_KEY, TRACEPARENT_KEY, TRACESTATE_KEY};
+use rmcp_traces::http::{HttpTracePolicy, extract_http_trace};
+use rmcp_traces::{BAGGAGE_KEY, TRACEPARENT_KEY, TRACESTATE_KEY, TraceLimits, TraceTrust};
 
 const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01";
 
@@ -304,15 +304,19 @@ fn non_visible_ascii_optional_headers_preserve_valid_traceparent() {
     assert!(!extraction.summary.has_tracestate());
     assert_eq!(extraction.summary.baggage_member_count(), 0);
     assert_eq!(extraction.summary.invalid_count(), 2);
-    assert!(extraction
-        .summary
-        .invalid_reasons()
-        .iter()
-        .any(|reason| reason == "tracestate header value was not visible ASCII"));
-    assert!(extraction
-        .summary
-        .invalid_reasons()
-        .iter()
-        .any(|reason| reason == "baggage header value was not visible ASCII"));
+    assert!(
+        extraction
+            .summary
+            .invalid_reasons()
+            .iter()
+            .any(|reason| reason == "tracestate header value was not visible ASCII")
+    );
+    assert!(
+        extraction
+            .summary
+            .invalid_reasons()
+            .iter()
+            .any(|reason| reason == "baggage header value was not visible ASCII")
+    );
     assert!(!debug.contains("\\xff"));
 }

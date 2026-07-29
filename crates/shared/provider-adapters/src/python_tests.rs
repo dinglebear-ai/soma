@@ -3,9 +3,10 @@ use std::path::PathBuf;
 use crate::python_protocol::PYTHON_PROTOCOL_HEADROOM_BYTES;
 
 use super::{
+    PythonInterpreter,
     environment::{PythonRuntimeFingerprint, PythonWheelTag},
     materializer::PreparedPythonEnvironment,
-    protocol_output_limit, select_python_command, PythonInterpreter,
+    protocol_output_limit, select_python_command,
 };
 
 #[test]

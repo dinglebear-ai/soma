@@ -1,6 +1,6 @@
 use crate::config::UpstreamConfig;
-use crate::upstream::pool::UpstreamPool;
 use crate::upstream::UpstreamHealth;
+use crate::upstream::pool::UpstreamPool;
 
 #[tokio::test]
 async fn websocket_configs_start_unconnected_not_routable() {

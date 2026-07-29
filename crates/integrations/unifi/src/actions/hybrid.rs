@@ -5,7 +5,7 @@
 //! `"internal"`); otherwise the presence of a `siteId` parameter is taken as
 //! a signal the caller wants the official API's site-scoped shape.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::error::{Result, UnifiError};
 
@@ -22,7 +22,7 @@ pub fn resolve(action: &str, params: &Value) -> Result<(&'static str, Value)> {
         Some(_) => {
             return Err(UnifiError::HybridRouting(
                 "hybrid preference must be a string".to_string(),
-            ))
+            ));
         }
     };
     // A present-but-null siteId is the same as not providing one.
@@ -33,7 +33,7 @@ pub fn resolve(action: &str, params: &Value) -> Result<(&'static str, Value)> {
         Some(other) => {
             return Err(UnifiError::HybridRouting(format!(
                 "unknown hybrid preference: {other}"
-            )))
+            )));
         }
         None if has_site_id => official_target(action),
         None => internal_target(action),
@@ -73,11 +73,7 @@ fn normalize_params(params: &Value) -> Value {
     if let Some(object) = value.as_object_mut() {
         object.remove("prefer");
     }
-    if value.is_null() {
-        json!({})
-    } else {
-        value
-    }
+    if value.is_null() { json!({}) } else { value }
 }
 
 #[cfg(test)]

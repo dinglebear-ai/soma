@@ -3,14 +3,14 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use super::budget::RunBudget;
+use crate::ToolError;
 use crate::host::{CodeModeHost, ExecCtx};
 use crate::local_provider::{
-    dispatch_local_provider, parse_local_provider_call, LocalProviderCall,
+    LocalProviderCall, dispatch_local_provider, parse_local_provider_call,
 };
 use crate::types::{
     CodeModeCaller, CodeModeExecutedCall, CodeModeSurface, ToolDescriptor, ToolScope, UiLink,
 };
-use crate::ToolError;
 
 pub(crate) struct ToolCallContext<'a, H: CodeModeHost> {
     pub(crate) host: Option<&'a H>,
@@ -85,10 +85,10 @@ async fn call_catalog_tool<H: CodeModeHost>(
         },
     )
     .await?;
-    if let Some(ui) = outcome.ui.clone() {
-        if let Ok(mut guard) = ctx.ui_capture.lock() {
-            *guard = Some(ui);
-        }
+    if let Some(ui) = outcome.ui.clone()
+        && let Ok(mut guard) = ctx.ui_capture.lock()
+    {
+        *guard = Some(ui);
     }
     Ok(outcome.value)
 }

@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde_json::json;
+use soma_application::ProviderError;
 use soma_application::provider_registry::{
     Provider, ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal, ProviderRegistry,
     ProviderRequestLimits, ProviderSurface,
 };
-use soma_application::ProviderError;
 use soma_provider_core::ProviderId;
 use soma_provider_core::{ProviderCatalog, ProviderManifest, ToolSpec};
 

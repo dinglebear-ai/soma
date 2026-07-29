@@ -180,9 +180,10 @@ fn section_map_requires_method_field() {
     }]));
 
     let err = section_map(&manifest, "client_requests").unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("missing a string \"method\" field"));
+    assert!(
+        err.to_string()
+            .contains("missing a string \"method\" field")
+    );
 }
 
 // ---------------------------------------------------------------------------

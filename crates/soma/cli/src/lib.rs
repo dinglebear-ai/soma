@@ -13,7 +13,7 @@
 //! soma doctor [--json]
 //! ```
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde_json::Value;
 use soma_application::{ExecuteActionRequest, ExecutionContext, SomaApplication};
 use soma_cli_core::common_args::{
@@ -25,7 +25,7 @@ use soma_cli_core::confirmation::confirm_typed;
 use soma_domain::actions::{ActionSpec, SomaAction};
 use soma_domain::{Confirmation, RequestId, Surface};
 use std::io::{BufRead, IsTerminal, Write};
-use std::sync::{atomic::AtomicU64, atomic::Ordering, Arc};
+use std::sync::{Arc, atomic::AtomicU64, atomic::Ordering};
 
 // CUSTOMIZE: The doctor module is the §48 reference implementation.
 //           Import it from here and wire into run() below.
@@ -37,7 +37,7 @@ pub mod watch;
 
 pub use provider_command::ProviderCommand;
 use provider_command::{parse_providers_command, run_provider_management_command};
-pub use setup::{apply_plugin_options, run_setup, SetupCommand};
+pub use setup::{SetupCommand, apply_plugin_options, run_setup};
 
 pub const USAGE: &str = "Usage:
   soma mcp              Start MCP stdio transport
@@ -269,14 +269,14 @@ pub async fn run(
     io: &mut dyn CliIo,
 ) -> Result<std::process::ExitCode, CliError> {
     let cmd = invocation.command;
-    if let Command::Providers(command) = &cmd {
-        if command.is_non_executing() {
-            let Command::Providers(command) = cmd else {
-                unreachable!()
-            };
-            providers::run_providers_command(command)?;
-            return Ok(std::process::ExitCode::SUCCESS);
-        }
+    if let Command::Providers(command) = &cmd
+        && command.is_non_executing()
+    {
+        let Command::Providers(command) = cmd else {
+            unreachable!()
+        };
+        providers::run_providers_command(command)?;
+        return Ok(std::process::ExitCode::SUCCESS);
     }
 
     let destructive_confirmed = confirm_command_if_destructive(&cmd, &application, io)?;

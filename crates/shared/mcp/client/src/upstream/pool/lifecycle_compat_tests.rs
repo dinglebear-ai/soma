@@ -1,7 +1,7 @@
 use rmcp::model::ServerResult;
 use rmcp::service::ClientInitializeError;
 
-use super::{compatibility_retry, LifecycleAttempt};
+use super::{LifecycleAttempt, compatibility_retry};
 
 #[test]
 fn retries_when_an_unexpected_result_carries_discovery_server_info() {

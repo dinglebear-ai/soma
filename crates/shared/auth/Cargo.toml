@@ -3,8 +3,8 @@ name = "soma-auth"
 description = "Vendored OAuth 2.0 + JWT auth crate for soma and derived servers."
 license = "MIT"
 version = "0.4.1"
-edition = "2024"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -69,3 +69,6 @@ rsa = "0.10.0-rc.16"
 tempfile = "3.27"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 wiremock = "0.6"
+
+[lints]
+workspace = true

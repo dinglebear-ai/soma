@@ -19,8 +19,10 @@ fn response_caps_cover_gateway_surfaces() {
 fn connected_health_is_the_only_routable_state() {
     assert!(super::UpstreamHealth::Connected.is_routable());
     assert!(!super::UpstreamHealth::Disabled.is_routable());
-    assert!(!super::UpstreamHealth::Unsupported {
-        reason: "not yet".to_owned()
-    }
-    .is_routable());
+    assert!(
+        !super::UpstreamHealth::Unsupported {
+            reason: "not yet".to_owned()
+        }
+        .is_routable()
+    );
 }

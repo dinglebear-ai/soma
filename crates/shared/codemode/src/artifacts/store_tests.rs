@@ -6,7 +6,8 @@ struct EnvVarGuard(Option<std::ffi::OsString>);
 impl EnvVarGuard {
     fn set(value: &std::path::Path) -> Self {
         let previous = std::env::var_os("SOMA_HOME");
-        std::env::set_var("SOMA_HOME", value);
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("SOMA_HOME", value) };
         Self(previous)
     }
 }
@@ -14,8 +15,10 @@ impl EnvVarGuard {
 impl Drop for EnvVarGuard {
     fn drop(&mut self) {
         match self.0.take() {
-            Some(value) => std::env::set_var("SOMA_HOME", value),
-            None => std::env::remove_var("SOMA_HOME"),
+            // FIXME: Audit that the environment access only happens in single-threaded code.
+            Some(value) => unsafe { std::env::set_var("SOMA_HOME", value) },
+            // FIXME: Audit that the environment access only happens in single-threaded code.
+            None => unsafe { std::env::remove_var("SOMA_HOME") },
         }
     }
 }

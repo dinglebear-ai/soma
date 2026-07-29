@@ -1,7 +1,7 @@
 use serde_json::json;
 use soma_gateway::gateway::catalog::GatewayActionCatalog;
 
-use super::{expand_env_templates, header_pairs, project_gateway_action_catalog, UpstreamTool};
+use super::{UpstreamTool, expand_env_templates, header_pairs, project_gateway_action_catalog};
 
 #[test]
 fn projects_every_standard_gateway_action_as_a_tool() {

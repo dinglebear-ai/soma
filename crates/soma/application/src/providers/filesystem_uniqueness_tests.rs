@@ -1,6 +1,6 @@
 use soma_provider_core::ProviderCatalog;
 
-use super::{apply_directory_wide_checks, DirectoryNamespace};
+use super::{DirectoryNamespace, apply_directory_wide_checks};
 use crate::{
     provider_registry::DynamicResourceTemplate,
     providers::filesystem::{ProviderFileInspection, ProviderFileInspectionStatus},
@@ -46,9 +46,11 @@ fn namespace_find_conflict_is_none_for_disjoint_catalogs() {
     let mut namespace = DirectoryNamespace::default();
     namespace.register(&tool_catalog("provider-a", "action_a"), "a.json");
 
-    assert!(namespace
-        .find_conflict(&tool_catalog("provider-b", "action_b"))
-        .is_none());
+    assert!(
+        namespace
+            .find_conflict(&tool_catalog("provider-b", "action_b"))
+            .is_none()
+    );
 }
 
 fn rest_tool_catalog(
@@ -100,11 +102,13 @@ fn apply_directory_wide_checks_rejects_a_reserved_infrastructure_route() {
     apply_directory_wide_checks(&mut files, &catalogs, &templates);
 
     assert_eq!(files[0].status, ProviderFileInspectionStatus::Invalid);
-    assert!(files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("infrastructure"));
+    assert!(
+        files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("infrastructure")
+    );
 }
 
 #[test]
@@ -133,11 +137,13 @@ fn apply_directory_wide_checks_rejects_a_different_method_on_a_reserved_infrastr
     apply_directory_wide_checks(&mut files, &catalogs, &templates);
 
     assert_eq!(files[0].status, ProviderFileInspectionStatus::Invalid);
-    assert!(files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("infrastructure"));
+    assert!(
+        files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("infrastructure")
+    );
 }
 
 #[test]
@@ -165,11 +171,13 @@ fn apply_directory_wide_checks_rejects_a_different_method_on_greet() {
     apply_directory_wide_checks(&mut files, &catalogs, &templates);
 
     assert_eq!(files[0].status, ProviderFileInspectionStatus::Invalid);
-    assert!(files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("infrastructure"));
+    assert!(
+        files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("infrastructure")
+    );
 }
 
 #[test]
@@ -197,11 +205,13 @@ fn apply_directory_wide_checks_rejects_a_path_shadowed_by_the_generic_tools_rout
     apply_directory_wide_checks(&mut files, &catalogs, &templates);
 
     assert_eq!(files[0].status, ProviderFileInspectionStatus::Invalid);
-    assert!(files[0]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("/v1/tools/{action}"));
+    assert!(
+        files[0]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("/v1/tools/{action}")
+    );
 }
 
 #[test]
@@ -275,9 +285,11 @@ fn apply_directory_wide_checks_leaves_the_first_file_loaded_and_invalidates_the_
 
     assert_eq!(files[0].status, ProviderFileInspectionStatus::Loaded);
     assert_eq!(files[1].status, ProviderFileInspectionStatus::Invalid);
-    assert!(files[1]
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("a.json"));
+    assert!(
+        files[1]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("a.json")
+    );
 }

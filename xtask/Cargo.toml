@@ -14,7 +14,7 @@
 [package]
 name = "xtask"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
 license = "MIT"
@@ -65,3 +65,6 @@ schemars = "0.8"
 # rmcp-release-monitor's tests (dev-dependency use is covered by this same
 # crate-wide dependency).
 tempfile = "3"
+
+[lints]
+workspace = true

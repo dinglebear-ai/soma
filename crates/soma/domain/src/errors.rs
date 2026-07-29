@@ -9,9 +9,9 @@
 //! on without cycles.
 
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::actions::{action_names, ActionValidationError};
+use crate::actions::{ActionValidationError, action_names};
 
 /// High-level category of a service/tool failure, driving HTTP status,
 /// retryability, and the `kind` field rendered to REST and MCP clients.

@@ -6,8 +6,8 @@ use crate::{
 };
 
 use super::{
-    mcp_routes::{GatewayPromptRoute, GatewayResourceRoute, GatewayToolRoute},
     GatewayManager, GatewayManagerError,
+    mcp_routes::{GatewayPromptRoute, GatewayResourceRoute, GatewayToolRoute},
 };
 
 impl GatewayManager {

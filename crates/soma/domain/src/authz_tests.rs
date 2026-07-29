@@ -1,6 +1,6 @@
 use super::{
-    authorize, authorize_provider_kind, reasons, required_scope_for_safety_class, CallerContext,
-    ExecutionMode, SafetyClass,
+    CallerContext, ExecutionMode, SafetyClass, authorize, authorize_provider_kind, reasons,
+    required_scope_for_safety_class,
 };
 use crate::scopes::{READ_SCOPE, WRITE_SCOPE};
 

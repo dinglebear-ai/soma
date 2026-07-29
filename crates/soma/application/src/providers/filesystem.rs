@@ -36,11 +36,11 @@ mod filesystem_uniqueness;
 #[path = "filesystem_wasm.rs"]
 mod filesystem_wasm;
 
-use filesystem_python::{
-    collect_python_dependency_paths, fingerprint_python_environment, is_python_provider_source,
-};
 pub use filesystem_python::{
     PythonProviderEnvironmentPreparer, PythonProviderEnvironmentSelections,
+};
+use filesystem_python::{
+    collect_python_dependency_paths, fingerprint_python_environment, is_python_provider_source,
 };
 
 /// File-backed provider source rooted at a provider directory.

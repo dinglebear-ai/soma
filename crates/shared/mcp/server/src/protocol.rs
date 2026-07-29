@@ -11,8 +11,8 @@
 use std::{borrow::Cow, sync::Arc};
 
 use rmcp::{
-    model::{Prompt, Resource, Tool, ToolAnnotations},
     ErrorData,
+    model::{Prompt, Resource, Tool, ToolAnnotations},
 };
 use serde_json::{Map, Value};
 

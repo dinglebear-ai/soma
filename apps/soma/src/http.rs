@@ -22,12 +22,12 @@
 use std::sync::Arc;
 
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::{HeaderName, HeaderValue, Method, StatusCode},
     middleware,
     response::{Html, IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
 };
 use serde::Deserialize;
 use tracing::info;
@@ -43,7 +43,7 @@ use soma_http_server::middleware::body_limit::body_limit_layer;
 use soma_http_server::middleware::cors::cors_layer as generic_cors_layer;
 use soma_http_server::rejection::not_found_handler;
 use soma_mcp::{allowed_origins, streamable_http_config, streamable_http_service};
-use soma_runtime::server::{build_auth_layer, AppState, AuthPolicy};
+use soma_runtime::server::{AppState, AuthPolicy, build_auth_layer};
 
 const MCP_BODY_LIMIT_BYTES: usize = 65_536;
 /// Matches the desktop Palette bridge's own cap

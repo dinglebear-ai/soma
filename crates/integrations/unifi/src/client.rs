@@ -5,7 +5,7 @@ use reqwest::{Client, Method};
 use serde_json::Value;
 
 use crate::error::{Result, UnifiError};
-use crate::{http, UnifiConfig};
+use crate::{UnifiConfig, http};
 
 /// HTTP REST client for UniFi controllers.
 ///

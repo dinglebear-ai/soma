@@ -1,7 +1,7 @@
 use crate::config::ClientConfig;
 use crate::transport::{
-    unix::tests::{json_response, spawn_fake_daemon},
     Client, WithEtag,
+    unix::tests::{json_response, spawn_fake_daemon},
 };
 
 fn image_json(fingerprint: &str) -> String {
@@ -125,10 +125,12 @@ async fn update_image_sends_if_match_header_when_etag_is_provided() {
         .await
         .expect("update_image should succeed");
 
-    assert!(seen_request
-        .lock()
-        .unwrap()
-        .contains("If-Match: \"img-etag\""));
+    assert!(
+        seen_request
+            .lock()
+            .unwrap()
+            .contains("If-Match: \"img-etag\"")
+    );
 }
 
 #[tokio::test]

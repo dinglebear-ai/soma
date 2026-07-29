@@ -9,22 +9,22 @@ use std::{
 };
 
 use axum::{
-    body::{to_bytes, Body},
-    http::{header, Method, Request, StatusCode},
+    body::{Body, to_bytes},
+    http::{Method, Request, StatusCode, header},
 };
 use codex_app_server_client::{
+    CODEX_SCHEMA_VERSION, CompatibilityReport, Error, SurfaceSummary,
     rest::{
-        bearer_auth, router_with_backend, router_with_backend_and_options, RestApprovalPolicy,
-        RestBackend, RestCallRequest, RestCallResponse, RestClientOptions, RestError,
-        RestErrorReplyRequest, RestErrorResponse, RestEventResponse, RestHealthResponse,
+        RestApprovalPolicy, RestBackend, RestCallRequest, RestCallResponse, RestClientOptions,
+        RestError, RestErrorReplyRequest, RestErrorResponse, RestEventResponse, RestHealthResponse,
         RestLimits, RestRequestReplyResponse, RestRequestReplyResultRequest, RestResult,
         RestRouterOptions, RestSessionCreateRequest, RestSessionCreateResponse, RestSessionSummary,
-        RestStatusResponse, RestTextTurnRequest, RestTextTurnResponse,
+        RestStatusResponse, RestTextTurnRequest, RestTextTurnResponse, bearer_auth,
+        router_with_backend, router_with_backend_and_options,
     },
-    CompatibilityReport, Error, SurfaceSummary, CODEX_SCHEMA_VERSION,
 };
-use serde_json::{json, Value};
-use tokio::sync::{watch, Notify};
+use serde_json::{Value, json};
+use tokio::sync::{Notify, watch};
 use tower::ServiceExt;
 
 #[derive(Clone, Default)]

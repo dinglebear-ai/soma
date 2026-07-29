@@ -48,7 +48,7 @@
 //! - [`paths`] - `paths`, i.e. [`paths::build_paths`], including every
 //!   per-operation request/response/parameter builder.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 mod json;
 mod paths;
@@ -56,7 +56,7 @@ mod route_table;
 mod schemas;
 
 #[cfg(test)]
-use route_table::{RouteDef, ROUTES};
+use route_table::{ROUTES, RouteDef};
 
 /// Builds the full OpenAPI 3.1.0 document for the `rest` module.
 ///
@@ -101,12 +101,15 @@ pub fn openapi_spec() -> Value {
         ),
         (
             "servers",
-            json!([
-                json::obj(vec![
-                    ("url", json!("http://127.0.0.1:43210")),
-                    ("description", json!("Default loopback bind address used by the `rest_server` example and the `codex-app-server-rest` binary's `text-turn` mode.")),
-                ]),
-            ]),
+            json!([json::obj(vec![
+                ("url", json!("http://127.0.0.1:43210")),
+                (
+                    "description",
+                    json!(
+                        "Default loopback bind address used by the `rest_server` example and the `codex-app-server-rest` binary's `text-turn` mode."
+                    )
+                ),
+            ]),]),
         ),
         (
             "components",
@@ -140,18 +143,18 @@ mod tests {
     use std::{collections::BTreeSet, fs, path::PathBuf};
 
     use axum::{
-        body::{to_bytes, Body},
-        http::{header, Method, Request},
+        body::{Body, to_bytes},
+        http::{Method, Request, header},
     };
     use tower::ServiceExt;
 
     use super::*;
     use crate::{
-        rest::{
-            router_with_backend_and_options, RestBackend, RestFuture, RestRouterOptions,
-            RestTextTurnResponse,
-        },
         CompatibilityReport,
+        rest::{
+            RestBackend, RestFuture, RestRouterOptions, RestTextTurnResponse,
+            router_with_backend_and_options,
+        },
     };
 
     /// Path to the checked-in spec, relative to this crate's manifest.

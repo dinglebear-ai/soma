@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use super::local_provider::{
-    is_reserved_provider_namespace, parse_local_provider_call, LocalProviderName,
+    LocalProviderName, is_reserved_provider_namespace, parse_local_provider_call,
 };
 
 #[test]

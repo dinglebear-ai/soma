@@ -16,9 +16,11 @@ fn workspace_root() -> PathBuf {
 
 #[test]
 fn gateway_src_root_is_checked() {
-    assert!(crate_src_roots()
-        .iter()
-        .any(|path| path == &PathBuf::from("crates/shared/mcp/gateway/src")));
+    assert!(
+        crate_src_roots()
+            .iter()
+            .any(|path| path == &PathBuf::from("crates/shared/mcp/gateway/src"))
+    );
 }
 
 #[test]

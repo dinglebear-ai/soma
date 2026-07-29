@@ -1,8 +1,8 @@
 [package]
 name = "soma-codemode"
 version = "0.0.0"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 license = "MIT"
 publish = false
 autobins = false
@@ -53,3 +53,6 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 
 [dev-dependencies]
 serial_test = "3"
+
+[lints]
+workspace = true

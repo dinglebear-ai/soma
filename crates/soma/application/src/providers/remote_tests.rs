@@ -126,7 +126,9 @@ fn inspection_report_rejects_unknown_provider_kind() {
 
     let error = catalogs_from_inspection(&report).expect_err("unknown kind should fail");
 
-    assert!(error
-        .to_string()
-        .contains("unknown remote provider kind `unknown-kind`"));
+    assert!(
+        error
+            .to_string()
+            .contains("unknown remote provider kind `unknown-kind`")
+    );
 }

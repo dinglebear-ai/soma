@@ -177,12 +177,11 @@ pub fn register_shortcut(
     if guard.as_deref() == Some(new_label) {
         return Ok(());
     }
-    if let Some(old_label) = guard.take() {
-        if let Some(old_shortcut) = parse_shortcut(&old_label) {
-            if let Err(err) = app.global_shortcut().unregister(old_shortcut) {
-                tracing::warn!("failed to unregister old shortcut '{old_label}': {err}");
-            }
-        }
+    if let Some(old_label) = guard.take()
+        && let Some(old_shortcut) = parse_shortcut(&old_label)
+        && let Err(err) = app.global_shortcut().unregister(old_shortcut)
+    {
+        tracing::warn!("failed to unregister old shortcut '{old_label}': {err}");
     }
     app.global_shortcut()
         .register(new_shortcut)

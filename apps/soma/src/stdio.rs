@@ -7,7 +7,7 @@
 //! parent and child process, so HTTP auth middleware does not apply.
 
 use anyhow::Result;
-use rmcp::{transport::stdio, ServiceExt};
+use rmcp::{ServiceExt, transport::stdio};
 use soma_mcp as mcp;
 
 /// Serve the MCP protocol over stdio until the client disconnects.

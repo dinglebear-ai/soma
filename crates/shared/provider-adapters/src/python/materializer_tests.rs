@@ -6,7 +6,7 @@ use std::{
 };
 
 use super::*;
-use crate::python::environment::{plan_python_environment, PythonRuntimeFingerprint};
+use crate::python::environment::{PythonRuntimeFingerprint, plan_python_environment};
 
 #[derive(Default)]
 struct FakeUv {
@@ -377,11 +377,13 @@ fn failed_or_invalid_update_preserves_current_generation() {
         .unwrap()
         .join("v3");
     if v3.is_dir() {
-        assert!(!v3.read_dir().unwrap().any(|entry| entry
-            .unwrap()
-            .file_name()
-            .to_string_lossy()
-            .contains(".update-")));
+        assert!(!v3.read_dir().unwrap().any(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .contains(".update-")
+        }));
     }
 
     let invalid = PythonEnvironmentMaterializer::with_runner("uv", UpdateUv::new("version = 2\n"));
@@ -479,25 +481,29 @@ fn repair_rebuilds_corrupt_environment_atomically() {
     let report = manager.repair(&plan, request(&wheel, false)).unwrap();
 
     assert_eq!(report.outcome, PythonEnvironmentRepairOutcome::Rebuilt);
-    assert!(report
-        .replaced_error
-        .as_deref()
-        .unwrap()
-        .contains("uv.lock digest"));
+    assert!(
+        report
+            .replaced_error
+            .as_deref()
+            .unwrap()
+            .contains("uv.lock digest")
+    );
     assert!(report.cleanup_pending.is_none());
     assert_eq!(manager.runner.calls.lock().unwrap().len(), 6);
     manager.open_frozen(&plan).unwrap();
-    assert!(!plan
-        .directory
-        .parent()
-        .unwrap()
-        .read_dir()
-        .unwrap()
-        .any(|entry| entry
+    assert!(
+        !plan
+            .directory
+            .parent()
             .unwrap()
-            .file_name()
-            .to_string_lossy()
-            .contains(".repair-")));
+            .read_dir()
+            .unwrap()
+            .any(|entry| entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .contains(".repair-"))
+    );
 }
 
 #[test]
@@ -527,17 +533,19 @@ fn failed_repair_restores_original_cache_entry() {
         fs::read_to_string(sentinel).unwrap(),
         "original corrupt cache"
     );
-    assert!(!plan
-        .directory
-        .parent()
-        .unwrap()
-        .read_dir()
-        .unwrap()
-        .any(|entry| entry
+    assert!(
+        !plan
+            .directory
+            .parent()
             .unwrap()
-            .file_name()
-            .to_string_lossy()
-            .contains(".repair-")));
+            .read_dir()
+            .unwrap()
+            .any(|entry| entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .contains(".repair-"))
+    );
 }
 
 #[test]
@@ -676,17 +684,19 @@ fn concurrent_incomplete_cache_preserves_cache_error() {
         Err(PythonMaterializationError::IncompleteCache(message))
             if message.contains("readiness marker")
     ));
-    assert!(!plan
-        .directory
-        .parent()
-        .unwrap()
-        .read_dir()
-        .unwrap()
-        .any(|entry| entry
+    assert!(
+        !plan
+            .directory
+            .parent()
             .unwrap()
-            .file_name()
-            .to_string_lossy()
-            .starts_with('.')));
+            .read_dir()
+            .unwrap()
+            .any(|entry| entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with('.'))
+    );
 }
 
 #[test]

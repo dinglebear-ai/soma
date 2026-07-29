@@ -48,6 +48,7 @@ use std::{collections::HashMap, process::Stdio, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use reqwest::header::{HeaderName, HeaderValue};
+use rmcp::{ClientHandler, RoleClient};
 use rmcp::{
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, ClientCapabilities, ClientInfo,
@@ -55,12 +56,11 @@ use rmcp::{
     },
     service::{ClientLifecycleMode, ClientServiceExt, RunningService},
     transport::{
-        streamable_http_client::StreamableHttpClientTransportConfig, ConfigureCommandExt,
-        StreamableHttpClientTransport, TokioChildProcess,
+        ConfigureCommandExt, StreamableHttpClientTransport, TokioChildProcess,
+        streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
-use rmcp::{ClientHandler, RoleClient};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use soma_provider_core::{
     Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
 };

@@ -210,13 +210,13 @@ fn validate_transport_shape(config: &UpstreamConfig) -> Result<(), ConfigError> 
 
 impl GatewayUpstreamOauthConfig {
     fn validate(&self) -> Result<(), ConfigError> {
-        if let Some(scopes) = &self.scopes {
-            if scopes.iter().any(|scope| scope.trim().is_empty()) {
-                return Err(ConfigError::invalid(
-                    "oauth.scopes",
-                    "must not contain blanks",
-                ));
-            }
+        if let Some(scopes) = &self.scopes
+            && scopes.iter().any(|scope| scope.trim().is_empty())
+        {
+            return Err(ConfigError::invalid(
+                "oauth.scopes",
+                "must not contain blanks",
+            ));
         }
         if let GatewayUpstreamOauthRegistration::Preregistered {
             client_secret_env: Some(env),

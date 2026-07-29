@@ -48,7 +48,7 @@ pub fn propagate_request_id_layer() -> PropagateRequestIdLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, http::Request, routing::get, Router};
+    use axum::{Router, body::Body, http::Request, routing::get};
     use tower::{ServiceBuilder, ServiceExt};
 
     // `set_request_id_layer` must be outermost (added first) so it assigns

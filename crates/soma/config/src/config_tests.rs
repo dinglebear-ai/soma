@@ -14,7 +14,8 @@ struct EnvVarGuard {
 impl EnvVarGuard {
     fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
         let previous = std::env::var_os(key);
-        std::env::set_var(key, value);
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var(key, value) };
         Self { key, previous }
     }
 }
@@ -22,8 +23,10 @@ impl EnvVarGuard {
 impl Drop for EnvVarGuard {
     fn drop(&mut self) {
         match self.previous.take() {
-            Some(value) => std::env::set_var(self.key, value),
-            None => std::env::remove_var(self.key),
+            // FIXME: Audit that the environment access only happens in single-threaded code.
+            Some(value) => unsafe { std::env::set_var(self.key, value) },
+            // FIXME: Audit that the environment access only happens in single-threaded code.
+            None => unsafe { std::env::remove_var(self.key) },
         }
     }
 }
@@ -32,14 +35,17 @@ impl Drop for EnvVarGuard {
 #[serial]
 fn default_data_dir_honors_soma_home_override() {
     let previous = std::env::var_os("SOMA_HOME");
-    std::env::set_var("SOMA_HOME", "/tmp/soma-home-override");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("SOMA_HOME", "/tmp/soma-home-override") };
 
     let dir = default_data_dir().expect("SOMA_HOME override should resolve");
 
     assert_eq!(dir, std::path::PathBuf::from("/tmp/soma-home-override"));
     match previous {
-        Some(value) => std::env::set_var("SOMA_HOME", value),
-        None => std::env::remove_var("SOMA_HOME"),
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        Some(value) => unsafe { std::env::set_var("SOMA_HOME", value) },
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        None => unsafe { std::env::remove_var("SOMA_HOME") },
     }
 }
 
@@ -110,10 +116,12 @@ fn is_loopback_subdomain_is_false() {
 // Each test uses a distinct key to avoid collisions with parallel test threads.
 
 fn call_env_bool(key: &str, raw: &str) -> anyhow::Result<bool> {
-    std::env::set_var(key, raw);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(key, raw) };
     let mut target = false;
     let result = env_bool(key, &mut target);
-    std::env::remove_var(key);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var(key) };
     result.map(|_| target)
 }
 
@@ -163,10 +171,12 @@ fn env_bool_rejects_invalid() {
 // ── env_list helper ───────────────────────────────────────────────────────────
 
 fn call_env_list(key: &str, raw: &str) -> Vec<String> {
-    std::env::set_var(key, raw);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(key, raw) };
     let mut target: Vec<String> = Vec::new();
     env_list(key, &mut target);
-    std::env::remove_var(key);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var(key) };
     target
 }
 
@@ -188,10 +198,12 @@ fn env_list_trims_spaces_around_commas() {
 #[serial]
 fn env_list_empty_string_leaves_target_unchanged() {
     // An empty env var should not overwrite an existing target
-    std::env::set_var("TEST_ENV_LIST_EMPTY", "");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("TEST_ENV_LIST_EMPTY", "") };
     let mut target = vec!["existing".to_string()];
     env_list("TEST_ENV_LIST_EMPTY", &mut target);
-    std::env::remove_var("TEST_ENV_LIST_EMPTY");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("TEST_ENV_LIST_EMPTY") };
     assert_eq!(
         target,
         vec!["existing"],
@@ -262,13 +274,16 @@ fn runtime_mode_deserializes_remote() {
 #[serial]
 fn config_load_rejects_invalid_runtime_mode_env() {
     let previous = std::env::var_os("SOMA_RUNTIME_MODE");
-    std::env::set_var("SOMA_RUNTIME_MODE", "sideways");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("SOMA_RUNTIME_MODE", "sideways") };
 
     let result = Config::load();
 
     match previous {
-        Some(value) => std::env::set_var("SOMA_RUNTIME_MODE", value),
-        None => std::env::remove_var("SOMA_RUNTIME_MODE"),
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        Some(value) => unsafe { std::env::set_var("SOMA_RUNTIME_MODE", value) },
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        None => unsafe { std::env::remove_var("SOMA_RUNTIME_MODE") },
     }
     assert!(
         result.is_err(),
@@ -374,9 +389,11 @@ fn auth_numeric_env_override_rejects_non_numeric_value() {
     let _at = EnvVarGuard::set("SOMA_MCP_AUTH_ACCESS_TOKEN_TTL_SECS", "soon");
 
     let error = Config::load().expect_err("non-numeric TTL should be rejected");
-    assert!(error
-        .to_string()
-        .contains("SOMA_MCP_AUTH_ACCESS_TOKEN_TTL_SECS"));
+    assert!(
+        error
+            .to_string()
+            .contains("SOMA_MCP_AUTH_ACCESS_TOKEN_TTL_SECS")
+    );
 }
 
 #[test]
@@ -430,7 +447,8 @@ fn trace_headers_env_parses_all_three_values() {
         ("trusted", TraceHeaderMode::Trusted),
         ("trusted-with-baggage", TraceHeaderMode::TrustedWithBaggage),
     ] {
-        std::env::set_var("SOMA_MCP_TRACE_HEADERS", raw);
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("SOMA_MCP_TRACE_HEADERS", raw) };
         let config = Config::load().expect("config should load");
         assert_eq!(
             config.mcp.trace_headers, expected,

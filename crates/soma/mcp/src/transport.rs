@@ -12,13 +12,13 @@
 mod tests;
 
 use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
 use soma_mcp_server::http::{self, AllowedHostsInput, AllowedOriginsInput};
 
 use soma_config::McpConfig;
 
-use super::rmcp_server::{rmcp_server as make_server, SomaRmcpServer};
+use super::rmcp_server::{SomaRmcpServer, rmcp_server as make_server};
 
 // ── Transport builders ────────────────────────────────────────────────────────
 

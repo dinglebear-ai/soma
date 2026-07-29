@@ -1,6 +1,6 @@
+use rmcp::RoleClient;
 use rmcp::model::{ClientRequest, ErrorCode, ErrorData, NumberOrString, ServerResult};
 use rmcp::service::RxJsonRpcMessage;
-use rmcp::RoleClient;
 
 use super::*;
 

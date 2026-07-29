@@ -1,5 +1,5 @@
-use soma_application::provider_errors::redact_public;
 use soma_application::ProviderError;
+use soma_application::provider_errors::redact_public;
 
 #[test]
 fn provider_errors_redact_secret_bearing_diagnostics() {
@@ -11,9 +11,11 @@ fn provider_errors_redact_secret_bearing_diagnostics() {
 
     assert_eq!(&*error.code, "provider_execution_failed");
     assert_eq!(&*error.message, "[redacted provider diagnostic]");
-    assert!(error
-        .private_diagnostics()
-        .is_some_and(|diagnostic| diagnostic.contains("sk-secret")));
+    assert!(
+        error
+            .private_diagnostics()
+            .is_some_and(|diagnostic| diagnostic.contains("sk-secret"))
+    );
     assert!(!format!("{error}").contains("sk-secret"));
 }
 

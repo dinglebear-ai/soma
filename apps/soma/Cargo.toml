@@ -8,8 +8,8 @@
 [package]
 name = "soma"
 version = "0.6.1"
-edition = "2021"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Product-first RMCP runtime for provider-backed agent capabilities with CLI, REST, HTTP MCP, plugins, and derivative scaffold support."
 homepage.workspace = true
@@ -158,3 +158,6 @@ rmcp = { workspace = true, features = [
   "transport-child-process",
   "transport-streamable-http-client-reqwest",
 ] }
+
+[lints]
+workspace = true

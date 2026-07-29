@@ -1,9 +1,9 @@
 use serde_json::Value;
 
+use crate::ToolError;
 use crate::host::{CodeModeHost, ExecCtx, ToolCallOutcome};
 use crate::schema::validate_code_mode_params_against_schema;
 use crate::types::{CodeModeCaller, CodeModeSurface, ToolDescriptor, ToolScope};
-use crate::ToolError;
 
 pub async fn call_host_tool<H: CodeModeHost>(
     host: &H,

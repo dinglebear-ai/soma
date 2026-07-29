@@ -25,6 +25,6 @@ mod config;
 mod service;
 
 pub use client::GotifyClient;
-pub use config::{GotifyConfig, DEFAULT_REQUEST_TIMEOUT};
+pub use config::{DEFAULT_REQUEST_TIMEOUT, GotifyConfig};
 pub use error::{GotifyError, Result};
 pub use service::GotifyService;

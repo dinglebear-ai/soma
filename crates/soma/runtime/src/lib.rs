@@ -12,5 +12,5 @@ mod protected_routes_proxy;
 mod test_support;
 
 pub use server::{
-    resolve_auth_policy_kind, AppState, AuthPolicy, AuthPolicyKind, ResponsePageStore, SomaRuntime,
+    AppState, AuthPolicy, AuthPolicyKind, ResponsePageStore, SomaRuntime, resolve_auth_policy_kind,
 };

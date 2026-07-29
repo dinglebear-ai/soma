@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use super::{parse_json_value, read_json_version, write_json_preserving_prefix};
 

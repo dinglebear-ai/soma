@@ -10,8 +10,8 @@
 //! - `check_cargo_generate` delegates to the existing xtask cargo-generate
 //!   implementation; the Python file is already only a thin wrapper.
 
-use anyhow::{bail, Context, Result};
-use serde_json::{json, Value};
+use anyhow::{Context, Result, bail};
+use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -1531,11 +1531,7 @@ fn finish_failures(failures: Vec<String>) -> Result<()> {
 }
 
 fn require(condition: bool, message: String) -> Result<()> {
-    if condition {
-        Ok(())
-    } else {
-        bail!(message)
-    }
+    if condition { Ok(()) } else { bail!(message) }
 }
 
 fn object<'a>(

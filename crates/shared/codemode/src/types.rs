@@ -20,10 +20,10 @@ mod scope_tests;
 
 pub use caller::{CodeModeCaller, CodeModeCallerCapabilities, CodeModeSurface};
 pub use catalog::{
-    destructive_permitted, CodeModeCatalogKind, CodeModeSnippetInputEntry, ToolDescriptor, UiLink,
+    CodeModeCatalogKind, CodeModeSnippetInputEntry, ToolDescriptor, UiLink, destructive_permitted,
 };
 pub use history::{CodeModeHistory, CodeModeHistoryEntry, CodeModeHistoryKind};
-pub use id::{namespaced_tool_id, split_namespaced_id, CodeModeToolId, CodeModeToolRef};
+pub use id::{CodeModeToolId, CodeModeToolRef, namespaced_tool_id, split_namespaced_id};
 pub use response::{
     CodeModeExecutedCall, CodeModeExecutionError, CodeModeExecutionResponse,
     CodeModeExecutionSource, CodeModeSourceLookup, CodeModeSourceStore,

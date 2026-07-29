@@ -4,8 +4,8 @@ use crate::ToolError;
 
 use super::path::VirtualPath;
 use super::workspace::{
-    cleanup_file_after_quota_error, internal_io, serialize_error, ApplyEditPlanResult,
-    EditPlanResult, FileEdit, StateWorkspace,
+    ApplyEditPlanResult, EditPlanResult, FileEdit, StateWorkspace, cleanup_file_after_quota_error,
+    internal_io, serialize_error,
 };
 
 impl StateWorkspace {

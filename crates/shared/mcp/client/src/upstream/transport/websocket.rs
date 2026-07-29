@@ -1,7 +1,7 @@
 use futures::{SinkExt, StreamExt};
 use rmcp::service::{RxJsonRpcMessage, TxJsonRpcMessage};
 use rmcp::transport::worker::{Worker, WorkerConfig, WorkerContext, WorkerQuitReason};
-use rmcp::{transport::worker::WorkerTransport, RoleClient};
+use rmcp::{RoleClient, transport::worker::WorkerTransport};
 use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::protocol::{Message, WebSocketConfig};

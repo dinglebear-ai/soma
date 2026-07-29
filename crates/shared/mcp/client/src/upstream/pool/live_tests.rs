@@ -29,29 +29,29 @@ fn default_python_command() -> String {
 mod live_servers_tests;
 
 use crate::upstream::{
-    pool::{ToolCall, UpstreamPool},
     McpRequestOutcome, McpRoundTrip,
+    pool::{ToolCall, UpstreamPool},
 };
 use axum::{
+    Json,
     extract::State,
     http::{HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 use futures::{SinkExt, StreamExt};
-use live_servers_tests::{websocket_fixture_response, EchoServer, TaskFixtureState, TaskServer};
+use live_servers_tests::{EchoServer, TaskFixtureState, TaskServer, websocket_fixture_response};
 use rmcp::model::{
     ClientCapabilities, ElicitationCapability, FormElicitationCapability, Implementation,
     ProtocolVersion, RequestMetaObject,
 };
 use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
 use std::{
     collections::BTreeMap,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 use tokio_tungstenite::tungstenite::Message;

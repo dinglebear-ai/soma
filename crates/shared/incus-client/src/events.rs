@@ -12,9 +12,9 @@
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
 use tokio::net::UnixStream;
-use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
-use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
 use crate::error::{Error, Result};
 use crate::operations::Operation;

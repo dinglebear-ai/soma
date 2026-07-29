@@ -5,9 +5,9 @@
 //! item labels/ids and what each event should do.
 
 use tauri::{
+    App, Wry,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    App, Wry,
 };
 
 /// One entry in a tray context menu.

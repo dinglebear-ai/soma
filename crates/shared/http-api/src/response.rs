@@ -1,10 +1,10 @@
 //! Reusable JSON response envelope and error-body helpers.
 
 use axum::{
+    Json,
     extract::rejection::JsonRejection,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 
@@ -78,11 +78,11 @@ pub fn application_error_status(code: &str) -> StatusCode {
 #[cfg(test)]
 mod tests {
     use axum::{
-        body::{to_bytes, Body},
+        Router,
+        body::{Body, to_bytes},
         extract::DefaultBodyLimit,
         http::Request,
         routing::post,
-        Router,
     };
     use tower::ServiceExt;
 

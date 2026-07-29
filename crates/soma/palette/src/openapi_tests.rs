@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::{augment_with_palette_routes, CATALOG_PATH, EXECUTE_PATH, SCHEMA_PATH, SEARCH_PATH};
+use super::{CATALOG_PATH, EXECUTE_PATH, SCHEMA_PATH, SEARCH_PATH, augment_with_palette_routes};
 
 #[test]
 fn inserts_all_four_palette_paths() {

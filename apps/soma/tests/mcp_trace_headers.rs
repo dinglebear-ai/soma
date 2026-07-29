@@ -12,7 +12,7 @@ use rmcp::{
 use serde_json::json;
 use soma::server::AppState;
 use soma_config::{McpConfig, TraceHeaderMode};
-use soma_test_support::{tracing_test_lock, SharedBuf};
+use soma_test_support::{SharedBuf, tracing_test_lock};
 
 const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01";
 const TEST_OPERATION_TIMEOUT: Duration = Duration::from_secs(15);
@@ -175,8 +175,8 @@ async fn trusted_mode_extracts_traceparent_from_a_real_http_request() -> anyhow:
 
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "current_thread")]
-async fn trusted_with_baggage_mode_summarizes_baggage_without_leaking_raw_values(
-) -> anyhow::Result<()> {
+async fn trusted_with_baggage_mode_summarizes_baggage_without_leaking_raw_values()
+-> anyhow::Result<()> {
     let _lock = tracing_test_lock();
     let capture = TracingCapture::start();
 
@@ -236,8 +236,8 @@ async fn trusted_gateway_unscoped_extracts_trace_headers_with_no_principal() -> 
 
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "current_thread")]
-async fn mounted_auth_failure_never_emits_trace_fields_even_with_headers_present(
-) -> anyhow::Result<()> {
+async fn mounted_auth_failure_never_emits_trace_fields_even_with_headers_present()
+-> anyhow::Result<()> {
     let _lock = tracing_test_lock();
     let capture = TracingCapture::start();
 

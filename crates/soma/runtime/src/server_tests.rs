@@ -177,9 +177,11 @@ fn wildcard_public_url_is_rejected() {
     let mut config = config("0.0.0.0");
     config.mcp.auth.public_url = Some("https://*.example.com".into());
     let error = resolve_auth_policy_kind(&config, true).unwrap_err();
-    assert!(error
-        .to_string()
-        .contains("SOMA_MCP_PUBLIC_URL must not contain wildcard hosts"));
+    assert!(
+        error
+            .to_string()
+            .contains("SOMA_MCP_PUBLIC_URL must not contain wildcard hosts")
+    );
 }
 
 #[tokio::test]

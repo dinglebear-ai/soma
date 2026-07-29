@@ -11,9 +11,9 @@ use serde::Serialize;
 use thiserror::Error;
 
 use super::{
-    environment_python, open_ready, render_project, sha256_hex, verify_sdk_digest,
     PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonMaterializationError,
-    PythonMaterializationRequest, ReadyMarker, UvRunner, READY_FILE, READY_SCHEMA_VERSION,
+    PythonMaterializationRequest, READY_FILE, READY_SCHEMA_VERSION, ReadyMarker, UvRunner,
+    environment_python, open_ready, render_project, sha256_hex, verify_sdk_digest,
 };
 use crate::python::environment::{Pep723Metadata, PythonEnvironmentPlan};
 

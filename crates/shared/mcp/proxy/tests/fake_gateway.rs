@@ -10,8 +10,8 @@
 use soma_mcp_client::{
     config::UpstreamConfig,
     upstream::{
-        pool::{InProcessUpstream, ToolCall, UpstreamPool},
         ToolDescriptor,
+        pool::{InProcessUpstream, ToolCall, UpstreamPool},
     },
 };
 use soma_mcp_proxy::{rmcp_tool_from_route, tool_routes_from_candidates};

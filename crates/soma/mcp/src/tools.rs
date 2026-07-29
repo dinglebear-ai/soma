@@ -8,12 +8,12 @@
 //! it is unused.
 
 use rmcp::{
-    service::{ElicitationError, Peer},
     RoleServer,
+    service::{ElicitationError, Peer},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 #[cfg(test)]
 use std::sync::OnceLock;
 
@@ -21,7 +21,7 @@ use soma_application::{
     ElicitedName, ExecuteActionRequest, ExecutionContext, ScaffoldIntentRequest, SomaApplication,
 };
 #[cfg(test)]
-use soma_domain::actions::{ActionTransport, ACTION_SPECS};
+use soma_domain::actions::{ACTION_SPECS, ActionTransport};
 
 use crate::McpState;
 

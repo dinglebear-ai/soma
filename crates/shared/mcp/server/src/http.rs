@@ -9,10 +9,10 @@
 use std::net::Ipv6Addr;
 
 use rmcp::{
-    transport::streamable_http_server::{
-        session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
-    },
     ServerHandler,
+    transport::streamable_http_server::{
+        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+    },
 };
 
 // ── allowed hosts ─────────────────────────────────────────────────────────────
@@ -79,10 +79,10 @@ pub fn allowed_origins(input: AllowedOriginsInput<'_>) -> Vec<String> {
     for origin in input.extra_origins {
         push_configured_origin(&mut origins, origin, input.extra_origins_label);
     }
-    if let Some(public_url) = input.public_url {
-        if let Some(origin) = extract_origin_with_label(public_url, input.public_url_label) {
-            origins.push(origin);
-        }
+    if let Some(public_url) = input.public_url
+        && let Some(origin) = extract_origin_with_label(public_url, input.public_url_label)
+    {
+        origins.push(origin);
     }
     origins.sort();
     origins.dedup();

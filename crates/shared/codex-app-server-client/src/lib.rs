@@ -55,13 +55,13 @@ pub use approvals::{
     DenyAllApprovalHandler, FnApprovalHandler, ReadOnlyApprovalHandler, ServerRequestReply,
 };
 pub use client::{
-    CodexAppServerClient, Event, EventStream, PendingServerRequest, DEFAULT_CALL_TIMEOUT,
-    DEFAULT_EVENTS_CHANNEL_CAPACITY, SERVER_NOTIFICATION_METHODS,
+    CodexAppServerClient, DEFAULT_CALL_TIMEOUT, DEFAULT_EVENTS_CHANNEL_CAPACITY, Event,
+    EventStream, PendingServerRequest, SERVER_NOTIFICATION_METHODS,
 };
 pub use compat::{
-    CompatibilityReport, SurfaceSummary, CLIENT_NOTIFICATION_METHOD_COUNT,
-    CLIENT_REQUEST_METHOD_COUNT, CODEX_SCHEMA_VERSION, SERVER_NOTIFICATION_METHOD_COUNT,
-    SERVER_REQUEST_METHOD_COUNT,
+    CLIENT_NOTIFICATION_METHOD_COUNT, CLIENT_REQUEST_METHOD_COUNT, CODEX_SCHEMA_VERSION,
+    CompatibilityReport, SERVER_NOTIFICATION_METHOD_COUNT, SERVER_REQUEST_METHOD_COUNT,
+    SurfaceSummary,
 };
 pub use daemon::CodexDaemon;
 pub use error::{Error, Result};

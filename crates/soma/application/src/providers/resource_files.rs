@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde_json::Value;
 use soma_provider_core::{
     ProviderCatalog, ProviderIdentity, ProviderKind, ProviderManifest, ProviderResource,
@@ -78,13 +78,12 @@ impl ResourceFileProvider {
             .components()
             .map(|component| component.as_os_str().to_string_lossy().into_owned())
             .collect();
-        if let Some(last) = stem_segments.last_mut() {
-            if let Some(stem) = Path::new(last.as_str())
+        if let Some(last) = stem_segments.last_mut()
+            && let Some(stem) = Path::new(last.as_str())
                 .file_stem()
                 .and_then(|stem| stem.to_str())
-            {
-                *last = stem.to_owned();
-            }
+        {
+            *last = stem.to_owned();
         }
         let segment_refs: Vec<&str> = stem_segments.iter().map(String::as_str).collect();
         let resource_path = resource_uri::parse_resource_path(&segment_refs)

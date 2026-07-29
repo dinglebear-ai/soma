@@ -79,7 +79,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("  curl http://{addr}/health");
     println!("  curl http://{addr}/v1/compatibility");
-    println!("  curl -X POST http://{addr}/v1/call/config/read -H 'content-type: application/json' -d '{{\"params\":{{}}}}'");
+    println!(
+        "  curl -X POST http://{addr}/v1/call/config/read -H 'content-type: application/json' -d '{{\"params\":{{}}}}'"
+    );
     println!();
 
     axum::serve(listener, rest::trusted_bridge_router()).await?;

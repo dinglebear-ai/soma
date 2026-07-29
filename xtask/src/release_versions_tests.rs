@@ -13,13 +13,17 @@ fn manifest_models_single_soma_component() {
     assert_eq!(component.tag_prefix, "v");
     assert_eq!(component.release_workflow, "release.yml");
     assert!(component.shipping_paths.contains(&"crates".to_owned()));
-    assert!(component
-        .shipping_paths
-        .contains(&"plugins/soma".to_owned()));
-    assert!(component
-        .version_files
-        .iter()
-        .any(|file| file.kind == VersionKind::JsonNoVersion));
+    assert!(
+        component
+            .shipping_paths
+            .contains(&"plugins/soma".to_owned())
+    );
+    assert!(
+        component
+            .version_files
+            .iter()
+            .any(|file| file.kind == VersionKind::JsonNoVersion)
+    );
     assert!(component.version_files.iter().any(|file| {
         file.kind == VersionKind::OciIdentifierVersion
             && file.path == "server.json"
@@ -123,12 +127,16 @@ fn release_please_manifest_sync_updates_all_version_files() {
     let server = fs::read_to_string(fixture.path("server.json")).unwrap();
     assert!(server.contains(r#""version": "0.4.2""#));
     assert!(server.contains("ghcr.io/dinglebear-ai/soma:0.4.2"));
-    assert!(fs::read_to_string(fixture.path("apps/soma/Cargo.toml"))
-        .unwrap()
-        .contains(r#"version = "0.4.2""#));
-    assert!(fs::read_to_string(fixture.path("Cargo.lock"))
-        .unwrap()
-        .contains(r#"version = "0.4.2""#));
+    assert!(
+        fs::read_to_string(fixture.path("apps/soma/Cargo.toml"))
+            .unwrap()
+            .contains(r#"version = "0.4.2""#)
+    );
+    assert!(
+        fs::read_to_string(fixture.path("Cargo.lock"))
+            .unwrap()
+            .contains(r#"version = "0.4.2""#)
+    );
 }
 
 #[test]
@@ -152,9 +160,11 @@ fn parity_checks_registry_openapi_and_plugin_no_version() {
     let manifest = load_manifest(fixture.root()).unwrap();
     let errors = check_component_parity(fixture.root(), &manifest.components[0], "0.4.1").unwrap();
     assert!(errors.iter().any(|error| error.contains("server.json")));
-    assert!(errors
-        .iter()
-        .any(|error| error.contains("must not contain")));
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.contains("must not contain"))
+    );
 }
 
 #[test]

@@ -11,12 +11,12 @@ use crate::pool::{PoolConfig, RunnerDisposition, RunnerPool, RunnerSpawn};
 use crate::protocol::{CodeModeRunnerInput, CodeModeRunnerOutput};
 use crate::runner_io::{decode_runner_output, terminate_code_mode_runner, write_runner_input};
 use crate::types::{CodeModeCaller, CodeModeExecutionResponse, CodeModeSurface, ToolScope, UiLink};
-use crate::{normalize_user_code, CodeModeConfig, ToolError};
+use crate::{CodeModeConfig, ToolError, normalize_user_code};
 
 use super::budget::RunBudget;
 use super::proxy::{build_proxy, load_entries};
-use super::tool_dispatch::{handle_tool_call, ToolCallContext};
-use super::{finish_response, CodeModeExecutionOutcome};
+use super::tool_dispatch::{ToolCallContext, handle_tool_call};
+use super::{CodeModeExecutionOutcome, finish_response};
 
 pub(crate) struct SubprocessExecution<'a, H: CodeModeHost> {
     pub(crate) host: Option<&'a H>,

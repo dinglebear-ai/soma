@@ -14,12 +14,12 @@
 #[cfg(feature = "client")]
 use anyhow::Context;
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use soma_config::{EffectiveRuntimeMode, SomaConfig};
 
 #[cfg(feature = "client")]
-use reqwest::{header, Url};
+use reqwest::{Url, header};
 #[cfg(feature = "client")]
 use std::time::Duration;
 
@@ -392,21 +392,21 @@ fn remote_provider_route(catalog: &Value, action: &str) -> Result<Option<RemoteP
                 .get("name")
                 .and_then(Value::as_str)
                 .ok_or_else(|| anyhow::anyhow!("remote provider catalog tool missing name"))?;
-            if let Some(rest) = tool.get("rest") {
-                if let Some(path) = rest.get("path").and_then(Value::as_str) {
-                    return Ok(Some(RemoteProviderRoute {
-                        method: rest_method(rest),
-                        relative_path: trim_relative_rest_path(path),
-                    }));
-                }
+            if let Some(rest) = tool.get("rest")
+                && let Some(path) = rest.get("path").and_then(Value::as_str)
+            {
+                return Ok(Some(RemoteProviderRoute {
+                    method: rest_method(rest),
+                    relative_path: trim_relative_rest_path(path),
+                }));
             }
-            if let Some(rest) = tool.get("generic_rest") {
-                if let Some(path) = rest.get("path").and_then(Value::as_str) {
-                    return Ok(Some(RemoteProviderRoute {
-                        method: rest_method(rest),
-                        relative_path: trim_relative_rest_path(path),
-                    }));
-                }
+            if let Some(rest) = tool.get("generic_rest")
+                && let Some(path) = rest.get("path").and_then(Value::as_str)
+            {
+                return Ok(Some(RemoteProviderRoute {
+                    method: rest_method(rest),
+                    relative_path: trim_relative_rest_path(path),
+                }));
             }
             return Ok(Some(RemoteProviderRoute {
                 method: "POST".to_owned(),

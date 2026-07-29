@@ -1,5 +1,5 @@
 use crate::gateway::manager::GatewayManager;
-use crate::gateway::virtual_servers::{project_virtual_server, VirtualServerProjection};
+use crate::gateway::virtual_servers::{VirtualServerProjection, project_virtual_server};
 
 impl GatewayManager {
     pub fn virtual_server_projections(&self) -> Vec<VirtualServerProjection> {

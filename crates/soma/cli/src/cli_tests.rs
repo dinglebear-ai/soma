@@ -1,5 +1,5 @@
 use soma_domain::{
-    actions::{ActionCost, ActionSpec, ActionTransport, SomaAction, ACTION_SPECS},
+    actions::{ACTION_SPECS, ActionCost, ActionSpec, ActionTransport, SomaAction},
     errors::ToolError,
 };
 use soma_provider_core::{
@@ -9,9 +9,9 @@ use soma_provider_core::{
 use soma_test_support::{application_with_provider, default_application};
 
 use super::{
-    confirm_destructive_action_allowed, confirm_destructive_action_from_io, parse_args_from,
-    provider_action_from_command, run, service_action_from_command, usage, CliIo, Command,
-    ProviderCommand, SetupCommand,
+    CliIo, Command, ProviderCommand, SetupCommand, confirm_destructive_action_allowed,
+    confirm_destructive_action_from_io, parse_args_from, provider_action_from_command, run,
+    service_action_from_command, usage,
 };
 
 const TEST_DESTRUCTIVE_ACTIONS: &[ActionSpec] = &[ActionSpec {
@@ -583,15 +583,18 @@ async fn run_status_command_prints_status_json() {
     // other test happens to run next.
     const VAR: &str = "SOMA_SUPPRESS_STALE_BINARY_WARNING";
     let previous = std::env::var(VAR).ok();
-    std::env::set_var(VAR, "1");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(VAR, "1") };
 
     let application = default_application();
     let mut io = TestIo::default();
     let result = run(application, Command::Status.into(), &mut io).await;
 
     match previous {
-        Some(value) => std::env::set_var(VAR, value),
-        None => std::env::remove_var(VAR),
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        Some(value) => unsafe { std::env::set_var(VAR, value) },
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        None => unsafe { std::env::remove_var(VAR) },
     }
 
     result.expect("status should run through the application facade");

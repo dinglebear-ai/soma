@@ -1,4 +1,4 @@
-use super::id::{split_namespaced_id, CodeModeToolId, CodeModeToolRef};
+use super::id::{CodeModeToolId, CodeModeToolRef, split_namespaced_id};
 
 #[test]
 fn parses_canonical_tool_ids() {

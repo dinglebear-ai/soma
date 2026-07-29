@@ -1,7 +1,7 @@
 //! Re-exports of the generic provider error type plus adapter-local error
 //! types shared across sidecar-executing adapters (ai-sdk, python).
 
-pub use soma_provider_core::{redact_public, ProviderError};
+pub use soma_provider_core::{ProviderError, redact_public};
 
 /// A bounded sidecar child process failed for a reason short of an
 /// application-level `ProviderError` — surfaced by [`crate::sidecar`] and

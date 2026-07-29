@@ -8,8 +8,8 @@
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Result};
-use soma_config::{default_data_dir, env_registry, AuthMode, Config};
+use anyhow::{Result, bail};
+use soma_config::{AuthMode, Config, default_data_dir, env_registry};
 use soma_runtime::server::resolve_auth_policy_kind;
 
 // ── public surface ────────────────────────────────────────────────────────────
@@ -42,7 +42,8 @@ pub fn apply_plugin_options() {
                 continue;
             }
             // edition 2021: set_var is safe (no unsafe block required).
-            std::env::set_var(dest, v);
+            // FIXME: Audit that the environment access only happens in single-threaded code.
+            unsafe { std::env::set_var(dest, v) };
         }
     }
 }

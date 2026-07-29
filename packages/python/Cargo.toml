@@ -1,8 +1,8 @@
 [package]
 name = "soma-provider-python"
 version = "0.2.0"
-edition = "2024"
-rust-version = "1.96"
+edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 description = "Private PyO3 acceleration and validation bindings for soma-provider"
 homepage.workspace = true
@@ -30,3 +30,6 @@ test = false
 pyo3.workspace = true
 serde_json = "1"
 soma-provider-core.workspace = true
+
+[lints]
+workspace = true

@@ -4,9 +4,9 @@
 //! supplying whatever async check represents "ready" for them.
 
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 

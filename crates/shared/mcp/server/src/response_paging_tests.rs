@@ -3,8 +3,8 @@ use serde_json::json;
 use crate::assert_result_has_no_meta;
 
 use super::{
-    response_page_request, tool_result_from_json, ResponsePageRequest, ResponsePageStore,
-    ResponsePagingOptions, DEFAULT_MAX_RESPONSE_BYTES,
+    DEFAULT_MAX_RESPONSE_BYTES, ResponsePageRequest, ResponsePageStore, ResponsePagingOptions,
+    response_page_request, tool_result_from_json,
 };
 
 fn result_text(result: &rmcp::model::CallToolResult) -> &str {
@@ -65,10 +65,12 @@ fn tool_result_from_json_returns_scrollable_page_envelope() {
     assert_eq!(parsed["page"]["offset"], 0);
     assert_eq!(parsed["page"]["has_more"], true);
     assert_eq!(parsed["continuation"]["arguments"]["action"], "status");
-    assert!(parsed["continuation"]["arguments"]["_response_cursor"]
-        .as_str()
-        .unwrap()
-        .starts_with("rsp_"));
+    assert!(
+        parsed["continuation"]["arguments"]["_response_cursor"]
+            .as_str()
+            .unwrap()
+            .starts_with("rsp_")
+    );
     assert!(
         parsed["continuation"]["arguments"]["_response_offset"]
             .as_u64()
@@ -126,10 +128,12 @@ fn tool_result_from_json_returns_requested_continuation_page() {
     assert_eq!(second_payload["page"]["offset"], next_offset);
     assert_eq!(second_payload["page"]["page_bytes"], 1024);
     assert_ne!(second_payload["content"], first_payload["content"]);
-    assert!(!second_payload["content"]
-        .as_str()
-        .expect("page content should be text")
-        .contains("would be a different re-executed response"));
+    assert!(
+        !second_payload["content"]
+            .as_str()
+            .expect("page content should be text")
+            .contains("would be a different re-executed response")
+    );
 }
 
 #[test]

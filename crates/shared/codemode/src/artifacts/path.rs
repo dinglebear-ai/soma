@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::path_safety::{reject_existing_symlink_ancestors, reject_path_traversal};
 use crate::ToolError;
+use crate::path_safety::{reject_existing_symlink_ancestors, reject_path_traversal};
 
 pub fn artifact_root(run_id: &str) -> PathBuf {
     crate::soma_home().join("code-mode-artifacts").join(run_id)

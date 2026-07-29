@@ -2,12 +2,12 @@
 //! `/proxy/network/integration` REST API.
 
 use reqwest::Method;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::api::{official::OfficialNetworkApi, path, ApiSourceFamily};
+use crate::UnifiClient;
+use crate::api::{ApiSourceFamily, official::OfficialNetworkApi, path};
 use crate::capabilities::Capability;
 use crate::error::{Result, UnifiError};
-use crate::UnifiClient;
 
 const CONNECTOR_PREFIXES: &[&str] = &["/proxy/network/integration/", "/proxy/protect/integration/"];
 

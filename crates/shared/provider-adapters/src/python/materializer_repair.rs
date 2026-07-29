@@ -9,8 +9,8 @@ use std::{
 use thiserror::Error;
 
 use super::{
-    open_ready, verify_sdk_digest, PreparedPythonEnvironment, PythonEnvironmentMaterializer,
-    PythonMaterializationError, PythonMaterializationRequest, UvRunner,
+    PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonMaterializationError,
+    PythonMaterializationRequest, UvRunner, open_ready, verify_sdk_digest,
 };
 use crate::python::environment::PythonEnvironmentPlan;
 

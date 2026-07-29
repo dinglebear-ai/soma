@@ -32,10 +32,10 @@ use checks::{
     check_port_available, check_required_var, check_upstream,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::Serialize;
 
-use soma_config::{default_data_dir, Config};
+use soma_config::{Config, default_data_dir};
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -240,27 +240,27 @@ fn print_doctor_report(checks: &[DoctorCheck]) {
     // Delegates to soma-cli-core's color policy (crates/shared/cli-core);
     // wrapped in local macros so call sites below stay unchanged.
     macro_rules! green {
-        ($s:expr) => {
+        ($s:expr_2021) => {
             soma_cli_core::color::green(&$s.to_string(), color)
         };
     }
     macro_rules! red {
-        ($s:expr) => {
+        ($s:expr_2021) => {
             soma_cli_core::color::red(&$s.to_string(), color)
         };
     }
     macro_rules! yellow {
-        ($s:expr) => {
+        ($s:expr_2021) => {
             soma_cli_core::color::yellow(&$s.to_string(), color)
         };
     }
     macro_rules! bold {
-        ($s:expr) => {
+        ($s:expr_2021) => {
             soma_cli_core::color::bold(&$s.to_string(), color)
         };
     }
     macro_rules! dim {
-        ($s:expr) => {
+        ($s:expr_2021) => {
             soma_cli_core::color::dim(&$s.to_string(), color)
         };
     }

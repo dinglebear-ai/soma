@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::execute::{
-    runner::{execute_in_subprocess, SubprocessExecution},
     CodeModeExecutionOutcome,
+    runner::{SubprocessExecution, execute_in_subprocess},
 };
 use crate::host::CodeModeHost;
 use crate::pool::{PoolConfig, RunnerPool, RunnerSpawn};

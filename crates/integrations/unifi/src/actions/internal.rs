@@ -4,13 +4,13 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use reqwest::Method;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::api::{internal::InternalNetworkApi, path, ApiSourceFamily};
+use crate::UnifiClient;
+use crate::api::{ApiSourceFamily, internal::InternalNetworkApi, path};
 use crate::capabilities::Capability;
 use crate::error::{Result, UnifiError};
 use crate::util::truncate_data_array;
-use crate::UnifiClient;
 
 /// Runs one internal-API `capability` against `client`.
 ///

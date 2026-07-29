@@ -4,7 +4,7 @@
 //! The parent integration lane can expose them as xtask commands after checking
 //! command names and wrapper behavior.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
@@ -328,7 +328,9 @@ impl BlobSizeOptions {
                         .into();
                 }
                 "--help" | "-h" => {
-                    bail!("Usage: cargo xtask check-blob-size [--base REF] [--head REF] [--max-bytes N] [--allowlist PATH]");
+                    bail!(
+                        "Usage: cargo xtask check-blob-size [--base REF] [--head REF] [--max-bytes N] [--allowlist PATH]"
+                    );
                 }
                 unknown => bail!("unknown option: {unknown}"),
             }
@@ -358,7 +360,9 @@ impl DependencyUpdateOptions {
             match arg.as_str() {
                 "--skip-search" => skip_search = true,
                 "--fail-on-updates" => fail_on_updates = true,
-                "--help" | "-h" => bail!("Usage: cargo xtask check-dependency-updates [--skip-search] [--fail-on-updates]"),
+                "--help" | "-h" => bail!(
+                    "Usage: cargo xtask check-dependency-updates [--skip-search] [--fail-on-updates]"
+                ),
                 unknown => bail!("ERROR: unknown option: {unknown}"),
             }
         }
@@ -407,12 +411,16 @@ impl RuntimeOptions {
             match args[index].as_str() {
                 "--mode" => {
                     index += 1;
-                    self.mode = parse_runtime_mode(args.get(index).context("--mode requires a value")?)?;
+                    self.mode =
+                        parse_runtime_mode(args.get(index).context("--mode requires a value")?)?;
                 }
                 "--pull" => self.pull = true,
                 "--unit" => {
                     index += 1;
-                    self.unit = args.get(index).context("--unit requires a value")?.to_owned();
+                    self.unit = args
+                        .get(index)
+                        .context("--unit requires a value")?
+                        .to_owned();
                 }
                 "--service" => {
                     index += 1;
@@ -436,7 +444,9 @@ impl RuntimeOptions {
                             .into(),
                     );
                 }
-                "--help" | "-h" => bail!("Usage: cargo xtask check-runtime-current [--mode auto|systemd|docker] [--pull] [--unit NAME] [--service NAME] [--compose-dir DIR] [--expected-binary PATH]"),
+                "--help" | "-h" => bail!(
+                    "Usage: cargo xtask check-runtime-current [--mode auto|systemd|docker] [--pull] [--unit NAME] [--service NAME] [--compose-dir DIR] [--expected-binary PATH]"
+                ),
                 unknown => bail!("unknown argument: {unknown}"),
             }
             index += 1;
@@ -2070,7 +2080,7 @@ fn tempfile_dir_in(parent: impl AsRef<Path>, prefix: impl AsRef<str>) -> Result<
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => {
                 return Err(error)
-                    .with_context(|| format!("failed to create {}", candidate.display()))
+                    .with_context(|| format!("failed to create {}", candidate.display()));
             }
         }
     }
@@ -2152,9 +2162,11 @@ assets/*.png # real assets
         let violations = vec![&blob];
         let temp = tempfile_dir("lane-c-summary.").unwrap();
         let summary = temp.join("summary.md");
-        std::env::set_var("GITHUB_STEP_SUMMARY", &summary);
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("GITHUB_STEP_SUMMARY", &summary) };
         write_blob_step_summary(512, std::slice::from_ref(&blob), &violations).unwrap();
-        std::env::remove_var("GITHUB_STEP_SUMMARY");
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::remove_var("GITHUB_STEP_SUMMARY") };
         let text = fs::read_to_string(summary).unwrap();
         assert!(text.contains("## Blob Size Policy"));
         assert!(text.contains("| `big.bin` | binary | `1024` bytes (1.0 KiB) | blocked |"));

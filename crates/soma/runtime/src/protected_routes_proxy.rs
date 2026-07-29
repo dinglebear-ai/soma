@@ -11,8 +11,8 @@
 use std::time::Instant;
 
 use axum::{
-    body::{to_bytes, Body},
-    http::{header, HeaderName, Request, StatusCode},
+    body::{Body, to_bytes},
+    http::{HeaderName, Request, StatusCode, header},
     response::Response,
 };
 use soma_gateway::{
@@ -59,7 +59,7 @@ pub(crate) async fn proxy_protected_mcp_route(
                 StatusCode::BAD_REQUEST,
                 "body_read_failed",
                 format!("failed to read MCP request body: {error}"),
-            )
+            );
         }
     };
     let mut builder = reqwest::Client::new().request(method.clone(), upstream);
@@ -78,7 +78,7 @@ pub(crate) async fn proxy_protected_mcp_route(
                 StatusCode::BAD_GATEWAY,
                 "backend_request_failed",
                 format!("protected MCP backend request to {target} failed: {error}"),
-            )
+            );
         }
     };
     let status = StatusCode::from_u16(upstream_response.status().as_u16())

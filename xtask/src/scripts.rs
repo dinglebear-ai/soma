@@ -1,7 +1,7 @@
 //! Rust implementations for small scripts that have thin wrappers
 //! in `scripts/`.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -356,10 +356,10 @@ fn trailing_rust_test_module_start(text: &str) -> Option<usize> {
             cfg_line = Some(line_number);
             continue;
         }
-        if let Some(start) = cfg_line {
-            if is_rust_mod_line(line) {
-                return Some(start);
-            }
+        if let Some(start) = cfg_line
+            && is_rust_mod_line(line)
+        {
+            return Some(start);
         }
         cfg_line = None;
     }

@@ -1,5 +1,5 @@
 use std::{
-    future::{ready, Future},
+    future::{Future, ready},
     pin::Pin,
     time::{SystemTime, UNIX_EPOCH},
 };

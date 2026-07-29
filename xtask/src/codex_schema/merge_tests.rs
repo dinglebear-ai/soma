@@ -244,9 +244,10 @@ fn params_type_for_hard_fails_on_unrecognized_shapes() {
         ]
     });
     let err = params_type_for("weird", &union).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("unrecognized 'params' schema shape"));
+    assert!(
+        err.to_string()
+            .contains("unrecognized 'params' schema shape")
+    );
 }
 
 #[test]
@@ -259,18 +260,20 @@ fn params_type_for_hard_fails_on_three_way_anyof() {
         ]
     });
     let err = params_type_for("weird", &union).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("unrecognized 'params' schema shape"));
+    assert!(
+        err.to_string()
+            .contains("unrecognized 'params' schema shape")
+    );
 }
 
 #[test]
 fn params_type_for_hard_fails_when_method_missing() {
     let union = json!({"oneOf": []});
     let err = params_type_for("missing", &union).unwrap_err();
-    assert!(err
-        .to_string()
-        .contains("not found in the given union's oneOf branches"));
+    assert!(
+        err.to_string()
+            .contains("not found in the given union's oneOf branches")
+    );
 }
 
 #[test]

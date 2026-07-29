@@ -11,6 +11,7 @@
 use std::time::Instant;
 
 use rmcp::{
+    ErrorData, RoleServer, ServerHandler,
     model::{
         CacheScope, CallToolRequestParams, CallToolResponse, CancelTaskParams,
         GetPromptRequestParams, GetPromptResponse, GetTaskParams, GetTaskResult, Implementation,
@@ -20,7 +21,6 @@ use rmcp::{
         SubscriptionFilter, UpdateTaskParams,
     },
     service::{Peer, RequestContext, SubscriptionContext},
-    ErrorData, RoleServer, ServerHandler,
 };
 use serde_json::{Map, Value};
 
@@ -43,7 +43,7 @@ use super::{
 };
 
 macro_rules! trace_summary_event {
-    ($level:ident, $trace_resolution:expr, $trace_context_conflict:expr, $message:literal, $($field:tt)*) => {
+    ($level:ident, $trace_resolution:expr_2021, $trace_context_conflict:expr_2021, $message:literal, $($field:tt)*) => {
         tracing::$level!(
             $($field)*
             trace_id_prefix = ?$trace_resolution.summary.trace_id_prefix(),
@@ -67,13 +67,12 @@ mod destructive_mrtr;
 mod support;
 
 use support::{
-    empty_action_as_none, execution_context, execution_context_with_trace,
-    private_dynamic_read_response, private_prompts_result, private_resource_templates_result,
-    private_resources_result, private_tools_result, refresh_file_providers, request_meta_value,
-    resource_contents_from_output, resource_read_error, response_paging_options,
-    rmcp_resource_from_catalog_resource, rmcp_tool_definitions, schema_resource,
-    task_application_error, tool_definitions_for_state, trace_resolution_for_call,
-    SCHEMA_RESOURCE_URI, SERVER_INSTRUCTIONS,
+    SCHEMA_RESOURCE_URI, SERVER_INSTRUCTIONS, empty_action_as_none, execution_context,
+    execution_context_with_trace, private_dynamic_read_response, private_prompts_result,
+    private_resource_templates_result, private_resources_result, private_tools_result,
+    refresh_file_providers, request_meta_value, resource_contents_from_output, resource_read_error,
+    response_paging_options, rmcp_resource_from_catalog_resource, rmcp_tool_definitions,
+    schema_resource, task_application_error, tool_definitions_for_state, trace_resolution_for_call,
 };
 
 // ── server ────────────────────────────────────────────────────────────────────
@@ -157,10 +156,11 @@ impl ServerHandler for SomaRmcpServer {
         let mut execution_context =
             execution_context_with_trace(&self.state, auth, trace_resolution.trace_context.clone());
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
-        if soma_allowed && self.state.config().conformance_fixtures {
-            if let Some(result) = conformance::call_tool(&tool_name) {
-                return Ok(result.into());
-            }
+        if soma_allowed
+            && self.state.config().conformance_fixtures
+            && let Some(result) = conformance::call_tool(&tool_name)
+        {
+            return Ok(result.into());
         }
         if tool_name != "soma" {
             let Some(requires_confirmation) = gateway_proxy::tool_requires_confirmation(
@@ -482,10 +482,11 @@ impl ServerHandler for SomaRmcpServer {
         let route_scope = protected_route_scope(&context);
         let execution_context = execution_context(&self.state, &context, auth);
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
-        if soma_allowed && self.state.config().conformance_fixtures {
-            if let Some(result) = conformance::read_resource(&request.uri) {
-                return Ok(private_dynamic_read_response(result.into()));
-            }
+        if soma_allowed
+            && self.state.config().conformance_fixtures
+            && let Some(result) = conformance::read_resource(&request.uri)
+        {
+            return Ok(private_dynamic_read_response(result.into()));
         }
         if let Some(result) = gateway_proxy::read_resource_for_subject_and_scope(
             self.state.application(),
@@ -514,11 +515,10 @@ impl ServerHandler for SomaRmcpServer {
             let text = serde_json::to_string_pretty(&schema).map_err(|e| {
                 ErrorData::internal_error(format!("serialization error: {e}"), None)
             })?;
-            return Ok(ReadResourceResult::new(vec![ResourceContents::text(
-                text,
-                SCHEMA_RESOURCE_URI,
-            )
-            .with_mime_type("application/json")])
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(text, SCHEMA_RESOURCE_URI)
+                    .with_mime_type("application/json"),
+            ])
             .with_ttl_ms(0)
             .with_cache_scope(CacheScope::Private)
             .into());
@@ -588,10 +588,11 @@ impl ServerHandler for SomaRmcpServer {
         let route_scope = protected_route_scope(&context);
         let execution_context = execution_context(&self.state, &context, auth);
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
-        if soma_allowed && self.state.config().conformance_fixtures {
-            if let Some(result) = conformance::get_prompt(request.clone()) {
-                return Ok(result.into());
-            }
+        if soma_allowed
+            && self.state.config().conformance_fixtures
+            && let Some(result) = conformance::get_prompt(request.clone())
+        {
+            return Ok(result.into());
         }
         if let Some(result) = gateway_proxy::get_prompt_for_subject_and_scope(
             self.state.application(),

@@ -7,7 +7,7 @@
 //! never in `cli.rs` or `mcp/tools.rs`.
 
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use soma_client::SomaClient;
 

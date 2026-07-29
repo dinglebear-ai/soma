@@ -8,7 +8,7 @@
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use fancy_regex::Regex;
 use serde_json::{Map, Value};
 
@@ -164,7 +164,9 @@ pub fn fuzzy_response_match<'a>(
                     "{method}: ambiguous fuzzy response-type match - multiple *Response types tie \
                      for shortest token-superset match: {:?} (all candidates: {:?}). Add an explicit \
                      RESPONSE_OVERRIDES entry for this method instead of guessing.",
-                    std::iter::once(*shortest).chain(tied.into_iter().copied()).collect::<Vec<_>>(),
+                    std::iter::once(*shortest)
+                        .chain(tied.into_iter().copied())
+                        .collect::<Vec<_>>(),
                     candidates
                 );
             }

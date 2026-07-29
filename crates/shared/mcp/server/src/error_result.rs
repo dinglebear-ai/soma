@@ -5,10 +5,10 @@
 //! every action-dispatch or router-style MCP server eventually needs.
 
 use rmcp::{
-    model::{CallToolResult, ContentBlock},
     ErrorData,
+    model::{CallToolResult, ContentBlock},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Wrap a structured tool-error JSON payload into an MCP `CallToolResult`,
 /// truncating down to a small overflow envelope when the serialized payload

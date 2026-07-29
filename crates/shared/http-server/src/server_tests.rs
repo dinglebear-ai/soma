@@ -4,7 +4,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::{extract::ConnectInfo, routing::get, Router};
+use axum::{Router, extract::ConnectInfo, routing::get};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 

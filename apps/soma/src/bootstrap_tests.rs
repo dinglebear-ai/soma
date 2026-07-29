@@ -7,7 +7,7 @@ use soma_config::{McpConfig, SomaConfig};
 #[cfg(feature = "mcp")]
 use soma_domain::{AuthorizationMode, RequestId, Surface};
 #[cfg(feature = "mcp")]
-use soma_runtime::server::{empty_gateway_product_state, AppState, AuthPolicy};
+use soma_runtime::server::{AppState, AuthPolicy, empty_gateway_product_state};
 
 #[cfg(feature = "mcp")]
 use super::{authorization_mode, runtime_for_components};

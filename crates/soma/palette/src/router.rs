@@ -5,22 +5,22 @@
 //! logic lives in those sibling modules, not here.
 
 use axum::{
-    extract::{rejection::JsonRejection, Extension, Query, State},
+    Router,
+    extract::{Extension, Query, State, rejection::JsonRejection},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
-    Router,
 };
 use soma_application::CatalogSnapshot;
 use soma_http_api::response::json_rejection_response;
 
 use crate::{
-    auth::{palette_execution_context, AuthContext},
+    auth::{AuthContext, palette_execution_context},
     catalog::catalog_response,
     dto::{
         LauncherExecuteRequest, LauncherSchemaQuery, LauncherSearchQuery, LauncherSearchResponse,
     },
     error::{launcher_not_found, palette_error_response},
-    execute::{execute_launcher, ExecuteOutcome},
+    execute::{ExecuteOutcome, execute_launcher},
     schema::find_schema,
     search::search_entries,
     state::PaletteState,

@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::route_inventory::GATEWAY_ROUTE_PATH;
 

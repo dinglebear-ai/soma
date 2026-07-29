@@ -6,11 +6,11 @@ use std::{
 };
 
 use rmcp::{
+    ServiceExt,
     model::{CallToolRequestParams, GetPromptRequestParams, ReadResourceRequestParams},
     transport::{ConfigureCommandExt, TokioChildProcess},
-    ServiceExt,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     process::{Child, Command},
@@ -307,10 +307,12 @@ async fn dropped_static_resource_file_hot_registers_and_reads() -> anyhow::Resul
 
     let service = stdio_client_in(temp.path()).await?;
     let before = service.list_resources(Default::default()).await?;
-    assert!(!before
-        .resources
-        .iter()
-        .any(|r| r.uri == "soma://resources/runbook"));
+    assert!(
+        !before
+            .resources
+            .iter()
+            .any(|r| r.uri == "soma://resources/runbook")
+    );
 
     fs::write(
         resources.join("runbook.md"),
@@ -542,14 +544,14 @@ fn provider_manifest(name: &str, kind: &str, action: &str) -> String {
             }
         }]
     });
-    if kind == "ai-sdk" {
-        if let Some(command) = node_exec_path() {
-            manifest["tools"][0]["meta"] = json!({
-                "ai_sdk": {
-                    "command": command,
-                }
-            });
-        }
+    if kind == "ai-sdk"
+        && let Some(command) = node_exec_path()
+    {
+        manifest["tools"][0]["meta"] = json!({
+            "ai_sdk": {
+                "command": command,
+            }
+        });
     }
     manifest.to_string()
 }

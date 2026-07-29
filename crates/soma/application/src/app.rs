@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use serde_json::Value;
 use soma_domain::{
+    AuthorizationMode, Principal, Surface,
     scopes::{READ_SCOPE, WRITE_SCOPE},
     token_limit::MAX_RESPONSE_BYTES,
-    AuthorizationMode, Principal, Surface,
 };
 use soma_provider_core::{ProviderPrompt, ProviderResource};
 

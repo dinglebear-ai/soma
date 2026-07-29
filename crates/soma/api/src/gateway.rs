@@ -1,5 +1,5 @@
 use axum::{
-    extract::{rejection::JsonRejection, Extension, Path, State},
+    extract::{Extension, Path, State, rejection::JsonRejection},
     response::{IntoResponse, Json},
 };
 #[cfg(feature = "auth")]
@@ -9,11 +9,11 @@ pub struct AuthContext {
     pub sub: String,
     pub scopes: Vec<String>,
 }
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use soma_application::{ApplicationError, GatewayExecuteRequest};
-use soma_http_api::json::{json_body_or_else, JsonBodyOutcome};
+use soma_http_api::json::{JsonBodyOutcome, json_body_or_else};
 
-use crate::{responses::application_error_status, ApiState};
+use crate::{ApiState, responses::application_error_status};
 
 pub async fn v1_gateway_action(
     State(state): State<ApiState>,

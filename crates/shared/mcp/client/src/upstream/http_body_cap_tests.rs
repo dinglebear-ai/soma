@@ -1,6 +1,6 @@
 use http::HeaderName;
 
-use super::{account_event_bytes, extract_scope, validate_custom_header, CappedStreamError};
+use super::{CappedStreamError, account_event_bytes, extract_scope, validate_custom_header};
 
 #[test]
 fn reserved_headers_reject_client_overrides() {

@@ -13,7 +13,7 @@ use soma_provider_core::{
 use tokio::time::Instant;
 
 use crate::{
-    error::{redact_public, SidecarError},
+    error::{SidecarError, redact_public},
     sidecar::{
         collect_provider_env, execution_payload, output_exceeded_message, run_bounded_sidecar,
     },

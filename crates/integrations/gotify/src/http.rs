@@ -13,8 +13,8 @@ use std::time::Duration;
 use reqwest::{Client, Method, StatusCode};
 use serde_json::Value;
 
-use crate::error::{GotifyError, Result};
 use crate::GotifyConfig;
+use crate::error::{GotifyError, Result};
 
 /// Builds the pooled HTTP client used for every request against one server.
 ///
@@ -119,7 +119,7 @@ async fn send_request(
             return Err(GotifyError::NotFound {
                 method: method.to_string(),
                 url,
-            })
+            });
         }
         StatusCode::TOO_MANY_REQUESTS => {
             let retry_after = response

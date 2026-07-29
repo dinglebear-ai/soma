@@ -46,6 +46,8 @@ members = [
 resolver = "2"
 
 [workspace.package]
+edition = "2024"
+rust-version = "1.96"
 authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "Batteries-included RMCP runtime and scaffold for provider-backed Rust MCP servers with CLI, REST, HTTP MCP, and plugins."
 homepage = "https://soma.dinglebear.ai"
@@ -53,13 +55,26 @@ repository = "https://github.com/dinglebear-ai/soma"
 keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 
 # ── workspace lints ──────────────────────────────────────────────────────────
-# Shared lint policy. Crates OPT IN explicitly with `[lints] workspace = true`;
-# nothing changes for crates that don't. missing_docs is "warn" here, but CI's
-# clippy job runs with `-D warnings`, so opting in is a commitment: a crate
-# must be fully documented (every public item) before it takes the lint table.
-# Rollout state: soma-domain, soma-application, and soma-client are opted in.
+# Shared lint policy. EVERY member inherits this with `[lints] workspace = true`
+# so the fleet-wide `mod_module_files` ban applies workspace-wide rather than to
+# a hand-maintained subset.
+#
+# missing_docs is "allow" HERE and is not part of the inherited baseline. Cargo
+# makes `[lints] workspace = true` all-or-nothing — a member cannot inherit the
+# table and override one entry — so leaving missing_docs = "warn" in it would
+# force ~2200 warnings onto the 31 crates that have not finished their docs
+# pass, and CI's clippy job runs with `-D warnings`.
+#
+# The docs rollout therefore lives as a crate-level `#![warn(missing_docs)]`
+# attribute in the committed crates' lib.rs (source attributes override the
+# command-line `-A` this table emits). Rollout state: soma-domain,
+# soma-application, and soma-client. To commit another crate, document every
+# public item and add that attribute to its lib.rs.
 [workspace.lints.rust]
-missing_docs = "warn"
+missing_docs = "allow"
+
+[workspace.lints.clippy]
+mod_module_files = "deny"   # forbid mod.rs — enforce foo.rs sibling to foo/ style
 
 # ── workspace dependencies ───────────────────────────────────────────────────
 # Single source of truth for consumed internal crate paths and the exact rmcp

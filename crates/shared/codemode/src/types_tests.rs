@@ -1,4 +1,4 @@
-use super::types::{namespaced_tool_id, split_namespaced_id, CodeModeCaller, ToolScope};
+use super::types::{CodeModeCaller, ToolScope, namespaced_tool_id, split_namespaced_id};
 
 #[test]
 fn ids_and_scope_match_canonical_namespace_form() {

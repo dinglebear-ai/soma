@@ -151,16 +151,16 @@ impl ResourceIndex {
                 }
             }
             for (uri, (owner, _)) in &self.exact {
-                if let Some(exact_path) = literal_resource_path(uri) {
-                    if template.path.is_ambiguous_with(&exact_path) {
-                        return Err(ProviderValidationError::new(
-                            "ambiguous_resource_template",
-                            format!(
-                                "resource template `{}` (provider `{provider_name}`) is ambiguous with exact resource `{uri}` (provider `{owner}`)",
-                                template.path.uri_string(),
-                            ),
-                        ));
-                    }
+                if let Some(exact_path) = literal_resource_path(uri)
+                    && template.path.is_ambiguous_with(&exact_path)
+                {
+                    return Err(ProviderValidationError::new(
+                        "ambiguous_resource_template",
+                        format!(
+                            "resource template `{}` (provider `{provider_name}`) is ambiguous with exact resource `{uri}` (provider `{owner}`)",
+                            template.path.uri_string(),
+                        ),
+                    ));
                 }
             }
             self.dynamic.push((provider_name.to_owned(), template));
@@ -326,18 +326,17 @@ impl ProviderRegistry {
             )
         };
 
-        if matches!(auth_mode, ProviderAuthMode::Mounted) {
-            if let Some(scope) = resource_scope.as_deref() {
-                if !scopes_satisfy(&principal.scopes, scope) {
-                    return Err(ProviderError::new(
-                        "insufficient_scope",
-                        provider_name.clone(),
-                        None,
-                        format!("resource `{uri}` requires scope `{scope}`"),
-                        "Authenticate with a token that includes the required scope.",
-                    ));
-                }
-            }
+        if matches!(auth_mode, ProviderAuthMode::Mounted)
+            && let Some(scope) = resource_scope.as_deref()
+            && !scopes_satisfy(&principal.scopes, scope)
+        {
+            return Err(ProviderError::new(
+                "insufficient_scope",
+                provider_name.clone(),
+                None,
+                format!("resource `{uri}` requires scope `{scope}`"),
+                "Authenticate with a token that includes the required scope.",
+            ));
         }
 
         let Some(provider) = provider else {

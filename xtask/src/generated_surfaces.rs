@@ -1,6 +1,6 @@
-use anyhow::{bail, Context, Result};
-use serde_json::{json, Value};
-use soma_application::{dynamic_provider_registry, static_provider_registry, SomaService};
+use anyhow::{Context, Result, bail};
+use serde_json::{Value, json};
+use soma_application::{SomaService, dynamic_provider_registry, static_provider_registry};
 use soma_client::SomaClient;
 use soma_config::SomaConfig;
 use soma_provider_core::ProviderCatalog;
@@ -65,12 +65,16 @@ pub fn check_palette_manifest(args: &[String]) -> Result<()> {
 
     if mode.should_check() {
         if !out.exists() {
-            bail!("docs/generated/palette-manifest.json is missing; run cargo xtask check-palette-manifest --write");
+            bail!(
+                "docs/generated/palette-manifest.json is missing; run cargo xtask check-palette-manifest --write"
+            );
         }
         let current = fs::read_to_string(&out)
             .with_context(|| format!("failed to read {}", out.display()))?;
         if current != rendered {
-            bail!("docs/generated/palette-manifest.json is stale; run cargo xtask check-palette-manifest --write");
+            bail!(
+                "docs/generated/palette-manifest.json is stale; run cargo xtask check-palette-manifest --write"
+            );
         }
         println!("Palette manifest is current");
     }
@@ -959,11 +963,7 @@ fn provider_files(provider_dir: &Path) -> Result<Vec<String>> {
 }
 
 fn yes_no(value: bool) -> &'static str {
-    if value {
-        "yes"
-    } else {
-        "no"
-    }
+    if value { "yes" } else { "no" }
 }
 
 fn canonical_json(value: &Value) -> Result<String> {
@@ -1041,9 +1041,11 @@ def python_add(a: int, b: int) -> int:
         )
         .expect("openapi provider");
 
-        std::env::set_var("SOMA_PROVIDER_DIR", &providers);
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("SOMA_PROVIDER_DIR", &providers) };
         let snapshot = render_provider_snapshot().expect("snapshot");
-        std::env::remove_var("SOMA_PROVIDER_DIR");
+        // FIXME: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::remove_var("SOMA_PROVIDER_DIR") };
         let plugin = render_distribution_plugin(&snapshot);
 
         for action in [

@@ -1,7 +1,7 @@
 use crate::config::ClientConfig;
 use crate::transport::{
-    unix::tests::{json_response, spawn_fake_daemon},
     Client, WithEtag,
+    unix::tests::{json_response, spawn_fake_daemon},
 };
 
 fn project_json(name: &str) -> String {
@@ -107,10 +107,12 @@ async fn update_project_sends_if_match_header_when_etag_is_provided() {
         .await
         .expect("update_project should succeed");
 
-    assert!(seen_request
-        .lock()
-        .unwrap()
-        .contains("If-Match: \"proj-etag\""));
+    assert!(
+        seen_request
+            .lock()
+            .unwrap()
+            .contains("If-Match: \"proj-etag\"")
+    );
 }
 
 #[tokio::test]

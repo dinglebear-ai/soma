@@ -1,4 +1,4 @@
-use super::{should_hide_on_blur, BlurDismissState};
+use super::{BlurDismissState, should_hide_on_blur};
 
 #[test]
 fn default_state_is_enabled() {

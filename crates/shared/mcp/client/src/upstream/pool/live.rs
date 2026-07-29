@@ -9,8 +9,8 @@ use rmcp::model::{
 };
 use rmcp::service::{ClientInitializeError, ClientServiceExt, RunningService};
 use rmcp::transport::{
-    streamable_http_client::StreamableHttpClientTransportConfig, StreamableHttpClientTransport,
-    TokioChildProcess,
+    StreamableHttpClientTransport, TokioChildProcess,
+    streamable_http_client::StreamableHttpClientTransportConfig,
 };
 use rmcp::{ClientHandler, RoleClient};
 use serde_json::{Map, Value};
@@ -21,16 +21,16 @@ use crate::config::UpstreamConfig;
 use crate::oauth::UpstreamOAuthProvider;
 use crate::process::guard::SpawnGuard;
 use crate::upstream::http_body_cap::BodyCappedHttpClient;
-use crate::upstream::http_client::{decide_http_transport, HttpTransportDecision};
+use crate::upstream::http_client::{HttpTransportDecision, decide_http_transport};
 use crate::upstream::transport::websocket::{
-    connect as connect_websocket_transport, WebSocketTransportConfig,
+    WebSocketTransportConfig, connect as connect_websocket_transport,
 };
 use crate::upstream::{
     CapScope, McpRequestOutcome, McpRoundTrip, ResponseCaps, TransportKind, UpstreamError,
     UpstreamSnapshot,
 };
 
-use super::lifecycle_compat::{compatibility_retry, log_fallback, LifecycleAttempt};
+use super::lifecycle_compat::{LifecycleAttempt, compatibility_retry, log_fallback};
 
 #[path = "live_support.rs"]
 mod live_support;
@@ -678,10 +678,10 @@ where
         .envs(stdio_env())
         .envs(spec.env.iter())
         .stderr(Stdio::piped());
-    if let Some(env_name) = config.bearer_token_env.as_deref() {
-        if let Ok(token) = std::env::var(env_name) {
-            cmd.env(env_name, token);
-        }
+    if let Some(env_name) = config.bearer_token_env.as_deref()
+        && let Ok(token) = std::env::var(env_name)
+    {
+        cmd.env(env_name, token);
     }
 
     #[cfg(unix)]

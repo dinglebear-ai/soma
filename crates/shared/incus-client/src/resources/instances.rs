@@ -11,9 +11,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
-use crate::operations::{operation_from_envelope, Operation};
+use crate::operations::{Operation, operation_from_envelope};
 use crate::transport::{
-    resource_error_or, sync_metadata, Client, Method, RecursionQuery, WithEtag,
+    Client, Method, RecursionQuery, WithEtag, resource_error_or, sync_metadata,
 };
 
 /// A container or virtual machine. `config`/`devices` stay untyped

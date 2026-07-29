@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::config::{OpenApiConfig, OpenApiSpecConfig, SpecSource};
-use crate::registry::{OpenApiRegistry, MAX_SPEC_BYTES};
+use crate::registry::{MAX_SPEC_BYTES, OpenApiRegistry};
 
 const FIXTURE_SPEC: &str = r#"{
     "openapi": "3.0.0",

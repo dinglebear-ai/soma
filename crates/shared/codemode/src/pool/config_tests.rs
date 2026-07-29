@@ -1,4 +1,4 @@
-use super::config::{PoolConfig, POOL_SIZE_ENV};
+use super::config::{POOL_SIZE_ENV, PoolConfig};
 
 #[test]
 fn default_pool_config_is_conservative() {

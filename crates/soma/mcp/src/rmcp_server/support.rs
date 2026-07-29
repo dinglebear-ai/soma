@@ -3,25 +3,25 @@
 //! assembly, and per-call execution/trace context. Split out to keep
 //! `rmcp_server.rs` under the PATTERNS.md module size hard limit.
 use rmcp::{
+    ErrorData, RoleServer,
     model::{
         CacheScope, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
         ListToolsResult, ReadResourceResponse, Resource, ResourceContents, ResourceTemplate, Tool,
     },
     service::RequestContext,
-    ErrorData, RoleServer,
 };
 use rmcp_traces::TraceTrust;
 use serde_json::Value;
 use soma_application::{ApplicationError, ExecutionContext, ResourceContent};
-use soma_domain::{token_limit::MAX_RESPONSE_BYTES, TraceContext};
+use soma_domain::{TraceContext, token_limit::MAX_RESPONSE_BYTES};
 use soma_mcp_server::response_paging::ResponsePagingOptions;
 use soma_provider_core::ProviderResource;
 
-use crate::rmcp_auth::{principal, AuthContext};
+use crate::ACTION_DISCRIMINATOR_FIELD;
+use crate::rmcp_auth::{AuthContext, principal};
 use crate::schemas::tool_definitions_for_catalogs as tool_definitions;
 use crate::state::McpState;
 use crate::trace_resolution;
-use crate::ACTION_DISCRIMINATOR_FIELD;
 
 pub(super) fn task_application_error(error: ApplicationError) -> ErrorData {
     if error.code == "task_missing" || error.code == "not_found" {

@@ -1,10 +1,10 @@
-use super::broker::{code_mode_unknown_tool_hint, CodeModeBroker};
+use super::broker::{CodeModeBroker, code_mode_unknown_tool_hint};
 use super::host::NoopHost;
 #[cfg(feature = "openapi")]
 use super::{
+    CodeModeConfig,
     host::{CodeModeHost, HostFuture, ToolCallOutcome, ToolsRender},
     types::{CodeModeCaller, CodeModeSurface, ToolScope},
-    CodeModeConfig,
 };
 #[cfg(feature = "openapi")]
 use serde_json::Value;

@@ -1,16 +1,16 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
 use async_trait::async_trait;
 use rmcp::{
+    ServerHandler, ServiceExt,
     model::{ProtocolVersion, ServerNotification, SubscriptionFilter},
     service::{ClientLifecycleMode, ClientServiceExt},
-    ServerHandler, ServiceExt,
 };
 use serde_json::{Map, Value};
 use soma_application::{

@@ -1,11 +1,11 @@
 use serde_json::Value;
 
+use crate::ToolError;
 use crate::host::CodeModeHost;
 use crate::preamble::{
     generate_discovery_js, generate_js_proxy_from_catalog, generate_local_provider_js,
 };
 use crate::types::{CodeModeCaller, CodeModeSurface, ToolDescriptor, ToolScope};
-use crate::ToolError;
 
 pub(crate) async fn load_entries<H: CodeModeHost>(
     host: Option<&H>,

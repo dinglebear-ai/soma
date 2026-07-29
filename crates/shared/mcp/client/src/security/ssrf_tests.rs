@@ -19,16 +19,20 @@ fn strict_external_denies_loopback_private_cgnat_and_metadata_targets() {
 #[test]
 fn admin_backend_allows_lan_but_not_localhost_or_metadata() {
     validate_url("http://10.0.0.2/mcp", OutboundPolicy::AdminProtectedBackend).unwrap();
-    assert!(validate_url(
-        "http://127.0.0.1/mcp",
-        OutboundPolicy::AdminProtectedBackend
-    )
-    .is_err());
-    assert!(validate_url(
-        "http://169.254.169.254/latest",
-        OutboundPolicy::AdminProtectedBackend
-    )
-    .is_err());
+    assert!(
+        validate_url(
+            "http://127.0.0.1/mcp",
+            OutboundPolicy::AdminProtectedBackend
+        )
+        .is_err()
+    );
+    assert!(
+        validate_url(
+            "http://169.254.169.254/latest",
+            OutboundPolicy::AdminProtectedBackend
+        )
+        .is_err()
+    );
 }
 
 #[test]

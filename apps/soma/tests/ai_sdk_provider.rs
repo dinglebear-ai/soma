@@ -1,10 +1,10 @@
 use std::{fs, process::Command, time::Duration};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use soma_application::{
-    dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
+    SomaService, dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
     provider_registry::ProviderCall, provider_registry::ProviderPrincipal,
-    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface, SomaService,
+    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface,
 };
 use soma_client::SomaClient;
 use soma_config::SomaConfig;

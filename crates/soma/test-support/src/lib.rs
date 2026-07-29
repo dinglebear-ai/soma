@@ -2,15 +2,15 @@
 
 pub mod tracing_capture;
 
-pub use tracing_capture::{tracing_test_lock, SharedBuf, SharedWriter};
+pub use tracing_capture::{SharedBuf, SharedWriter, tracing_test_lock};
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde_json::Value;
 use soma_application::{
-    provider_registry::Provider, ApplicationPorts, ProviderCall, ProviderError, ProviderOutput,
-    ProviderRegistry, SomaApplication, SomaService,
+    ApplicationPorts, ProviderCall, ProviderError, ProviderOutput, ProviderRegistry,
+    SomaApplication, SomaService, provider_registry::Provider,
 };
 use soma_client::SomaClient;
 use soma_config::SomaConfig;

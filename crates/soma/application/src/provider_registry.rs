@@ -8,8 +8,8 @@ use std::{
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
-use soma_domain::provider_validation::{validate_provider_manifest, ProviderValidationError};
+use serde_json::{Map, Value, json};
+use soma_domain::provider_validation::{ProviderValidationError, validate_provider_manifest};
 use soma_provider_adapters::python::materializer::PreparedPythonEnvironment;
 use soma_provider_core::{
     ProviderCall as CoreProviderCall, ProviderCatalog, ProviderRegistry as CoreRegistry,

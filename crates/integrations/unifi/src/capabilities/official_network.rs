@@ -100,9 +100,10 @@ mod tests {
         let caps = capabilities();
 
         assert!(!caps.is_empty());
-        assert!(caps
-            .iter()
-            .all(|cap| cap.source == ApiSourceFamily::Official));
+        assert!(
+            caps.iter()
+                .all(|cap| cap.source == ApiSourceFamily::Official)
+        );
     }
 
     #[test]

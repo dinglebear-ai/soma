@@ -1,5 +1,5 @@
 use super::{Component, Manifest, VersionFile, VersionKind};
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::collections::HashSet;
 
 pub(super) fn validate_manifest(manifest: &Manifest) -> Result<()> {

@@ -1,6 +1,6 @@
 use crate::config::GatewayConfig;
-use crate::upstream::pool::{PoolOptions, UpstreamPool};
 use crate::upstream::UpstreamError;
+use crate::upstream::pool::{PoolOptions, UpstreamPool};
 
 pub fn build_pool_from_config(config: &GatewayConfig) -> Result<UpstreamPool, UpstreamError> {
     let pool = UpstreamPool::new(PoolOptions::default());

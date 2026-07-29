@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, Mutex as StdMutex,
+        atomic::{AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -11,18 +11,18 @@ use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
 use uuid::Uuid;
 
 use crate::{
-    protocol::{AskForApproval, SandboxMode, ThreadStartParams, TurnInterruptParams},
     AllowAllApprovalHandler, ApprovalHandler, CodexAppServerClient, CodexSession,
     CompatibilityReport, DenyAllApprovalHandler, Error, Event, EventCollector,
     PendingServerRequest, ReadOnlyApprovalHandler, SessionOptions, TextTurnResult,
+    protocol::{AskForApproval, SandboxMode, ThreadStartParams, TurnInterruptParams},
 };
 
 use super::types::{
-    session_options_from, RestApprovalPolicy, RestBackend, RestCallRequest, RestCallResponse,
-    RestClientOptions, RestError, RestErrorReplyRequest, RestEventResponse, RestFuture, RestLimits,
+    RestApprovalPolicy, RestBackend, RestCallRequest, RestCallResponse, RestClientOptions,
+    RestError, RestErrorReplyRequest, RestEventResponse, RestFuture, RestLimits,
     RestRequestReplyResponse, RestRequestReplyResultRequest, RestResult, RestSessionCreateRequest,
     RestSessionCreateResponse, RestSessionSummary, RestStatusResponse, RestTextTurnRequest,
-    RestTextTurnResponse,
+    RestTextTurnResponse, session_options_from,
 };
 
 /// Production REST backend.

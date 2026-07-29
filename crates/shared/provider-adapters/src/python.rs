@@ -22,18 +22,18 @@ use std::{
 use async_trait::async_trait;
 use serde_json::Value;
 use soma_provider_core::{
-    validate_provider_manifest_value, Provider, ProviderCall, ProviderCatalog, ProviderError,
-    ProviderOutput, ProviderTool,
+    Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
+    validate_provider_manifest_value,
 };
 use tokio::time::Instant as TokioInstant;
 
 use crate::{
-    error::{redact_public, SidecarError},
+    error::{SidecarError, redact_public},
     python_bridge::python_bridge_program,
     python_protocol::{
-        decode_python_response, encode_python_request, validate_python_response,
-        PythonProtocolError, PythonWorkerRequest, PythonWorkerResponse,
-        PYTHON_PROTOCOL_HEADROOM_BYTES,
+        PYTHON_PROTOCOL_HEADROOM_BYTES, PythonProtocolError, PythonWorkerRequest,
+        PythonWorkerResponse, decode_python_response, encode_python_request,
+        validate_python_response,
     },
     sidecar::{
         collect_provider_env, output_exceeded_message, resolve_sidecar_command,

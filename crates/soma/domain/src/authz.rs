@@ -19,7 +19,7 @@
 //! 3. **Deny-by-default**: an unclassified target denies with a stable
 //!    machine-readable reason instead of falling through to "allow".
 
-use crate::scopes::{scopes_satisfy, WRITE_SCOPE};
+use crate::scopes::{WRITE_SCOPE, scopes_satisfy};
 
 /// Stable machine-readable decision reasons. These are API: never rename an
 /// existing constant's value, only add new ones.

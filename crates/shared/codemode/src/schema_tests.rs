@@ -13,15 +13,16 @@ fn validates_required_fields_and_types() {
         },
         "additionalProperties": false
     });
-    assert!(validate_code_mode_params_against_schema(
-        &json!({"name": "ok", "count": 1}),
-        Some(&schema)
-    )
-    .is_ok());
+    assert!(
+        validate_code_mode_params_against_schema(&json!({"name": "ok", "count": 1}), Some(&schema))
+            .is_ok()
+    );
     assert!(validate_code_mode_params_against_schema(&json!({"count": 1}), Some(&schema)).is_err());
-    assert!(validate_code_mode_params_against_schema(
-        &json!({"name": "ok", "extra": true}),
-        Some(&schema)
-    )
-    .is_err());
+    assert!(
+        validate_code_mode_params_against_schema(
+            &json!({"name": "ok", "extra": true}),
+            Some(&schema)
+        )
+        .is_err()
+    );
 }
