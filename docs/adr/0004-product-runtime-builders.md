@@ -1,5 +1,7 @@
 ---
 title: "ADR 0004: Compose products through runtime builders"
+created: 2026-05-26
+updated: 2026-07-30
 doc_type: "adr"
 status: "active"
 owner: "soma"

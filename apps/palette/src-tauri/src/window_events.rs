@@ -1,4 +1,4 @@
-use soma_tauri_shell::blur::{handle_close_requested, handle_focus_lost, BlurDismissState};
+use soma_tauri_shell::blur::{BlurDismissState, handle_close_requested, handle_focus_lost};
 use tauri::{Manager, Window, WindowEvent};
 
 use super::merged_settings_or_default;

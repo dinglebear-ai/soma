@@ -1,3 +1,9 @@
+---
+title: "`soma-process`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-process`
 
 **Proposed path:** `crates/shared/runtime/process`  

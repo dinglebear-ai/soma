@@ -1,3 +1,9 @@
+---
+title: "GraphRAG Architecture"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # GraphRAG Architecture
 
 ## V1 objective

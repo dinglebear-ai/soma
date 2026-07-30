@@ -1,3 +1,9 @@
+---
+title: "Product Configuration Contract"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Product Configuration Contract
 
 Shared crates accept explicit settings. Soma product configuration maps operator settings into those types.

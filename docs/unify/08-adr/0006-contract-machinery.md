@@ -1,3 +1,9 @@
+---
+title: "ADR 0006: Extend Soma xtask as the contract control plane"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0006: Extend Soma xtask as the contract control plane
 
 **Status:** Proposed  

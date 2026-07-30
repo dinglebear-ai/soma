@@ -1,3 +1,5 @@
+//! Soma's REST API composition and gateway-facing HTTP state.
+
 // Render per-item feature-requirement badges when rustdoc runs on nightly with
 // `--cfg docsrs` (docs.rs posture; locally via `cargo xtask doc --docsrs-cfg`).
 // Inert under the stable CI doc gate: stable rustdoc never sets `docsrs`.

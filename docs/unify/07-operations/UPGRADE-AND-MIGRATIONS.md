@@ -1,3 +1,9 @@
+---
+title: "Upgrade and Migration Operations"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Upgrade and Migration Operations
 
 ## Compatibility dimensions

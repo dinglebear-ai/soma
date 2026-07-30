@@ -1,3 +1,9 @@
+---
+title: "Service and Surface Suggestions"
+created: 2026-07-04
+updated: 2026-07-30
+---
+
 # Service and Surface Suggestions
 
 ## Goal

@@ -1,3 +1,9 @@
+---
+title: "Redaction and Bounded Data Contract"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Redaction and Bounded Data Contract
 
 ## Defense in depth

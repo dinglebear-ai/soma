@@ -1,3 +1,9 @@
+---
+title: "ADR 0003: SQLite and durable artifacts are canonical; Qdrant and graph summaries are derived"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0003: SQLite and durable artifacts are canonical; Qdrant and graph summaries are derived
 
 **Status:** Proposed  

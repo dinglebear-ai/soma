@@ -1,3 +1,9 @@
+---
+title: "Drop-In Providers"
+created: 2026-07-14
+updated: 2026-07-30
+---
+
 # Drop-In Providers
 
 `soma` loads provider files from `./providers` by default. Override the

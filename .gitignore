@@ -16,6 +16,8 @@ config.toml
 config.local.toml
 config/docker-hosts.toml
 config.runtime.json
+# The root file is the tracked, non-secret canonical defaults template.
+!config.toml
 # ── Rust ──────────────────────────────────────────────────────────────────────
 /target/
 **/*.rs.bk
@@ -164,7 +166,14 @@ Desktop.ini
 
 # ── Auto-generated ────────────────────────────────────────────────────────────
 # Reference docs produced by scripts/refresh-docs.sh — large, never commit.
-docs/references/
+docs/references/**
+# These two small protocol pins are intentional tracked compatibility fixtures.
+!docs/references/mcp/
+!docs/references/mcp/conformance/
+!docs/references/mcp/conformance/main.sha
+!docs/references/mcp/schema/
+!docs/references/mcp/schema/2025-11-25/
+!docs/references/mcp/schema/2025-11-25/schema.ts
 # docs/generated/ is intentionally committed for small generated contracts such as OpenAPI.
 
 # ── Personal ──────────────────────────────────────────────────────────────────

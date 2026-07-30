@@ -1,12 +1,18 @@
 # Soma
 
-`Soma` is a batteries-included RMCP server runtime and shipping binary
-for bringing new agent capabilities online with as little custom Rust as
-possible. It locks in the production patterns that every server in the family
-keeps rediscovering: one compact MCP tool, stdio and Streamable HTTP transports,
-CLI parity, direct REST routes, auth/OAuth, observability, plugin packaging,
-web fallback, Docker/runtime samples, generated contracts, and release
-automation.
+Product-first RMCP runtime for provider-backed agent capabilities with CLI, REST, HTTP MCP, plugins, and derivative scaffold support.
+
+[![Docs](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml/badge.svg)](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml)
+[**API docs**](https://dinglebear-ai.github.io/soma/) — rustdoc for every
+workspace crate plus the Redoc-rendered OpenAPI reference, deployed to GitHub
+Pages from `main`.
+
+Soma is a batteries-included server runtime and shipping binary for bringing
+new agent capabilities online with as little custom Rust as possible. It locks
+in the production patterns that every server in the family keeps rediscovering:
+one compact MCP tool, stdio and Streamable HTTP transports, CLI parity, direct
+REST routes, auth/OAuth, observability, plugin packaging, web fallback,
+Docker/runtime samples, generated contracts, and release automation.
 
 The repository can still scaffold a renamed project, but Soma is now a shipped
 runtime first. The default product path is to run `soma` in an explicit mode,
@@ -59,7 +65,7 @@ shipped `soma` command is the source of truth for product behavior.
 
 | Surface | Soma value | Generated-project pattern |
 |---|---|---|
-| Repository | `dinglebear-ai/soma` | `<service>-rmcp` or a documented product exception |
+| Repository | `dinglebear-ai/soma` (formerly `rmcp-template`, then `rtemplate-mcp` — both still redirect) | `dinglebear-ai/r<service>`, or the bare product name; older servers still carry `<service>-rmcp` names behind redirects |
 | Rust crate/package | `soma` | service-specific crate names |
 | Canonical binary | `soma` | usually `r<service>` or the product name |
 | npm package | `soma-rmcp` | `<service>-rmcp` |
@@ -398,7 +404,7 @@ Transport shims
   crates/soma/cli/src/lib.rs        CLI parser and output formatting.
   crates/soma/mcp/src/tools.rs      MCP JSON args to service calls.
   crates/soma/api/src/api.rs        REST extractors to service calls.
-  apps/soma/src/routes.rs     Axum router, auth, MCP, API, web fallback.
+  apps/soma/src/http.rs             Axum router, auth, MCP, API, web fallback.
 
 Built-in action metadata
   crates/soma/domain/src/actions.rs
@@ -411,7 +417,8 @@ The thin-shim rule is strict:
 2. Call the provider registry or service runtime.
 3. Return or print the result.
 
-Do not put business rules in CLI, MCP, REST handlers, or `main.rs`.
+Do not put business rules in CLI, MCP, REST handlers, or the binary entrypoint
+(`apps/soma/src/bin/soma.rs` / `apps/soma/src/bootstrap.rs`).
 
 ## Runtime Surfaces
 
@@ -630,6 +637,29 @@ just validate-plugin
 `cargo xtask ci` runs the main local CI sequence. Optional tools such as
 `cargo-nextest`, `taplo`, and `cargo-audit` are used when installed.
 
+### Workspace layout
+
+35 cargo members:
+
+| Path | Contents |
+|---|---|
+| `crates/soma/*` | Product code for this server — domain, application, config, client, api, cli, mcp, runtime, integrations, palette, web, test-support |
+| `crates/shared/*` | Reusable engine crates other servers consume — auth, mcp (client/server/proxy/gateway), provider-core, provider-adapters, http-api, http-server, observability, openapi, self-update, traces, codemode, cli-core |
+| `crates/integrations/*` | Upstream service bridges — `gotify`, `unifi` |
+| `apps/soma` | The `soma` binary and its integration tests. **The only cargo member under `apps/`** — `apps/web` (Next.js) and `apps/palette` (assets) are not Rust crates. |
+| `packages/python` | pyo3 Python provider platform (`abi3-py311`) |
+| `xtask` | All repository automation; `scripts/*.py` are thin wrappers over it |
+
+`rmcp` is pinned exactly — `rmcp = { version = "=3.0.0-beta.2", default-features = false }`
+in `[workspace.dependencies]`, duplicated on the `rmcp-client` alias entry
+because TOML cannot cross-reference. Bump both together.
+
+**Known inconsistency:** `[workspace.package]` declares no `edition`, so each
+member sets its own — currently 31 on edition 2021 and 4 on edition 2024. Since
+generated projects inherit this manifest shape, prefer hoisting
+`edition = "2024"` into `[workspace.package]` (with members using
+`edition.workspace = true`) over adding another per-crate `edition` line.
+
 ## Client Configuration
 
 Streamable HTTP:
@@ -786,18 +816,18 @@ configuration, and secret-scanning allowlists before publishing.
 
 ## Related Servers
 
-- [unifi-rmcp](https://github.com/jmagar/unifi-rmcp) - UniFi controller REST API bridge.
-- [tailscale-rmcp](https://github.com/jmagar/tailscale-rmcp) - Tailscale API bridge for devices, users, and tailnet operations.
-- [unraid-rmcp](https://github.com/jmagar/unraid-rmcp) - Unraid GraphQL bridge for NAS and server management.
-- [apprise-rmcp](https://github.com/jmagar/apprise-rmcp) - Apprise notification fan-out bridge for many delivery backends.
-- [gotify-rmcp](https://github.com/jmagar/gotify-rmcp) - Gotify push notification bridge for sends, messages, apps, and clients.
-- [arcane-rmcp](https://github.com/jmagar/arcane-rmcp) - Arcane Docker management bridge for containers and related resources.
-- [yarr](https://github.com/jmagar/yarr) - Media-stack bridge for Sonarr, Radarr, Prowlarr, Plex, and related services.
-- [ytdl-rmcp](https://github.com/jmagar/ytdl-rmcp) - Media download and metadata workflow server.
-- [synapse-rmcp](https://github.com/jmagar/synapse-rmcp) - Local Synapse workflow server for scout and flux actions.
-- [cortex](https://github.com/jmagar/cortex) - Syslog and homelab log aggregation MCP server.
-- [axon](https://github.com/jmagar/axon) - RAG, crawl, scrape, extract, and semantic search project.
-- [labby](https://github.com/jmagar/labby) - Homelab control plane and MCP gateway project.
+- [runifi](https://github.com/dinglebear-ai/runifi) - UniFi controller REST API bridge.
+- [rtailscale](https://github.com/dinglebear-ai/rtailscale) - Tailscale API bridge for devices, users, and tailnet operations.
+- [unraid](https://github.com/dinglebear-ai/unraid) - Unraid monorepo: Python and Rust GraphQL MCP servers plus Unraid plugins.
+- [rapprise](https://github.com/dinglebear-ai/rapprise) - Apprise notification fan-out bridge for many delivery backends.
+- [rgotify](https://github.com/dinglebear-ai/rgotify) - Gotify push notification bridge for sends, messages, apps, and clients.
+- [rarcane](https://github.com/dinglebear-ai/rarcane) - Arcane Docker management bridge for containers and related resources.
+- [yarr](https://github.com/dinglebear-ai/yarr) - Media-stack bridge for Sonarr, Radarr, Prowlarr, Plex, and related services.
+- [rytdl](https://github.com/dinglebear-ai/rytdl) - Media download and metadata workflow server.
+- [synapse](https://github.com/dinglebear-ai/synapse) - Local Synapse workflow server for scout and flux actions.
+- [cortex](https://github.com/dinglebear-ai/cortex) - Syslog and homelab log aggregation MCP server.
+- [axon](https://github.com/dinglebear-ai/axon) - RAG, crawl, scrape, extract, and semantic search project.
+- [labby](https://github.com/dinglebear-ai/labby) - Homelab control plane and MCP gateway project.
 - [lumen](https://github.com/jmagar/lumen) - Local semantic code search MCP server.
 
 ## Documentation

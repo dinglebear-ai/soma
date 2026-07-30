@@ -1,3 +1,5 @@
+//! Tauri command-palette bridge for the Labby gateway API.
+
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,9 @@
+---
+title: "Implementation Tracker"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Implementation Tracker
 
 The machine-readable source is [`../05-migration/capability-matrix.yaml`](../05-migration/capability-matrix.yaml).

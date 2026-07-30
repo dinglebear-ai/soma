@@ -1,3 +1,9 @@
+---
+title: "Aurora Web Product Surface"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Aurora Web Product Surface
 
 The existing mock web application is the shell for the complete product. V1 adds context domains without replacing gateway pages.

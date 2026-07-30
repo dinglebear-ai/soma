@@ -1,3 +1,9 @@
+---
+title: "ADR 0010: Keep existing Soma gateway, auth, provider catalog, and surfaces authoritative"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0010: Keep existing Soma gateway, auth, provider catalog, and surfaces authoritative
 
 **Status:** Proposed  

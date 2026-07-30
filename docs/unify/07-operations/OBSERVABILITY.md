@@ -1,3 +1,9 @@
+---
+title: "Context Layer Observability"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Context Layer Observability
 
 Soma's existing observability and tracing crates remain authoritative.

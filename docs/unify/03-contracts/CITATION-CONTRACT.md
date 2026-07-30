@@ -1,3 +1,9 @@
+---
+title: "Citation and Provenance Contract"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Citation and Provenance Contract
 
 ## Rule

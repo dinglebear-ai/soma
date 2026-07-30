@@ -1,3 +1,5 @@
+//! OpenAPI provider conversion, dispatch, validation, and SSRF safeguards.
+
 #![forbid(unsafe_code)]
 
 pub mod config;

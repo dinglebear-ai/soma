@@ -1,3 +1,9 @@
+---
+title: "ADR 0012: rmcp-traces targets RMCP 2.2.0"
+created: 2026-07-15
+updated: 2026-07-30
+---
+
 # ADR 0012: rmcp-traces targets RMCP 2.2.0
 
 ## Status

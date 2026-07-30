@@ -233,11 +233,8 @@ pub(crate) async fn fetch_launcher_schema(
     }
     let settings = merged_settings(&app)?;
     let base_url = validate_saved_server_url(&settings.server_url)?;
-    let mut url = reqwest::Url::parse(&format!(
-        "{}{SCHEMA_PATH}",
-        base_url.trim_end_matches('/')
-    ))
-    .map_err(|err| err.to_string())?;
+    let mut url = reqwest::Url::parse(&format!("{}{SCHEMA_PATH}", base_url.trim_end_matches('/')))
+        .map_err(|err| err.to_string())?;
     url.query_pairs_mut().append_pair("id", &id);
     let client = (*bridge).client();
     let static_token = settings

@@ -1,4 +1,4 @@
-// Test helper extraction point. Root crate keeps compatibility helpers for now.
+//! Reusable test fixtures and tracing capture helpers for Soma crates.
 
 pub mod tracing_capture;
 

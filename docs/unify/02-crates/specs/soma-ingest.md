@@ -1,3 +1,9 @@
+---
+title: "`soma-ingest`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-ingest`
 
 **Proposed path:** `crates/shared/observations/ingest`  

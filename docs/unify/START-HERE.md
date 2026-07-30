@@ -1,3 +1,9 @@
+---
+title: "Start Here"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Start Here
 
 **Purpose:** Give implementors the shortest reliable path from this documentation package to the first working Soma context capability.

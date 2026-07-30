@@ -1,5 +1,7 @@
 ---
 title: "ADR 0011: Keep Soma product-first and template-second"
+created: 2026-07-13
+updated: 2026-07-30
 doc_type: "adr"
 status: "active"
 owner: "soma"

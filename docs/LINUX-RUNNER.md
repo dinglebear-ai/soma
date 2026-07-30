@@ -1,5 +1,7 @@
 ---
 title: "Linux CI Runner"
+created: 2026-06-22
+updated: 2026-07-30
 doc_type: "guide"
 status: "active"
 owner: "soma"

@@ -1,3 +1,9 @@
+---
+title: "`soma-graph`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-graph`
 
 **Proposed path:** `crates/shared/context/graph`  

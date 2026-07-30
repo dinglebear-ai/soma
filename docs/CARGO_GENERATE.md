@@ -1,3 +1,9 @@
+---
+title: "cargo-generate"
+created: 2026-06-17
+updated: 2026-07-30
+---
+
 # cargo-generate
 
 Soma's scaffold/export lane can use `cargo-generate` while the repository stays

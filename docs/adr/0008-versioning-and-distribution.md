@@ -1,5 +1,7 @@
 ---
 title: "ADR 0008: Use semver with workspace-first extraction and git tags"
+created: 2026-05-26
+updated: 2026-07-30
 doc_type: "adr"
 status: "active"
 owner: "soma"

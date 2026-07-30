@@ -1,3 +1,9 @@
+---
+title: "MCP Draft Spec (2026-07-28) Compatibility"
+created: 2026-06-21
+updated: 2026-07-30
+---
+
 # MCP Draft Spec (2026-07-28) Compatibility
 
 ## Status

@@ -1,3 +1,9 @@
+---
+title: "Product Outcome"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Product Outcome
 
 After v1, a single Soma deployment provides:

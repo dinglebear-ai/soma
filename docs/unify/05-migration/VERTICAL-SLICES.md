@@ -1,3 +1,9 @@
+---
+title: "Vertical Slice Plan"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Vertical Slice Plan
 
 ## Slice 0: Gateway and web shell complete

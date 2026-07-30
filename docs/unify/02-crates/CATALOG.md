@@ -1,3 +1,9 @@
+---
+title: "Shared Crate Catalog"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Shared Crate Catalog
 
 **Status:** Proposed v1 extraction boundary  

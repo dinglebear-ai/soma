@@ -1,3 +1,9 @@
+---
+title: "Suggested Workstream Ownership"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Suggested Workstream Ownership
 
 Named people are intentionally omitted. Assign one accountable owner per role.

@@ -1,17 +1,18 @@
 # Soma
 
+Product-first RMCP runtime for provider-backed agent capabilities with CLI, REST, HTTP MCP, plugins, and derivative scaffold support.
+
 [![Docs](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml/badge.svg)](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml)
 [**API docs**](https://dinglebear-ai.github.io/soma/) — rustdoc for every
 workspace crate plus the Redoc-rendered OpenAPI reference, deployed to GitHub
 Pages from `main`.
 
-`Soma` is a batteries-included RMCP server runtime and shipping binary
-for bringing new agent capabilities online with as little custom Rust as
-possible. It locks in the production patterns that every server in the family
-keeps rediscovering: one compact MCP tool, stdio and Streamable HTTP transports,
-CLI parity, direct REST routes, auth/OAuth, observability, plugin packaging,
-web fallback, Docker/runtime samples, generated contracts, and release
-automation.
+Soma is a batteries-included server runtime and shipping binary for bringing
+new agent capabilities online with as little custom Rust as possible. It locks
+in the production patterns that every server in the family keeps rediscovering:
+one compact MCP tool, stdio and Streamable HTTP transports, CLI parity, direct
+REST routes, auth/OAuth, observability, plugin packaging, web fallback,
+Docker/runtime samples, generated contracts, and release automation.
 
 The repository can still scaffold a renamed project, but Soma is now a shipped
 runtime first. The default product path is to run `soma` in an explicit mode,
@@ -482,6 +483,17 @@ single tool.
 | `scaffold_intent` | `soma:read` | `moderate` | MCP-only | - | `_MCP-only_` | none | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
 | `help` | public | `cheap` | MCP + CLI + REST | `GET /v1/help` | `soma --help` | none | Show the action reference. |
 <!-- END GENERATED README_ACTION_TABLE -->
+
+Python provider lifecycle administration is exposed through the same compact
+tool with these explicit actions:
+
+- environment cache: `python_environment_status`,
+  `python_environment_prune_plan`, `python_environment_prune`,
+  `python_environment_repair`, and `python_environment_update`;
+- persistent workers: `python_worker_status`, `python_worker_cancel`, and
+  `python_worker_reset`;
+- provider generations: `python_generation_status` and
+  `python_generation_rollback`.
 
 Built-in business actions keep MCP + CLI + REST parity unless there is a
 protocol reason they cannot. `elicit_name` and `scaffold_intent` are MCP-only

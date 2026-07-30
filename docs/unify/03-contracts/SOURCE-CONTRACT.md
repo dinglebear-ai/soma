@@ -1,3 +1,9 @@
+---
+title: "Source and Generation Contract"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Source and Generation Contract
 
 ## Purpose

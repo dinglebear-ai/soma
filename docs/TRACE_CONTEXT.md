@@ -1,3 +1,9 @@
+---
+title: "Trace Context"
+created: 2026-07-19
+updated: 2026-07-30
+---
+
 # Trace Context
 
 This is the canonical contract for trace context on Soma's MCP surface. It

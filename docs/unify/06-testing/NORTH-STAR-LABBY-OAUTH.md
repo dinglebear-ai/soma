@@ -1,3 +1,9 @@
+---
+title: "North-Star Scenario: Labby OAuth Connector Failure"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # North-Star Scenario: Labby OAuth Connector Failure
 
 ## Purpose

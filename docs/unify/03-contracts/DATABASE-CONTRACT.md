@@ -1,3 +1,9 @@
+---
+title: "Database Ownership Contract"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Database Ownership Contract
 
 ## Logical databases

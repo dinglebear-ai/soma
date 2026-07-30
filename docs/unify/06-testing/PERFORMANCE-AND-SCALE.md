@@ -1,3 +1,9 @@
+---
+title: "Performance and Scale Plan"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Performance and Scale Plan
 
 ## Principle

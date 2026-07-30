@@ -1,3 +1,9 @@
+---
+title: "`soma-route`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-route`
 
 **Proposed path:** `crates/shared/knowledge/route`  
