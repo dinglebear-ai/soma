@@ -1,203 +1,80 @@
-# =============================================================================
-# .github/workflows/docker-publish.yml — Build and publish Docker image
-#
-# CUSTOMIZATION NOTES:
-#   REPO_NAME    → your GitHub repo name (e.g. "myservice-mcp")
-#   IMAGE_NAME   → your Docker image name (e.g. "myservice-mcp")
-#   BINARY_NAME  → your binary name from Cargo.toml [[bin]] (e.g. "myservice")
-#   PORT         → your service port (e.g. 6970 for unraid, 9158 for gotify)
-#
-# Customize the image and binary names
-# in this file with your actual values.
-#
-# Triggers:
-#   - release-please publishes a GitHub Release
-#   - manual workflow_dispatch for rerunning an existing tag
-#
-# Registry: ghcr.io/dinglebear-ai/<IMAGE_NAME>
-# CUSTOMIZE: Replace "dinglebear-ai" with your GitHub org/username.
-# =============================================================================
-
-name: Docker Publish
+name: Container and MCP Registry Release
 
 on:
   release:
     types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing release tag to publish Docker/MCP artifacts for
-        required: true
-      retire_legacy_registry_name:
-        description: Retire ai.dinglebear/soma-rmcp after publishing ai.dinglebear/soma
-        required: false
-        type: boolean
-        default: false
 
-env:
-  # CUSTOMIZE: Replace "dinglebear-ai/soma" with "your-org/your-image-name"
-  IMAGE_NAME: ghcr.io/dinglebear-ai/soma
-  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
-  # Set this as a GitHub Actions repository variable instead of committing the
-  # domain into Soma: gh variable set MCP_REGISTRY_DOMAIN --body <domain>
-  MCP_REGISTRY_DOMAIN: ${{ vars.MCP_REGISTRY_DOMAIN }}
+concurrency:
+  group: container-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
 
 jobs:
-  validate-release-tag:
-    name: Validate release tag
-    runs-on: [self-hosted, unraid]
+  validate:
+    name: Validate release contract
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 10
-    permissions:
-      contents: read
     outputs:
-      release_tag: ${{ steps.validate.outputs.release_tag }}
+      version: ${{ steps.validate.outputs.version }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install Rust and kache
-        uses: ./.github/actions/setup-rust-kache
+      - uses: ./.github/actions/setup-rust-kache
 
-      - name: Validate release tag
-        id: validate
-        shell: bash
+      - id: validate
+        name: Validate immutable release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          tag="${RELEASE_TAG}"
-          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Docker artifacts must be published from a semver tag like v1.2.3, got ${tag}" >&2
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::expected a semver release tag; got $RELEASE_TAG"
             exit 1
           fi
-          git fetch --force --tags origin main
-          tag_commit="$(git rev-parse -q --verify "refs/tags/${tag}^{commit}" || true)"
-          if [[ -z "${tag_commit}" ]]; then
-            echo "Release tag ${tag} does not exist as refs/tags/${tag}" >&2
-            exit 1
-          fi
-          if ! git merge-base --is-ancestor "${tag_commit}" origin/main; then
-            echo "Release tag ${tag} is not reachable from origin/main" >&2
-            exit 1
-          fi
-          version="${tag#v}"
+          version="${RELEASE_TAG#v}"
           cargo_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' apps/soma/Cargo.toml | head -n 1)"
-          npm_version="$(python3 -c 'import json; print(json.load(open("packages/soma-rmcp/package.json"))["version"])')"
-          if [[ "${cargo_version}" != "${version}" ]]; then
-            echo "apps/soma/Cargo.toml version ${cargo_version} does not match ${tag}" >&2
-            exit 1
-          fi
-          if [[ "${npm_version}" != "${version}" ]]; then
-            echo "packages/soma-rmcp/package.json version ${npm_version} does not match ${tag}" >&2
-            exit 1
-          fi
-          # Keep this short validation build isolated from any stale shared-runner
-          # target entries while retaining kache's compiler cache layers.
-          CARGO_TARGET_DIR="${RUNNER_TEMP}/soma-version-sync-target" \
-            cargo xtask check-version-sync
-          echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+          npm_version="$(node -p 'require("./packages/soma-rmcp/package.json").version')"
+          test "$cargo_version" = "$version"
+          test "$npm_version" = "$version"
+          cargo xtask check-version-sync
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-  docker:
-    name: Build & Push Docker image
-    needs: validate-release-tag
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ needs.validate-release-tag.outputs.release_tag }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4.2.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Determine the Docker tags to push:
-      #   main branch  → :latest
-      #   v1.2.3 tag   → :1.2.3 AND :latest
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          # CUSTOMIZE: Replace "soma" with your image name.
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }}
-            type=raw,value=latest
-
-      # Multi-platform build and push.
-      - name: Build and push
-        uses: docker/build-push-action@v7.3.0
-        with:
-          context: .
-          # CUSTOMIZE: Dockerfile lives at config/Dockerfile.
-          file: config/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            ${{ steps.meta.outputs.labels }}
-            io.modelcontextprotocol.server.name=ai.dinglebear/soma
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ── Trivy vulnerability scan ─────────────────────────────────────────────────
-  trivy:
-    name: Trivy Vulnerability Scan
-    needs: [validate-release-tag, docker]
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      security-events: write
-
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ needs.validate-release-tag.outputs.release_tag }}
-
-      - name: Run Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
-        with:
-          # CUSTOMIZE: Replace with your image name.
-          image-ref: ghcr.io/dinglebear-ai/soma:latest
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-          ignore-unfixed: true
-
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-results.sarif
+  container:
+    name: Build, verify, and publish amd64 image
+    needs: [validate]
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-container-release.yml@2650efa9e06ec76992d82022f15b7bfd276166a2
+    with:
+      checkout-ref: ${{ github.event.release.tag_name }}
+      image: ghcr.io/dinglebear-ai/soma
+      release-tag: ${{ needs.validate.outputs.version }}
+      dockerfile: config/Dockerfile
+      smoke-command: docker run --rm "$IMAGE_REF" --help
+      cache-scope: soma-container-release
+    secrets:
+      REGISTRY_USERNAME: ${{ github.actor }}
+      REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   registry:
-    name: Publish MCP Registry Manifest
-    needs: [validate-release-tag, docker]
-    if: ${{ startsWith(needs.validate-release-tag.outputs.release_tag, 'v') }}
-    runs-on: [self-hosted, unraid]
+    name: Publish MCP Registry manifest
+    needs: [validate, container]
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
-
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # A manual run is the recovery path for an existing tag. Use the
-          # current manifest/workflow fixes while the image build still checks
-          # out the immutable release source above.
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || needs.validate-release-tag.outputs.release_tag }}
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
 
       - name: Install mcp-publisher
         run: |
@@ -206,19 +83,20 @@ jobs:
             tar xz mcp-publisher
           chmod +x mcp-publisher
 
-      - name: Prepare server.json for tag
+      - name: Prepare immutable registry manifest
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
         run: |
           python3 - <<'PY'
           import json
-          from pathlib import Path
           import os
+          from pathlib import Path
 
           path = Path("server.json")
           raw = path.read_text()
           data = json.loads(raw[raw.index("{"):])
-
-          version = os.environ["RELEASE_TAG"].removeprefix("v")
-          image = f"{os.environ['IMAGE_NAME']}:{version}"
+          version = os.environ["VERSION"]
+          image = f"ghcr.io/dinglebear-ai/soma:{version}"
           data["version"] = version
           for package in data.get("packages", []):
               if package.get("registryType") == "oci":
@@ -227,34 +105,24 @@ jobs:
                   package.pop("registryBaseUrl", None)
               else:
                   package["version"] = version
-          publisher = data.get("_meta", {}).get("io.modelcontextprotocol.registry/publisher-provided", {})
+          publisher = data.get("_meta", {}).get(
+              "io.modelcontextprotocol.registry/publisher-provided", {}
+          )
           distribution = publisher.get("distribution")
           if isinstance(distribution, dict):
               distribution.clear()
               distribution["ociImage"] = image
-
           path.write_text(json.dumps(data, indent=2) + "\n")
           PY
 
       - name: Publish to MCP Registry
         env:
           MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
-          RETIRE_LEGACY_REGISTRY_NAME: ${{ inputs.retire_legacy_registry_name || 'false' }}
+          MCP_REGISTRY_DOMAIN: ${{ vars.MCP_REGISTRY_DOMAIN }}
         run: |
-          set -euo pipefail
-          if [ -z "${MCP_PRIVATE_KEY:-}" ]; then
-            echo "MCP_PRIVATE_KEY is not configured; skipping MCP registry publish."
-            exit 0
-          fi
+          test -n "$MCP_PRIVATE_KEY"
+          test -n "$MCP_REGISTRY_DOMAIN"
           ./mcp-publisher login dns \
-            --domain "${MCP_REGISTRY_DOMAIN}" \
-            --private-key "${MCP_PRIVATE_KEY}"
-          if [[ "${RETIRE_LEGACY_REGISTRY_NAME}" == "true" ]]; then
-            printf 'y\n' | ./mcp-publisher status \
-              --status deleted \
-              --all-versions \
-              --message "Renamed to ai.dinglebear/soma" \
-              ai.dinglebear/soma-rmcp
-          else
-            ./mcp-publisher publish
-          fi
+            --domain "$MCP_REGISTRY_DOMAIN" \
+            --private-key "$MCP_PRIVATE_KEY"
+          ./mcp-publisher publish
