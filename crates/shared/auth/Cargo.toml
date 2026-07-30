@@ -33,7 +33,7 @@ dashmap = "6"
 ed25519-dalek = { version = "3.0", features = ["pkcs8", "alloc"] }
 getrandom = "0.4"
 httpdate = "1"
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 reqwest = { version = "0.13", default-features = false, features = ["form", "json", "rustls"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

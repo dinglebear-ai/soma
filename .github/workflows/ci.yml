@@ -213,7 +213,7 @@ jobs:
       # This job runs `just test-python*` below but never installed `just` - it
       # inherited whatever the runner happened to have. Provision it explicitly.
       - name: Set up mise tools
-        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
         with:
           install_args: just
           cache: true
@@ -279,7 +279,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up mise tools
-        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
         with:
           install_args: node pnpm
           cache: true
@@ -562,7 +562,7 @@ jobs:
         uses: ./.github/actions/setup-rust-kache
 
       - name: Set up mise tools
-        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
         with:
           install_args: node npm:mcporter
           cache: true
@@ -684,7 +684,7 @@ jobs:
         uses: ./.github/actions/setup-rust-kache
 
       - name: Install taplo
-        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
         with:
           install_args: cargo:taplo-cli
           cache: true
@@ -725,7 +725,7 @@ jobs:
       # missing from PATH for any reason, so this step is not load-bearing
       # for the rest of this job's Rust-only checks.
       - name: Set up mise tools
-        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
         with:
           install_args: node pnpm
           cache: true
@@ -795,7 +795,7 @@ jobs:
         uses: ./.github/actions/setup-rust-kache
 
       - name: Install cargo-deny
-        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
         with:
           install_args: aqua:EmbarkStudios/cargo-deny@0.19.8
           cache: true
