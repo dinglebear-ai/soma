@@ -13,7 +13,7 @@
 - Python metadata continues to normalize through `soma-provider-core`; no second manifest model.
 - `_soma_native` stays a thin validation binding and never owns Tokio, registry, policy, or public surfaces.
 - Use a private cross-platform control transport for four-byte big-endian, bounded UTF-8 JSON frames; never send protocol frames over stdout/stderr. Unix uses a passed Unix-domain socket; Windows uses a restricted inherited named-pipe handle.
-- The host owns a new Unix process session/process group or Windows Job Object with kill-on-close. Close host control handles before reaping; make the worker’s control handle non-inheritable before provider import.
+- The host owns a new Unix process session/process group or Windows Job Object with kill-on-close. Close host control handles before reaping; make the worker's control handle non-inheritable before provider import.
 - Persistent mode requires the matching installed SDK wheel. Prepared environments already receive it; ambient persistent mode validates it with `python -I -c 'import soma_provider.runner'` and fails closed if absent.
 - Equal protocol major versions are mandatory. Worker `Hello` is followed by host `Initialize { minor, features }`, then worker `Ready`; no request is accepted before this exchange.
 - Rust remains responsible for validation, authorization, redaction, policy, and public errors; the protocol is defensive transport, not a trust boundary.
@@ -28,7 +28,7 @@
 
 ## Engineering Review Decisions Incorporated
 
-- The persistent runner’s minimum portability target is the existing wheel CI matrix: Linux x86_64/aarch64, Windows x86_64, and macOS x86_64/arm64. Real subprocess tests run on each platform.
+- The persistent runner's minimum portability target is the existing wheel CI matrix: Linux x86_64/aarch64, Windows x86_64, and macOS x86_64/arm64. Real subprocess tests run on each platform.
 - The wire format becomes tagged `PythonRunnerHostMessage::{Initialize, Request, HostReply}` and `PythonRunnerWorkerMessage::{Hello, Ready, Reply, HostCall}`. `Accepted` changes request state but is not terminal; only terminal `Ok` or `Error` resolves a call.
 - Every supervisor has immutable identity: normalized source digest, canonical provider path, selected interpreter/environment fingerprint, catalog fingerprint, runner configuration fingerprint, and registry generation. Persistent `PythonProvider` owns a prestarted `Arc<PythonWorkerSupervisor>`; concurrent calls cannot create additional workers.
 - The state machine is `Queued -> Written -> Accepted -> Terminal | TimedOut | WorkerLost`. An accepted call is never replayed. A later call may start a replacement worker after kill/reap, subject to one serialized restart transition and budget.
@@ -351,8 +351,8 @@ git commit -m "feat(python): activate supervised persistent runner"
 
 ## Plan Self-Review
 
-- Phase 6’s private channel, handshake, catalog/invoke, health/drain/shutdown, bounded concurrency/logging, restart/crash-loop handling, timeout recycle, explicit fallback, and compatibility proof map to Tasks 1–5.
-- Phase 7’s generation-aware reload and all Phase 8–12 work are explicitly deferred; they are independent milestones, not incomplete implementation details.
+- Phase 6's private channel, handshake, catalog/invoke, health/drain/shutdown, bounded concurrency/logging, restart/crash-loop handling, timeout recycle, explicit fallback, and compatibility proof map to Tasks 1–5.
+- Phase 7's generation-aware reload and all Phase 8–12 work are explicitly deferred; they are independent milestones, not incomplete implementation details.
 - `PythonRunnerConfig`, `PythonRunnerHostReply`, and `PythonWorkerSupervisor` are defined before their consumers; application code does not touch raw framing.
 +
 
