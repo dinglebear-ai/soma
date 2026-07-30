@@ -1,9 +1,3 @@
----
-title: "MCP Schema Contract"
-created: 2026-05-14
-updated: 2026-07-30
----
-
 # MCP Schema Contract
 
 Generated from `crates/soma/domain/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.
@@ -30,6 +24,16 @@ cargo xtask check-schema-docs --check
 | `greet` | `soma:read` | `cheap` | Return a greeting. |
 | `echo` | `soma:read` | `cheap` | Echo a message back unchanged. |
 | `status` | `soma:read` | `cheap` | Return server status and configuration info. |
+| `python_environment_status` | `soma:write` | `cheap` | Inspect immutable Python environment cache state without executing provider code. |
+| `python_environment_prune_plan` | `soma:write` | `moderate` | Plan a bounded prune of stale non-ready Python environment cache entries. |
+| `python_environment_prune` | `soma:write` | `write` | Apply a bounded prune of stale non-ready Python environment cache entries. |
+| `python_environment_repair` | `soma:write` | `write` | Repair the immutable environment for one managed Python provider. |
+| `python_environment_update` | `soma:write` | `write` | Resolve, prepare, validate, and atomically activate an immutable update for one managed Python provider. |
+| `python_worker_status` | `soma:write` | `cheap` | Inspect persistent Python worker health, quarantine, restart counts, and bounded redacted logs. |
+| `python_worker_cancel` | `soma:write` | `write` | Cancel one active persistent Python invocation by terminating its process tree. |
+| `python_worker_reset` | `soma:write` | `write` | Clear one persistent Python worker crash-loop quarantine. |
+| `python_generation_status` | `soma:read` | `cheap` | Inspect the active Python provider generation and bounded rollback history. |
+| `python_generation_rollback` | `soma:write` | `write` | Atomically reactivate a retained Python provider generation. |
 | `elicit_name` | `soma:read` | `cheap` | Ask the MCP client to collect a name, then return a personalised greeting. |
 | `scaffold_intent` | `soma:read` | `moderate` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
 | `help` | public | `cheap` | Show the action reference. |

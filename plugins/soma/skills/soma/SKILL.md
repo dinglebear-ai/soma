@@ -32,6 +32,17 @@ A single MCP tool, `mcp__soma__soma`, dispatches on a required `action` argument
 | `scaffold_intent` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. | none |
 | `help` | Show the action reference. | none |
 <!-- END GENERATED SKILL_ACTION_TABLE -->
+
+Python provider lifecycle administration uses the same tool:
+
+- environment cache: `python_environment_status`,
+  `python_environment_prune_plan`, `python_environment_prune`,
+  `python_environment_repair`, and `python_environment_update`;
+- persistent workers: `python_worker_status`, `python_worker_cancel`, and
+  `python_worker_reset`;
+- provider generations: `python_generation_status` and
+  `python_generation_rollback`.
+
 **Always prefer the MCP tool**. The default plugin path is stdio. Fall back to HTTP curl only when MCP is unavailable or when explicitly debugging a remote HTTP deployment.
 
 ---
