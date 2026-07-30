@@ -17,7 +17,7 @@ permissions:
 jobs:
   validate:
     name: Validate release contract
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       version: ${{ steps.validate.outputs.version }}
@@ -51,7 +51,7 @@ jobs:
   container:
     name: Build, verify, and publish amd64 image
     needs: [validate]
-    uses: dinglebear-ai/workflows/.github/workflows/hosted-container-release.yml@2650efa9e06ec76992d82022f15b7bfd276166a2
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-container-release.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0
     with:
       checkout-ref: ${{ github.event.release.tag_name }}
       image: ghcr.io/dinglebear-ai/soma

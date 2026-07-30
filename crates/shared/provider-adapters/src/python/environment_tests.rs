@@ -303,24 +303,19 @@ fn validates_abi3_baseline_implementation_and_platform_tag() {
 fn accepts_matching_release_workflow_platform_tags() {
     let cases = [
         (
+            "linux-x86_64",
+            "manylinux_2_17_x86_64",
+            "soma_provider-0.2.0-cp311-abi3-manylinux_2_17_x86_64.whl",
+        ),
+        (
             "windows-x86_64",
             "win_amd64",
             "soma_provider-0.2.0-cp311-abi3-win_amd64.whl",
         ),
         (
-            "linux-aarch64",
-            "manylinux_2_17_aarch64",
-            "soma_provider-0.2.0-cp311-abi3-manylinux_2_17_aarch64.whl",
-        ),
-        (
             "macos-x86_64",
             "macosx_10_12_x86_64",
             "soma_provider-0.2.0-cp311-abi3-macosx_10_12_x86_64.whl",
-        ),
-        (
-            "macos-arm64",
-            "macosx_11_0_arm64",
-            "soma_provider-0.2.0-cp311-abi3-macosx_11_0_arm64.whl",
         ),
     ];
 

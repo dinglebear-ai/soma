@@ -49,16 +49,18 @@ fn ci_runs_release_version_gate_before_merge() {
 }
 
 #[test]
-fn native_windows_ci_uses_a_github_hosted_runner() {
-    let workflow = include_str!("../../../.github/workflows/ci.yml");
-    let windows = workflow_job_block(workflow, "build-windows");
+fn native_builds_are_release_only_and_github_hosted() {
+    let ci = include_str!("../../../.github/workflows/ci.yml");
+    let release = include_str!("../../../.github/workflows/release.yml");
     assert!(
-        windows.contains("runs-on: windows-latest"),
-        "native Windows CI must run on GitHub-hosted Windows"
+        !ci.contains("build-windows:") && !ci.contains("build-linux:"),
+        "native artifact builds must not consume PR or main-branch CI capacity"
     );
     assert!(
-        !windows.contains("self-hosted") && !windows.contains("steamy"),
-        "native Windows CI must not depend on the Steamy self-hosted runner"
+        release.contains("release:\n    types: [published]")
+            && !release.contains("workflow_dispatch:")
+            && !release.contains("self-hosted"),
+        "heavy native builds must run only for published releases on GitHub-hosted runners"
     );
 }
 
@@ -103,20 +105,14 @@ fn artifact_workflows_run_from_published_releases() {
             "artifact workflow must trigger from release-please published releases"
         );
         assert!(
-            workflow.contains("workflow_dispatch:"),
-            "artifact workflow must support manual reruns for existing tags"
-        );
-        assert!(
-            workflow.contains("validate-release-tag:"),
-            "manual artifact reruns must validate the requested release tag before publishing"
-        );
-        assert!(
-            workflow.contains(r#"refs/tags/${tag}^{commit}"#)
-                && workflow.contains("git merge-base --is-ancestor")
-                && workflow.contains("cargo xtask check-version-sync"),
-            "artifact workflows must reject non-tag refs, tags outside main, and version drift"
+            !workflow.contains("workflow_dispatch:"),
+            "heavy artifact workflows must run only from a published release"
         );
     }
+    assert!(
+        release.contains("validate-release-tag:") && docker.contains("validate:"),
+        "artifact publication must validate the immutable release contract"
+    );
     assert!(
         release.contains("gh release upload")
             && release.contains("\"${{ needs.validate-release-tag.outputs.release_tag }}\""),
@@ -128,8 +124,9 @@ fn artifact_workflows_run_from_published_releases() {
     );
     let npm = workflow_job_block(&release, "npm");
     assert!(
-        npm.contains("needs: [validate-release-tag, release]"),
-        "npm publish must wait until GitHub release artifacts have been created"
+        npm.contains("needs: [validate-release-tag, release]")
+            && npm.contains("npm-trusted-publish.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0"),
+        "npm publish must wait for artifacts and use the fleet source of truth"
     );
     assert!(
         release.contains("arch: linux-x86_64")
@@ -142,23 +139,13 @@ fn artifact_workflows_run_from_published_releases() {
             && docker.contains("distribution[\"ociImage\"] = image"),
         "Docker/MCP registry workflow must emit a canonical OCI package without forbidden legacy fields"
     );
-    assert!(
-        docker.contains("io.modelcontextprotocol.server.name=ai.dinglebear/soma"),
-        "published images must carry the MCP Registry ownership label"
-    );
     let registry = workflow_job_block(&docker, "registry");
     assert!(
-        registry.contains("github.event_name == 'workflow_dispatch' && github.sha"),
-        "manual recovery runs must use the current manifest while publishing the requested release tag"
+        registry.contains("mcp-publisher publish"),
+        "the product-specific MCP Registry publication must remain in Soma"
     );
     assert!(
-        docker.contains("retire_legacy_registry_name:")
-            && registry.contains("inputs.retire_legacy_registry_name")
-            && registry.contains("ai.dinglebear/soma-rmcp"),
-        "manual recovery runs must expose an explicit, scoped path to retire Soma's legacy Registry name"
-    );
-    assert!(
-        registry.contains("else\n            ./mcp-publisher publish\n          fi"),
-        "legacy retirement mode must not republish an already-existing canonical version"
+        docker.contains("hosted-container-release.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0"),
+        "container publication must use the pinned fleet workflow"
     );
 }

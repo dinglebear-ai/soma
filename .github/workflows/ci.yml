@@ -6,8 +6,8 @@
 #   BINARY_NAME → your binary name from Cargo.toml [[bin]] (e.g. "myservice")
 #
 # This workflow runs on every push and PR to main.
-# Jobs: actionlint, fmt, clippy, test (nextest + doctests), web, native builds,
-# MCP smoke, compose/container smoke, toml, Soma checks, version sync, deny
+# Jobs: reusable operations/Rust/web/security checks, product-specific tests,
+# MCP smoke, TOML checks, Soma contracts, and the required aggregate gate.
 #
 # All jobs must pass before merging. Adjust the matrix rust-version to match
 # your Cargo.toml `rust-version` field.
@@ -33,22 +33,19 @@ env:
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Builds route through kache (RUSTC_WRAPPER, set by
+  # Product-specific builds route through kache (RUSTC_WRAPPER, set by
   # ./.github/actions/setup-rust-kache). The LOCAL store is per-runner under
   # $GITHUB_WORKSPACE/../.kache and must never be shared — kache's SQLite index
   # cannot be held across containers. The SHARED surface is the filesystem
   # remote bind-mounted at /home/runner/kache-remote. The GitHub-hosted native
   # Windows job runs without any compile wrapper.
-  # Keep Windows artifacts portable and independent of runner image defaults.
-  WINDOWS_PORTABLE_RUSTFLAGS: >-
-    -C target-cpu=x86-64
-    -C target-feature=-avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd,-avx512ifma,-avx512vbmi,-avx512vbmi2,-avx512vnni,-avx512bitalg,-avx512vpopcntdq
 
 jobs:
   changes:
     name: Changes
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
+    timeout-minutes: 10
     outputs:
       all: ${{ steps.classify.outputs.all }}
       docs: ${{ steps.classify.outputs.docs }}
@@ -88,48 +85,36 @@ jobs:
       - name: Show changed files
         run: cat changed-files.txt || true
 
-  # -- actionlint: GitHub Actions workflow syntax and shell checks -------------
   actionlint:
-    name: Actionlint
+    name: Actionlint and ShellCheck
     needs: [changes]
     if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0
+    with:
+      actionlint-version: v1.7.12
+      shell-globs: .github/scripts/**/*.sh
+      timeout-minutes: 10
 
-      - name: Install Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: stable
-
-      - name: actionlint
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@latest
-
-  # ── fmt: cargo fmt --check ──────────────────────────────────────────────────
-  fmt:
-    name: Format
+  rust-fast:
+    name: Fast Rust
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust and kache
-        uses: ./.github/actions/setup-rust-kache
-        with:
-          components: rustfmt
-
-      - name: cargo fmt --check
-        run: cargo fmt --all -- --check
+    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0
+    with:
+      toolchain: "1.97.1"
+      timeout-minutes: 35
+      kache-manifest-key: soma-fast-rust
+      test-command: cargo test --workspace --locked --exclude soma-provider-python
+    secrets:
+      KACHE_S3_ACCESS_KEY: ${{ secrets.KACHE_S3_ACCESS_KEY }}
+      KACHE_S3_SECRET_KEY: ${{ secrets.KACHE_S3_SECRET_KEY }}
 
   # ── architecture: dependency-layer boundary checks ───────────────────────────
   architecture:
     name: Architecture
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -143,54 +128,12 @@ jobs:
       - name: Check self-update production library features
         run: cargo check -p soma-self-update --lib --locked
 
-  # ── clippy: zero warnings ────────────────────────────────────────────────────
-  clippy:
-    name: Clippy
-    needs: [changes]
-    if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust and kache
-        uses: ./.github/actions/setup-rust-kache
-        with:
-          components: clippy
-
-      # Cache Cargo registry and build artifacts between runs.
-      # CUSTOMIZE: Change the cache key prefix from "soma" to your repo name.
-      - name: Cache Cargo
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target
-          key: ${{ github.repository }}-clippy-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ github.repository }}-clippy-
-
-      - name: cargo clippy -- -D warnings
-        run: cargo clippy --all-targets -- -D warnings
-
-      - name: codex app-server REST clippy
-        run: cargo clippy -p codex-app-server-client --all-targets --features rest -- -D warnings
-
-      - name: soma-gateway clippy all features
-        run: cargo clippy -p soma-gateway --all-targets --all-features -- -D warnings
-
-      - name: kache gate
-        if: always()
-        env:
-          KACHE_GATE_MIN_HIT_RATE: "0"
-          KACHE_GATE_REQUIRE_REMOTE: "0"
-          KACHE_GATE_REQUIRE_DAEMON: "1"
-        run: ./scripts/kache-gate.sh
-
   # ── test: cargo nextest run --profile ci ─────────────────────────────────────
   test:
     name: Test
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -258,312 +201,38 @@ jobs:
 
       - name: Upload nextest report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: nextest-junit
           path: target/nextest/ci/junit.xml
           if-no-files-found: warn
           retention-days: 14
 
-  # ── web: pnpm install, lint, audit, static build ─────────────────────────────
   frontend-assets:
-    name: Frontend Assets
+    name: Frontend checks
     needs: [changes]
     if: ${{ (needs.changes.outputs.web == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.mcp == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: apps/web
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up mise tools
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
-        with:
-          install_args: node pnpm
-          cache: true
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # npm retired the audit endpoint(s) pnpm 10.x calls
-      # (https://api-docs.npmjs.com/#tag/Audit - "quick" and its own fallback
-      # both now return 410), so pnpm@10.33.2 (our pinned version) fails this
-      # step with ERR_PNPM_AUDIT_BAD_RESPONSE regardless of the actual
-      # dependency tree - confirmed reproducible locally, unrelated to any
-      # PR's changes. pnpm@11+ is expected to pick up the new bulk endpoint;
-      # revisit once we deliberately upgrade pnpm and verify `pnpm audit`
-      # works again. Only THIS specific known failure signature is treated
-      # as non-blocking below - a genuine high/critical advisory (or any
-      # other unexpected failure) still fails the step, since a blanket
-      # continue-on-error would silently swallow real findings too.
-      - name: pnpm audit
-        run: |
-          set +e
-          output=$(pnpm audit --prod --audit-level high 2>&1)
-          status=$?
-          echo "$output"
-          if [ "$status" -eq 0 ]; then
-            exit 0
-          fi
-          if echo "$output" | grep -q "ERR_PNPM_AUDIT_BAD_RESPONSE"; then
-            echo "::warning::pnpm audit endpoint is currently retired upstream (see comment above) - treating as non-blocking, not a real vulnerability finding."
-            exit 0
-          fi
-          echo "::error::pnpm audit failed - either a genuine vulnerability finding or an unexpected error. Failing CI."
-          exit "$status"
-
-      - name: pnpm lint
-        run: pnpm lint
-
-      - name: pnpm typecheck
-        run: pnpm typecheck
-
-      - name: pnpm build
-        run: pnpm build
-
-      - name: Upload web export
-        uses: actions/upload-artifact@v7
-        with:
-          name: web-out
-          path: apps/web/out/
-          if-no-files-found: error
-          retention-days: 1
-
-  # -- native release builds ----------------------------------------------------
-  #
-  # These jobs mirror the Axon pattern: prove the binary builds on Linux and on
-  # native Windows during PR CI, then upload the runnable artifacts for manual
-  # smoke testing. Release tags still use .github/workflows/release.yml for
-  # packaging and GitHub Release publication.
-  build-linux:
-    name: Build Linux
-    runs-on: [self-hosted, unraid]
-    needs: [changes, frontend-assets]
-    if: ${{ always() && needs.changes.outputs.native == 'true' && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Download web export
-        uses: actions/download-artifact@v8
-        with:
-          name: web-out
-          path: apps/web/out
-
-      - name: Install Rust and kache
-        uses: ./.github/actions/setup-rust-kache
-
-      - name: Cache Cargo
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target
-          key: ${{ github.repository }}-build-linux-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ github.repository }}-build-linux-
-
-      - name: cargo build local binary
-        run: cargo build --release --locked --bin soma --no-default-features --features local-adapter
-
-      - name: cargo build full binary
-        run: cargo build --release --locked --bin soma --features full
-
-      - name: kache gate
-        if: always()
-        env:
-          KACHE_GATE_MIN_HIT_RATE: "0"
-          KACHE_GATE_REQUIRE_REMOTE: "0"
-          KACHE_GATE_REQUIRE_DAEMON: "1"
-        run: ./scripts/kache-gate.sh
-
-      - name: Upload Linux binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: soma-linux-x86_64
-          path: target/release/soma
-          if-no-files-found: error
-
-  build-windows:
-    name: Build Windows
-    runs-on: windows-latest
-    needs: [changes, frontend-assets]
-    if: ${{ always() && needs.changes.outputs.native == 'true' && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Download web export
-        uses: actions/download-artifact@v8
-        with:
-          name: web-out
-          path: apps/web/out
-
-      # Native Windows cargo historically misbehaved under compile wrappers,
-      # so this job runs with no compile cache and pins the wrapper
-      # env empty (an empty RUSTC_WRAPPER also keeps any user-level
-      # rustc-wrapper config on the runner overridden).
-      - name: Install Rust (no compile cache)
-        uses: ./.github/actions/setup-rust-kache
-        with:
-          enable-cache: "false"
-
-      - name: Run native Windows cargo without a compile wrapper
-        shell: pwsh
-        run: |
-          "RUSTC_WRAPPER=" >> $env:GITHUB_ENV
-          "CARGO_BUILD_RUSTC_WRAPPER=" >> $env:GITHUB_ENV
-
-      - name: Check portable self-update library surface
-        shell: pwsh
-        env:
-          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }} -D warnings
-        run: cargo check -p soma-self-update --lib --locked
-
-      - name: Test Windows self-update surface and validator job cleanup
-        shell: pwsh
-        env:
-          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }} -D warnings
-        run: cargo test -p soma-self-update --locked -- --test-threads=1
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.14"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-
-      - name: Install the Python provider SDK
-        shell: pwsh
-        run: uv sync --project packages/python --frozen
-
-      - name: Show Windows Rust CPU flags
-        shell: pwsh
-        env:
-          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: |
-          $ErrorActionPreference = 'Continue'
-          rustc -vV
-          "RUSTC_WRAPPER=$env:RUSTC_WRAPPER"
-          "CARGO_BUILD_RUSTC_WRAPPER=$env:CARGO_BUILD_RUSTC_WRAPPER"
-          "RUSTFLAGS=$env:RUSTFLAGS"
-          rustc --print cfg | Select-String 'target_feature'
-          cargo config get build.rustflags --merged
-          if ($LASTEXITCODE -ne 0) { "build.rustflags not set" }
-          cargo config get target.x86_64-pc-windows-msvc.rustflags --merged
-          if ($LASTEXITCODE -ne 0) { "target rustflags not set" }
-          exit 0
-
-      - name: Configure Windows Python launcher
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $pythonName = "python"
-          $python = Get-Command python -ErrorAction SilentlyContinue
-          if (-not $python) {
-            $pythonName = "py"
-            $python = Get-Command py -ErrorAction SilentlyContinue
-          }
-          if (-not $python) {
-            throw "Python launcher not found on Windows runner"
-          }
-          "SOMA_PYTHON_COMMAND=$pythonName" >> $env:GITHUB_ENV
-          & $python.Source --version
-
-      - name: cargo test
-        shell: pwsh
-        env:
-          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          $process = Start-Process `
-            -FilePath cargo `
-            -ArgumentList @("test", "--locked", "--all-targets") `
-            -NoNewWindow `
-            -PassThru
-
-          while (-not $process.HasExited) {
-            Start-Sleep -Seconds 60
-            if (-not $process.HasExited) {
-              Write-Host "Windows cargo test still running at $(Get-Date -Format o)"
-            }
-          }
-
-          exit $process.ExitCode
-
-      - name: codex app-server REST tests
-        shell: pwsh
-        env:
-          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          cargo test -p codex-app-server-client --features rest --locked
-
-      - name: cargo build local binary
-        shell: pwsh
-        env:
-          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          $process = Start-Process `
-            -FilePath cargo `
-            -ArgumentList @("build", "--release", "--locked", "--bin", "soma", "--no-default-features", "--features", "local-adapter") `
-            -NoNewWindow `
-            -PassThru
-
-          while (-not $process.HasExited) {
-            Start-Sleep -Seconds 60
-            if (-not $process.HasExited) {
-              Write-Host "Windows local binary build still running at $(Get-Date -Format o)"
-            }
-          }
-
-          exit $process.ExitCode
-
-      - name: cargo build full binary
-        shell: pwsh
-        env:
-          RUSTFLAGS: ${{ env.WINDOWS_PORTABLE_RUSTFLAGS }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          $process = Start-Process `
-            -FilePath cargo `
-            -ArgumentList @("build", "--release", "--locked", "--bin", "soma", "--features", "full") `
-            -NoNewWindow `
-            -PassThru
-
-          while (-not $process.HasExited) {
-            Start-Sleep -Seconds 60
-            if (-not $process.HasExited) {
-              Write-Host "Windows full binary build still running at $(Get-Date -Format o)"
-            }
-          }
-
-          exit $process.ExitCode
-
-      - name: Upload Windows binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: soma-windows-x86_64
-          path: target/release/soma.exe
-          if-no-files-found: error
+    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0
+    with:
+      node-version: "22"
+      pnpm-version: "10"
+      working-directory: apps/web
+      lockfile-path: apps/web/pnpm-lock.yaml
+      audit-command: ""
+      test-command: ""
+      build-command: pnpm build
+      timeout-minutes: 20
 
   # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
   mcp-smoke:
     name: MCP Smoke
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     needs: [changes, frontend-assets]
     if: ${{ always() && (needs.changes.outputs.mcp == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true') && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Download web export
-        uses: actions/download-artifact@v8
-        with:
-          name: web-out
-          path: apps/web/out
 
       - name: Install Rust and kache
         uses: ./.github/actions/setup-rust-kache
@@ -573,6 +242,12 @@ jobs:
         with:
           install_args: node npm:mcporter
           cache: true
+
+      - name: Build web assets for MCP smoke
+        run: |
+          cd apps/web
+          pnpm install --frozen-lockfile
+          pnpm build
 
       - name: Cache Cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -617,7 +292,7 @@ jobs:
 
       - name: Upload MCP smoke logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: mcp-smoke-logs
           path: |
@@ -631,58 +306,12 @@ jobs:
         run: |
           kill "$(cat /tmp/soma-mcp.pid 2>/dev/null)" 2>/dev/null || true
 
-  # -- container-smoke: compose config plus Docker build on PRs/main ------------
-  container-smoke:
-    name: Container Smoke
-    needs: [changes]
-    if: ${{ needs.changes.outputs.docker == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Docker Compose
-        run: |
-          set -euo pipefail
-          if docker compose version >/dev/null 2>&1; then
-            docker compose version
-            exit 0
-          fi
-          mkdir -p "${HOME}/.docker/cli-plugins"
-          curl -fsSL \
-            https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
-            -o "${HOME}/.docker/cli-plugins/docker-compose"
-          chmod +x "${HOME}/.docker/cli-plugins/docker-compose"
-          docker compose version
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.0.0
-
-      - name: Create Docker network
-        run: docker network create "${DOCKER_NETWORK:-mcp}" || true
-
-      - name: Validate production compose
-        run: docker compose --env-file .env.example -f docker-compose.prod.yml config --quiet
-
-      - name: Validate development compose
-        run: docker compose --env-file .env.example -f docker-compose.yml config --quiet
-
-      - name: Build container image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: config/Dockerfile
-          push: false
-          tags: soma:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   # ── toml: taplo check ─────────────────────────────────────────────────────────
   toml:
     name: TOML Format
     needs: [changes]
     if: ${{ needs.changes.outputs.toml == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -704,7 +333,7 @@ jobs:
     name: Lefthook Speed
     needs: [changes]
     if: ${{ (needs.changes.outputs.workflow == 'true' || needs.changes.outputs.soma == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-ops]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -717,7 +346,7 @@ jobs:
     name: Soma Contracts
     needs: [changes]
     if: ${{ needs.changes.outputs.soma == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -788,27 +417,16 @@ jobs:
       - name: ASCII hygiene
         run: cargo xtask run-ascii-check
 
-  # ── deny: dependency advisories, licenses, bans, sources ─────────────────────
   audit:
     name: Cargo Deny
     needs: [changes]
     if: ${{ needs.changes.outputs.security == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust and kache
-        uses: ./.github/actions/setup-rust-kache
-
-      - name: Install cargo-deny
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
-        with:
-          install_args: aqua:EmbarkStudios/cargo-deny@0.19.8
-          cache: true
-
-      - name: cargo deny check
-        run: cargo deny check all
+    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0
+    with:
+      toolchain: "1.97.1"
+      cargo-deny-version: "0.19.8"
+      command: cargo deny check all
+      timeout-minutes: 20
 
   # ── ci-gate: single required status that aggregates every job ────────────────
   # Point branch protection at THIS job ("CI Gate") instead of each job below.
@@ -820,20 +438,16 @@ jobs:
     needs:
       - changes
       - actionlint
-      - fmt
       - architecture
-      - clippy
+      - rust-fast
       - test
       - frontend-assets
-      - build-linux
-      - build-windows
       - mcp-smoke
-      - container-smoke
       - toml
       - lefthook-speed
       - soma
       - audit
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-ops]
     timeout-minutes: 5
     steps:
       - name: Verify all required jobs passed

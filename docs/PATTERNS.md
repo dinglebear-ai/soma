@@ -922,7 +922,7 @@ INSTALL_DIR="${HOME}/.local/bin"
 # Detect platform
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
-case "${ARCH}" in x86_64) ARCH="x86_64" ;; aarch64|arm64) ARCH="aarch64" ;; esac
+case "${ARCH}" in x86_64) ARCH="x86_64" ;; *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;; esac
 
 echo "Installing ${BINARY} from ${REPO}..."
 mkdir -p "${INSTALL_DIR}"
@@ -2756,7 +2756,6 @@ preflight() {
     arch="$(uname -m)"
     case "${arch}" in
         x86_64)  arch="amd64" ;;
-        aarch64|arm64) arch="arm64" ;;
         *) echo "✗ Unsupported arch: ${arch}"; (( errors++ )) ;;
     esac
     [[ "${os}" == "linux" ]] || { echo "✗ Only Linux is supported (got: ${os})"; (( errors++ )); }
