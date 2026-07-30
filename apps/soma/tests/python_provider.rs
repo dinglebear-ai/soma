@@ -2,18 +2,68 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    sync::Arc,
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 
 use serde_json::json;
 use soma_application::{
-    SomaService, dynamic_provider_registry_from_dir, provider_registry::ProviderAuthMode,
-    provider_registry::ProviderCall, provider_registry::ProviderPrincipal,
-    provider_registry::ProviderRequestLimits, provider_registry::ProviderSurface,
+    FileProviderSource, ProviderRegistry, PythonProviderEnvironmentPreparer, PythonRunnerSelection,
+    SomaService, capabilities::CapabilityBroker, dynamic_provider_registry_from_dir,
+    provider_registry::ProviderAuthMode, provider_registry::ProviderCall,
+    provider_registry::ProviderPrincipal, provider_registry::ProviderRequestLimits,
+    provider_registry::ProviderSurface,
 };
 use soma_client::SomaClient;
 use soma_config::SomaConfig;
+use soma_provider_adapters::python::{
+    PythonInterpreter, materializer::PreparedPythonEnvironment, supervisor::PythonSupervisorConfig,
+};
+
+#[tokio::test]
+async fn python_authoring_fixtures_match_across_one_shot_and_persistent_modes() -> anyhow::Result<()>
+{
+    let Some(python) = installed_sdk_python() else {
+        eprintln!(
+            "skipping persistent parity test: run `uv sync --project packages/python --frozen`"
+        );
+        return Ok(());
+    };
+    let temp = test_dir("runner-parity")?;
+    let providers = temp.join("providers");
+    fs::create_dir(&providers)?;
+    for (name, source) in python_parity_fixtures() {
+        fs::write(providers.join(name), source)?;
+    }
+
+    let one_shot =
+        parity_registry(&providers, python.clone(), PythonRunnerSelection::OneShot).await?;
+    let persistent = parity_registry(
+        &providers,
+        python,
+        PythonRunnerSelection::Persistent(PythonSupervisorConfig::default()),
+    )
+    .await?;
+
+    assert_eq!(
+        one_shot.snapshot().fingerprint,
+        persistent.snapshot().fingerprint,
+        "runner mode must not change the public provider catalog"
+    );
+    for (action, params) in [
+        ("parity_plain", json!({"value": "plain"})),
+        ("parity_decorated", json!({"value": "decorated"})),
+        ("parity_async", json!({"value": "async"})),
+        ("parity_langchain", json!({"value": "langchain"})),
+        ("parity_llamaindex", json!({"value": "llamaindex"})),
+    ] {
+        let expected = dispatch(&one_shot, action, params.clone()).await?;
+        let actual = dispatch(&persistent, action, params).await?;
+        assert_eq!(actual, expected, "{action} diverged between runner modes");
+    }
+    Ok(())
+}
 
 #[tokio::test]
 async fn langchain_provider_executes_hot_dropped_python_tool() -> anyhow::Result<()> {
@@ -1167,6 +1217,121 @@ fn service() -> anyhow::Result<SomaService> {
         ..SomaConfig::default()
     })?;
     Ok(SomaService::new(client))
+}
+
+#[derive(Debug)]
+struct FixedPythonInterpreter(PathBuf);
+
+impl PythonProviderEnvironmentPreparer for FixedPythonInterpreter {
+    fn prepare(&self, _provider_path: &Path) -> Result<PythonInterpreter, String> {
+        Ok(PythonInterpreter::Prepared(self.0.clone()))
+    }
+
+    fn validate_candidate(
+        &self,
+        _provider_path: &Path,
+        _candidate: &PreparedPythonEnvironment,
+    ) -> Result<PythonInterpreter, String> {
+        Ok(PythonInterpreter::Prepared(self.0.clone()))
+    }
+}
+
+async fn parity_registry(
+    providers: &Path,
+    python: PathBuf,
+    runner: PythonRunnerSelection,
+) -> anyhow::Result<ProviderRegistry> {
+    let source = FileProviderSource::new(providers)
+        .with_python_environment_preparer(Arc::new(FixedPythonInterpreter(python)))
+        .with_python_runner(runner);
+    ProviderRegistry::with_file_source_async(Vec::new(), CapabilityBroker::default_deny(), source)
+        .await
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+}
+
+fn installed_sdk_python() -> Option<PathBuf> {
+    let environment = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/python/.venv");
+    let python = if cfg!(windows) {
+        environment.join("Scripts/python.exe")
+    } else {
+        environment.join("bin/python")
+    };
+    python.is_file().then_some(python)
+}
+
+fn python_parity_fixtures() -> [(&'static str, &'static str); 5] {
+    [
+        (
+            "parity_plain.py",
+            r#"
+PROVIDER = {"name": "parity-plain", "kind": "python"}
+
+def parity_plain(value: str) -> dict:
+    return {"kind": "plain", "value": value}
+"#,
+        ),
+        (
+            "parity_decorated.py",
+            r#"
+from soma_provider import provider, tool
+
+PROVIDER = provider(name="parity-decorated", kind="python")
+
+@tool(name="parity_decorated")
+def decorated(value: str) -> dict:
+    return {"kind": "decorated", "value": value}
+"#,
+        ),
+        (
+            "parity_async.py",
+            r#"
+PROVIDER = {"name": "parity-async", "kind": "python"}
+
+async def parity_async(value: str) -> dict:
+    return {"kind": "async", "value": value}
+"#,
+        ),
+        (
+            "parity_langchain.py",
+            r#"
+PROVIDER = {"name": "parity-langchain", "kind": "langchain"}
+
+class ParityTool:
+    name = "parity_langchain"
+    description = "Exercise the LangChain-compatible runner path."
+    args = {"value": {"type": "string"}}
+
+    def invoke(self, params):
+        return {"kind": "langchain", "value": params["value"]}
+
+TOOLS = [ParityTool()]
+"#,
+        ),
+        (
+            "parity_llamaindex.py",
+            r#"
+PROVIDER = {"name": "parity-llamaindex", "kind": "llamaindex"}
+
+class Metadata:
+    name = "parity_llamaindex"
+    description = "Exercise the LlamaIndex-compatible runner path."
+    fn_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"value": {"type": "string"}},
+        "required": ["value"],
+    }
+
+class ParityTool:
+    metadata = Metadata()
+
+    def call(self, **kwargs):
+        return {"kind": "llamaindex", "value": kwargs["value"]}
+
+TOOLS = [ParityTool()]
+"#,
+        ),
+    ]
 }
 
 fn python_module_available(module: &str) -> bool {
