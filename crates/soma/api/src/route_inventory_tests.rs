@@ -22,5 +22,18 @@ fn static_service_actions_keep_action_metadata() {
         .filter_map(|route| route.action)
         .collect();
 
-    assert_eq!(action_routes, ["greet", "echo", "status", "help"]);
+    assert_eq!(
+        action_routes,
+        [
+            "greet",
+            "echo",
+            "status",
+            "python_environment_status",
+            "python_environment_prune_plan",
+            "python_environment_prune",
+            "python_environment_repair",
+            "python_environment_update",
+            "help",
+        ]
+    );
 }

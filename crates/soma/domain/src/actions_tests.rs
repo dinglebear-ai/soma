@@ -10,14 +10,30 @@ fn action_metadata_is_the_action_source_of_truth() {
             "greet",
             "echo",
             "status",
+            "python_environment_status",
+            "python_environment_prune_plan",
+            "python_environment_prune",
+            "python_environment_repair",
+            "python_environment_update",
             "elicit_name",
             "scaffold_intent",
             "help"
         ]
     );
-    assert_eq!(rest_action_names(), vec!["greet", "echo", "status", "help"]);
-    assert_eq!(cli_action_names(), vec!["greet", "echo", "status", "help"]);
-    assert_eq!(cli_commands(), vec!["greet", "echo", "status", "help"]);
+    let cross_surface = vec![
+        "greet",
+        "echo",
+        "status",
+        "python_environment_status",
+        "python_environment_prune_plan",
+        "python_environment_prune",
+        "python_environment_repair",
+        "python_environment_update",
+        "help",
+    ];
+    assert_eq!(rest_action_names(), cross_surface);
+    assert_eq!(cli_action_names(), cross_surface);
+    assert_eq!(cli_commands(), cross_surface);
     assert_eq!(
         mcp_only_action_names(),
         vec!["elicit_name", "scaffold_intent"]

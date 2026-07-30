@@ -227,6 +227,11 @@ fn rest_params(action: &SomaAction) -> Value {
         SomaAction::Greet { name } => optional_name_params(name.clone()),
         SomaAction::Echo { message } => json!({ "message": message }),
         SomaAction::Status
+        | SomaAction::PythonEnvironmentStatus
+        | SomaAction::PythonEnvironmentPrunePlan { .. }
+        | SomaAction::PythonEnvironmentPrune { .. }
+        | SomaAction::PythonEnvironmentRepair { .. }
+        | SomaAction::PythonEnvironmentUpdate { .. }
         | SomaAction::Help
         | SomaAction::ElicitName
         | SomaAction::ScaffoldIntent => json!({}),

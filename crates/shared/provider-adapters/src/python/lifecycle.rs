@@ -18,9 +18,10 @@ use super::{
         plan_python_environment,
     },
     materializer::{
-        PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonEnvironmentUpdateError,
-        PythonEnvironmentUpdateReport, PythonEnvironmentUpdateRequest, PythonMaterializationError,
-        PythonMaterializationRequest, SystemUvRunner, UvRunner,
+        PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonEnvironmentRepairError,
+        PythonEnvironmentRepairReport, PythonEnvironmentUpdateError, PythonEnvironmentUpdateReport,
+        PythonEnvironmentUpdateRequest, PythonMaterializationError, PythonMaterializationRequest,
+        SystemUvRunner, UvRunner,
     },
 };
 
@@ -169,6 +170,42 @@ impl<R: UvRunner> PythonEnvironmentLifecycle<R> {
             )
             .map_err(Into::into)
     }
+
+    /// Verifies or rebuilds the exact immutable environment planned for one provider.
+    ///
+    /// Repair never imports provider code and restores the quarantined cache
+    /// entry when a rebuild fails.
+    pub fn repair_provider(
+        &self,
+        provider_path: &Path,
+    ) -> Result<PythonEnvironmentRepairReport, PythonEnvironmentLifecycleError> {
+        let source = fs::read_to_string(provider_path).map_err(|source| {
+            PythonEnvironmentLifecycleError::ReadSource {
+                path: provider_path.to_path_buf(),
+                source,
+            }
+        })?;
+        let metadata = parse_pep723_metadata(&source)?;
+        let plan = plan_python_environment(
+            &self.spec.cache_root,
+            metadata.as_ref(),
+            &self.spec.runtime,
+            &self.spec.sdk_wheel,
+            &self.spec.sdk_wheel_sha256,
+            &self.spec.uv_version,
+        )?;
+        self.materializer
+            .repair(
+                &plan,
+                PythonMaterializationRequest {
+                    metadata: metadata.as_ref(),
+                    python_executable: &self.spec.python_executable,
+                    sdk_wheel: &self.spec.sdk_wheel,
+                    offline: self.spec.offline,
+                },
+            )
+            .map_err(Into::into)
+    }
 }
 
 fn normalized_source_sha256(source: &str) -> String {
@@ -191,6 +228,8 @@ pub enum PythonEnvironmentLifecycleError {
     Materialization(#[from] PythonMaterializationError),
     #[error(transparent)]
     Update(#[from] PythonEnvironmentUpdateError),
+    #[error(transparent)]
+    Repair(#[from] PythonEnvironmentRepairError),
     #[error("Python candidate source digest does not match the provider file")]
     CandidateSourceMismatch,
     #[error("Python candidate input plan does not match the provider file")]

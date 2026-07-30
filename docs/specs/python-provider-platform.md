@@ -182,7 +182,7 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 2. Runner protocol | Foundation complete | Cross-language protocol is versioned and tested. |
 | 3. Python SDK | Complete baseline | Facade, Context identity, schemas, examples, and compatibility paths exist. |
 | 4. PyO3/maturin | Complete baseline | Thin abi3 validation binding and wheel CI exist. |
-| 5. PEP 723 and `uv` lifecycle | Partial | Planning through production immutable activation is implemented; operator status, prune, repair, and update surfaces remain. |
+| 5. PEP 723 and `uv` lifecycle | Complete | Planning, production immutable activation, and authorized operator status/prune/repair/update surfaces are implemented. |
 | 6. Persistent supervised runner | Partial, opt-in | Installed-wheel supervised workers cover all authoring paths; active cancellation and structured/operator-visible logs remain. |
 | 7. Generation-aware reload | Partial | Candidate preflight, atomic swap, refresh coalescing, and bounded retirement exist; debounce/operator rollback remain. |
 | 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
@@ -199,7 +199,7 @@ slices appear here as Phases 5 and 6.
 
 ## Phase 5: PEP 723 and Immutable `uv` Environments
 
-**Partially delivered through production activation.**
+**Complete.**
 
 The planner, materializer, readiness checks, cache operations, update flow, and
 candidate validation are implemented and tested. Application tests prove that a
@@ -217,9 +217,15 @@ wheel digest, requires a private cache root, and rejects a mismatched policy
 version before provider activation. `update = true` resolves an immutable
 candidate during preparation, while `offline = true` reopens only complete
 caches and does not require `uv` to remain installed. Both one-shot and
-persistent runners receive the resulting prepared interpreter. Completing this
-phase still requires operator-facing status, prune, repair, and update command
-surfaces.
+persistent runners receive the resulting prepared interpreter.
+
+The shared application operator surface inventories ready, incomplete, corrupt,
+and staging entries without importing provider code; creates bounded
+conservative prune plans; applies race-safe prune plans after confirmation;
+repairs an exact managed provider environment; and prepares, validates, then
+atomically activates explicit immutable updates. CLI, MCP, and REST use the
+same action catalog, authorization, confirmation, path-containment, and
+response-size checks.
 
 ## Phase 6: Persistent Supervised Runner
 

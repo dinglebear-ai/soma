@@ -277,6 +277,71 @@ const ECHO_PARAMS: &[ParamSpec] = &[ParamSpec {
     enum_values: &[],
 }];
 
+const PYTHON_ENVIRONMENT_PRUNE_PARAMS: &[ParamSpec] = &[
+    ParamSpec {
+        name: "stale_before_unix_seconds",
+        ty: "integer",
+        required: true,
+        description: "Only select non-ready cache entries last modified at or before this Unix timestamp.",
+        max_len: None,
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "max_entries",
+        ty: "integer",
+        required: false,
+        description: "Maximum cache entries to inspect in this bounded operation (default 100, maximum 1000).",
+        max_len: None,
+        enum_values: &[],
+    },
+];
+
+const PYTHON_ENVIRONMENT_PRUNE_APPLY_PARAMS: &[ParamSpec] = &[
+    ParamSpec {
+        name: "stale_before_unix_seconds",
+        ty: "integer",
+        required: true,
+        description: "Only remove non-ready cache entries last modified at or before this Unix timestamp.",
+        max_len: None,
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "max_entries",
+        ty: "integer",
+        required: false,
+        description: "Maximum cache entries to remove in this bounded operation (default 100, maximum 1000).",
+        max_len: None,
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "confirm",
+        ty: "boolean",
+        required: true,
+        description: "Must be true to apply the destructive prune plan.",
+        max_len: None,
+        enum_values: &[],
+    },
+];
+
+const PYTHON_ENVIRONMENT_PROVIDER_PARAMS: &[ParamSpec] = &[
+    ParamSpec {
+        name: "provider_path",
+        ty: "string",
+        required: true,
+        description: "Managed Python provider path, relative to the configured provider directory or absolute within it.",
+        max_len: Some(4096),
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "confirm",
+        ty: "boolean",
+        required: true,
+        description: "Must be true to mutate the provider environment lifecycle.",
+        max_len: None,
+        enum_values: &[],
+    },
+];
+
 const GREET_CLI_FLAGS: &[CliFlagSpec] = &[CliFlagSpec {
     name: "--name",
     value_name: Some("NAME"),
@@ -351,6 +416,101 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
             usage: "soma status",
             flags: &[],
             description: "Show service status.",
+        }),
+    },
+    ActionSpec {
+        name: "python_environment_status",
+        description: "Inspect immutable Python environment cache state without executing provider code.",
+        required_scope: Some(READ_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("GET"),
+        rest_path: Some("/v1/python/environments"),
+        destructive: false,
+        requires_admin: false,
+        cost: ActionCost::Cheap,
+        params: &[],
+        returns: "PythonEnvironmentStatus",
+        cli: Some(CliSpec {
+            command: "python_environment_status",
+            usage: "soma python_environment_status",
+            flags: &[],
+            description: "Inspect immutable Python environment cache state.",
+        }),
+    },
+    ActionSpec {
+        name: "python_environment_prune_plan",
+        description: "Plan a bounded prune of stale non-ready Python environment cache entries.",
+        required_scope: Some(READ_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("POST"),
+        rest_path: Some("/v1/python/environments/prune-plan"),
+        destructive: false,
+        requires_admin: false,
+        cost: ActionCost::Moderate,
+        params: PYTHON_ENVIRONMENT_PRUNE_PARAMS,
+        returns: "PythonEnvironmentPrunePlan",
+        cli: Some(CliSpec {
+            command: "python_environment_prune_plan",
+            usage: "soma python_environment_prune_plan --json '{\"stale_before_unix_seconds\": 0}'",
+            flags: &[],
+            description: "Preview a bounded cache prune without mutation.",
+        }),
+    },
+    ActionSpec {
+        name: "python_environment_prune",
+        description: "Apply a bounded prune of stale non-ready Python environment cache entries.",
+        required_scope: Some(WRITE_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("POST"),
+        rest_path: Some("/v1/python/environments/prune"),
+        destructive: true,
+        requires_admin: false,
+        cost: ActionCost::Write,
+        params: PYTHON_ENVIRONMENT_PRUNE_APPLY_PARAMS,
+        returns: "PythonEnvironmentPruneReport",
+        cli: Some(CliSpec {
+            command: "python_environment_prune",
+            usage: "soma python_environment_prune --json '{\"stale_before_unix_seconds\": 0, \"confirm\": true}'",
+            flags: &[],
+            description: "Apply a confirmed bounded cache prune.",
+        }),
+    },
+    ActionSpec {
+        name: "python_environment_repair",
+        description: "Repair the immutable environment for one managed Python provider.",
+        required_scope: Some(WRITE_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("POST"),
+        rest_path: Some("/v1/python/environments/repair"),
+        destructive: true,
+        requires_admin: false,
+        cost: ActionCost::Write,
+        params: PYTHON_ENVIRONMENT_PROVIDER_PARAMS,
+        returns: "PythonEnvironmentRepairReport",
+        cli: Some(CliSpec {
+            command: "python_environment_repair",
+            usage: "soma python_environment_repair --json '{\"provider_path\": \"example.py\", \"confirm\": true}'",
+            flags: &[],
+            description: "Repair one managed provider environment.",
+        }),
+    },
+    ActionSpec {
+        name: "python_environment_update",
+        description: "Resolve, prepare, validate, and atomically activate an immutable update for one managed Python provider.",
+        required_scope: Some(WRITE_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("POST"),
+        rest_path: Some("/v1/python/environments/update"),
+        destructive: true,
+        requires_admin: false,
+        cost: ActionCost::Write,
+        params: PYTHON_ENVIRONMENT_PROVIDER_PARAMS,
+        returns: "PythonEnvironmentUpdateReport",
+        cli: Some(CliSpec {
+            command: "python_environment_update",
+            usage: "soma python_environment_update --json '{\"provider_path\": \"example.py\", \"confirm\": true}'",
+            flags: &[],
+            description: "Prepare and atomically activate one provider update.",
         }),
     },
     ActionSpec {
@@ -666,6 +826,32 @@ pub enum SomaAction {
     },
     /// Return server status and configuration info.
     Status,
+    /// Inspect immutable Python environment cache state.
+    PythonEnvironmentStatus,
+    /// Plan a bounded prune of stale non-ready Python environment entries.
+    PythonEnvironmentPrunePlan {
+        /// Oldest modification timestamp selected by the plan.
+        stale_before_unix_seconds: u64,
+        /// Maximum number of entries included in the plan.
+        max_entries: usize,
+    },
+    /// Apply a bounded prune of stale non-ready Python environment entries.
+    PythonEnvironmentPrune {
+        /// Oldest modification timestamp selected by the plan.
+        stale_before_unix_seconds: u64,
+        /// Maximum number of entries removed.
+        max_entries: usize,
+    },
+    /// Repair one managed Python provider environment.
+    PythonEnvironmentRepair {
+        /// Provider path relative to the configured provider root, or an absolute managed path.
+        provider_path: String,
+    },
+    /// Prepare and atomically activate one managed Python provider update.
+    PythonEnvironmentUpdate {
+        /// Provider path relative to the configured provider root, or an absolute managed path.
+        provider_path: String,
+    },
     /// Show the action reference.
     Help,
     /// Ask the MCP client to collect a name, then greet it (MCP-only).
@@ -681,6 +867,11 @@ impl SomaAction {
             Self::Greet { .. } => "greet",
             Self::Echo { .. } => "echo",
             Self::Status => "status",
+            Self::PythonEnvironmentStatus => "python_environment_status",
+            Self::PythonEnvironmentPrunePlan { .. } => "python_environment_prune_plan",
+            Self::PythonEnvironmentPrune { .. } => "python_environment_prune",
+            Self::PythonEnvironmentRepair { .. } => "python_environment_repair",
+            Self::PythonEnvironmentUpdate { .. } => "python_environment_update",
             Self::Help => "help",
             Self::ElicitName => "elicit_name",
             Self::ScaffoldIntent => "scaffold_intent",
@@ -733,6 +924,21 @@ impl SomaAction {
                 Ok(Self::Echo { message })
             }
             "status" => Ok(Self::Status),
+            "python_environment_status" => Ok(Self::PythonEnvironmentStatus),
+            "python_environment_prune_plan" => Ok(Self::PythonEnvironmentPrunePlan {
+                stale_before_unix_seconds: required_u64_param(params, "stale_before_unix_seconds")?,
+                max_entries: bounded_entries(params)?,
+            }),
+            "python_environment_prune" => Ok(Self::PythonEnvironmentPrune {
+                stale_before_unix_seconds: required_u64_param(params, "stale_before_unix_seconds")?,
+                max_entries: bounded_entries(params)?,
+            }),
+            "python_environment_repair" => Ok(Self::PythonEnvironmentRepair {
+                provider_path: required_string_param(params, "provider_path")?,
+            }),
+            "python_environment_update" => Ok(Self::PythonEnvironmentUpdate {
+                provider_path: required_string_param(params, "provider_path")?,
+            }),
             "help" => Ok(Self::Help),
             "elicit_name" => Ok(Self::ElicitName),
             "scaffold_intent" => Ok(Self::ScaffoldIntent),
@@ -767,6 +973,33 @@ fn optional_string_param(params: &Value, name: &str) -> Result<Option<String>, V
             .map(|s| Some(s.to_owned()))
             .ok_or_else(|| ValidationError::WrongType { field: name.into() }),
     }
+}
+
+fn required_string_param(params: &Value, name: &str) -> Result<String, ValidationError> {
+    optional_string_param(params, name)?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ValidationError::MissingField { field: name.into() })
+}
+
+fn required_u64_param(params: &Value, name: &str) -> Result<u64, ValidationError> {
+    params
+        .get(name)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| ValidationError::WrongType { field: name.into() })
+}
+
+fn bounded_entries(params: &Value) -> Result<usize, ValidationError> {
+    let entries = params.get("max_entries").map_or(Ok(100_u64), |value| {
+        value.as_u64().ok_or_else(|| ValidationError::WrongType {
+            field: "max_entries".into(),
+        })
+    })?;
+    if !(1..=1000).contains(&entries) {
+        return Err(ValidationError::WrongType {
+            field: "max_entries".into(),
+        });
+    }
+    Ok(entries as usize)
 }
 
 fn action_error(error: ValidationError) -> anyhow::Error {

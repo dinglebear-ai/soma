@@ -78,6 +78,178 @@ export const ACTIONS = [
     },
   },
   {
+    id: "python_environment_status",
+    label: "python_environment_status",
+    description:
+      "Inspect immutable Python environment cache state without executing provider code.",
+    scope: "soma:read",
+    transport: "rest",
+    method: "GET",
+    path: "/v1/python/environments",
+    params: [],
+    example: {
+      action: "python_environment_status",
+      params: {},
+    },
+    response: {},
+  },
+  {
+    id: "python_environment_prune_plan",
+    label: "python_environment_prune_plan",
+    description: "Plan a bounded prune of stale non-ready Python environment cache entries.",
+    scope: "soma:read",
+    transport: "rest",
+    method: "POST",
+    path: "/v1/python/environments/prune-plan",
+    params: [
+      {
+        name: "stale_before_unix_seconds",
+        label: "Stale Before Unix Seconds",
+        type: "text",
+        placeholder: "Hello!",
+        required: true,
+        description:
+          "Only select non-ready cache entries last modified at or before this Unix timestamp.",
+      },
+      {
+        name: "max_entries",
+        label: "Max Entries",
+        type: "text",
+        placeholder: "Hello!",
+        required: false,
+        description:
+          "Maximum cache entries to inspect in this bounded operation (default 100, maximum 1000).",
+      },
+    ],
+    example: {
+      action: "python_environment_prune_plan",
+      params: {
+        stale_before_unix_seconds: "Hello!",
+        max_entries: "Hello!",
+      },
+    },
+    response: {},
+  },
+  {
+    id: "python_environment_prune",
+    label: "python_environment_prune",
+    description: "Apply a bounded prune of stale non-ready Python environment cache entries.",
+    scope: "soma:write",
+    transport: "rest",
+    method: "POST",
+    path: "/v1/python/environments/prune",
+    params: [
+      {
+        name: "stale_before_unix_seconds",
+        label: "Stale Before Unix Seconds",
+        type: "text",
+        placeholder: "Hello!",
+        required: true,
+        description:
+          "Only remove non-ready cache entries last modified at or before this Unix timestamp.",
+      },
+      {
+        name: "max_entries",
+        label: "Max Entries",
+        type: "text",
+        placeholder: "Hello!",
+        required: false,
+        description:
+          "Maximum cache entries to remove in this bounded operation (default 100, maximum 1000).",
+      },
+      {
+        name: "confirm",
+        label: "Confirm",
+        type: "text",
+        placeholder: "Hello!",
+        required: true,
+        description: "Must be true to apply the destructive prune plan.",
+      },
+    ],
+    example: {
+      action: "python_environment_prune",
+      params: {
+        stale_before_unix_seconds: "Hello!",
+        max_entries: "Hello!",
+        confirm: "Hello!",
+      },
+    },
+    response: {},
+  },
+  {
+    id: "python_environment_repair",
+    label: "python_environment_repair",
+    description: "Repair the immutable environment for one managed Python provider.",
+    scope: "soma:write",
+    transport: "rest",
+    method: "POST",
+    path: "/v1/python/environments/repair",
+    params: [
+      {
+        name: "provider_path",
+        label: "Provider Path",
+        type: "text",
+        placeholder: "Hello!",
+        required: true,
+        description:
+          "Managed Python provider path, relative to the configured provider directory or absolute within it.",
+      },
+      {
+        name: "confirm",
+        label: "Confirm",
+        type: "text",
+        placeholder: "Hello!",
+        required: true,
+        description: "Must be true to mutate the provider environment lifecycle.",
+      },
+    ],
+    example: {
+      action: "python_environment_repair",
+      params: {
+        provider_path: "Hello!",
+        confirm: "Hello!",
+      },
+    },
+    response: {},
+  },
+  {
+    id: "python_environment_update",
+    label: "python_environment_update",
+    description:
+      "Resolve, prepare, validate, and atomically activate an immutable update for one managed Python provider.",
+    scope: "soma:write",
+    transport: "rest",
+    method: "POST",
+    path: "/v1/python/environments/update",
+    params: [
+      {
+        name: "provider_path",
+        label: "Provider Path",
+        type: "text",
+        placeholder: "Hello!",
+        required: true,
+        description:
+          "Managed Python provider path, relative to the configured provider directory or absolute within it.",
+      },
+      {
+        name: "confirm",
+        label: "Confirm",
+        type: "text",
+        placeholder: "Hello!",
+        required: true,
+        description: "Must be true to mutate the provider environment lifecycle.",
+      },
+    ],
+    example: {
+      action: "python_environment_update",
+      params: {
+        provider_path: "Hello!",
+        confirm: "Hello!",
+      },
+    },
+    response: {},
+  },
+  {
     id: "elicit_name",
     label: "elicit_name",
     description: "Ask the MCP client to collect a name, then return a personalised greeting.",

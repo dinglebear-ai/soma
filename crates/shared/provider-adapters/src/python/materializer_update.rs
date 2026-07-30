@@ -26,13 +26,14 @@ pub struct PythonEnvironmentUpdateRequest<'a> {
     pub provider_source_sha256: &'a str,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PythonEnvironmentUpdateOutcome {
     Prepared,
     Reused,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PythonEnvironmentUpdateReport {
     pub outcome: PythonEnvironmentUpdateOutcome,
     pub current: Option<PreparedPythonEnvironment>,

@@ -419,6 +419,11 @@ fn cli_params(action: &SomaAction) -> serde_json::Value {
         },
         SomaAction::Echo { message } => serde_json::json!({ "message": message }),
         SomaAction::Status
+        | SomaAction::PythonEnvironmentStatus
+        | SomaAction::PythonEnvironmentPrunePlan { .. }
+        | SomaAction::PythonEnvironmentPrune { .. }
+        | SomaAction::PythonEnvironmentRepair { .. }
+        | SomaAction::PythonEnvironmentUpdate { .. }
         | SomaAction::Help
         | SomaAction::ElicitName
         | SomaAction::ScaffoldIntent => serde_json::json!({}),

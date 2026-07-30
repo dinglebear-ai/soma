@@ -263,6 +263,11 @@ with no CLI analogue.
 | `service.greet(name)` | `soma(action="greet")` | `soma greet [--name N]` | `POST /v1/greet` |  |
 | `service.echo(message)` | `soma(action="echo")` | `soma echo --message <msg>` | `POST /v1/echo` |  |
 | `service.status()` | `soma(action="status")` | `soma status` | `GET /v1/status` |  |
+| `service.python_environment_status()` | `soma(action="python_environment_status")` | `soma python-environment-status` | `GET /v1/python/environments` |  |
+| `service.python_environment_prune_plan()` | `soma(action="python_environment_prune_plan")` | `soma python-environment-prune-plan` | `POST /v1/python/environments/prune-plan` |  |
+| `service.python_environment_prune()` | `soma(action="python_environment_prune")` | `soma python-environment-prune` | `POST /v1/python/environments/prune` |  |
+| `service.python_environment_repair()` | `soma(action="python_environment_repair")` | `soma python-environment-repair` | `POST /v1/python/environments/repair` |  |
+| `service.python_environment_update()` | `soma(action="python_environment_update")` | `soma python-environment-update` | `POST /v1/python/environments/update` |  |
 | `MCP client interaction` | `soma(action="elicit_name")` | `_MCP-only_` | _MCP-only_ | MCP-only; requires elicitation-capable client |
 | `MCP elicitation wizard` | `soma(action="scaffold_intent")` | `_MCP-only_` | _MCP-only_ | MCP-only; requires elicitation-capable client |
 | `built-in help` | `soma(action="help")` | `soma --help` | `GET /v1/help` |  |

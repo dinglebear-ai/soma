@@ -2,7 +2,7 @@
 //! providers, builds catalog snapshots, and indexes resources and prompts.
 use std::{
     collections::{BTreeMap, HashMap},
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
 
@@ -444,6 +444,80 @@ impl ProviderRegistry {
             .expect("provider registry lock should not be poisoned")
             .snapshot
             .clone()
+    }
+
+    /// Resolves one exact managed Python provider path without importing it.
+    pub fn resolve_python_provider_path(
+        &self,
+        provider_path: &Path,
+    ) -> Result<PathBuf, ProviderValidationError> {
+        let source = self.file_source.as_ref().ok_or_else(|| {
+            ProviderValidationError::new(
+                "provider_file_source_unavailable",
+                "Python environment operations require a file-backed provider registry",
+            )
+        })?;
+        source
+            .resolve_python_provider_path(provider_path)
+            .map_err(|error| {
+                ProviderValidationError::new("provider_candidate_path_invalid", error.to_string())
+            })
+    }
+
+    /// Applies the active registry's authorization, scope, confirmation, and
+    /// input-size policy without invoking the provider implementation.
+    ///
+    /// Application-owned operator actions use this before calling their
+    /// control-plane port because those operations also need the registry to
+    /// activate a candidate atomically.
+    pub fn authorize_operator_action(
+        &self,
+        mut call: ProviderCall,
+    ) -> Result<ProviderCall, ProviderError> {
+        let state = self
+            .state
+            .read()
+            .expect("provider registry lock should not be poisoned");
+        let entry = state
+            .snapshot
+            .core_snapshot()
+            .tool(&call.action)
+            .ok_or_else(|| {
+                ProviderError::validation(
+                    "registry",
+                    call.action.clone(),
+                    "unknown_action",
+                    format!("unknown provider action `{}`", call.action),
+                )
+            })?;
+        let provider_name = entry.provider_id().as_str();
+        let provider_kind = state
+            .snapshot
+            .catalogs
+            .iter()
+            .find(|catalog| catalog.provider.name == provider_name)
+            .map(|catalog| catalog.provider.kind)
+            .ok_or_else(|| {
+                ProviderError::new(
+                    "provider_not_loaded",
+                    provider_name,
+                    Some(call.action.clone()),
+                    "provider is not loaded in the active registry",
+                    "Reload providers and retry.",
+                )
+            })?;
+        if !provider_tool_surface_enabled(entry.spec(), call.surface) {
+            return Err(ProviderError::validation(
+                provider_name,
+                call.action.clone(),
+                "surface_disabled",
+                "action is not enabled on this surface",
+            ));
+        }
+        call.provider = provider_name.to_owned();
+        call.snapshot_id = state.snapshot.id.clone();
+        enforce_pre_input(entry.spec(), &call, provider_kind)?;
+        Ok(call)
     }
 
     /// Refreshes providers from the file source, if any. Per the drop-in

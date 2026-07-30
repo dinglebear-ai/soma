@@ -34,7 +34,10 @@ use soma_domain::{
 pub use app::SomaApplication;
 pub use context::ExecutionContext;
 pub use error::{ApplicationError, ApplicationErrorDetails};
-pub use ports::{ApplicationPorts, CodeModePort, GatewayPort, OpenApiPort, PortError};
+pub use ports::{
+    ApplicationPorts, CodeModePort, GatewayPort, OpenApiPort, PortError, PythonEnvironmentPort,
+    PythonEnvironmentUpdateCandidate,
+};
 pub use provider_errors::ProviderError;
 pub use provider_registry::{
     DynamicResourceTemplate, ProviderAuthMode, ProviderCall, ProviderOutput, ProviderPrincipal,
@@ -52,9 +55,12 @@ pub use service::{
 pub use soma_provider_adapters::python::supervisor::PythonSupervisorConfig;
 pub use soma_provider_adapters::python::{
     PythonInterpreter,
+    cache::{PythonEnvironmentCache, PythonEnvironmentPrunePlan, PythonEnvironmentPrunePolicy},
     environment::{ENVIRONMENT_PLAN_VERSION, PythonRuntimeFingerprint},
     lifecycle::{PythonEnvironmentLifecycle, PythonEnvironmentSpec},
-    materializer::PreparedPythonEnvironment,
+    materializer::{
+        PreparedPythonEnvironment, PythonEnvironmentRepairReport, PythonEnvironmentUpdateReport,
+    },
 };
 pub use types::CodeModeExecuteRequest;
 pub use types::{
@@ -236,6 +242,13 @@ pub async fn execute_service_action(
         SomaAction::Greet { name } => service.greet(name.as_deref()).await,
         SomaAction::Echo { message } => service.echo(message).await,
         SomaAction::Status => service.status().await,
+        SomaAction::PythonEnvironmentStatus
+        | SomaAction::PythonEnvironmentPrunePlan { .. }
+        | SomaAction::PythonEnvironmentPrune { .. }
+        | SomaAction::PythonEnvironmentRepair { .. }
+        | SomaAction::PythonEnvironmentUpdate { .. } => Err(anyhow::anyhow!(
+            "Python environment actions require the shared application control plane"
+        )),
         SomaAction::Help => Ok(rest_help()),
         SomaAction::ElicitName => Err(anyhow::anyhow!(
             "action=elicit_name is only available over MCP because it requires a peer"

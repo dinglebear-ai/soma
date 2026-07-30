@@ -17,8 +17,8 @@ use super::{
 use crate::{
     ApplicationError, ApplicationErrorDetails, ApplicationPorts, CodeModePort,
     DynamicResourceTemplate, ExecutionContext, GatewayPort, OpenApiPort, PortError, ProviderCall,
-    ProviderError, ProviderOutput, ProviderRegistry, SomaService, StaticRustProvider,
-    provider_registry::Provider,
+    ProviderError, ProviderOutput, ProviderRegistry, PythonEnvironmentPort, SomaService,
+    StaticRustProvider, provider_registry::Provider,
 };
 
 struct RecordingProvider {
@@ -173,6 +173,41 @@ impl OpenApiPort for RecordingEngines {
     }
 }
 
+#[derive(Default)]
+struct RecordingPythonEnvironments {
+    calls: Mutex<Vec<String>>,
+}
+
+impl PythonEnvironmentPort for RecordingPythonEnvironments {
+    fn status(&self) -> Result<Value, PortError> {
+        self.calls.lock().unwrap().push("status".to_owned());
+        Ok(json!({"entries": [{"state": "ready"}]}))
+    }
+
+    fn prune(
+        &self,
+        stale_before_unix_seconds: u64,
+        max_entries: usize,
+        apply: bool,
+    ) -> Result<Value, PortError> {
+        self.calls.lock().unwrap().push(format!(
+            "prune:{stale_before_unix_seconds}:{max_entries}:{apply}"
+        ));
+        Ok(json!({"apply": apply, "selected": max_entries}))
+    }
+
+    fn repair(&self, _provider_path: &std::path::Path) -> Result<Value, PortError> {
+        unreachable!("repair is covered by the lifecycle tests")
+    }
+
+    fn update(
+        &self,
+        _provider_path: &std::path::Path,
+    ) -> Result<crate::PythonEnvironmentUpdateCandidate, PortError> {
+        unreachable!("update activation is covered by registry lifecycle tests")
+    }
+}
+
 fn application(
     destructive: bool,
     output: Value,
@@ -204,16 +239,25 @@ fn application(
     let registry = ProviderRegistry::new(vec![provider.clone()]).unwrap();
     let service = SomaService::new(SomaClient::new(&SomaConfig::default()).unwrap());
     let engines = Arc::new(RecordingEngines::default());
-    let ports = ApplicationPorts {
-        gateway: engines.clone(),
-        codemode: engines.clone(),
-        openapi: engines.clone(),
-    };
+    let ports = ApplicationPorts::unavailable()
+        .with_gateway(engines.clone())
+        .with_codemode(engines.clone())
+        .with_openapi(engines.clone());
     (
         SomaApplication::new(Arc::new(service), Arc::new(registry), ports),
         provider,
         engines,
     )
+}
+
+fn application_with_python_environments(
+    environments: Arc<RecordingPythonEnvironments>,
+) -> SomaApplication {
+    let service = SomaService::new(SomaClient::new(&SomaConfig::default()).unwrap());
+    let registry =
+        ProviderRegistry::new(vec![Arc::new(StaticRustProvider::new(service.clone()))]).unwrap();
+    let ports = ApplicationPorts::unavailable().with_python_environment(environments);
+    SomaApplication::new(Arc::new(service), Arc::new(registry), ports)
 }
 
 fn mounted_context(confirmation: Confirmation, response_limit: Option<usize>) -> ExecutionContext {
@@ -263,6 +307,67 @@ async fn execute_action_enforces_destructive_confirmation() {
         .unwrap_err();
 
     assert_eq!(error.code, "confirmation_required");
+}
+
+#[tokio::test]
+async fn python_environment_status_uses_the_shared_operator_port() {
+    let environments = Arc::new(RecordingPythonEnvironments::default());
+    let application = application_with_python_environments(environments.clone());
+
+    let response = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_environment_status".to_owned(),
+                params: json!({}),
+            },
+            mounted_context(Confirmation::Missing, None),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.output["entries"][0]["state"], "ready");
+    assert_eq!(environments.calls.lock().unwrap().as_slice(), ["status"]);
+}
+
+#[tokio::test]
+async fn python_environment_prune_requires_write_scope_and_confirmation() {
+    let environments = Arc::new(RecordingPythonEnvironments::default());
+    let application = application_with_python_environments(environments.clone());
+    let request = || ExecuteActionRequest {
+        action: "python_environment_prune".to_owned(),
+        params: json!({
+            "stale_before_unix_seconds": 42,
+            "max_entries": 3
+        }),
+    };
+
+    let error = application
+        .execute_action(request(), mounted_context(Confirmation::Confirmed, None))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "insufficient_scope");
+
+    let mut context = mounted_context(Confirmation::Missing, None);
+    context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE]),
+    ));
+    let error = application
+        .execute_action(request(), context.clone())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "confirmation_required");
+
+    context.destructive_confirmation = Confirmation::Confirmed;
+    let response = application
+        .execute_action(request(), context)
+        .await
+        .unwrap();
+    assert_eq!(response.output, json!({"apply": true, "selected": 3}));
+    assert_eq!(
+        environments.calls.lock().unwrap().as_slice(),
+        ["prune:42:3:true"]
+    );
 }
 
 #[tokio::test]

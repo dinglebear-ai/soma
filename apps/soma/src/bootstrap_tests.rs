@@ -24,7 +24,7 @@ fn state(auth_policy: AuthPolicy) -> AppState {
     );
     let registry = soma_application::static_provider_registry(service.clone())
         .expect("static provider registry should always build");
-    let runtime = runtime_for_components(service, registry, empty_gateway_product_state());
+    let runtime = runtime_for_components(service, registry, empty_gateway_product_state(), None);
     AppState::new(
         McpConfig::default(),
         auth_policy,

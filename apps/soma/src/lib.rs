@@ -164,7 +164,8 @@ pub mod testing {
         provider_registry: ProviderRegistry,
         gateway: GatewayProductState,
     ) -> AppState {
-        let runtime = crate::bootstrap::runtime_for_components(service, provider_registry, gateway);
+        let runtime =
+            crate::bootstrap::runtime_for_components(service, provider_registry, gateway, None);
         AppState::new(config, auth_policy, runtime, Default::default())
     }
 

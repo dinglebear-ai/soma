@@ -56,12 +56,18 @@ impl Provider for StaticRustProvider {
             SomaAction::Help => crate::execute_service_action(&self.service, &action)
                 .await
                 .map_err(|error| ProviderError::execution("static-rust", call.action, error))?,
-            SomaAction::ElicitName | SomaAction::ScaffoldIntent => {
+            SomaAction::ElicitName
+            | SomaAction::ScaffoldIntent
+            | SomaAction::PythonEnvironmentStatus
+            | SomaAction::PythonEnvironmentPrunePlan { .. }
+            | SomaAction::PythonEnvironmentPrune { .. }
+            | SomaAction::PythonEnvironmentRepair { .. }
+            | SomaAction::PythonEnvironmentUpdate { .. } => {
                 return Err(ProviderError::validation(
                     "static-rust",
                     call.action,
-                    "mcp_peer_required",
-                    "elicitation actions require a live MCP peer",
+                    "application_action_required",
+                    "action requires the shared application control plane",
                 ));
             }
             other => dispatch_action(&self.service, &other, surface_label(call.surface))

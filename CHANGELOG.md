@@ -75,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add authorized CLI, MCP, and REST operator actions for Python environment
+  inventory, bounded prune planning/application, repair, and immutable update
+  activation.
+
 ### Added
 
 - Wire the immutable PEP 723 Python environment lifecycle into production startup behind fail-closed typed configuration, verified runtime/tool identities, private cache roots, frozen offline reuse, and explicit update policy.

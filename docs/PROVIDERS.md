@@ -237,6 +237,33 @@ the prepared interpreter before activation. Cache misses and explicit updates
 also verify `uv` immediately before mutation. Warm starts probe Python but do
 not require the `uv` executable to remain installed.
 
+Operators use the same application actions from CLI, MCP, or REST:
+
+| Action | Scope | Purpose |
+|---|---|---|
+| `python_environment_status` | `soma:read` | Inventory ready, incomplete, corrupt, and staging cache entries without importing provider code. |
+| `python_environment_prune_plan` | `soma:read` | Produce a bounded conservative prune plan. |
+| `python_environment_prune` | `soma:write` + confirmation | Apply the bounded plan with race-safe revalidation. |
+| `python_environment_repair` | `soma:write` | Repair the exact environment for a managed provider path. |
+| `python_environment_update` | `soma:write` | Prepare, validate, and atomically activate a new immutable candidate. |
+
+For example:
+
+```bash
+soma python_environment_status
+soma python_environment_prune_plan --json \
+  '{"stale_before_unix_seconds": 1722384000, "max_entries": 25}'
+soma python_environment_prune --confirm --json \
+  '{"stale_before_unix_seconds": 1722384000, "max_entries": 25}'
+soma python_environment_repair --json '{"provider_path":"providers/example.py"}'
+soma python_environment_update --json '{"provider_path":"providers/example.py"}'
+```
+
+Repair and update paths must resolve to regular, non-symlink `.py` files under
+the configured provider root. Update never mutates the active environment: it
+publishes a new content-addressed candidate and swaps the registry only after
+candidate validation succeeds.
+
 ### Persistent Python runner
 
 One-shot execution remains the default and rollback path. Set
