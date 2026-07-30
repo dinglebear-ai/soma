@@ -8,6 +8,8 @@
 pub mod config;
 pub mod env_registry;
 mod python_environment;
+#[cfg(test)]
+mod python_environment_tests;
 
 pub use config::{
     AuthConfig, AuthMode, Config, EffectiveRuntimeMode, McpConfig, PythonRunnerConfig,
