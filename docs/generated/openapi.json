@@ -800,7 +800,7 @@
     "binary": "soma",
     "server_binary": "soma",
     "node_package": "soma-rmcp",
-    "oci_image": "ghcr.io/dinglebear-ai/soma:0.6.1",
+    "oci_image": "ghcr.io/dinglebear-ai/soma:0.7.0",
     "mcp_registry": "server.json",
     "provider_directory_env": "SOMA_PROVIDER_DIR",
     "auth_modes": [
