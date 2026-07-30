@@ -73,6 +73,27 @@ runs:
         components: ${{ inputs.components }}
         targets: ${{ inputs.targets }}
 
+    # dtolnay/rust-toolchain installs requested targets on inputs.toolchain.
+    # A checked-in rust-toolchain.toml can override that toolchain for cargo,
+    # so also install each target on the toolchain that is actually active in
+    # the checkout. Without this, cross-builds can fail with E0463 even though
+    # the setup action reported that it installed the requested target.
+    - name: Ensure requested targets on active project toolchain
+      if: inputs.targets != ''
+      shell: bash
+      env:
+        REQUESTED_TARGETS: ${{ inputs.targets }}
+      run: |
+        set -euo pipefail
+        active_toolchain="$(rustup show active-toolchain | awk '{print $1}')"
+        IFS=',' read -ra targets <<< "${REQUESTED_TARGETS}"
+        for target in "${targets[@]}"; do
+          target="${target//[[:space:]]/}"
+          if [[ -n "${target}" ]]; then
+            rustup target add --toolchain "${active_toolchain}" "${target}"
+          fi
+        done
+
     # Pinned exactly. The filesystem remote is new in 0.12.0 (PR #593) and is
     # SILENTLY IGNORED by 0.11.0 — it reports "Remote: not configured" with no
     # error. Floating this version would degrade the shared cache without any
