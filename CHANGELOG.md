@@ -79,6 +79,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Raise the workspace minimum supported Rust version to 1.97.1.
 
+### Fixed
+
+- Install cross-compilation targets on the Rust toolchain selected by `rust-toolchain.toml`.
+
 ### Added
 
 - Add an opt-in, supervised persistent Python provider runner with negotiated
