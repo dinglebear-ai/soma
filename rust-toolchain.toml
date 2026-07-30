@@ -1,0 +1,11 @@
+# Toolchain used to build this repository locally and in CI. Rust 1.97.1 is
+# pinned rather than 1.97 because the point release fixes an LLVM
+# miscompilation present in 1.97.0.
+#
+# This is separate from Cargo.toml's `rust-version`: this file selects the
+# default toolchain, while `rust-version` declares the oldest supported
+# compiler. Both currently resolve to 1.97.1.
+[toolchain]
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
