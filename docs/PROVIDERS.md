@@ -193,12 +193,49 @@ annotated as `soma_provider.Context` is omitted from the public input schema and
 injected during dispatch. Its immutable `request` carries the request ID,
 provider, action, surface, and snapshot.
 
-The adapter library includes PEP 723 planning and an immutable `uv` environment
-lifecycle, but Soma's production constructors do not configure or install that
-lifecycle yet. One-shot startup uses `SOMA_PYTHON_COMMAND` or the ambient
-`python3` interpreter. Production persistent startup currently uses the ambient
-default interpreter and does not honor `SOMA_PYTHON_COMMAND`; lifecycle tests
-and custom embedders can install a prepared interpreter explicitly.
+Soma can prepare PEP 723 providers into immutable, content-addressed `uv`
+environments before catalog import. The lifecycle is disabled by default;
+enable it through `[python.environment]` or
+`SOMA_PYTHON_ENVIRONMENT_ENABLED=true` and supply every identity-bearing input.
+Enabled but incomplete configuration fails startup. With the lifecycle
+disabled, one-shot startup uses `SOMA_PYTHON_COMMAND` or ambient `python3`, and
+persistent startup uses its ambient default interpreter.
+
+The configured runtime fields must describe `python_executable`, and
+`uv_version` must describe `uv_program`. They form part of the cache identity.
+Soma verifies the exact SDK wheel bytes against `sdk_wheel_sha256` before
+publishing cache state. Both one-shot and persistent modes then use the
+prepared environment's interpreter.
+
+```toml
+[python.environment]
+enabled = true
+cache_root = "/var/cache/soma"
+uv_program = "/usr/local/bin/uv"
+uv_version = "0.11.31"
+python_executable = "/usr/bin/python3.12"
+runtime_implementation = "cpython"
+runtime_version = "3.12.4"
+runtime_platform = "linux-x86_64"
+wheel_platform_tag = "manylinux_2_17_x86_64"
+sdk_wheel = "/opt/soma/soma_provider-0.2.0-cp38-abi3-manylinux_2_17_x86_64.whl"
+sdk_wheel_sha256 = "<64 hexadecimal characters>"
+offline = false
+update = false
+policy_version = 2
+```
+
+`policy_version` must match the environment-plan version supported by the
+running Soma binary. `update = true` resolves a new immutable candidate at
+startup; it cannot be combined with `offline = true`. Cache roots are created
+private on Unix and existing roots that grant group or other access are
+rejected; the service user must own the root and its parent path must prevent
+untrusted replacement. Managed environments currently fail closed on Windows
+until equivalent private-cache ACL enforcement is available. Startup and every
+later preparation verify the SDK digest, wheel target, configured Python, and
+the prepared interpreter before activation. Cache misses and explicit updates
+also verify `uv` immediately before mutation. Warm starts probe Python but do
+not require the `uv` executable to remain installed.
 
 ### Persistent Python runner
 
@@ -245,6 +282,13 @@ The main controls are:
 | `SOMA_PYTHON_RUNNER_MAX_PENDING_BYTES` | `524288` |
 | `SOMA_PYTHON_RUNNER_MAX_WORKERS` | `32` |
 | `SOMA_PYTHON_RUNNER_MAX_CANDIDATE_STARTS` | `4` |
+
+Immutable-environment controls map directly to the TOML example above:
+`SOMA_PYTHON_ENVIRONMENT_ENABLED`, `CACHE_ROOT`, `UV_PROGRAM`, `UV_VERSION`,
+`PYTHON_EXECUTABLE`, `RUNTIME_IMPLEMENTATION`, `RUNTIME_VERSION`,
+`RUNTIME_PLATFORM`, `WHEEL_PLATFORM_TAG`, `SDK_WHEEL`, `SDK_WHEEL_SHA256`, and
+`OFFLINE`, `UPDATE`, and `POLICY_VERSION`, all with the
+`SOMA_PYTHON_ENVIRONMENT_` prefix.
 
 Python providers are trusted executable code. Environment clearing and bounded
 sidecar I/O are safety controls, not an OS sandbox; imported code retains the

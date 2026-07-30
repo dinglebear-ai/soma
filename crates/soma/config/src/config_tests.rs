@@ -211,6 +211,111 @@ fn python_runner_rejects_unknown_mode_and_zero_limits() {
 
 #[test]
 #[serial]
+fn python_environment_is_disabled_by_default() {
+    let config = Config::load().expect("default configuration");
+    assert!(!config.python.environment.enabled);
+}
+
+#[test]
+#[serial]
+fn enabled_python_environment_requires_complete_absolute_inputs() {
+    let _enabled = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_ENABLED", "true");
+    let error = Config::load().expect_err("incomplete environment config must fail closed");
+    assert!(error.to_string().contains("CACHE_ROOT"));
+
+    let _cache = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT", "relative-cache");
+    let _uv_program = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM", "/usr/local/bin/uv");
+    let _uv_version = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_VERSION", "0.11.31");
+    let _python = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_PYTHON_EXECUTABLE",
+        "/usr/bin/python3",
+    );
+    let _implementation =
+        EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_IMPLEMENTATION", "cpython");
+    let _version = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_VERSION", "3.12.4");
+    let _platform = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_PLATFORM", "linux-x86_64");
+    let _wheel_tag = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_WHEEL_PLATFORM_TAG",
+        "manylinux_2_17_x86_64",
+    );
+    let _wheel = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL", "/opt/soma/sdk.whl");
+    let _digest = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL_SHA256",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
+    let error = Config::load().expect_err("relative cache root must fail closed");
+    assert!(
+        error
+            .to_string()
+            .contains("CACHE_ROOT must be an absolute path")
+    );
+}
+
+#[test]
+#[serial]
+fn python_environment_env_inputs_are_typed() {
+    let _enabled = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_ENABLED", "true");
+    let _cache = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT", "/var/cache/soma");
+    let _uv_program = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM", "/usr/local/bin/uv");
+    let _uv_version = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_VERSION", "0.11.31");
+    let _python = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_PYTHON_EXECUTABLE",
+        "/usr/bin/python3",
+    );
+    let _implementation =
+        EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_IMPLEMENTATION", "cpython");
+    let _version = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_VERSION", "3.12.4");
+    let _platform = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_PLATFORM", "linux-x86_64");
+    let _wheel_tag = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_WHEEL_PLATFORM_TAG",
+        "manylinux_2_17_x86_64",
+    );
+    let _wheel = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL",
+        "/opt/soma/soma_provider-0.2.0-cp38-abi3-manylinux_2_17_x86_64.whl",
+    );
+    let _digest = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL_SHA256",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    );
+    let _offline = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_OFFLINE", "true");
+    let _policy = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_POLICY_VERSION", "2");
+
+    let config = Config::load().expect("complete immutable environment configuration");
+    assert!(config.python.environment.enabled);
+    assert!(config.python.environment.offline);
+    assert_eq!(config.python.environment.policy_version, 2);
+    assert_eq!(config.python.environment.uv_program, "/usr/local/bin/uv");
+}
+
+#[test]
+#[serial]
+fn python_environment_rejects_malformed_sdk_digest() {
+    let _enabled = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_ENABLED", "true");
+    let _cache = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT", "/var/cache/soma");
+    let _uv_program = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM", "/usr/local/bin/uv");
+    let _uv_version = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_VERSION", "0.11.31");
+    let _python = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_PYTHON_EXECUTABLE",
+        "/usr/bin/python3",
+    );
+    let _implementation =
+        EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_IMPLEMENTATION", "cpython");
+    let _version = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_VERSION", "3.12.4");
+    let _platform = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_PLATFORM", "linux-x86_64");
+    let _wheel_tag = EnvVarGuard::set(
+        "SOMA_PYTHON_ENVIRONMENT_WHEEL_PLATFORM_TAG",
+        "manylinux_2_17_x86_64",
+    );
+    let _wheel = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL", "/opt/soma/sdk.whl");
+    let _digest = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL_SHA256", "not-a-digest");
+
+    let error = Config::load().expect_err("malformed digest must fail closed");
+    assert!(error.to_string().contains("64 hexadecimal"));
+}
+
+#[test]
+#[serial]
 fn env_list_splits_comma_separated() {
     let result = call_env_list("TEST_ENV_LIST_CSV", "a,b,c");
     assert_eq!(result, vec!["a", "b", "c"]);

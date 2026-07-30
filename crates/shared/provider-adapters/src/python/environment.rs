@@ -18,7 +18,8 @@ use thiserror::Error;
 const PEP_723_START: &str = "# /// script";
 const PEP_723_END: &str = "# ///";
 const MAX_METADATA_BYTES: usize = 64 * 1024;
-const ENVIRONMENT_PLAN_VERSION: u32 = 2;
+/// Cache-policy schema version used by immutable Python environment plans.
+pub const ENVIRONMENT_PLAN_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Pep723Metadata {

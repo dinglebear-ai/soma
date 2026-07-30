@@ -13,7 +13,7 @@ use thiserror::Error;
 use super::{
     PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonMaterializationError,
     PythonMaterializationRequest, READY_FILE, READY_SCHEMA_VERSION, ReadyMarker, UvRunner,
-    environment_python, open_ready, render_project, sha256_hex, verify_sdk_digest,
+    environment_python, read_verified_sdk, render_project, sha256_hex,
 };
 use crate::python::environment::{Pep723Metadata, PythonEnvironmentPlan};
 
@@ -69,7 +69,7 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         request: PythonEnvironmentUpdateRequest<'_>,
     ) -> Result<PythonEnvironmentUpdateReport, PythonEnvironmentUpdateError> {
         let source_sha256 = normalize_digest(request.provider_source_sha256)?;
-        let current = match open_ready(plan) {
+        let current = match self.open_verified(plan) {
             Ok(environment) => environment,
             Err(PythonMaterializationError::IncompleteCache(message))
             | Err(PythonMaterializationError::InvalidMarker(message)) => {
@@ -77,7 +77,14 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
             }
             Err(error) => return Err(error.into()),
         };
-        verify_sdk_digest(request.materialization.sdk_wheel, &plan.sdk_wheel_sha256)?;
+        self.runner
+            .verify_identity(&self.uv_program, &plan.uv_version)
+            .map_err(|message| PythonEnvironmentUpdateError::Uv {
+                operation: "identity verification",
+                message,
+            })?;
+        let sdk_wheel_bytes =
+            read_verified_sdk(request.materialization.sdk_wheel, &plan.sdk_wheel_sha256)?;
 
         let python_cache_root = plan
             .directory
@@ -89,10 +96,30 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         ensure_real_directory(&candidate_parent, false)?;
         let staging = update_staging_path(&candidate_parent, &plan.key)?;
         fs::create_dir(&staging)?;
+        let sdk_wheel_name = request
+            .materialization
+            .sdk_wheel
+            .file_name()
+            .ok_or_else(|| {
+                PythonMaterializationError::IncompleteCache(
+                    "configured SDK wheel has no file name".to_owned(),
+                )
+            })?;
+        let staged_sdk_wheel = staging.join(sdk_wheel_name);
+        fs::write(&staged_sdk_wheel, sdk_wheel_bytes)?;
+        let staged_request = PythonEnvironmentUpdateRequest {
+            materialization: PythonMaterializationRequest {
+                metadata: request.materialization.metadata,
+                python_executable: request.materialization.python_executable,
+                sdk_wheel: &staged_sdk_wheel,
+                offline: request.materialization.offline,
+            },
+            provider_source_sha256: request.provider_source_sha256,
+        };
 
         let result = self.resolve_and_prepare_update(
             plan,
-            request,
+            staged_request,
             &source_sha256,
             &candidate_parent,
             &staging,
@@ -160,7 +187,7 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
             uv_version: plan.uv_version.clone(),
         };
 
-        match open_ready(&candidate_plan) {
+        match self.open_verified(&candidate_plan) {
             Ok(Some(candidate)) => {
                 validate_candidate_identity(&candidate, source_sha256, &plan.key)?;
                 fs::remove_dir_all(staging)?;
@@ -192,6 +219,12 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         }
         self.update_uv("sync", staging, &sync_args)?;
         let python = environment_python(staging);
+        self.runner
+            .verify_python(&python, &candidate_plan.runtime)
+            .map_err(|message| PythonEnvironmentUpdateError::Uv {
+                operation: "Python runtime identity verification",
+                message,
+            })?;
         self.update_uv(
             "SDK install",
             staging,
@@ -236,7 +269,7 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
             }
             Err(error) => return Err(error.into()),
         }
-        let candidate = open_ready(&candidate_plan)?.ok_or(
+        let candidate = self.open_verified(&candidate_plan)?.ok_or(
             PythonEnvironmentUpdateError::CandidateInvalid(candidate_key),
         )?;
         validate_candidate_identity(&candidate, source_sha256, &plan.key)?;

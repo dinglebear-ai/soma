@@ -67,7 +67,7 @@ fn prepared_interpreter_uses_materialized_python() {
 }
 
 #[test]
-fn configured_commands_override_prepared_interpreter() {
+fn configured_commands_cannot_bypass_prepared_interpreter() {
     let interpreter = PythonInterpreter::Prepared(PathBuf::from("prepared-python"));
 
     assert_eq!(
@@ -76,11 +76,19 @@ fn configured_commands_override_prepared_interpreter() {
             Some("environment-python".to_owned()),
             &interpreter,
         ),
-        "manifest-python"
+        "prepared-python"
     );
     assert_eq!(
         select_python_command(None, Some("environment-python".to_owned()), &interpreter),
-        "environment-python"
+        "prepared-python"
+    );
+    assert_eq!(
+        select_python_command(
+            Some("manifest-python"),
+            Some("environment-python".to_owned()),
+            &PythonInterpreter::Ambient,
+        ),
+        "manifest-python"
     );
 }
 

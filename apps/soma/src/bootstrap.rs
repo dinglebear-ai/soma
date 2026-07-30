@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 #[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
 use soma_application::SomaService;
 #[cfg(any(feature = "cli", feature = "mcp-stdio", feature = "mcp-http"))]
@@ -163,6 +163,267 @@ fn python_runner_selection(config: &Config) -> soma_application::PythonRunnerSel
     }
 }
 
+fn python_provider_runtime(config: &Config) -> Result<soma_application::PythonProviderRuntime> {
+    let runtime = soma_application::PythonProviderRuntime::new(python_runner_selection(config));
+    let environment = &config.python.environment;
+    if !environment.enabled {
+        return Ok(runtime);
+    }
+    if environment.policy_version != soma_application::ENVIRONMENT_PLAN_VERSION {
+        bail!(
+            "unsupported Python environment policy version {}; this binary supports {}",
+            environment.policy_version,
+            soma_application::ENVIRONMENT_PLAN_VERSION
+        );
+    }
+    let verified = verify_python_environment_inputs(environment)?;
+    let fingerprint = soma_application::PythonRuntimeFingerprint::new(
+        &environment.runtime_implementation,
+        &environment.runtime_version,
+        &environment.runtime_platform,
+        &environment.wheel_platform_tag,
+    )
+    .map_err(|error| anyhow::anyhow!("invalid Python environment runtime identity: {error}"))?;
+    let lifecycle = soma_application::PythonEnvironmentLifecycle::new(
+        verified.uv_program,
+        soma_application::PythonEnvironmentSpec {
+            cache_root: verified.cache_root,
+            runtime: fingerprint,
+            python_executable: verified.python,
+            sdk_wheel: verified.sdk_wheel,
+            sdk_wheel_sha256: environment.sdk_wheel_sha256.clone(),
+            uv_version: environment.uv_version.clone(),
+            offline: environment.offline,
+        },
+    );
+    Ok(
+        runtime.with_environment_preparer(Arc::new(ConfiguredPythonEnvironmentPreparer {
+            lifecycle,
+            update: environment.update,
+            environment: environment.clone(),
+        })),
+    )
+}
+
+struct ConfiguredPythonEnvironmentPreparer {
+    lifecycle: soma_application::PythonEnvironmentLifecycle,
+    update: bool,
+    environment: soma_config::PythonEnvironmentConfig,
+}
+
+impl soma_application::PythonProviderEnvironmentPreparer for ConfiguredPythonEnvironmentPreparer {
+    fn prepare(
+        &self,
+        provider_path: &std::path::Path,
+    ) -> std::result::Result<soma_application::PythonInterpreter, String> {
+        verify_python_environment_inputs(&self.environment).map_err(|error| error.to_string())?;
+        let prepared = if self.update {
+            self.lifecycle
+                .update_provider(provider_path)
+                .map(|report| report.candidate)
+        } else {
+            self.lifecycle.prepare_provider(provider_path)
+        }
+        .map_err(|error| error.to_string())?;
+        verify_python_runtime(&prepared.python, &self.environment)
+            .map_err(|error| error.to_string())?;
+        Ok(soma_application::PythonInterpreter::prepared(&prepared))
+    }
+
+    fn validate_candidate(
+        &self,
+        provider_path: &std::path::Path,
+        candidate: &soma_application::PreparedPythonEnvironment,
+    ) -> std::result::Result<soma_application::PythonInterpreter, String> {
+        verify_python_environment_inputs(&self.environment).map_err(|error| error.to_string())?;
+        let prepared = self
+            .lifecycle
+            .validate_provider_candidate(provider_path, candidate)
+            .map_err(|error| error.to_string())?;
+        verify_python_runtime(&prepared.python, &self.environment)
+            .map_err(|error| error.to_string())?;
+        Ok(soma_application::PythonInterpreter::prepared(&prepared))
+    }
+}
+
+struct VerifiedPythonEnvironmentInputs {
+    cache_root: std::path::PathBuf,
+    uv_program: std::path::PathBuf,
+    python: std::path::PathBuf,
+    sdk_wheel: std::path::PathBuf,
+}
+
+fn verify_python_environment_inputs(
+    environment: &soma_config::PythonEnvironmentConfig,
+) -> Result<VerifiedPythonEnvironmentInputs> {
+    use sha2::{Digest, Sha256};
+
+    let cache_root = std::path::PathBuf::from(&environment.cache_root);
+    prepare_private_cache_root(&cache_root)?;
+    let python = canonical_regular_file(
+        &environment.python_executable,
+        "Python environment interpreter",
+    )?;
+    let sdk_wheel = canonical_regular_file(&environment.sdk_wheel, "Python environment SDK wheel")?;
+    let actual_digest = Sha256::digest(
+        std::fs::read(&sdk_wheel)
+            .with_context(|| format!("failed to read SDK wheel {}", sdk_wheel.display()))?,
+    );
+    let actual_digest = actual_digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if actual_digest != environment.sdk_wheel_sha256.to_ascii_lowercase() {
+        bail!("Python environment SDK wheel SHA-256 does not match configured digest");
+    }
+    verify_python_runtime(&python, environment)?;
+    verify_wheel_platform_tag(environment)?;
+
+    let uv_program = std::path::PathBuf::from(&environment.uv_program);
+    if !uv_program.is_absolute() {
+        bail!("SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM must be an absolute path");
+    }
+    Ok(VerifiedPythonEnvironmentInputs {
+        cache_root,
+        uv_program,
+        python,
+        sdk_wheel,
+    })
+}
+
+fn canonical_regular_file(value: &str, label: &str) -> Result<std::path::PathBuf> {
+    let path = std::path::Path::new(value);
+    let canonical = path
+        .canonicalize()
+        .with_context(|| format!("{label} {} is unavailable", path.display()))?;
+    if !canonical
+        .metadata()
+        .with_context(|| format!("failed to inspect {label} {}", canonical.display()))?
+        .is_file()
+    {
+        bail!("{label} {} is not a regular file", canonical.display());
+    }
+    Ok(canonical)
+}
+
+fn prepare_private_cache_root(path: &std::path::Path) -> Result<()> {
+    let existed = path.exists();
+    std::fs::create_dir_all(path)
+        .with_context(|| format!("failed to create Python cache root {}", path.display()))?;
+    let metadata = std::fs::symlink_metadata(path)
+        .with_context(|| format!("failed to inspect Python cache root {}", path.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        bail!(
+            "Python environment cache root {} must be a real directory",
+            path.display()
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.uid() != nix::unistd::Uid::effective().as_raw() {
+            bail!(
+                "Python environment cache root {} must be owned by the service user",
+                path.display()
+            );
+        }
+        if metadata.permissions().mode() & 0o077 != 0 {
+            if existed {
+                bail!(
+                    "Python environment cache root {} must not grant group or other permissions",
+                    path.display()
+                );
+            }
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).with_context(
+                || {
+                    format!(
+                        "failed to make Python cache root {} private",
+                        path.display()
+                    )
+                },
+            )?;
+        }
+    }
+    #[cfg(windows)]
+    bail!(
+        "managed Python environments require private-cache ACL enforcement, which is not yet supported on Windows"
+    );
+    #[cfg(unix)]
+    Ok(())
+}
+
+fn verify_wheel_platform_tag(environment: &soma_config::PythonEnvironmentConfig) -> Result<()> {
+    let platform = environment.runtime_platform.as_str();
+    let tag = environment.wheel_platform_tag.as_str();
+    let compatible = match platform.split_once('-') {
+        Some(("linux", "x86_64")) => {
+            tag.ends_with("_x86_64")
+                && (tag.starts_with("manylinux_")
+                    || tag.starts_with("musllinux_")
+                    || tag == "linux_x86_64")
+        }
+        Some(("linux", "aarch64")) => {
+            tag.ends_with("_aarch64")
+                && (tag.starts_with("manylinux_")
+                    || tag.starts_with("musllinux_")
+                    || tag == "linux_aarch64")
+        }
+        Some(("windows", "x86_64")) => tag == "win_amd64",
+        Some(("windows", "aarch64")) => tag == "win_arm64",
+        Some(("macos", "x86_64")) => tag.starts_with("macosx_") && tag.ends_with("_x86_64"),
+        Some(("macos", "aarch64")) => tag.starts_with("macosx_") && tag.ends_with("_arm64"),
+        _ => false,
+    };
+    if !compatible {
+        bail!(
+            "Python wheel platform tag {:?} is incompatible with runtime platform {:?}",
+            tag,
+            platform
+        );
+    }
+    Ok(())
+}
+
+fn verify_python_runtime(
+    python: &std::path::Path,
+    environment: &soma_config::PythonEnvironmentConfig,
+) -> Result<()> {
+    let probe = concat!(
+        "import platform,sys\n",
+        "system={'Darwin':'macos','Windows':'windows'}.get(platform.system(),",
+        "platform.system().lower())\n",
+        "machine={'AMD64':'x86_64','arm64':'aarch64'}.get(platform.machine(),",
+        "platform.machine().lower())\n",
+        "print(sys.implementation.name+'\\t'+platform.python_version()+'\\t'+system+'-'+machine)\n"
+    );
+    let output = std::process::Command::new(python)
+        .args(["-I", "-c", probe])
+        .output()
+        .with_context(|| format!("failed to probe Python interpreter {}", python.display()))?;
+    if !output.status.success() {
+        bail!(
+            "Python interpreter identity probe failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    let actual = String::from_utf8(output.stdout)
+        .context("Python interpreter identity probe returned non-UTF-8 output")?;
+    let expected = format!(
+        "{}\t{}\t{}",
+        environment.runtime_implementation,
+        environment.runtime_version,
+        environment.runtime_platform
+    );
+    if actual.trim() != expected {
+        bail!(
+            "Python interpreter identity mismatch: expected {expected:?}, got {:?}",
+            actual.trim()
+        );
+    }
+    Ok(())
+}
+
 #[cfg(feature = "cli")]
 pub(crate) async fn cli_application_with_provider_dir(
     config: &Config,
@@ -174,17 +435,17 @@ pub(crate) async fn cli_application_with_provider_dir(
     } else {
         let registry = match provider_dir {
             Some(provider_dir) => {
-                soma_application::dynamic_provider_registry_from_dir_with_python(
+                soma_application::dynamic_provider_registry_from_dir_with_python_runtime(
                     service.clone(),
                     provider_dir,
-                    python_runner_selection(config),
+                    python_provider_runtime(config)?,
                 )
                 .await?
             }
             None => {
-                soma_application::dynamic_provider_registry_with_python(
+                soma_application::dynamic_provider_registry_with_python_runtime(
                     service.clone(),
-                    python_runner_selection(config),
+                    python_provider_runtime(config)?,
                 )
                 .await?
             }
@@ -213,9 +474,9 @@ pub(crate) async fn stdio_state() -> Result<AppState> {
     let provider_registry = if remote_adapter {
         soma_application::remote_provider_registry(service.clone()).await?
     } else {
-        soma_application::dynamic_provider_registry_with_python(
+        soma_application::dynamic_provider_registry_with_python_runtime(
             service.clone(),
-            python_runner_selection(&config),
+            python_provider_runtime(&config)?,
         )
         .await?
     };
@@ -237,9 +498,9 @@ pub(crate) async fn http_state() -> Result<AppState> {
     let config = Config::load()?;
     let auth_policy = http_auth_policy(&config).await?;
     let service = SomaService::new(SomaClient::new(&config.soma)?);
-    let provider_registry = soma_application::dynamic_provider_registry_with_python(
+    let provider_registry = soma_application::dynamic_provider_registry_with_python_runtime(
         service.clone(),
-        python_runner_selection(&config),
+        python_provider_runtime(&config)?,
     )
     .await?;
     let gateway = gateway_product_state_from_env()?;

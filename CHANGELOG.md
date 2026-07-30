@@ -75,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Wire the immutable PEP 723 Python environment lifecycle into production startup behind fail-closed typed configuration, verified runtime/tool identities, private cache roots, frozen offline reuse, and explicit update policy.
+
 ### Changed
 
 - Raise the workspace minimum supported Rust version to 1.97.1.

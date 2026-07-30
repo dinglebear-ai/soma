@@ -9,6 +9,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::python_environment::PythonEnvironmentConfig;
+
 /// CUSTOMIZE: Replace with your service name (e.g. ".unraid", ".gotify").
 const SERVICE_HOME_DIRNAME: &str = ".soma";
 
@@ -36,6 +38,7 @@ pub enum PythonRunnerMode {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct PythonRunnerConfig {
+    pub environment: PythonEnvironmentConfig,
     pub mode: PythonRunnerMode,
     pub startup_timeout_ms: u64,
     pub request_timeout_ms: u64,
@@ -52,6 +55,7 @@ pub struct PythonRunnerConfig {
 impl Default for PythonRunnerConfig {
     fn default() -> Self {
         Self {
+            environment: PythonEnvironmentConfig::default(),
             mode: PythonRunnerMode::OneShot,
             startup_timeout_ms: 10_000,
             request_timeout_ms: 10_000,
@@ -107,6 +111,7 @@ impl PythonRunnerConfig {
                 anyhow::bail!("{name} must be greater than zero");
             }
         }
+        self.environment.validate()?;
         Ok(())
     }
 }
@@ -689,6 +694,62 @@ impl Config {
         env_parse(
             "SOMA_PYTHON_RUNNER_MAX_CANDIDATE_STARTS",
             &mut config.python.max_candidate_starts,
+        )?;
+        env_bool(
+            "SOMA_PYTHON_ENVIRONMENT_ENABLED",
+            &mut config.python.environment.enabled,
+        )?;
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT",
+            &mut config.python.environment.cache_root,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM",
+            &mut config.python.environment.uv_program,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_UV_VERSION",
+            &mut config.python.environment.uv_version,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_PYTHON_EXECUTABLE",
+            &mut config.python.environment.python_executable,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_RUNTIME_IMPLEMENTATION",
+            &mut config.python.environment.runtime_implementation,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_RUNTIME_VERSION",
+            &mut config.python.environment.runtime_version,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_RUNTIME_PLATFORM",
+            &mut config.python.environment.runtime_platform,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_WHEEL_PLATFORM_TAG",
+            &mut config.python.environment.wheel_platform_tag,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL",
+            &mut config.python.environment.sdk_wheel,
+        );
+        env_str(
+            "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL_SHA256",
+            &mut config.python.environment.sdk_wheel_sha256,
+        );
+        env_bool(
+            "SOMA_PYTHON_ENVIRONMENT_OFFLINE",
+            &mut config.python.environment.offline,
+        )?;
+        env_bool(
+            "SOMA_PYTHON_ENVIRONMENT_UPDATE",
+            &mut config.python.environment.update,
+        )?;
+        env_parse(
+            "SOMA_PYTHON_ENVIRONMENT_POLICY_VERSION",
+            &mut config.python.environment.policy_version,
         )?;
         config.python.validate()?;
 

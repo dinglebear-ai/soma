@@ -61,6 +61,54 @@ pub enum PythonRunnerSelection {
     Persistent(PythonSupervisorConfig),
 }
 
+/// Complete Python-provider runtime selection for a file-backed source.
+///
+/// The environment preparer is optional so existing ambient-interpreter
+/// behavior remains the default until an operator enables immutable
+/// environments.
+#[derive(Clone)]
+pub struct PythonProviderRuntime {
+    runner: PythonRunnerSelection,
+    environment_preparer: Option<Arc<dyn PythonProviderEnvironmentPreparer>>,
+}
+
+impl PythonProviderRuntime {
+    /// Creates a runtime using `runner` and the ambient interpreter.
+    pub fn new(runner: PythonRunnerSelection) -> Self {
+        Self {
+            runner,
+            environment_preparer: None,
+        }
+    }
+
+    /// Installs immutable environment preparation before Python candidates load.
+    pub fn with_environment_preparer(
+        mut self,
+        preparer: Arc<dyn PythonProviderEnvironmentPreparer>,
+    ) -> Self {
+        self.environment_preparer = Some(preparer);
+        self
+    }
+
+    pub(crate) fn configure_source(self, mut source: FileProviderSource) -> FileProviderSource {
+        source = source.with_python_runner(self.runner);
+        if let Some(preparer) = self.environment_preparer {
+            source = source.with_python_environment_preparer(preparer);
+        }
+        source
+    }
+}
+
+impl fmt::Debug for PythonProviderRuntime {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PythonProviderRuntime")
+            .field("runner", &self.runner)
+            .field("environment_preparer", &self.environment_preparer.is_some())
+            .finish()
+    }
+}
+
 impl fmt::Debug for FileProviderSource {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter

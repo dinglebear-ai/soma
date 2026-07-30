@@ -41,6 +41,7 @@ required-features = ["cli", "mcp-stdio"]
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 async-trait = "0.1"
+sha2 = "0.11"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 axum = { version = "0.8", optional = true }
@@ -67,6 +68,9 @@ serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 tower = { version = "0.5", features = ["util"], optional = true }
 url = { version = "2", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", features = ["user"] }
 
 [features]
 default = ["full"]

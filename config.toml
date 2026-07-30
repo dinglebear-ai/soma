@@ -23,6 +23,29 @@
 # api_url = "https://api.example.com/v1"   # overridden by SOMA_API_URL
 # api_key = ""                              # overridden by SOMA_API_KEY (use env var)
 
+# ── Python provider runtime ───────────────────────────────────────────────────
+[python]
+# mode = "one-shot" # or "persistent"; SOMA_PYTHON_RUNNER_MODE
+
+# Immutable PEP 723 environments are disabled by default. When enabled, every
+# value below is required and all executable/cache/artifact paths must be absolute.
+# Runtime and uv identities must describe the selected executables exactly.
+[python.environment]
+enabled = false
+# cache_root = "/var/cache/soma"
+# uv_program = "/usr/local/bin/uv"
+# uv_version = "0.11.31"
+# python_executable = "/usr/bin/python3.12"
+# runtime_implementation = "cpython"
+# runtime_version = "3.12.4"
+# runtime_platform = "linux-x86_64"
+# wheel_platform_tag = "manylinux_2_17_x86_64"
+# sdk_wheel = "/opt/soma/soma_provider-0.2.0-cp38-abi3-manylinux_2_17_x86_64.whl"
+# sdk_wheel_sha256 = "<64 hexadecimal characters>"
+# offline = false
+# update = false
+# policy_version = 2
+
 # ── MCP HTTP server ───────────────────────────────────────────────────────────
 # Adjust port and bind address for your deployment. Override with
 # SOMA_MCP_PORT.

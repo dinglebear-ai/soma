@@ -40,6 +40,44 @@ fn api_env_destinations_match_soma_config_section() {
 }
 
 #[test]
+fn python_environment_keys_map_to_nested_typed_config() {
+    for (key, destination) in [
+        (
+            "SOMA_PYTHON_ENVIRONMENT_ENABLED",
+            "python.environment.enabled",
+        ),
+        (
+            "SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT",
+            "python.environment.cache_root",
+        ),
+        (
+            "SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM",
+            "python.environment.uv_program",
+        ),
+        (
+            "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL_SHA256",
+            "python.environment.sdk_wheel_sha256",
+        ),
+        (
+            "SOMA_PYTHON_ENVIRONMENT_OFFLINE",
+            "python.environment.offline",
+        ),
+        (
+            "SOMA_PYTHON_ENVIRONMENT_UPDATE",
+            "python.environment.update",
+        ),
+        (
+            "SOMA_PYTHON_ENVIRONMENT_POLICY_VERSION",
+            "python.environment.policy_version",
+        ),
+    ] {
+        let spec = spec_for(key).unwrap_or_else(|| panic!("{key} should be registered"));
+        assert_eq!(spec.toml_destination, Some(destination));
+        assert_eq!(spec.placement, RuntimePlacement::HostOnly);
+    }
+}
+
+#[test]
 fn plugin_option_mapping_is_derived_from_specs() {
     let mappings: Vec<_> = plugin_option_mappings().collect();
     assert!(mappings.contains(&("CLAUDE_PLUGIN_OPTION_SOMA_API_URL", "SOMA_API_URL")));
