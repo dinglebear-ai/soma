@@ -27,7 +27,7 @@ Generated from script header comments.
 | `scripts/generate-cli.sh` | Thin wrapper. Canonical implementation: cargo xtask generate-cli. |
 | `scripts/generate-docs.py` | Generate volatile docs and metadata from canonical Soma specs. |
 | `scripts/kache-gate-selftest.sh` | Proves scripts/kache-gate.sh actually rejects a degraded build, and that its |
-| `scripts/kache-gate.sh` | kache-gate.sh — fail the build when the compiler cache silently degrades. |
+| `scripts/kache-gate.sh` | kache-gate.sh -- fail the build when the compiler cache silently degrades. |
 | `scripts/pre-release-check.sh` | Thin wrapper. Canonical implementation: cargo xtask pre-release-check. |
 | `scripts/readme_related_servers.py` | CUSTOMIZE: add a header comment describing this script. |
 | `scripts/refresh-docs.sh` | Thin wrapper. Canonical implementation: cargo xtask refresh-docs. |
