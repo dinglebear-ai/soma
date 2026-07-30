@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Historical execution artifact:** The runner implementation described here
+> has landed, but its task checkboxes were not backfilled and are not a current
+> backlog. Use
+> [`docs/specs/python-provider-platform.md`](../../specs/python-provider-platform.md)
+> as the authoritative status ledger and remaining delivery order.
+
 **Goal:** Replace the production one-shot Python sidecar with an opt-in, supervised persistent runner while retaining an explicit one-shot fallback.
 
 **Architecture:** Preserve `soma-provider-core` and the existing versioned `python_protocol` types. A matching installed `soma-provider` wheel makes the isolated Python worker discoverable in both prepared and ambient interpreters. A cross-platform private control transport and process-tree owner isolate the worker; a Rust supervisor owns framing, negotiated initialization, one active invocation, limits, timeout/restart policy, and canonical public error conversion. An async registry refresh coordinator validates workers outside registry locks, atomically publishes only ready candidates, and retains its last valid snapshot on failure.
@@ -12,7 +18,10 @@
 
 - Python metadata continues to normalize through `soma-provider-core`; no second manifest model.
 - `_soma_native` stays a thin validation binding and never owns Tokio, registry, policy, or public surfaces.
-- Use a private cross-platform control transport for four-byte big-endian, bounded UTF-8 JSON frames; never send protocol frames over stdout/stderr. Unix uses a passed Unix-domain socket; Windows uses a restricted inherited named-pipe handle.
+- Use a private cross-platform control transport for four-byte big-endian,
+  bounded UTF-8 JSON frames; never send protocol frames over stdout/stderr. The
+  delivered implementation uses an ephemeral loopback TCP listener with a
+  per-launch authentication token on every platform.
 - The host owns a new Unix process session/process group or Windows Job Object with kill-on-close. Close host control handles before reaping; make the worker's control handle non-inheritable before provider import.
 - Persistent mode requires the matching installed SDK wheel. Prepared environments already receive it; ambient persistent mode validates it with `python -I -c 'import soma_provider.runner'` and fails closed if absent.
 - Equal protocol major versions are mandatory. Worker `Hello` is followed by host `Initialize { minor, features }`, then worker `Ready`; no request is accepted before this exchange.
@@ -354,9 +363,7 @@ git commit -m "feat(python): activate supervised persistent runner"
 - Phase 6's private channel, handshake, catalog/invoke, health/drain/shutdown, bounded concurrency/logging, restart/crash-loop handling, timeout recycle, explicit fallback, and compatibility proof map to Tasks 1–5.
 - Phase 7's generation-aware reload and all Phase 8–12 work are explicitly deferred; they are independent milestones, not incomplete implementation details.
 - `PythonRunnerConfig`, `PythonRunnerHostReply`, and `PythonWorkerSupervisor` are defined before their consumers; application code does not touch raw framing.
-+
-
-## Revised Task Sequence (Authoritative)
+## Historical Revised Task Sequence
 
 The engineering review supersedes Tasks 1-5 above where they conflict. Execute these six tasks in order.
 
@@ -366,7 +373,7 @@ Files: create `packages/python/python/soma_provider/runner.py` and `crates/share
 
 - [ ] Add tests that install the wheel, run `python -I -m soma_provider.runner` under both ambient and prepared interpreters, and read a Hello control frame.
 - [ ] Make persistent mode require that installed module; startup returns a stable error instead of falling back to one-shot.
-- [x] Implement reserved stdin/stdout control pipes on every platform, redirect
+- [x] Implement authenticated loopback TCP control on every platform, redirect
   provider stdout to stderr, and own Unix workers through process groups and
   Windows workers through kill-on-close Job Objects.
 - [ ] Test a descendant that holds or writes the inherited handle; timeout, protocol failure, and shutdown must close, kill, and reap the entire tree before restart.

@@ -46,7 +46,8 @@ path must use it and its failure behavior must be verified.
 
 ## Verified Snapshot
 
-Last reconciled on **2026-07-29** against `origin/main` at `47bb3131`.
+Last reconciled on **2026-07-29** against the implementation through
+`47bb3131`.
 
 The immutable-environment stack was merged by `749bc026` and ends at
 `4993e57e`; the supervised persistent runner was merged by `47bb3131`:
@@ -84,9 +85,9 @@ Post-environment-merge CI repairs `f9860585` and `12fc929b` are also on
 | SDK | `soma-provider` 0.2.0 provides `provider`, `tool`, `Context`, typing, examples, and pure-Python fallback. |
 | Native binding | Thin PyO3 abi3 module delegates manifest validation to Rust. |
 | Dependencies | PEP 723 is parsed without executing provider code. |
-| Environments | Content-addressed `uv` environments can be planned, materialized, verified, inventoried, pruned, repaired, updated, and activated. |
+| Environments | The adapter library can plan, materialize, verify, inventory, prune, repair, update, and activate content-addressed `uv` environments. Production constructors do not yet install that lifecycle, so ordinary runtime startup still selects the ambient/configured interpreter. |
 | Execution | One-shot remains the default; `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised workers. |
-| Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, and async candidate preflight are active in persistent mode. |
+| Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, async candidate preflight, and prepared-interpreter authoring-path parity are active in persistent mode. Active cancel frames and brokered `host.*` calls remain protocol-only. |
 | Context capabilities | Request identity is injected; HTTP, secrets, state, logging, metrics, progress, and cancellation are not live broker services. |
 | Isolation | Out of process with filtered environment and bounded I/O, but not OS-sandboxed. |
 | Wasm graduation | Contract boundary exists; WIT components and graduation tooling do not. |
@@ -145,15 +146,16 @@ does not claim automatic translation of arbitrary Python into Rust or Wasm.
 - major/minor negotiation and feature intersection
 - four-byte big-endian length-prefixed UTF-8 JSON
 - bounded frames and finite JSON enforcement
-- `describe`, `invoke`, `cancel`, `health`, `drain`, and `shutdown`
-- brokered `host.*` envelopes
+- typed `describe`, `invoke`, `cancel`, `health`, `drain`, and `shutdown`
+- typed brokered `host.*` envelopes
 - IDs, deadlines, trace, actor/scopes, cancellation token, and generation
 - stable states and errors
 - Rust/Python codecs and shared fixtures
 
-The protocol seam and its supervised worker implementation are complete for the
-opt-in persistent mode. The one-shot bridge remains the default migration and
-rollback path.
+Persistent mode negotiates and implements `describe`, `invoke`, `health`,
+`drain`, and `shutdown`. `cancel` and brokered `host.*` messages remain
+contract-only and are not advertised by the active worker. The one-shot bridge
+remains the default migration and rollback path.
 
 ### Immutable environment lifecycle
 
@@ -180,8 +182,8 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 2. Runner protocol | Foundation complete | Cross-language protocol is versioned and tested. |
 | 3. Python SDK | Complete baseline | Facade, Context identity, schemas, examples, and compatibility paths exist. |
 | 4. PyO3/maturin | Complete baseline | Thin abi3 validation binding and wheel CI exist. |
-| 5. PEP 723 and `uv` lifecycle | Complete | Plan through immutable activation is implemented. |
-| 6. Persistent supervised runner | Complete, opt-in | Typed persistent mode uses installed-wheel supervised workers; one-shot is rollback. |
+| 5. PEP 723 and `uv` lifecycle | Partial | Plan through immutable activation is implemented and tested as a library; production startup does not configure or install the lifecycle. |
+| 6. Persistent supervised runner | Partial, opt-in | Installed-wheel supervised workers cover all authoring paths; active cancellation and structured/operator-visible logs remain. |
 | 7. Generation-aware reload | Partial | Candidate preflight, atomic swap, refresh coalescing, and bounded retirement exist; debounce/operator rollback remain. |
 | 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
 | 9. WIT/WASI components | Planned | Versioned component ABI and reference provider exist. |
@@ -190,45 +192,84 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
 
 The earlier session-local implementation plan numbered the `uv` lifecycle as
-Phase 4 and the persistent runner as Phase 5. Both are implemented. This
-canonical plan separates PyO3/maturin into its own Phase 4, so those same
-delivered slices appear here as Phases 5 and 6.
+Phase 4 and the persistent runner as Phase 5. Their principal library/runtime
+implementations have landed, but the production exit gates above remain open.
+This canonical plan separates PyO3/maturin into its own Phase 4, so those same
+slices appear here as Phases 5 and 6.
+
+## Phase 5: PEP 723 and Immutable `uv` Environments
+
+**Partially delivered as an injectable library lifecycle.**
+
+The planner, materializer, readiness checks, cache operations, update flow, and
+candidate validation are implemented and tested. Application tests prove that a
+`PythonEnvironmentLifecycle` installed with
+`FileProviderSource::with_python_environment_preparer(...)` selects prepared
+interpreters before candidate activation.
+
+Production startup does not construct or install that preparer. Completing this
+phase requires product configuration for the cache root, `uv` and Python
+runtime identity, release SDK wheel and digest, offline/update policy, and the
+corresponding status, prune, repair, and update surfaces. Until then, PEP 723
+metadata does not automatically create an environment in a normal Soma process.
 
 ## Phase 6: Persistent Supervised Runner
 
-**Delivered as an explicit opt-in with one-shot rollback.**
+**Partially delivered as an explicit opt-in with one-shot rollback.**
 
 Scope:
 
 - add `python -I -m soma_provider.runner`;
-- use reserved stdin/stdout pipes as a cross-platform duplex control channel;
+- use an authenticated loopback TCP connection as the cross-platform duplex
+  control channel;
 - keep protocol traffic separate from stdout/stderr;
 - negotiate the protocol before accepting work;
 - support persistent `describe` and `invoke`;
 - implement health, drain, and graceful shutdown;
 - add bounded concurrency and worker generation IDs;
-- capture bounded structured logs;
+- capture bounded structured logs and expose them to operators;
 - define restart budgets and crash-loop behavior;
 - recycle workers after uninterruptible synchronous timeouts;
 - retain the one-shot bridge as the default migration and rollback mode.
 
-Exit gates:
+Delivered gates:
 
-- normal catalog/invoke paths use persistent workers;
+- persistent-mode catalog/invoke paths use persistent workers;
 - worker crashes cannot corrupt the active registry;
 - unhealthy candidates cannot activate;
 - timeouts cannot poison later calls;
 - restart loops are bounded and visible;
-- all existing Python/framework fixtures pass through the new path.
+- with an explicitly prepared interpreter, plain, decorated, async,
+  LangChain-compatible, and LlamaIndex-compatible fixtures produce equal
+  catalogs and results in both modes.
+
+The focused supervisor/application suites verify serial busy rejection,
+timeout followed by a non-replayed restart, persistent-environment eligibility,
+candidate preflight, and retention of the previous snapshot when a Python
+candidate fails.
+
+Open gates:
+
+- active invocations can be cancelled deterministically;
+- bounded worker logs are structured and operator-visible;
+- production bootstrap/config selection is covered by the same parity proof;
+- missing-wheel, malformed-frame, source-substitution, quarantine exhaustion,
+  and secret-bearing stderr/error/result failures have end-to-end
+  production-path evidence.
 
 Implementation notes:
 
 - Workers require the matching installed `soma-provider` wheel and start with
   `python -I -m soma_provider.runner`.
-- Provider stdout is redirected to stderr; the host retains a bounded stderr
-  ring while continuously discarding overflow.
+- The worker connects to an ephemeral loopback listener and authenticates with
+  a per-launch token before protocol negotiation.
+- Provider stdout is redirected to stderr. The host continuously drains it into
+  a private bounded byte ring; this is diagnostic retention, not structured or
+  operator-visible logging.
 - One invocation is active per worker. Concurrent work receives
   `python_provider_busy` without queueing.
+- The active feature set does not include `cancel`; cancellation tokens are
+  carried in invocation envelopes but cannot yet interrupt running work.
 - Provider/tool runtime environment declarations are rejected in persistent
   mode. Phase-8 broker capabilities, actor scopes, and trace propagation are
   intentionally unavailable.
@@ -383,18 +424,18 @@ of unsupported dependency sources.
 
 ## Recommended Delivery Order
 
-1. Add the runner module and handshake without switching production.
-2. Add a Rust supervisor behind a feature/config gate.
-3. Route `describe`, then `invoke`, through persistent workers.
-4. Add cancellation, drain, restart budgets, and structured logs.
-5. Join environment, worker, and registry activation into one generation.
-6. Add logging/progress/cancellation broker calls.
-7. Add HTTP, secrets, and state.
-8. Add explicit execution profiles and containment.
-9. Implement the WIT component ABI.
-10. Add conformance and graduation tooling.
-11. Evaluate `componentize-py`.
-12. Finish release provenance, status, performance, and soak gates.
+1. Configure and install the immutable environment lifecycle in production,
+   including release-wheel/runtime policy and operator surfaces.
+2. Add active cancellation and structured, operator-visible worker logs.
+3. Finish generation debounce, status, operator rollback, and environment /
+   worker activation as one production generation.
+4. Add logging/progress/cancellation broker calls.
+5. Add HTTP, secrets, and state.
+6. Add explicit execution profiles and containment.
+7. Implement the WIT component ABI.
+8. Add conformance and graduation tooling.
+9. Evaluate `componentize-py`.
+10. Finish release provenance, status, performance, and soak gates.
 
 The persistent runner and generation boundary are load-bearing. Do not bypass
 them to begin component or graduation work.
@@ -404,6 +445,8 @@ them to begin component or graduation work.
 ```bash
 cargo test -p soma-provider-adapters --features python
 PYTHONPATH=packages/python/python python3 -m unittest discover -s packages/python/tests -p 'test_*.py'
+uv sync --project packages/python --frozen
+cargo test -p soma --test python_provider
 cargo fmt --all -- --check
 cargo clippy -p soma-provider-adapters --features python --all-targets -- -D warnings
 git diff --check

@@ -11,6 +11,12 @@ beads: rmcp-template-dox1, rmcp-template-dox1.1, rmcp-template-dox1.2, rmcp-temp
 
 # Python persistent runner plan and implementation
 
+> Follow-up reconciliation: this is a historical session record. The delivered
+> production control transport is authenticated loopback TCP, not the
+> stdin/stdout-pipe design recorded during planning. Current status and open
+> gates live in
+> [`docs/specs/python-provider-platform.md`](../specs/python-provider-platform.md).
+
 ## User Request
 
 Review `docs/specs/python-provider-platform.md`, write an implementation plan,
@@ -55,9 +61,9 @@ documentation, and verification coverage.
 
 - One-shot execution remains the default and rollback mode; persistent execution
   is selected through typed `SOMA_PYTHON_RUNNER_*` configuration.
-- Reserved stdin/stdout pipes carry length-prefixed protocol frames on all
-  platforms. Provider Python stdout is redirected to continuously drained,
-  bounded stderr.
+- An ephemeral loopback TCP connection authenticated with a per-launch token
+  carries length-prefixed protocol frames on all platforms. Provider Python
+  stdout is redirected to continuously drained, bounded stderr.
 - Each worker accepts one active invocation. Concurrent calls receive
   `python_provider_busy` without entering an unbounded queue.
 - Candidate refreshes are serialized and coalesced, while replaced providers

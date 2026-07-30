@@ -193,6 +193,13 @@ annotated as `soma_provider.Context` is omitted from the public input schema and
 injected during dispatch. Its immutable `request` carries the request ID,
 provider, action, surface, and snapshot.
 
+The adapter library includes PEP 723 planning and an immutable `uv` environment
+lifecycle, but Soma's production constructors do not configure or install that
+lifecycle yet. One-shot startup uses `SOMA_PYTHON_COMMAND` or the ambient
+`python3` interpreter. Production persistent startup currently uses the ambient
+default interpreter and does not honor `SOMA_PYTHON_COMMAND`; lifecycle tests
+and custom embedders can install a prepared interpreter explicitly.
+
 ### Persistent Python runner
 
 One-shot execution remains the default and rollback path. Set
@@ -202,10 +209,14 @@ wheel in the selected interpreter because workers start with
 `python -I -m soma_provider.runner`; startup fails closed instead of silently
 falling back to one-shot.
 
-Persistent workers use a length-prefixed JSON control protocol over reserved
-stdin/stdout pipes. Provider stdout is redirected to the continuously drained
-stderr stream. The host negotiates features, describes and health-checks every
-candidate before publishing it, rejects concurrent calls with
+Persistent workers connect to an ephemeral loopback TCP listener and
+authenticate with a per-launch token before using the length-prefixed JSON
+control protocol. The child process's stdin and stdout are redirected to the
+platform null device and are not used for control. Provider stdout is redirected
+to the continuously drained stderr stream; the host keeps only a private bounded
+byte ring, not structured or operator-visible logs. The host negotiates
+features, describes and health-checks every candidate before publishing it,
+rejects concurrent calls with
 `python_provider_busy`, kills the worker process tree on timeout or protocol
 failure, and permits a later serialized restart within the configured
 restart-window budget. Repeated failures quarantine that provider generation.
@@ -215,7 +226,9 @@ before launch and again after describe.
 Persistent mode deliberately rejects provider- or tool-level runtime
 environment declarations with `python_persistent_env_unsupported`. It does not
 forward actor scopes or trace context, and HTTP, secrets, state, logging,
-metrics, progress, and cancellation broker services remain unavailable.
+metrics, progress, and cancellation broker services remain unavailable. The
+active worker does not negotiate the protocol's `cancel` feature, so a running
+invocation cannot yet be interrupted by a cancel frame.
 
 The main controls are:
 
