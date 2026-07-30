@@ -193,7 +193,7 @@ fn persistent_generation_digest_is_validated_without_panicking() {
         "tools": []
     }))
     .unwrap();
-    for invalid in ["short", &"é".repeat(32)] {
+    for invalid in ["short", &"g".repeat(64)] {
         let error = match PythonProvider::arc_persistent_in_generation(
             path.clone(),
             catalog.clone(),

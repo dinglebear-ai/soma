@@ -75,7 +75,7 @@
       }
     }
   },
-  "description": "Product-first RMCP runtime for provider-backed agent capabilities with CLI, REST, HTTP MCP, plugins, and derivative scaffold support.",
+  "description": "RMCP runtime for provider-backed agents with CLI, REST, HTTP MCP, plugins, and scaffold support.",
   "icons": [
     {
       "mimeType": "image/png",
