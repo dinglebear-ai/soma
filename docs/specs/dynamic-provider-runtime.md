@@ -186,18 +186,18 @@ Responses must match the request version, ID, and mode. Envelope capture has
 bounded headroom, and extracted payloads remain subject to their configured byte
 limits.
 
-A separate persistent-runner protocol seam is versioned independently from that
-compatibility envelope. Its dedicated control channel uses a four-byte
-big-endian length followed by bounded UTF-8 JSON. The worker initiates a
-major/minor handshake; matching majors negotiate the lower minor and the
-intersection of advertised features. Typed messages cover `describe`, `invoke`,
-`cancel`, `health`, `drain`, `shutdown`, brokered `host.*` calls, stable
-invocation states, and redacted error codes. Invocation envelopes carry the
-request and invocation IDs, deadline, trace, actor/scopes, cancellation token,
-and generation required for at-most-once dispatch. Rust and dependency-free
-Python codecs consume shared golden fixtures. This seam is not the active
-execution engine yet; the one-shot bridge remains in place until the supervisor
-phase lands.
+A separate persistent-runner protocol is versioned independently from that
+compatibility envelope. Set `SOMA_PYTHON_RUNNER_MODE=persistent` to activate it;
+one-shot remains the default and rollback path. The worker connects to an
+ephemeral loopback TCP listener, authenticates with a per-launch token, and then
+uses four-byte big-endian lengths followed by bounded UTF-8 JSON. Matching
+protocol majors negotiate the lower minor and the intersection of advertised
+features. The active worker implements `describe`, `invoke`, `health`, `drain`,
+and `shutdown`. Typed `cancel` and brokered `host.*` messages exist in the
+protocol seam but are not advertised or handled by the active worker.
+Invocation envelopes still carry request and invocation IDs, deadline,
+generation, and reserved trace, actor/scopes, and cancellation fields. Rust and
+dependency-free Python codecs consume shared golden fixtures.
 
 Python provider files are trusted code, not inert configuration. Soma imports
 the module to derive the catalog, so top-level Python runs during provider
@@ -256,6 +256,10 @@ The provider imports the module, reads `PROVIDER` and `TOOLS`, converts
 LangChain/LlamaIndex tool metadata into provider tool schemas, and executes tool
 calls in a Python sidecar. `SOMA_PYTHON_COMMAND` may point at a virtualenv
 or `uv`/Python wrapper when the default `python3` is not the right interpreter.
+The adapter library contains an injectable PEP 723 / immutable-`uv`
+environment lifecycle, but production startup does not install it yet; normal
+runtime startup therefore does not materialize PEP 723 dependencies
+automatically.
 These provider files have the same trusted-code behavior as plain Python
 providers: module import happens during catalog refresh, while tool execution
 runs with only declared environment values. Framework tools should avoid

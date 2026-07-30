@@ -46,16 +46,18 @@ persistent capability broker milestone.
 Rust's provider-core manifest and adapter validation remain authoritative. The
 `tests/soma_runner_protocol.py` module is also internal: it implements the
 bounded length-prefixed JSON codec, version negotiation, and feature intersection
-used by persistent-runner contract fixtures. The current runtime still executes
-through the one-shot bridge.
+used by persistent-runner contract fixtures. One-shot remains the default
+runtime. `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised installed-wheel
+workers for catalog and invocation; active cancellation and brokered Context
+services are not implemented yet.
 
 `pyproject.toml` defines the `soma-provider` 0.2.x maturin mixed package for
 Python 3.11 and newer. The pure-Python facade remains usable without a native
 extension; built wheels include the private `soma_provider._soma_native` abi3
 module for provider-core manifest validation and an SDK/native version check.
 `uv.lock` pins development/build resolution, and the package smoke test builds
-and installs the wheel in isolation. Persistent workers and publication to PyPI
-remain separate milestones. Replacing
+and installs the wheel in isolation. Publication to PyPI remains a separate
+milestone. Replacing
 a Python implementation with WASM should preserve the provider contract rather
 than attempt to transpile arbitrary Python code. The canonical delivery status
 and remaining milestones live in

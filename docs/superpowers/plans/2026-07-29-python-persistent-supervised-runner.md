@@ -12,7 +12,10 @@
 
 - Python metadata continues to normalize through `soma-provider-core`; no second manifest model.
 - `_soma_native` stays a thin validation binding and never owns Tokio, registry, policy, or public surfaces.
-- Use a private cross-platform control transport for four-byte big-endian, bounded UTF-8 JSON frames; never send protocol frames over stdout/stderr. Unix uses a passed Unix-domain socket; Windows uses a restricted inherited named-pipe handle.
+- Use a private cross-platform control transport for four-byte big-endian,
+  bounded UTF-8 JSON frames; never send protocol frames over stdout/stderr. The
+  delivered implementation uses an ephemeral loopback TCP listener with a
+  per-launch authentication token on every platform.
 - The host owns a new Unix process session/process group or Windows Job Object with kill-on-close. Close host control handles before reaping; make the worker's control handle non-inheritable before provider import.
 - Persistent mode requires the matching installed SDK wheel. Prepared environments already receive it; ambient persistent mode validates it with `python -I -c 'import soma_provider.runner'` and fails closed if absent.
 - Equal protocol major versions are mandatory. Worker `Hello` is followed by host `Initialize { minor, features }`, then worker `Ready`; no request is accepted before this exchange.
@@ -366,7 +369,7 @@ Files: create `packages/python/python/soma_provider/runner.py` and `crates/share
 
 - [ ] Add tests that install the wheel, run `python -I -m soma_provider.runner` under both ambient and prepared interpreters, and read a Hello control frame.
 - [ ] Make persistent mode require that installed module; startup returns a stable error instead of falling back to one-shot.
-- [x] Implement reserved stdin/stdout control pipes on every platform, redirect
+- [x] Implement authenticated loopback TCP control on every platform, redirect
   provider stdout to stderr, and own Unix workers through process groups and
   Windows workers through kill-on-close Job Objects.
 - [ ] Test a descendant that holds or writes the inherited handle; timeout, protocol failure, and shutdown must close, kill, and reap the entire tree before restart.
