@@ -277,22 +277,43 @@ Persistent workers connect to an ephemeral loopback TCP listener and
 authenticate with a per-launch token before using the length-prefixed JSON
 control protocol. The child process's stdin and stdout are redirected to the
 platform null device and are not used for control. Provider stdout is redirected
-to the continuously drained stderr stream; the host keeps only a private bounded
-byte ring, not structured or operator-visible logs. The host negotiates
+to the continuously drained stderr stream; the host converts it into bounded,
+sequenced structured log entries and redacts sensitive diagnostics before
+operator-visible retention. The host negotiates
 features, describes and health-checks every candidate before publishing it,
 rejects concurrent calls with
 `python_provider_busy`, kills the worker process tree on timeout or protocol
 failure, and permits a later serialized restart within the configured
 restart-window budget. Repeated failures quarantine that provider generation.
 Source files must be regular non-symlink files and are hashed immediately
-before launch and again after describe.
+before launch and again after describe. Active work can be cancelled
+deterministically by terminating the complete worker process tree; later work
+starts a clean worker without replay.
 
 Persistent mode deliberately rejects provider- or tool-level runtime
 environment declarations with `python_persistent_env_unsupported`. It does not
 forward actor scopes or trace context, and HTTP, secrets, state, logging,
-metrics, progress, and cancellation broker services remain unavailable. The
-active worker does not negotiate the protocol's `cancel` feature, so a running
-invocation cannot yet be interrupted by a cancel frame.
+metrics, progress, and cooperative broker cancellation remain unavailable.
+Host cancellation is enforced at the process boundary and therefore also stops
+uninterruptible synchronous handlers and descendants.
+
+Worker and generation controls use the same application authorization on every
+surface:
+
+| Action | Scope | Purpose |
+|---|---|---|
+| `python_worker_status` | `soma:read` | Inspect running/busy/quarantined state, restart counts, generation identity, and bounded redacted logs. |
+| `python_worker_cancel` | `soma:write` + confirmation | Cancel active work by terminating the worker process tree. |
+| `python_worker_reset` | `soma:write` + confirmation | Clear crash-loop quarantine and permit a fresh worker. |
+| `python_generation_status` | `soma:read` | Inspect the active generation and bounded rollback window. |
+| `python_generation_rollback` | `soma:write` + confirmation | Atomically reactivate a retained provider/environment/worker generation. |
+
+Filesystem refresh uses a single coalescing preparation lane and a short
+debounce window. Candidate catalogs, immutable environments, and persistent
+workers are prepared and health-checked before one atomic registry publication.
+The last three generations are retained for rollback; older generations are
+drained and retired outside registry locks. New requests never route to a
+retained generation, while calls already holding that generation finish on it.
 
 The main controls are:
 

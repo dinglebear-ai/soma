@@ -424,6 +424,11 @@ fn cli_params(action: &SomaAction) -> serde_json::Value {
         | SomaAction::PythonEnvironmentPrune { .. }
         | SomaAction::PythonEnvironmentRepair { .. }
         | SomaAction::PythonEnvironmentUpdate { .. }
+        | SomaAction::PythonWorkerStatus
+        | SomaAction::PythonWorkerCancel { .. }
+        | SomaAction::PythonWorkerReset { .. }
+        | SomaAction::PythonGenerationStatus
+        | SomaAction::PythonGenerationRollback { .. }
         | SomaAction::Help
         | SomaAction::ElicitName
         | SomaAction::ScaffoldIntent => serde_json::json!({}),

@@ -246,8 +246,13 @@ pub async fn execute_service_action(
         | SomaAction::PythonEnvironmentPrunePlan { .. }
         | SomaAction::PythonEnvironmentPrune { .. }
         | SomaAction::PythonEnvironmentRepair { .. }
-        | SomaAction::PythonEnvironmentUpdate { .. } => Err(anyhow::anyhow!(
-            "Python environment actions require the shared application control plane"
+        | SomaAction::PythonEnvironmentUpdate { .. }
+        | SomaAction::PythonWorkerStatus
+        | SomaAction::PythonWorkerCancel { .. }
+        | SomaAction::PythonWorkerReset { .. }
+        | SomaAction::PythonGenerationStatus
+        | SomaAction::PythonGenerationRollback { .. } => Err(anyhow::anyhow!(
+            "Python operator actions require the shared application control plane"
         )),
         SomaAction::Help => Ok(rest_help()),
         SomaAction::ElicitName => Err(anyhow::anyhow!(

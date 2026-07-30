@@ -360,7 +360,11 @@ fn cli_parser_covers_every_cli_action_in_registry() {
         let args = match spec.name {
             "greet" => vec![cli.command],
             "echo" => vec![cli.command, "--message", "hello"],
-            "status" | "help" | "python_environment_status" => vec![cli.command],
+            "status"
+            | "help"
+            | "python_environment_status"
+            | "python_worker_status"
+            | "python_generation_status" => vec![cli.command],
             "python_environment_prune_plan" => {
                 vec![cli.command, "--json", r#"{"stale_before_unix_seconds":0}"#]
             }
@@ -373,6 +377,16 @@ fn cli_parser_covers_every_cli_action_in_registry() {
                 cli.command,
                 "--json",
                 r#"{"provider_path":"example.py","confirm":true}"#,
+            ],
+            "python_worker_cancel" | "python_worker_reset" => vec![
+                cli.command,
+                "--json",
+                r#"{"provider":"example","confirm":true}"#,
+            ],
+            "python_generation_rollback" => vec![
+                cli.command,
+                "--json",
+                r#"{"generation_id":1,"confirm":true}"#,
             ],
             other => panic!("add a parser parity fixture for action `{other}`"),
         };

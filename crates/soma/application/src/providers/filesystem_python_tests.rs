@@ -184,3 +184,65 @@ fn failed_python_candidate_refresh_keeps_previous_snapshot_active() {
         Some("stable-provider")
     );
 }
+
+#[tokio::test]
+async fn refresh_bursts_publish_once_and_retained_generation_rolls_back() {
+    let temp = tempdir().expect("tempdir");
+    let manifest = temp.path().join("stable.json");
+    fs::write(
+        &manifest,
+        tool_manifest("stable-provider", "stable_action", None),
+    )
+    .expect("write initial provider");
+    let registry = ProviderRegistry::with_file_source_async(
+        Vec::new(),
+        CapabilityBroker::default_deny(),
+        FileProviderSource::new(temp.path()),
+    )
+    .await
+    .expect("initial registry");
+    assert_eq!(
+        registry.snapshot().provider_for_action("stable_action"),
+        Some("stable-provider")
+    );
+
+    fs::write(
+        &manifest,
+        tool_manifest("stable-provider", "replacement_action", None),
+    )
+    .expect("rewrite provider");
+    let first_registry = registry.clone();
+    let second_registry = registry.clone();
+    let (first, second) = tokio::join!(
+        first_registry.refresh_file_providers_async(),
+        second_registry.refresh_file_providers_async()
+    );
+    first.expect("first refresh");
+    second.expect("coalesced refresh");
+
+    let status = registry.python_generation_status();
+    assert_eq!(status["active"]["generation_id"], 2);
+    assert_eq!(status["rollback_candidates"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        registry
+            .snapshot()
+            .provider_for_action("replacement_action"),
+        Some("stable-provider")
+    );
+
+    let report = registry
+        .rollback_python_generation(1)
+        .await
+        .expect("rollback retained generation");
+    assert_eq!(report["restored_generation_id"], 1);
+    assert_eq!(
+        registry.snapshot().provider_for_action("stable_action"),
+        Some("stable-provider")
+    );
+    assert!(
+        registry
+            .snapshot()
+            .provider_for_action("replacement_action")
+            .is_none()
+    );
+}

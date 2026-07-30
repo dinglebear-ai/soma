@@ -232,6 +232,11 @@ fn rest_params(action: &SomaAction) -> Value {
         | SomaAction::PythonEnvironmentPrune { .. }
         | SomaAction::PythonEnvironmentRepair { .. }
         | SomaAction::PythonEnvironmentUpdate { .. }
+        | SomaAction::PythonWorkerStatus
+        | SomaAction::PythonWorkerCancel { .. }
+        | SomaAction::PythonWorkerReset { .. }
+        | SomaAction::PythonGenerationStatus
+        | SomaAction::PythonGenerationRollback { .. }
         | SomaAction::Help
         | SomaAction::ElicitName
         | SomaAction::ScaffoldIntent => json!({}),

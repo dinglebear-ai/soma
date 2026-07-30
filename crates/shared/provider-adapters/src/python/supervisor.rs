@@ -4,8 +4,8 @@ use std::{
     collections::VecDeque,
     path::PathBuf,
     sync::{
-        Arc, OnceLock, Weak,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc, Mutex as StdMutex, OnceLock, Weak,
+        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -76,6 +76,34 @@ pub struct PythonWorkerIdentity {
     pub catalog_fingerprint: String,
 }
 
+/// One redacted, structured line emitted by a persistent Python worker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PythonWorkerLogEntry {
+    pub sequence: u64,
+    pub stream: &'static str,
+    pub message: String,
+}
+
+/// Operator-facing state for one persistent Python provider worker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PythonWorkerStatus {
+    pub provider_source: PathBuf,
+    pub generation_id: String,
+    pub running: bool,
+    pub accepting: bool,
+    pub busy: bool,
+    pub quarantined: bool,
+    pub restart_count: usize,
+    pub logs: Vec<PythonWorkerLogEntry>,
+}
+
+#[derive(Default)]
+struct WorkerLogBuffer {
+    entries: VecDeque<PythonWorkerLogEntry>,
+    retained_bytes: usize,
+    next_sequence: u64,
+}
+
 #[derive(Debug)]
 pub struct PythonSupervisorError {
     code: &'static str,
@@ -109,7 +137,6 @@ struct Worker {
     stdin: OwnedWriteHalf,
     stdout: OwnedReadHalf,
     stderr_task: JoinHandle<()>,
-    stderr: Arc<Mutex<VecDeque<u8>>>,
     described: bool,
 }
 
@@ -131,11 +158,15 @@ pub struct PythonWorkerSupervisor {
     config: PythonSupervisorConfig,
     worker: Mutex<Option<Worker>>,
     busy: AtomicBool,
+    accepting: AtomicBool,
     request_id: AtomicU64,
     restarts: Mutex<VecDeque<Instant>>,
     quarantined: AtomicBool,
     started_once: AtomicBool,
     discard_worker: AtomicBool,
+    cancel_epoch: AtomicU64,
+    active_pid: AtomicU32,
+    logs: Arc<StdMutex<WorkerLogBuffer>>,
 }
 
 impl PythonWorkerSupervisor {
@@ -151,12 +182,73 @@ impl PythonWorkerSupervisor {
             config,
             worker: Mutex::new(None),
             busy: AtomicBool::new(false),
+            accepting: AtomicBool::new(true),
             request_id: AtomicU64::new(1),
             restarts: Mutex::new(VecDeque::new()),
             quarantined: AtomicBool::new(false),
             started_once: AtomicBool::new(false),
             discard_worker: AtomicBool::new(false),
+            cancel_epoch: AtomicU64::new(0),
+            active_pid: AtomicU32::new(0),
+            logs: Arc::new(StdMutex::new(WorkerLogBuffer::default())),
         })
+    }
+
+    /// Returns a bounded, redacted snapshot without executing provider code.
+    #[must_use]
+    pub fn status(&self) -> PythonWorkerStatus {
+        let logs = self
+            .logs
+            .lock()
+            .expect("Python worker log lock should not be poisoned");
+        let restart_count = self
+            .restarts
+            .try_lock()
+            .map_or(0, |restarts| restarts.len());
+        PythonWorkerStatus {
+            provider_source: self.identity.path.clone(),
+            generation_id: self.identity.generation_id.clone(),
+            running: self.active_pid.load(Ordering::Acquire) != 0,
+            accepting: self.accepting.load(Ordering::Acquire),
+            busy: self.busy.load(Ordering::Acquire),
+            quarantined: self.quarantined.load(Ordering::Acquire),
+            restart_count,
+            logs: logs.entries.iter().cloned().collect(),
+        }
+    }
+
+    /// Deterministically cancels the active invocation by terminating its
+    /// complete process tree. The next invocation starts a fresh worker.
+    pub fn cancel_active(&self) -> bool {
+        if !self.busy.load(Ordering::Acquire) {
+            return false;
+        }
+        self.cancel_epoch.fetch_add(1, Ordering::AcqRel);
+        let pid = self.active_pid.swap(0, Ordering::AcqRel);
+        self.discard_worker.store(true, Ordering::Release);
+        if pid != 0 {
+            terminate_process_tree(Some(pid));
+        }
+        true
+    }
+
+    /// Clears a crash-loop quarantine after an explicit operator action.
+    pub async fn reset_quarantine(&self) {
+        self.quarantined.store(false, Ordering::Release);
+        self.started_once.store(false, Ordering::Release);
+        self.restarts.lock().await.clear();
+        self.discard_worker.store(true, Ordering::Release);
+    }
+
+    /// Stops new work while allowing an invocation that already owns the
+    /// worker to complete on this generation.
+    pub fn deactivate(&self) {
+        self.accepting.store(false, Ordering::Release);
+    }
+
+    /// Re-enables a retained generation during atomic rollback.
+    pub fn activate(&self) {
+        self.accepting.store(true, Ordering::Release);
     }
 
     pub async fn preflight(&self) -> Result<Value, PythonSupervisorError> {
@@ -177,6 +269,13 @@ impl PythonWorkerSupervisor {
         snapshot_id: &str,
         timeout_override: Duration,
     ) -> Result<Value, PythonSupervisorError> {
+        if !self.accepting.load(Ordering::Acquire) {
+            return Err(PythonSupervisorError::new(
+                "python_worker_draining",
+                "Python provider generation is draining",
+            ));
+        }
+        let cancel_epoch = self.cancel_epoch.load(Ordering::Acquire);
         if self
             .busy
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -190,12 +289,12 @@ impl PythonWorkerSupervisor {
         let mut busy = BusyGuard::new(&self.busy, &self.discard_worker);
         let result = self
             .invoke_inner(
-                provider,
-                action,
+                (provider, action),
                 arguments,
                 surface,
                 snapshot_id,
                 timeout_override,
+                cancel_epoch,
             )
             .await;
         busy.complete();
@@ -204,13 +303,14 @@ impl PythonWorkerSupervisor {
 
     async fn invoke_inner(
         &self,
-        provider: &str,
-        action: &str,
+        target: (&str, &str),
         arguments: Value,
         surface: soma_provider_core::ProviderSurface,
         snapshot_id: &str,
         timeout_override: Duration,
+        cancel_epoch: u64,
     ) -> Result<Value, PythonSupervisorError> {
+        let (provider, action) = target;
         let encoded_len = serde_json::to_vec(&arguments)
             .map_err(|_| invalid_output())?
             .len();
@@ -222,9 +322,18 @@ impl PythonWorkerSupervisor {
         }
         let mut slot = self.worker.lock().await;
         if self.discard_worker.swap(false, Ordering::AcqRel) {
+            self.active_pid.store(0, Ordering::Release);
             terminate_worker(slot.take()).await;
         }
         self.ensure_worker(&mut slot).await?;
+        if self.cancel_epoch.load(Ordering::Acquire) != cancel_epoch {
+            self.active_pid.store(0, Ordering::Release);
+            terminate_worker(slot.take()).await;
+            return Err(PythonSupervisorError::new(
+                "python_provider_cancelled",
+                "Python provider invocation was cancelled",
+            ));
+        }
         let worker = slot.as_mut().expect("worker was ensured");
         let request_id = self.next_request_id();
         let invocation_id = format!("{}-{request_id}", self.identity.generation_id);
@@ -318,7 +427,23 @@ impl PythonWorkerSupervisor {
         };
         let wait = self.config.request_timeout.min(timeout_override);
         match timeout(wait, exchange).await {
+            Ok(Ok(_)) if self.cancel_epoch.load(Ordering::Acquire) != cancel_epoch => {
+                self.active_pid.store(0, Ordering::Release);
+                terminate_worker(slot.take()).await;
+                Err(PythonSupervisorError::new(
+                    "python_provider_cancelled",
+                    "Python provider invocation was cancelled",
+                ))
+            }
             Ok(Ok(result)) => Ok(result),
+            Ok(Err(_)) if self.cancel_epoch.load(Ordering::Acquire) != cancel_epoch => {
+                self.active_pid.store(0, Ordering::Release);
+                terminate_worker(slot.take()).await;
+                Err(PythonSupervisorError::new(
+                    "python_provider_cancelled",
+                    "Python provider invocation was cancelled",
+                ))
+            }
             Ok(Err(error))
                 if error.code() == "python_provider_failed"
                     || error.code() == "python_provider_cancelled"
@@ -327,10 +452,12 @@ impl PythonWorkerSupervisor {
                 Err(error)
             }
             Ok(Err(error)) => {
+                self.active_pid.store(0, Ordering::Release);
                 terminate_worker(slot.take()).await;
                 Err(error)
             }
             Err(_) => {
+                self.active_pid.store(0, Ordering::Release);
                 terminate_worker(slot.take()).await;
                 Err(PythonSupervisorError::new(
                     "python_provider_timeout",
@@ -388,6 +515,7 @@ impl PythonWorkerSupervisor {
                     },
             })) if actual == request_id => result,
             _ => {
+                self.active_pid.store(0, Ordering::Release);
                 terminate_worker(slot.take()).await;
                 return Err(PythonSupervisorError::new(
                     "python_worker_start_failed",
@@ -395,9 +523,19 @@ impl PythonWorkerSupervisor {
                 ));
             }
         };
-        self.verify_source_digest()?;
-        let manifest = soma_provider_core::validate_provider_manifest_value(&described)
-            .map_err(|_| protocol_error())?;
+        if let Err(error) = self.verify_source_digest() {
+            self.active_pid.store(0, Ordering::Release);
+            terminate_worker(slot.take()).await;
+            return Err(error);
+        }
+        let manifest = match soma_provider_core::validate_provider_manifest_value(&described) {
+            Ok(manifest) => manifest,
+            Err(_) => {
+                self.active_pid.store(0, Ordering::Release);
+                terminate_worker(slot.take()).await;
+                return Err(protocol_error());
+            }
+        };
         let actual_catalog = {
             use sha2::{Digest, Sha256};
             Sha256::digest(serde_json::to_vec(&manifest).map_err(|_| protocol_error())?)
@@ -408,6 +546,7 @@ impl PythonWorkerSupervisor {
         if !self.identity.catalog_fingerprint.is_empty()
             && actual_catalog != self.identity.catalog_fingerprint
         {
+            self.active_pid.store(0, Ordering::Release);
             terminate_worker(slot.take()).await;
             return Err(PythonSupervisorError::new(
                 "python_catalog_changed",
@@ -415,6 +554,7 @@ impl PythonWorkerSupervisor {
             ));
         }
         if self.health_check(worker).await.is_err() {
+            self.active_pid.store(0, Ordering::Release);
             terminate_worker(slot.take()).await;
             return Err(start_error());
         }
@@ -521,10 +661,9 @@ impl PythonWorkerSupervisor {
             return Err(protocol_error());
         }
         let stderr = child.stderr.take().ok_or_else(protocol_error)?;
-        let retained = Arc::new(Mutex::new(VecDeque::new()));
         let stderr_task = tokio::spawn(drain_stderr(
             stderr,
-            retained.clone(),
+            self.logs.clone(),
             self.config.max_stderr_bytes,
         ));
         let mut worker = Worker {
@@ -535,7 +674,6 @@ impl PythonWorkerSupervisor {
             stdin,
             stdout,
             stderr_task,
-            stderr: retained,
             described: false,
         };
         let hello = timeout(
@@ -568,6 +706,7 @@ impl PythonWorkerSupervisor {
         ];
         let features = negotiate_runner_features(&requested, &features);
         if features != requested {
+            self.active_pid.store(0, Ordering::Release);
             terminate_worker(Some(worker)).await;
             return Err(protocol_error());
         }
@@ -594,9 +733,12 @@ impl PythonWorkerSupervisor {
                 && ready_features == features
                 && generation_id == self.identity.generation_id =>
             {
+                self.active_pid
+                    .store(worker.child_pid.unwrap_or_default(), Ordering::Release);
                 Ok(worker)
             }
             _ => {
+                self.active_pid.store(0, Ordering::Release);
                 terminate_worker(Some(worker)).await;
                 Err(protocol_error())
             }
@@ -660,6 +802,7 @@ impl PythonWorkerSupervisor {
         let _ = write_frame(&mut worker.stdin, &request).await;
         let _ = timeout(self.config.shutdown_grace, worker.child.wait()).await;
         terminate_worker(Some(worker)).await;
+        self.active_pid.store(0, Ordering::Release);
     }
 
     /// Stop accepting work, then shut the worker down within the configured
@@ -840,10 +983,11 @@ async fn read_frame<T: serde::de::DeserializeOwned>(
 
 async fn drain_stderr<R: AsyncRead + Unpin>(
     mut reader: R,
-    retained: Arc<Mutex<VecDeque<u8>>>,
+    retained: Arc<StdMutex<WorkerLogBuffer>>,
     limit: usize,
 ) {
     let mut buffer = [0_u8; 4096];
+    let mut pending = Vec::new();
     loop {
         let Ok(read) = reader.read(&mut buffer).await else {
             return;
@@ -854,13 +998,47 @@ async fn drain_stderr<R: AsyncRead + Unpin>(
         if limit == 0 {
             continue;
         }
-        let mut retained = retained.lock().await;
-        for byte in &buffer[..read] {
-            if retained.len() == limit {
-                retained.pop_front();
-            }
-            retained.push_back(*byte);
+        pending.extend_from_slice(&buffer[..read]);
+        while let Some(newline) = pending.iter().position(|byte| *byte == b'\n') {
+            let line = pending.drain(..=newline).collect::<Vec<_>>();
+            retain_log_line(&retained, &line, limit);
         }
+        if pending.len() > limit {
+            let split = pending.len().saturating_sub(limit);
+            pending.drain(..split);
+        }
+    }
+}
+
+fn retain_log_line(retained: &StdMutex<WorkerLogBuffer>, line: &[u8], limit: usize) {
+    let raw = String::from_utf8_lossy(line)
+        .trim_end_matches(['\r', '\n'])
+        .to_owned();
+    if raw.is_empty() {
+        return;
+    }
+    let message = crate::error::redact_public(&raw);
+    let size = message.len();
+    let mut retained = retained
+        .lock()
+        .expect("Python worker log lock should not be poisoned");
+    while retained.retained_bytes.saturating_add(size) > limit {
+        let Some(removed) = retained.entries.pop_front() else {
+            break;
+        };
+        retained.retained_bytes = retained
+            .retained_bytes
+            .saturating_sub(removed.message.len());
+    }
+    if size <= limit {
+        let sequence = retained.next_sequence;
+        retained.next_sequence = retained.next_sequence.saturating_add(1);
+        retained.retained_bytes = retained.retained_bytes.saturating_add(size);
+        retained.entries.push_back(PythonWorkerLogEntry {
+            sequence,
+            stream: "stderr",
+            message,
+        });
     }
 }
 
@@ -872,7 +1050,6 @@ async fn terminate_worker(worker: Option<Worker>) {
     let _ = worker.child.kill().await;
     let _ = worker.child.wait().await;
     worker.stderr_task.abort();
-    let _ = worker.stderr.lock().await;
 }
 
 #[cfg(unix)]
@@ -1066,5 +1243,294 @@ def wait(delay_ms: int) -> dict:
         assert_eq!(busy.code(), "python_provider_busy");
         first.await.expect("join").expect("first call");
         supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn active_invocation_cancels_process_tree_and_later_work_restarts() {
+        let Some(python) = installed_test_python() else {
+            return;
+        };
+        let temp = tempfile::tempdir().expect("tempdir");
+        let provider = temp.path().join("cancel.py");
+        fs::write(
+            &provider,
+            r#"
+import time
+PROVIDER = {"name": "cancel-test", "kind": "python"}
+def wait(delay_ms: int) -> dict:
+    time.sleep(delay_ms / 1000)
+    return {"ok": True}
+"#,
+        )
+        .expect("write provider");
+        let supervisor = PythonWorkerSupervisor::new(
+            identity(&provider),
+            PythonInterpreter::Prepared(python),
+            PythonSupervisorConfig {
+                restart_backoff: Duration::ZERO,
+                ..PythonSupervisorConfig::default()
+            },
+        );
+        supervisor.preflight().await.expect("preflight");
+        let active = {
+            let supervisor = supervisor.clone();
+            tokio::spawn(async move {
+                supervisor
+                    .invoke(
+                        "cancel-test",
+                        "wait",
+                        json!({"delay_ms": 5_000}),
+                        soma_provider_core::ProviderSurface::Mcp,
+                        "snapshot-a",
+                        Duration::from_secs(10),
+                    )
+                    .await
+            })
+        };
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(supervisor.cancel_active());
+        let error = active
+            .await
+            .expect("join")
+            .expect_err("active call must cancel");
+        assert_eq!(error.code(), "python_provider_cancelled");
+
+        let restarted = supervisor
+            .invoke(
+                "cancel-test",
+                "wait",
+                json!({"delay_ms": 0}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect("later work starts a clean worker");
+        assert_eq!(restarted, json!({"ok": true}));
+        supervisor.deactivate();
+        let draining = supervisor
+            .invoke(
+                "cancel-test",
+                "wait",
+                json!({"delay_ms": 0}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect_err("retained generation must reject new work");
+        assert_eq!(draining.code(), "python_worker_draining");
+        supervisor.activate();
+        supervisor
+            .invoke(
+                "cancel-test",
+                "wait",
+                json!({"delay_ms": 0}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect("rollback activation permits new work");
+        supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn worker_logs_are_bounded_structured_and_redacted() {
+        let Some(python) = installed_test_python() else {
+            return;
+        };
+        let temp = tempfile::tempdir().expect("tempdir");
+        let provider = temp.path().join("logs.py");
+        fs::write(
+            &provider,
+            r#"
+PROVIDER = {"name": "logs-test", "kind": "python"}
+def emit() -> dict:
+    print("token=super-secret")
+    print("safe diagnostic")
+    return {"ok": True}
+"#,
+        )
+        .expect("write provider");
+        let supervisor = PythonWorkerSupervisor::new(
+            identity(&provider),
+            PythonInterpreter::Prepared(python),
+            PythonSupervisorConfig {
+                max_stderr_bytes: 128,
+                ..PythonSupervisorConfig::default()
+            },
+        );
+        supervisor.preflight().await.expect("preflight");
+        supervisor
+            .invoke(
+                "logs-test",
+                "emit",
+                json!({}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect("invoke");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        let status = supervisor.status();
+        assert!(
+            status
+                .logs
+                .iter()
+                .any(|entry| entry.message == "safe diagnostic")
+        );
+        assert!(
+            status
+                .logs
+                .iter()
+                .any(|entry| entry.message == "[redacted provider diagnostic]")
+        );
+        assert!(
+            !serde_json::to_string(&status)
+                .unwrap()
+                .contains("super-secret")
+        );
+        assert!(
+            status
+                .logs
+                .iter()
+                .map(|entry| entry.message.len())
+                .sum::<usize>()
+                <= 128
+        );
+        supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn quarantine_exhaustion_is_visible_and_operator_reset_recovers() {
+        let Some(python) = installed_test_python() else {
+            return;
+        };
+        let temp = tempfile::tempdir().expect("tempdir");
+        let provider = temp.path().join("quarantine.py");
+        fs::write(
+            &provider,
+            r#"
+import time
+PROVIDER = {"name": "quarantine-test", "kind": "python"}
+def wait(delay_ms: int) -> dict:
+    time.sleep(delay_ms / 1000)
+    return {"ok": True}
+"#,
+        )
+        .expect("write provider");
+        let supervisor = PythonWorkerSupervisor::new(
+            identity(&provider),
+            PythonInterpreter::Prepared(python),
+            PythonSupervisorConfig {
+                request_timeout: Duration::from_millis(200),
+                max_restarts: 0,
+                restart_backoff: Duration::ZERO,
+                ..PythonSupervisorConfig::default()
+            },
+        );
+        supervisor.preflight().await.expect("preflight");
+        let timeout = supervisor
+            .invoke(
+                "quarantine-test",
+                "wait",
+                json!({"delay_ms": 200}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_millis(50),
+            )
+            .await
+            .expect_err("slow call times out");
+        assert_eq!(timeout.code(), "python_provider_timeout");
+        let quarantined = supervisor
+            .invoke(
+                "quarantine-test",
+                "wait",
+                json!({"delay_ms": 0}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect_err("restart budget is exhausted");
+        assert_eq!(quarantined.code(), "python_provider_quarantined");
+        assert!(supervisor.status().quarantined);
+
+        supervisor.reset_quarantine().await;
+        assert!(!supervisor.status().quarantined);
+        let output = supervisor
+            .invoke(
+                "quarantine-test",
+                "wait",
+                json!({"delay_ms": 0}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect("operator reset permits a fresh worker");
+        assert_eq!(output, json!({"ok": true}));
+        supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn source_substitution_and_missing_runner_fail_closed() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let provider = temp.path().join("source.py");
+        fs::write(
+            &provider,
+            "PROVIDER = {\"name\": \"source-test\", \"kind\": \"python\"}\n",
+        )
+        .expect("write provider");
+        let source_identity = identity(&provider);
+        fs::write(
+            &provider,
+            "PROVIDER = {\"name\": \"substituted\", \"kind\": \"python\"}\n",
+        )
+        .expect("substitute provider");
+        let substituted = PythonWorkerSupervisor::new(
+            source_identity,
+            PythonInterpreter::Prepared(PathBuf::from("/missing/soma-python")),
+            PythonSupervisorConfig::default(),
+        );
+        assert_eq!(
+            substituted.preflight().await.unwrap_err().code(),
+            "python_source_changed"
+        );
+
+        let missing = PythonWorkerSupervisor::new(
+            identity(&provider),
+            PythonInterpreter::Prepared(PathBuf::from("/missing/soma-python")),
+            PythonSupervisorConfig::default(),
+        );
+        assert_eq!(
+            missing.preflight().await.unwrap_err().code(),
+            "python_worker_start_failed"
+        );
+    }
+
+    #[tokio::test]
+    async fn production_control_reader_rejects_malformed_frames() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let address = listener.local_addr().expect("address");
+        let client = tokio::spawn(async move {
+            let mut stream = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("connect");
+            stream
+                .write_all(&5_u32.to_be_bytes())
+                .await
+                .expect("header");
+            stream.write_all(b"{nope").await.expect("payload");
+        });
+        let (stream, _) = listener.accept().await.expect("accept");
+        let (mut reader, _) = stream.into_split();
+        let error = read_frame::<PythonRunnerWorkerMessage>(&mut reader)
+            .await
+            .expect_err("malformed production frame must fail closed");
+        assert_eq!(error.code(), "python_protocol_mismatch");
+        client.await.expect("client task");
     }
 }

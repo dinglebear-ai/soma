@@ -342,6 +342,44 @@ const PYTHON_ENVIRONMENT_PROVIDER_PARAMS: &[ParamSpec] = &[
     },
 ];
 
+const PYTHON_WORKER_PROVIDER_PARAMS: &[ParamSpec] = &[
+    ParamSpec {
+        name: "provider",
+        ty: "string",
+        required: true,
+        description: "Loaded persistent Python provider name.",
+        max_len: Some(256),
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "confirm",
+        ty: "boolean",
+        required: true,
+        description: "Must be true to interrupt or reset worker state.",
+        max_len: None,
+        enum_values: &[],
+    },
+];
+
+const PYTHON_GENERATION_ROLLBACK_PARAMS: &[ParamSpec] = &[
+    ParamSpec {
+        name: "generation_id",
+        ty: "integer",
+        required: true,
+        description: "Retained generation identifier to reactivate.",
+        max_len: None,
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "confirm",
+        ty: "boolean",
+        required: true,
+        description: "Must be true to replace the active generation.",
+        max_len: None,
+        enum_values: &[],
+    },
+];
+
 const GREET_CLI_FLAGS: &[CliFlagSpec] = &[CliFlagSpec {
     name: "--name",
     value_name: Some("NAME"),
@@ -511,6 +549,101 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
             usage: "soma python_environment_update --json '{\"provider_path\": \"example.py\", \"confirm\": true}'",
             flags: &[],
             description: "Prepare and atomically activate one provider update.",
+        }),
+    },
+    ActionSpec {
+        name: "python_worker_status",
+        description: "Inspect persistent Python worker health, quarantine, restart counts, and bounded redacted logs.",
+        required_scope: Some(READ_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("GET"),
+        rest_path: Some("/v1/python/workers"),
+        destructive: false,
+        requires_admin: false,
+        cost: ActionCost::Cheap,
+        params: &[],
+        returns: "PythonWorkerStatus",
+        cli: Some(CliSpec {
+            command: "python_worker_status",
+            usage: "soma python_worker_status",
+            flags: &[],
+            description: "Inspect persistent Python worker state and logs.",
+        }),
+    },
+    ActionSpec {
+        name: "python_worker_cancel",
+        description: "Cancel one active persistent Python invocation by terminating its process tree.",
+        required_scope: Some(WRITE_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("POST"),
+        rest_path: Some("/v1/python/workers/cancel"),
+        destructive: true,
+        requires_admin: false,
+        cost: ActionCost::Write,
+        params: PYTHON_WORKER_PROVIDER_PARAMS,
+        returns: "PythonWorkerCancellation",
+        cli: Some(CliSpec {
+            command: "python_worker_cancel",
+            usage: "soma python_worker_cancel --json '{\"provider\": \"example\", \"confirm\": true}'",
+            flags: &[],
+            description: "Cancel an active persistent Python invocation.",
+        }),
+    },
+    ActionSpec {
+        name: "python_worker_reset",
+        description: "Clear one persistent Python worker crash-loop quarantine.",
+        required_scope: Some(WRITE_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("POST"),
+        rest_path: Some("/v1/python/workers/reset"),
+        destructive: true,
+        requires_admin: false,
+        cost: ActionCost::Write,
+        params: PYTHON_WORKER_PROVIDER_PARAMS,
+        returns: "PythonWorkerReset",
+        cli: Some(CliSpec {
+            command: "python_worker_reset",
+            usage: "soma python_worker_reset --json '{\"provider\": \"example\", \"confirm\": true}'",
+            flags: &[],
+            description: "Clear a persistent worker quarantine.",
+        }),
+    },
+    ActionSpec {
+        name: "python_generation_status",
+        description: "Inspect the active Python provider generation and bounded rollback history.",
+        required_scope: Some(READ_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("GET"),
+        rest_path: Some("/v1/python/generations"),
+        destructive: false,
+        requires_admin: false,
+        cost: ActionCost::Cheap,
+        params: &[],
+        returns: "PythonGenerationStatus",
+        cli: Some(CliSpec {
+            command: "python_generation_status",
+            usage: "soma python_generation_status",
+            flags: &[],
+            description: "Inspect active and retained Python provider generations.",
+        }),
+    },
+    ActionSpec {
+        name: "python_generation_rollback",
+        description: "Atomically reactivate a retained Python provider generation.",
+        required_scope: Some(WRITE_SCOPE),
+        transport: ActionTransport::Any,
+        rest_method: Some("POST"),
+        rest_path: Some("/v1/python/generations/rollback"),
+        destructive: true,
+        requires_admin: false,
+        cost: ActionCost::Write,
+        params: PYTHON_GENERATION_ROLLBACK_PARAMS,
+        returns: "PythonGenerationRollback",
+        cli: Some(CliSpec {
+            command: "python_generation_rollback",
+            usage: "soma python_generation_rollback --json '{\"generation_id\": 1, \"confirm\": true}'",
+            flags: &[],
+            description: "Atomically reactivate a retained generation.",
         }),
     },
     ActionSpec {
@@ -852,6 +985,25 @@ pub enum SomaAction {
         /// Provider path relative to the configured provider root, or an absolute managed path.
         provider_path: String,
     },
+    /// Inspect persistent Python worker state and bounded redacted logs.
+    PythonWorkerStatus,
+    /// Cancel one active persistent Python invocation.
+    PythonWorkerCancel {
+        /// Loaded persistent Python provider name.
+        provider: String,
+    },
+    /// Clear one persistent Python worker crash-loop quarantine.
+    PythonWorkerReset {
+        /// Loaded persistent Python provider name.
+        provider: String,
+    },
+    /// Inspect active and retained Python provider generations.
+    PythonGenerationStatus,
+    /// Atomically reactivate one retained generation.
+    PythonGenerationRollback {
+        /// Retained generation identifier.
+        generation_id: u64,
+    },
     /// Show the action reference.
     Help,
     /// Ask the MCP client to collect a name, then greet it (MCP-only).
@@ -872,6 +1024,11 @@ impl SomaAction {
             Self::PythonEnvironmentPrune { .. } => "python_environment_prune",
             Self::PythonEnvironmentRepair { .. } => "python_environment_repair",
             Self::PythonEnvironmentUpdate { .. } => "python_environment_update",
+            Self::PythonWorkerStatus => "python_worker_status",
+            Self::PythonWorkerCancel { .. } => "python_worker_cancel",
+            Self::PythonWorkerReset { .. } => "python_worker_reset",
+            Self::PythonGenerationStatus => "python_generation_status",
+            Self::PythonGenerationRollback { .. } => "python_generation_rollback",
             Self::Help => "help",
             Self::ElicitName => "elicit_name",
             Self::ScaffoldIntent => "scaffold_intent",
@@ -938,6 +1095,17 @@ impl SomaAction {
             }),
             "python_environment_update" => Ok(Self::PythonEnvironmentUpdate {
                 provider_path: required_string_param(params, "provider_path")?,
+            }),
+            "python_worker_status" => Ok(Self::PythonWorkerStatus),
+            "python_worker_cancel" => Ok(Self::PythonWorkerCancel {
+                provider: required_string_param(params, "provider")?,
+            }),
+            "python_worker_reset" => Ok(Self::PythonWorkerReset {
+                provider: required_string_param(params, "provider")?,
+            }),
+            "python_generation_status" => Ok(Self::PythonGenerationStatus),
+            "python_generation_rollback" => Ok(Self::PythonGenerationRollback {
+                generation_id: required_u64_param(params, "generation_id")?,
             }),
             "help" => Ok(Self::Help),
             "elicit_name" => Ok(Self::ElicitName),

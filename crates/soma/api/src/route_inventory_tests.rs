@@ -33,6 +33,11 @@ fn static_service_actions_keep_action_metadata() {
             "python_environment_prune",
             "python_environment_repair",
             "python_environment_update",
+            "python_worker_status",
+            "python_worker_cancel",
+            "python_worker_reset",
+            "python_generation_status",
+            "python_generation_rollback",
             "help",
         ]
     );

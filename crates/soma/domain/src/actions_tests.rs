@@ -15,6 +15,11 @@ fn action_metadata_is_the_action_source_of_truth() {
             "python_environment_prune",
             "python_environment_repair",
             "python_environment_update",
+            "python_worker_status",
+            "python_worker_cancel",
+            "python_worker_reset",
+            "python_generation_status",
+            "python_generation_rollback",
             "elicit_name",
             "scaffold_intent",
             "help"
@@ -29,6 +34,11 @@ fn action_metadata_is_the_action_source_of_truth() {
         "python_environment_prune",
         "python_environment_repair",
         "python_environment_update",
+        "python_worker_status",
+        "python_worker_cancel",
+        "python_worker_reset",
+        "python_generation_status",
+        "python_generation_rollback",
         "help",
     ];
     assert_eq!(rest_action_names(), cross_surface);

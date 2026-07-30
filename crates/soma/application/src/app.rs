@@ -55,7 +55,10 @@ impl SomaApplication {
         request: ExecuteActionRequest,
         context: ExecutionContext,
     ) -> Result<ExecuteActionResponse, ApplicationError> {
-        if request.action.starts_with("python_environment_") {
+        if request.action.starts_with("python_environment_")
+            || request.action.starts_with("python_worker_")
+            || request.action.starts_with("python_generation_")
+        {
             return self
                 .execute_python_environment_action(request, context)
                 .await;
@@ -174,6 +177,33 @@ impl SomaApplication {
                     }
                 })
             }
+            SomaAction::PythonWorkerStatus => self.legacy_registry.python_worker_status(),
+            SomaAction::PythonWorkerCancel { provider } => {
+                let cancelled = self
+                    .legacy_registry
+                    .cancel_python_worker(&provider)
+                    .map_err(ApplicationError::from)?;
+                serde_json::json!({
+                    "provider": provider,
+                    "cancelled": cancelled,
+                })
+            }
+            SomaAction::PythonWorkerReset { provider } => {
+                self.legacy_registry
+                    .reset_python_worker_quarantine(&provider)
+                    .await
+                    .map_err(ApplicationError::from)?;
+                serde_json::json!({
+                    "provider": provider,
+                    "reset": true,
+                })
+            }
+            SomaAction::PythonGenerationStatus => self.legacy_registry.python_generation_status(),
+            SomaAction::PythonGenerationRollback { generation_id } => self
+                .legacy_registry
+                .rollback_python_generation(generation_id)
+                .await
+                .map_err(ApplicationError::from)?,
             _ => {
                 return Err(ApplicationError::new(
                     "invalid_python_environment_action",

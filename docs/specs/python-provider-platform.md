@@ -183,8 +183,8 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 3. Python SDK | Complete baseline | Facade, Context identity, schemas, examples, and compatibility paths exist. |
 | 4. PyO3/maturin | Complete baseline | Thin abi3 validation binding and wheel CI exist. |
 | 5. PEP 723 and `uv` lifecycle | Complete | Planning, production immutable activation, and authorized operator status/prune/repair/update surfaces are implemented. |
-| 6. Persistent supervised runner | Partial, opt-in | Installed-wheel supervised workers cover all authoring paths; active cancellation and structured/operator-visible logs remain. |
-| 7. Generation-aware reload | Partial | Candidate preflight, atomic swap, refresh coalescing, and bounded retirement exist; debounce/operator rollback remain. |
+| 6. Persistent supervised runner | Complete, opt-in | Installed-wheel supervised workers cover all authoring paths with cancellation, bounded redacted logs, status, quarantine, and reset controls. |
+| 7. Generation-aware reload | Complete | Candidate preflight, debounced/coalesced atomic activation, bounded retained history, retirement, status, and rollback are implemented. |
 | 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
 | 9. WIT/WASI components | Planned | Versioned component ABI and reference provider exist. |
 | 10. Graduation tooling | Planned | Scaffold, compare, promote, and rollback manual rewrites. |
@@ -229,7 +229,7 @@ response-size checks.
 
 ## Phase 6: Persistent Supervised Runner
 
-**Partially delivered as an explicit opt-in with one-shot rollback.**
+**Complete as an explicit opt-in with one-shot rollback.**
 
 Scope:
 
@@ -262,14 +262,17 @@ timeout followed by a non-replayed restart, persistent-environment eligibility,
 candidate preflight, and retention of the previous snapshot when a Python
 candidate fails.
 
-Open gates:
+The remaining gates are delivered:
 
-- active invocations can be cancelled deterministically;
-- bounded worker logs are structured and operator-visible;
-- production bootstrap/config selection is covered by the same parity proof;
-- missing-wheel, malformed-frame, source-substitution, quarantine exhaustion,
-  and secret-bearing stderr/error/result failures have end-to-end
-  production-path evidence.
+- active invocations are cancelled deterministically at the process-tree
+  boundary, and later work starts a clean worker without replay;
+- bounded stderr is split into structured sequenced entries, redacted before
+  retention, and exposed through shared operator status;
+- production bootstrap/config selection uses the prepared interpreter and is
+  covered by the same authoring-path parity proof;
+- missing runner/wheel, malformed protocol frames, source substitution,
+  quarantine exhaustion/reset, and secret-bearing diagnostics have focused
+  fail-closed evidence.
 
 Implementation notes:
 
@@ -278,12 +281,14 @@ Implementation notes:
 - The worker connects to an ephemeral loopback listener and authenticates with
   a per-launch token before protocol negotiation.
 - Provider stdout is redirected to stderr. The host continuously drains it into
-  a private bounded byte ring; this is diagnostic retention, not structured or
-  operator-visible logging.
+  a bounded structured line ring, applies public diagnostic redaction before
+  retention, and exposes it through the authorized worker-status action.
 - One invocation is active per worker. Concurrent work receives
   `python_provider_busy` without queueing.
-- The active feature set does not include `cancel`; cancellation tokens are
-  carried in invocation envelopes but cannot yet interrupt running work.
+- The active feature set does not require cooperative `cancel`: cancellation
+  terminates the worker process group or Job Object so uninterruptible
+  synchronous Python and descendants cannot survive, then the supervisor
+  restarts cleanly on later work.
 - Provider/tool runtime environment declarations are rejected in persistent
   mode. Phase-8 broker capabilities, actor scopes, and trace propagation are
   intentionally unavailable.
@@ -310,6 +315,17 @@ Exit gates:
 - activation is all-or-nothing across catalog, environment, and workers;
 - old generations drain without receiving new work;
 - repeated file events cannot create rebuild storms.
+
+All exit gates are delivered. Async refreshes share a single non-queueing
+preparation lane and wait through a short filesystem debounce window before
+fingerprinting settled inputs. Candidate environments and persistent workers
+are fully prepared and health-checked before publication. The registry swaps
+provider routing, catalog snapshot, environment selections, and worker set
+together; failed candidates retain the prior generation. A bounded three-entry
+history keeps recent generations eligible for explicit rollback while newer
+requests route only to the active generation. Evicted generations drain and
+retire outside registry locks. Authorized status and confirmed rollback actions
+are shared across CLI, MCP, and REST.
 
 ## Phase 8: Capability Broker and Containment
 

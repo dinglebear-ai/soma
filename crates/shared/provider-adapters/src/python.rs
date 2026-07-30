@@ -451,6 +451,36 @@ impl Provider for PythonProvider {
         Ok(ProviderOutput::json(value))
     }
 
+    fn runtime_status(&self) -> Option<Value> {
+        self.supervisor
+            .as_ref()
+            .and_then(|supervisor| serde_json::to_value(supervisor.status()).ok())
+    }
+
+    fn cancel_active(&self) -> bool {
+        self.supervisor
+            .as_ref()
+            .is_some_and(|supervisor| supervisor.cancel_active())
+    }
+
+    async fn reset_quarantine(&self) {
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.reset_quarantine().await;
+        }
+    }
+
+    fn deactivate(&self) {
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.deactivate();
+        }
+    }
+
+    fn activate(&self) {
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.activate();
+        }
+    }
+
     async fn retire(&self) {
         if let Some(supervisor) = &self.supervisor {
             supervisor.drain_and_shutdown().await;

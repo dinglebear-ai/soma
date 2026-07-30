@@ -62,7 +62,12 @@ impl Provider for StaticRustProvider {
             | SomaAction::PythonEnvironmentPrunePlan { .. }
             | SomaAction::PythonEnvironmentPrune { .. }
             | SomaAction::PythonEnvironmentRepair { .. }
-            | SomaAction::PythonEnvironmentUpdate { .. } => {
+            | SomaAction::PythonEnvironmentUpdate { .. }
+            | SomaAction::PythonWorkerStatus
+            | SomaAction::PythonWorkerCancel { .. }
+            | SomaAction::PythonWorkerReset { .. }
+            | SomaAction::PythonGenerationStatus
+            | SomaAction::PythonGenerationRollback { .. } => {
                 return Err(ProviderError::validation(
                     "static-rust",
                     call.action,

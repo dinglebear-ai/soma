@@ -268,6 +268,11 @@ with no CLI analogue.
 | `service.python_environment_prune()` | `soma(action="python_environment_prune")` | `soma python-environment-prune` | `POST /v1/python/environments/prune` |  |
 | `service.python_environment_repair()` | `soma(action="python_environment_repair")` | `soma python-environment-repair` | `POST /v1/python/environments/repair` |  |
 | `service.python_environment_update()` | `soma(action="python_environment_update")` | `soma python-environment-update` | `POST /v1/python/environments/update` |  |
+| `service.python_worker_status()` | `soma(action="python_worker_status")` | `soma python-worker-status` | `GET /v1/python/workers` |  |
+| `service.python_worker_cancel()` | `soma(action="python_worker_cancel")` | `soma python-worker-cancel` | `POST /v1/python/workers/cancel` |  |
+| `service.python_worker_reset()` | `soma(action="python_worker_reset")` | `soma python-worker-reset` | `POST /v1/python/workers/reset` |  |
+| `service.python_generation_status()` | `soma(action="python_generation_status")` | `soma python-generation-status` | `GET /v1/python/generations` |  |
+| `service.python_generation_rollback()` | `soma(action="python_generation_rollback")` | `soma python-generation-rollback` | `POST /v1/python/generations/rollback` |  |
 | `MCP client interaction` | `soma(action="elicit_name")` | `_MCP-only_` | _MCP-only_ | MCP-only; requires elicitation-capable client |
 | `MCP elicitation wizard` | `soma(action="scaffold_intent")` | `_MCP-only_` | _MCP-only_ | MCP-only; requires elicitation-capable client |
 | `built-in help` | `soma(action="help")` | `soma --help` | `GET /v1/help` |  |

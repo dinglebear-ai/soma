@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add authorized CLI, MCP, and REST operator actions for Python environment
   inventory, bounded prune planning/application, repair, and immutable update
   activation.
+- Complete persistent Python worker operations with deterministic process-tree
+  cancellation, bounded structured redacted logs, status, quarantine reset,
+  debounced generation publication, bounded rollback history, and atomic
+  generation rollback across CLI, MCP, and REST.
 
 ### Added
 
