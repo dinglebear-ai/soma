@@ -26,7 +26,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use soma_application::ExecuteActionRequest;
-use soma_domain::actions::SomaAction;
+use soma_domain::{
+    Confirmation,
+    actions::{SomaAction, action_spec},
+};
 use soma_http_api::json::{JsonBodyOutcome, json_body_or_else};
 
 use crate::ApiState;
@@ -207,16 +210,15 @@ async fn run_provider_rest_action(
     if let Some(response) = refresh_file_providers(&state).await {
         return response;
     }
+    let (params, confirmation) = split_rest_transport_metadata(&action_name, params);
     let request = ExecuteActionRequest {
         action: action_name.clone(),
         params,
     };
+    let mut context = rest_execution_context(&state, auth);
+    context.destructive_confirmation = confirmation;
 
-    match state
-        .application()
-        .execute_action(request, rest_execution_context(&state, auth))
-        .await
-    {
+    match state.application().execute_action(request, context).await {
         Ok(output) => Json(output.output).into_response(),
         Err(error) => application_error_response(error),
     }
@@ -226,7 +228,30 @@ fn rest_params(action: &SomaAction) -> Value {
     match action {
         SomaAction::Greet { name } => optional_name_params(name.clone()),
         SomaAction::Echo { message } => json!({ "message": message }),
+        SomaAction::PythonEnvironmentPrunePlan {
+            stale_before_unix_seconds,
+            max_entries,
+        }
+        | SomaAction::PythonEnvironmentPrune {
+            stale_before_unix_seconds,
+            max_entries,
+        } => json!({
+            "stale_before_unix_seconds": stale_before_unix_seconds,
+            "max_entries": max_entries,
+        }),
+        SomaAction::PythonEnvironmentRepair { provider_path }
+        | SomaAction::PythonEnvironmentUpdate { provider_path } => {
+            json!({"provider_path": provider_path})
+        }
+        SomaAction::PythonWorkerCancel { provider }
+        | SomaAction::PythonWorkerReset { provider } => json!({"provider": provider}),
+        SomaAction::PythonGenerationRollback { generation_id } => {
+            json!({"generation_id": generation_id})
+        }
         SomaAction::Status
+        | SomaAction::PythonEnvironmentStatus
+        | SomaAction::PythonWorkerStatus
+        | SomaAction::PythonGenerationStatus
         | SomaAction::Help
         | SomaAction::ElicitName
         | SomaAction::ScaffoldIntent => json!({}),
@@ -239,6 +264,21 @@ fn rest_execution_context(
 ) -> soma_application::ExecutionContext {
     let scopes = auth.map(|auth| auth.scopes.as_slice()).unwrap_or_default();
     state.execution_context(auth.map(|auth| auth.sub.as_str()), scopes)
+}
+
+fn split_rest_transport_metadata(action_name: &str, mut params: Value) -> (Value, Confirmation) {
+    if !action_spec(action_name).is_some_and(|spec| spec.destructive) {
+        return (params, Confirmation::Missing);
+    }
+    let confirm = params
+        .as_object_mut()
+        .and_then(|params| params.remove("confirm"));
+    let confirmation = if confirm.as_ref().and_then(Value::as_bool) == Some(true) {
+        Confirmation::Confirmed
+    } else {
+        Confirmation::Missing
+    };
+    (params, confirmation)
 }
 
 fn optional_name_params(name: Option<String>) -> Value {
@@ -267,6 +307,7 @@ pub async fn build_openapi_document(state: &ApiState) -> Result<Value, axum::res
     }
     match state.application().openapi_document() {
         Ok(mut value) => {
+            openapi::augment_with_static_action_routes(&mut value);
             openapi::augment_with_gateway_route(&mut value);
             Ok(value)
         }

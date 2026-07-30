@@ -417,6 +417,533 @@
         }
       }
     },
+    "/v1/python/environments": {
+      "get": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_environment_status",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "getPythonEnvironmentStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_environment_status result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/python/environments/prune-plan": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_environment_prune_plan",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonEnvironmentPrunePlan",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_environment_prune_plan result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonEnvironmentPrunePlanRequest"
+              },
+              "examples": {
+                "python_environment_prune_plan": {
+                  "value": {
+                    "stale_before_unix_seconds": 1700000000,
+                    "max_entries": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/python/environments/prune": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_environment_prune",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonEnvironmentPrune",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_environment_prune result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonEnvironmentPruneRequest"
+              },
+              "examples": {
+                "python_environment_prune": {
+                  "value": {
+                    "stale_before_unix_seconds": 1700000000,
+                    "max_entries": 100,
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/python/environments/repair": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_environment_repair",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonEnvironmentRepair",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_environment_repair result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonProviderMutationRequest"
+              },
+              "examples": {
+                "python_environment_repair": {
+                  "value": {
+                    "provider_path": "example.py",
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/python/environments/update": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_environment_update",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonEnvironmentUpdate",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_environment_update result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonProviderMutationRequest"
+              },
+              "examples": {
+                "python_environment_update": {
+                  "value": {
+                    "provider_path": "example.py",
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/python/workers": {
+      "get": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_worker_status",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "getPythonWorkerStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_worker_status result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/python/workers/cancel": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_worker_cancel",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonWorkerCancel",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_worker_cancel result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonWorkerMutationRequest"
+              },
+              "examples": {
+                "python_worker_cancel": {
+                  "value": {
+                    "provider": "example",
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/python/workers/reset": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_worker_reset",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonWorkerReset",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_worker_reset result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonWorkerMutationRequest"
+              },
+              "examples": {
+                "python_worker_reset": {
+                  "value": {
+                    "provider": "example",
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/python/generations": {
+      "get": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_generation_status",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "getPythonGenerationStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_generation_status result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/python/generations/rollback": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_generation_rollback",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonGenerationRollback",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_generation_rollback result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonGenerationRollbackRequest"
+              },
+              "examples": {
+                "python_generation_rollback": {
+                  "value": {
+                    "generation_id": 1,
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/help": {
       "get": {
         "tags": [
@@ -474,6 +1001,16 @@
           "greet",
           "echo",
           "status",
+          "python_environment_status",
+          "python_environment_prune_plan",
+          "python_environment_prune",
+          "python_environment_repair",
+          "python_environment_update",
+          "python_worker_status",
+          "python_worker_cancel",
+          "python_worker_reset",
+          "python_generation_status",
+          "python_generation_rollback",
           "help"
         ],
         "description": "REST-capable action names from crates/soma/domain/src/actions.rs."
@@ -512,6 +1049,9 @@
           },
           {
             "$ref": "#/components/schemas/StatusResponse"
+          },
+          {
+            "$ref": "#/components/schemas/PythonOperatorResponse"
           },
           {
             "$ref": "#/components/schemas/HelpResponse"
@@ -575,6 +1115,108 @@
           }
         },
         "additionalProperties": true
+      },
+      "PythonEnvironmentPrunePlanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stale_before_unix_seconds"
+        ],
+        "properties": {
+          "stale_before_unix_seconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "max_entries": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        }
+      },
+      "PythonEnvironmentPruneRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stale_before_unix_seconds",
+          "confirm"
+        ],
+        "properties": {
+          "stale_before_unix_seconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "max_entries": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "PythonProviderMutationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider_path",
+          "confirm"
+        ],
+        "properties": {
+          "provider_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "PythonWorkerMutationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "confirm"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "PythonGenerationRollbackRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "generation_id",
+          "confirm"
+        ],
+        "properties": {
+          "generation_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "PythonOperatorResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Action-specific Python environment, worker, or generation result."
       },
       "HealthResponse": {
         "type": "object",
@@ -831,6 +1473,16 @@
       "greet",
       "echo",
       "status",
+      "python_environment_status",
+      "python_environment_prune_plan",
+      "python_environment_prune",
+      "python_environment_repair",
+      "python_environment_update",
+      "python_worker_status",
+      "python_worker_cancel",
+      "python_worker_reset",
+      "python_generation_status",
+      "python_generation_rollback",
       "help"
     ],
     "direct_rest_routes": {
@@ -846,6 +1498,46 @@
         "method": "GET",
         "path": "/v1/status"
       },
+      "python_environment_status": {
+        "method": "GET",
+        "path": "/v1/python/environments"
+      },
+      "python_environment_prune_plan": {
+        "method": "POST",
+        "path": "/v1/python/environments/prune-plan"
+      },
+      "python_environment_prune": {
+        "method": "POST",
+        "path": "/v1/python/environments/prune"
+      },
+      "python_environment_repair": {
+        "method": "POST",
+        "path": "/v1/python/environments/repair"
+      },
+      "python_environment_update": {
+        "method": "POST",
+        "path": "/v1/python/environments/update"
+      },
+      "python_worker_status": {
+        "method": "GET",
+        "path": "/v1/python/workers"
+      },
+      "python_worker_cancel": {
+        "method": "POST",
+        "path": "/v1/python/workers/cancel"
+      },
+      "python_worker_reset": {
+        "method": "POST",
+        "path": "/v1/python/workers/reset"
+      },
+      "python_generation_status": {
+        "method": "GET",
+        "path": "/v1/python/generations"
+      },
+      "python_generation_rollback": {
+        "method": "POST",
+        "path": "/v1/python/generations/rollback"
+      },
       "help": {
         "method": "GET",
         "path": "/v1/help"
@@ -855,6 +1547,16 @@
       "greet": "cheap",
       "echo": "cheap",
       "status": "cheap",
+      "python_environment_status": "cheap",
+      "python_environment_prune_plan": "moderate",
+      "python_environment_prune": "write",
+      "python_environment_repair": "write",
+      "python_environment_update": "write",
+      "python_worker_status": "cheap",
+      "python_worker_cancel": "write",
+      "python_worker_reset": "write",
+      "python_generation_status": "cheap",
+      "python_generation_rollback": "write",
       "elicit_name": "cheap",
       "scaffold_intent": "moderate",
       "help": "cheap"

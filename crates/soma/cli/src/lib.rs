@@ -40,6 +40,7 @@ use provider_command::{parse_providers_command, run_provider_management_command}
 pub use setup::{SetupCommand, apply_plugin_options, run_setup};
 
 pub const USAGE: &str = "Usage:
+  soma [-y|--yes] <command> [options]
   soma mcp              Start MCP stdio transport
   soma serve            Start HTTP MCP + REST + Web server
 
@@ -59,6 +60,9 @@ pub const USAGE: &str = "Usage:
   soma providers lint [--dir DIR] [--json]    Lint drop-in provider files (no execution)
   soma providers status [--dir DIR] [--json]  Summarize drop-in provider files (no execution)
   soma package generate [--write|--check]  Refresh generated provider docs, skills, and plugin metadata
+
+Global options:
+  -y, --yes                    Confirm destructive local operator actions without prompting
 
   soma --help                    Show this help
   soma --version                 Show version
@@ -133,7 +137,16 @@ pub trait CliIo {
     fn confirm_destructive(&mut self, action: &str) -> Result<()>;
 }
 
-pub struct StandardCliIo;
+pub struct StandardCliIo {
+    assume_yes: bool,
+}
+
+impl StandardCliIo {
+    #[must_use]
+    pub const fn new(assume_yes: bool) -> Self {
+        Self { assume_yes }
+    }
+}
 
 impl CliIo for StandardCliIo {
     fn stdout(&mut self, output: &str) -> Result<()> {
@@ -147,6 +160,9 @@ impl CliIo for StandardCliIo {
     }
 
     fn confirm_destructive(&mut self, action: &str) -> Result<()> {
+        if self.assume_yes {
+            return Ok(());
+        }
         if !std::io::stdin().is_terminal() {
             return Err(anyhow!(
                 "pass -y / --yes to confirm destructive action `{action}`"
@@ -419,6 +435,16 @@ fn cli_params(action: &SomaAction) -> serde_json::Value {
         },
         SomaAction::Echo { message } => serde_json::json!({ "message": message }),
         SomaAction::Status
+        | SomaAction::PythonEnvironmentStatus
+        | SomaAction::PythonEnvironmentPrunePlan { .. }
+        | SomaAction::PythonEnvironmentPrune { .. }
+        | SomaAction::PythonEnvironmentRepair { .. }
+        | SomaAction::PythonEnvironmentUpdate { .. }
+        | SomaAction::PythonWorkerStatus
+        | SomaAction::PythonWorkerCancel { .. }
+        | SomaAction::PythonWorkerReset { .. }
+        | SomaAction::PythonGenerationStatus
+        | SomaAction::PythonGenerationRollback { .. }
         | SomaAction::Help
         | SomaAction::ElicitName
         | SomaAction::ScaffoldIntent => serde_json::json!({}),

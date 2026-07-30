@@ -4,7 +4,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, Condvar, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -12,10 +12,28 @@ use std::{
 use soma_provider_adapters::python::PythonInterpreter;
 use tempfile::tempdir;
 
-use crate::{capabilities::CapabilityBroker, provider_registry::ProviderRegistry};
+use crate::{
+    ProviderAuthMode, ProviderCall, ProviderPrincipal, ProviderRequestLimits, ProviderSurface,
+    capabilities::CapabilityBroker, provider_registry::ProviderRegistry,
+};
 
 use super::super::tests::tool_manifest;
-use super::super::{FileProviderSource, PythonProviderEnvironmentPreparer};
+use super::super::{FileProviderSource, PythonProviderEnvironmentPreparer, PythonRunnerSelection};
+use super::{
+    GENERATION_LEASES, GenerationLeaseEntry, PythonGenerationLease,
+    collect_python_dependency_paths, immutable_python_source, python_tree_digest,
+    verify_immutable_generation,
+};
+
+fn wait_until_removed(path: &Path) {
+    for _ in 0..100 {
+        if !path.exists() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("{} was not reclaimed", path.display());
+}
 
 #[test]
 fn fingerprint_changes_when_python_dependency_changes() {
@@ -36,6 +54,162 @@ fn fingerprint_changes_when_python_dependency_changes() {
     let second = source.fingerprint().expect("second fingerprint");
 
     assert_ne!(first, second);
+}
+
+#[test]
+fn immutable_snapshot_includes_adjacent_non_python_assets_and_reclaims_on_drop() {
+    let temp = tempdir().expect("tempdir");
+    let provider = temp.path().join("asset_provider.py");
+    let asset = temp.path().join("schema.json");
+    fs::write(
+        &provider,
+        "PROVIDER = {'name': 'assets', 'kind': 'python'}\n",
+    )
+    .expect("write provider");
+    fs::write(&asset, r#"{"value":"first"}"#).expect("write asset");
+
+    let first =
+        immutable_python_source(temp.path(), &provider).expect("snapshot complete provider tree");
+    let first_generation = first.path.parent().unwrap().parent().unwrap().to_path_buf();
+    assert_eq!(
+        fs::read_to_string(first.path.with_file_name("schema.json")).unwrap(),
+        r#"{"value":"first"}"#
+    );
+
+    fs::write(&asset, r#"{"value":"second"}"#).expect("rewrite asset");
+    let second =
+        immutable_python_source(temp.path(), &provider).expect("snapshot updated provider tree");
+    let second_generation = second
+        .path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    assert_ne!(first_generation, second_generation);
+    assert!(first_generation.is_dir());
+    drop(first);
+    wait_until_removed(&first_generation);
+    assert!(second_generation.is_dir());
+    drop(second);
+    wait_until_removed(&second_generation);
+}
+
+#[test]
+fn stale_lease_drop_cannot_delete_a_reacquired_generation() {
+    let temp = tempdir().expect("tempdir");
+    let generation = temp.path().join("generation");
+    fs::create_dir(&generation).expect("generation");
+    fs::write(generation.join("provider.py"), "VALUE = 1\n").expect("provider");
+
+    let stale = PythonGenerationLease {
+        generation: generation.clone(),
+        id: 10,
+    };
+    let current = Arc::new(PythonGenerationLease {
+        generation: generation.clone(),
+        id: 11,
+    });
+    GENERATION_LEASES
+        .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+        .lock()
+        .expect("lease map")
+        .insert(
+            generation.clone(),
+            GenerationLeaseEntry {
+                id: 11,
+                lease: Arc::downgrade(&current),
+            },
+        );
+
+    drop(stale);
+    assert!(generation.is_dir());
+    assert!(generation.join("provider.py").is_file());
+    assert!(
+        GENERATION_LEASES
+            .get()
+            .expect("lease map")
+            .lock()
+            .expect("lease map")
+            .get(&generation)
+            .and_then(|entry| entry.lease.upgrade())
+            .is_some()
+    );
+
+    drop(current);
+    wait_until_removed(&generation);
+}
+
+#[test]
+fn claimed_cleanup_cannot_delete_a_generation_republished_at_the_same_digest() {
+    let temp = tempdir().expect("tempdir");
+    let generation = temp.path().join("same-digest");
+    fs::create_dir(&generation).expect("old generation");
+    fs::write(generation.join("old.py"), "OLD = 1\n").expect("old provider");
+    let old = Arc::new(PythonGenerationLease {
+        generation: generation.clone(),
+        id: 20,
+    });
+    GENERATION_LEASES
+        .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+        .lock()
+        .expect("lease map")
+        .insert(
+            generation.clone(),
+            GenerationLeaseEntry {
+                id: 20,
+                lease: Arc::downgrade(&old),
+            },
+        );
+
+    drop(old);
+    assert!(
+        !generation.exists(),
+        "the old directory is renamed before cleanup ownership is released"
+    );
+    fs::create_dir(&generation).expect("republished generation");
+    fs::write(generation.join("new.py"), "NEW = 1\n").expect("new provider");
+    let current = Arc::new(PythonGenerationLease {
+        generation: generation.clone(),
+        id: 21,
+    });
+    GENERATION_LEASES
+        .get()
+        .expect("lease map")
+        .lock()
+        .expect("lease map")
+        .insert(
+            generation.clone(),
+            GenerationLeaseEntry {
+                id: 21,
+                lease: Arc::downgrade(&current),
+            },
+        );
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert!(generation.join("new.py").is_file());
+    drop(current);
+    wait_until_removed(&generation);
+}
+
+#[test]
+fn mixed_snapshot_is_rejected_before_publication() {
+    let source = tempdir().expect("source tempdir");
+    fs::write(source.path().join("provider.py"), "VALUE = 'old'\n").expect("write provider");
+    fs::write(source.path().join("asset.txt"), "old").expect("write asset");
+    let mut paths = std::collections::BTreeSet::new();
+    collect_python_dependency_paths(source.path(), &mut paths).expect("collect source tree");
+    let digest = python_tree_digest(source.path(), &paths).expect("digest source tree");
+
+    let staging = tempdir().expect("staging tempdir");
+    let tree = staging.path().join("tree");
+    fs::create_dir(&tree).expect("create staging tree");
+    fs::copy(source.path().join("provider.py"), tree.join("provider.py")).expect("copy provider");
+    fs::write(tree.join("asset.txt"), "new").expect("simulate mid-copy asset mutation");
+
+    let error = verify_immutable_generation(staging.path(), &digest)
+        .expect_err("mixed generation must fail closed before rename");
+    assert!(error.to_string().contains("snapshot digest mismatch"));
 }
 
 #[derive(Clone)]
@@ -74,6 +248,108 @@ impl PythonProviderEnvironmentPreparer for StubPythonEnvironmentPreparer {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.result.clone().map_err(str::to_owned)
     }
+}
+
+struct SlowPythonEnvironmentPreparer;
+
+impl PythonProviderEnvironmentPreparer for SlowPythonEnvironmentPreparer {
+    fn prepare(&self, _provider_path: &Path) -> Result<PythonInterpreter, String> {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        Err("deliberately slow preparation".to_owned())
+    }
+
+    fn validate_candidate(
+        &self,
+        provider_path: &Path,
+        _candidate: &soma_provider_adapters::python::materializer::PreparedPythonEnvironment,
+    ) -> Result<PythonInterpreter, String> {
+        self.prepare(provider_path)
+    }
+}
+
+#[derive(Clone)]
+struct BlockingRefreshPreparer {
+    calls: Arc<AtomicUsize>,
+    release: Arc<(Mutex<bool>, Condvar)>,
+}
+
+impl PythonProviderEnvironmentPreparer for BlockingRefreshPreparer {
+    fn prepare(&self, _provider_path: &Path) -> Result<PythonInterpreter, String> {
+        let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+        if call == 2 {
+            let (released, changed) = &*self.release;
+            let mut released = released.lock().expect("release lock");
+            while !*released {
+                released = changed.wait(released).expect("release wait");
+            }
+        }
+        Ok(PythonInterpreter::Ambient)
+    }
+
+    fn validate_candidate(
+        &self,
+        provider_path: &Path,
+        _candidate: &soma_provider_adapters::python::materializer::PreparedPythonEnvironment,
+    ) -> Result<PythonInterpreter, String> {
+        self.prepare(provider_path)
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn one_shot_async_load_keeps_the_tokio_thread_responsive() {
+    let temp = tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("candidate.py"),
+        "PROVIDER = {'name': 'candidate', 'kind': 'python'}\n",
+    )
+    .expect("write Python candidate");
+    let source = FileProviderSource::new(temp.path())
+        .with_python_environment_preparer(Arc::new(SlowPythonEnvironmentPreparer));
+    let started = std::time::Instant::now();
+
+    let timeout = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        source.load_with_python_environments_async(&Default::default()),
+    )
+    .await;
+
+    assert!(
+        timeout.is_err(),
+        "the Tokio timer must fire while one-shot preparation runs off-thread"
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_millis(150),
+        "one-shot preparation blocked the current-thread runtime"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn persistent_async_preparation_keeps_the_tokio_thread_responsive() {
+    let temp = tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("candidate.py"),
+        "PROVIDER = {'name': 'candidate', 'kind': 'python'}\n",
+    )
+    .expect("write Python candidate");
+    let source = FileProviderSource::new(temp.path())
+        .with_python_runner(PythonRunnerSelection::Persistent(Default::default()))
+        .with_python_environment_preparer(Arc::new(SlowPythonEnvironmentPreparer));
+    let started = std::time::Instant::now();
+
+    let timeout = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        source.load_with_python_environments_async(&Default::default()),
+    )
+    .await;
+
+    assert!(
+        timeout.is_err(),
+        "the Tokio timer must fire while persistent preparation runs off-thread"
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_millis(150),
+        "persistent environment preparation blocked the current-thread runtime"
+    );
 }
 
 #[test]
@@ -182,5 +458,318 @@ fn failed_python_candidate_refresh_keeps_previous_snapshot_active() {
     assert_eq!(
         refreshed.provider_for_action("stable_action"),
         Some("stable-provider")
+    );
+}
+
+#[tokio::test]
+async fn refresh_bursts_publish_once_and_retained_generation_rolls_back() {
+    let temp = tempdir().expect("tempdir");
+    let manifest = temp.path().join("stable.json");
+    fs::write(
+        &manifest,
+        tool_manifest("stable-provider", "stable_action", None),
+    )
+    .expect("write initial provider");
+    let registry = ProviderRegistry::with_file_source_async(
+        Vec::new(),
+        CapabilityBroker::default_deny(),
+        FileProviderSource::new(temp.path()),
+    )
+    .await
+    .expect("initial registry");
+    assert_eq!(
+        registry.snapshot().provider_for_action("stable_action"),
+        Some("stable-provider")
+    );
+
+    fs::write(
+        &manifest,
+        tool_manifest("stable-provider", "replacement_action", None),
+    )
+    .expect("rewrite provider");
+    let first_registry = registry.clone();
+    let second_registry = registry.clone();
+    let (first, second) = tokio::join!(
+        first_registry.refresh_file_providers_async(),
+        second_registry.refresh_file_providers_async()
+    );
+    first.expect("first refresh");
+    second.expect("coalesced refresh");
+
+    let status = registry.python_generation_status();
+    assert_eq!(status["active"]["generation_id"], 2);
+    assert_eq!(status["rollback_candidates"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        registry
+            .snapshot()
+            .provider_for_action("replacement_action"),
+        Some("stable-provider")
+    );
+
+    let report = registry
+        .rollback_python_generation(1)
+        .await
+        .expect("rollback retained generation");
+    assert_eq!(report["restored_generation_id"], 1);
+    assert_eq!(
+        registry.snapshot().provider_for_action("stable_action"),
+        Some("stable-provider")
+    );
+    assert!(
+        registry
+            .snapshot()
+            .provider_for_action("replacement_action")
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn refresh_coalesces_a_second_change_arriving_during_debounce() {
+    let temp = tempdir().expect("tempdir");
+    let manifest = temp.path().join("stable.json");
+    fs::write(
+        &manifest,
+        tool_manifest("stable-provider", "stable_action", None),
+    )
+    .expect("write initial provider");
+    let registry = ProviderRegistry::with_file_source_async(
+        Vec::new(),
+        CapabilityBroker::default_deny(),
+        FileProviderSource::new(temp.path()),
+    )
+    .await
+    .expect("initial registry");
+
+    fs::write(
+        &manifest,
+        tool_manifest("stable-provider", "intermediate_action", None),
+    )
+    .expect("write intermediate provider");
+    let first_registry = registry.clone();
+    let first = tokio::spawn(async move { first_registry.refresh_file_providers_async().await });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    fs::write(
+        &manifest,
+        tool_manifest("stable-provider", "settled_action", None),
+    )
+    .expect("write settled provider");
+    let second_registry = registry.clone();
+    let second = tokio::spawn(async move { second_registry.refresh_file_providers_async().await });
+
+    first.await.unwrap().expect("first refresh");
+    second.await.unwrap().expect("coalesced follow-up");
+
+    assert_eq!(
+        registry.snapshot().provider_for_action("settled_action"),
+        Some("stable-provider")
+    );
+    assert!(
+        registry
+            .snapshot()
+            .provider_for_action("intermediate_action")
+            .is_none()
+    );
+    let status = registry.python_generation_status();
+    assert_eq!(status["active"]["generation_id"], 2);
+    assert_eq!(status["rollback_candidates"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn refresh_owner_rechecks_a_change_arriving_during_candidate_preparation() {
+    let temp = tempdir().expect("tempdir");
+    let provider = temp.path().join("versioned.py");
+    let source_text = |action: &str| {
+        format!(
+            "PROVIDER = {{'name': 'versioned', 'kind': 'python'}}\n\
+             def {action}():\n    return {{'action': '{action}'}}\n"
+        )
+    };
+    fs::write(&provider, source_text("stable_action")).expect("write initial provider");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let release = Arc::new((Mutex::new(false), Condvar::new()));
+    let source = FileProviderSource::new(temp.path()).with_python_environment_preparer(Arc::new(
+        BlockingRefreshPreparer {
+            calls: calls.clone(),
+            release: release.clone(),
+        },
+    ));
+    let registry = ProviderRegistry::with_file_source_async(
+        Vec::new(),
+        CapabilityBroker::default_deny(),
+        source,
+    )
+    .await
+    .expect("initial registry");
+
+    fs::write(&provider, source_text("intermediate_action")).expect("write intermediate provider");
+    let owner_registry = registry.clone();
+    let owner = tokio::spawn(async move { owner_registry.refresh_file_providers_async().await });
+    while calls.load(Ordering::SeqCst) < 2 {
+        tokio::task::yield_now().await;
+    }
+
+    fs::write(&provider, source_text("settled_action")).expect("write settled provider");
+    registry
+        .refresh_file_providers_async()
+        .await
+        .expect("contending refresh serves active snapshot");
+    let keep_contending = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let contender_registry = registry.clone();
+    let contender_flag = keep_contending.clone();
+    let contenders = tokio::spawn(async move {
+        while contender_flag.load(Ordering::Acquire) {
+            contender_registry
+                .refresh_file_providers_async()
+                .await
+                .expect("contending refresh");
+            tokio::task::yield_now().await;
+        }
+    });
+    let (released, changed) = &*release;
+    *released.lock().expect("release lock") = true;
+    changed.notify_all();
+    tokio::time::timeout(std::time::Duration::from_secs(5), owner)
+        .await
+        .expect("refresh owner must remain bounded under contention")
+        .unwrap()
+        .expect("owner refresh");
+    keep_contending.store(false, Ordering::Release);
+    contenders.await.expect("contenders");
+
+    assert_eq!(
+        registry.snapshot().provider_for_action("settled_action"),
+        Some("versioned")
+    );
+    assert!(
+        registry
+            .snapshot()
+            .provider_for_action("intermediate_action")
+            .is_none()
+    );
+}
+
+fn python_call(action: &str) -> ProviderCall {
+    ProviderCall {
+        provider: String::new(),
+        action: action.to_owned(),
+        params: serde_json::json!({}),
+        principal: ProviderPrincipal::loopback_dev(),
+        auth_mode: ProviderAuthMode::LoopbackDev,
+        surface: ProviderSurface::Rest,
+        destructive_confirmed: false,
+        limits: ProviderRequestLimits::default(),
+        snapshot_id: String::new(),
+    }
+}
+
+#[tokio::test]
+async fn rollback_executes_immutable_python_source_until_a_new_edit() {
+    let temp = tempdir().expect("tempdir");
+    let provider = temp.path().join("versioned.py");
+    let source = |value: &str| {
+        format!(
+            "PROVIDER = {{'name': 'versioned', 'kind': 'python'}}\n\
+             def version():\n    return {{'value': '{value}'}}\n"
+        )
+    };
+    fs::write(&provider, source("old")).expect("write initial provider");
+    let registry = ProviderRegistry::with_file_source_async(
+        Vec::new(),
+        CapabilityBroker::default_deny(),
+        FileProviderSource::new(temp.path()),
+    )
+    .await
+    .expect("initial registry");
+    assert_eq!(
+        registry
+            .dispatch(python_call("version"))
+            .await
+            .expect("invoke old source")
+            .value,
+        serde_json::json!({"value": "old"})
+    );
+
+    fs::write(&provider, source("new")).expect("rewrite provider");
+    registry
+        .refresh_file_providers_async()
+        .await
+        .expect("publish new source");
+    assert_eq!(
+        registry
+            .dispatch(python_call("version"))
+            .await
+            .expect("invoke new source")
+            .value,
+        serde_json::json!({"value": "new"})
+    );
+
+    registry
+        .rollback_python_generation(1)
+        .await
+        .expect("rollback old source");
+    assert_eq!(
+        registry
+            .dispatch(python_call("version"))
+            .await
+            .expect("invoke rolled-back source")
+            .value,
+        serde_json::json!({"value": "old"})
+    );
+    registry
+        .refresh_file_providers_async()
+        .await
+        .expect("unchanged disk state stays pinned");
+    assert_eq!(
+        registry
+            .dispatch(python_call("version"))
+            .await
+            .expect("invoke pinned rolled-back source")
+            .value,
+        serde_json::json!({"value": "old"})
+    );
+
+    fs::write(&provider, source("third")).expect("write third source");
+    registry
+        .refresh_file_providers_async()
+        .await
+        .expect("publish third source");
+    assert_eq!(
+        registry
+            .dispatch(python_call("version"))
+            .await
+            .expect("invoke third source")
+            .value,
+        serde_json::json!({"value": "third"})
+    );
+}
+
+#[tokio::test]
+async fn python_provider_reads_adjacent_asset_from_immutable_generation() {
+    let temp = tempdir().expect("tempdir");
+    fs::write(temp.path().join("message.txt"), "immutable asset").expect("write asset");
+    fs::write(
+        temp.path().join("asset_provider.py"),
+        r#"from pathlib import Path
+PROVIDER = {'name': 'asset-provider', 'kind': 'python'}
+def read_asset():
+    return {'value': Path(__file__).with_name('message.txt').read_text()}
+"#,
+    )
+    .expect("write provider");
+    let registry = ProviderRegistry::with_file_source_async(
+        Vec::new(),
+        CapabilityBroker::default_deny(),
+        FileProviderSource::new(temp.path()),
+    )
+    .await
+    .expect("load provider with asset");
+
+    let output = registry
+        .dispatch(python_call("read_asset"))
+        .await
+        .expect("execute provider from immutable tree");
+    assert_eq!(
+        output.value,
+        serde_json::json!({"value": "immutable asset"})
     );
 }

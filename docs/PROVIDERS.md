@@ -237,6 +237,39 @@ the prepared interpreter before activation. Cache misses and explicit updates
 also verify `uv` immediately before mutation. Warm starts probe Python but do
 not require the `uv` executable to remain installed.
 
+Operators use the same application actions from CLI, MCP, or REST:
+
+| Action | Scope | Purpose |
+|---|---|---|
+| `python_environment_status` | `soma:write` + admin | Inventory ready, incomplete, corrupt, and staging cache entries without importing provider code. |
+| `python_environment_prune_plan` | `soma:write` + admin | Produce a bounded conservative prune plan. |
+| `python_environment_prune` | `soma:write` + confirmation | Apply the bounded plan with race-safe revalidation. |
+| `python_environment_repair` | `soma:write` | Repair the exact environment for a managed provider path. |
+| `python_environment_update` | `soma:write` | Prepare, validate, and atomically activate a new immutable candidate. |
+
+For example:
+
+```bash
+soma python_environment_status
+soma python_environment_prune_plan --json \
+  '{"stale_before_unix_seconds": 1722384000, "max_entries": 25}'
+soma --yes python_environment_prune --json \
+  '{"stale_before_unix_seconds": 1722384000, "max_entries": 25, "confirm": true}'
+soma --yes python_environment_repair --json \
+  '{"provider_path":"providers/example.py", "confirm": true}'
+soma --yes python_environment_update --json \
+  '{"provider_path":"providers/example.py", "confirm": true}'
+```
+
+Omit `--yes` in an interactive terminal to receive the typed destructive-action
+prompt. Non-interactive CLI use must pass leading `-y` / `--yes`; REST and MCP
+use the request's explicit `confirm: true` value.
+
+Repair and update paths must resolve to regular, non-symlink `.py` files under
+the configured provider root. Update never mutates the active environment: it
+publishes a new content-addressed candidate and swaps the registry only after
+candidate validation succeeds.
+
 ### Persistent Python runner
 
 One-shot execution remains the default and rollback path. Set
@@ -250,22 +283,46 @@ Persistent workers connect to an ephemeral loopback TCP listener and
 authenticate with a per-launch token before using the length-prefixed JSON
 control protocol. The child process's stdin and stdout are redirected to the
 platform null device and are not used for control. Provider stdout is redirected
-to the continuously drained stderr stream; the host keeps only a private bounded
-byte ring, not structured or operator-visible logs. The host negotiates
+to the continuously drained stderr stream; the host converts it into bounded,
+sequenced structured log entries and redacts sensitive diagnostics before
+operator-visible retention. The host negotiates
 features, describes and health-checks every candidate before publishing it,
 rejects concurrent calls with
 `python_provider_busy`, kills the worker process tree on timeout or protocol
 failure, and permits a later serialized restart within the configured
 restart-window budget. Repeated failures quarantine that provider generation.
 Source files must be regular non-symlink files and are hashed immediately
-before launch and again after describe.
+before launch and again after describe. Active work can be cancelled
+deterministically by terminating the complete worker process tree; later work
+starts a clean worker without replay.
 
 Persistent mode deliberately rejects provider- or tool-level runtime
 environment declarations with `python_persistent_env_unsupported`. It does not
 forward actor scopes or trace context, and HTTP, secrets, state, logging,
-metrics, progress, and cancellation broker services remain unavailable. The
-active worker does not negotiate the protocol's `cancel` feature, so a running
-invocation cannot yet be interrupted by a cancel frame.
+metrics, progress, and cooperative broker cancellation remain unavailable.
+Host cancellation is enforced at the process boundary and therefore also stops
+uninterruptible synchronous handlers and descendants.
+
+Worker and generation controls use the same application authorization on every
+surface:
+
+| Action | Scope | Purpose |
+|---|---|---|
+| `python_worker_status` | `soma:write` + admin | Inspect running/busy/quarantined state, restart counts, generation identity, and bounded redacted logs. |
+| `python_worker_cancel` | `soma:write` + confirmation | Cancel active work by terminating the worker process tree. |
+| `python_worker_reset` | `soma:write` + confirmation | Clear crash-loop quarantine and permit a fresh worker. |
+| `python_generation_status` | `soma:read` | Inspect the active generation and bounded rollback window. |
+| `python_generation_rollback` | `soma:write` + confirmation | Atomically reactivate a retained provider/environment/worker generation. |
+
+Filesystem refresh uses a single coalescing preparation lane and a short
+debounce window. Candidate catalogs, immutable environments, and persistent
+workers are prepared and health-checked before one atomic registry publication.
+The last three generations are retained for rollback; older generations are
+drained and retired outside registry locks. Python generations snapshot the
+complete non-symlink provider tree, including adjacent data files, with a
+4,096-file/64 MiB bound; snapshots are reclaimed after the last active,
+retained, or in-flight provider releases them. New requests never route to a
+retained generation, while calls already holding that generation finish on it.
 
 The main controls are:
 

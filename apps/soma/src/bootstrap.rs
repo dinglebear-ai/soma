@@ -26,7 +26,7 @@ use soma_config::Config;
     )
 ))]
 use soma_application::ProviderRegistry;
-use soma_application::{ApplicationPorts, SomaApplication};
+use soma_application::{ApplicationPorts, PythonEnvironmentPort, SomaApplication};
 #[cfg(feature = "mcp")]
 use soma_runtime::server::AppState;
 #[cfg(any(feature = "mcp-stdio", feature = "mcp-http", feature = "oauth"))]
@@ -46,6 +46,10 @@ use soma_runtime::server::{AuthPolicyKind, resolve_auth_policy_kind};
 use soma_runtime::server::{GatewayProductState, SomaRuntime};
 #[cfg(all(feature = "cli", feature = "mcp-stdio"))]
 use tracing_subscriber::{EnvFilter, fmt};
+
+#[path = "python_environment_operations.rs"]
+mod python_environment_operations;
+use python_environment_operations::python_environment_port;
 
 /// Initialize tracing at `level` unless `RUST_LOG` overrides it.
 ///
@@ -86,14 +90,18 @@ pub(crate) fn runtime_for_components(
     service: SomaService,
     provider_registry: ProviderRegistry,
     gateway: GatewayProductState,
+    python_environment: Option<Arc<dyn PythonEnvironmentPort>>,
 ) -> Arc<SomaRuntime> {
-    let ports = ApplicationPorts::unavailable()
+    let mut ports = ApplicationPorts::unavailable()
         .with_gateway(Arc::new(soma_integrations::GatewayApplicationPort::new(
             gateway.clone(),
         )))
         .with_codemode(Arc::new(
             soma_integrations::CodeModeApplicationPort::default(),
         ));
+    if let Some(python_environment) = python_environment {
+        ports = ports.with_python_environment(python_environment);
+    }
     let application = Arc::new(SomaApplication::new(
         Arc::new(service),
         Arc::new(provider_registry),
@@ -456,10 +464,14 @@ pub(crate) async fn cli_application_with_provider_dir(
             .map_err(|error| anyhow::anyhow!(error.to_string()))?;
         registry
     };
+    let mut ports = ApplicationPorts::unavailable();
+    if let Some(python_environment) = python_environment_port(config)? {
+        ports = ports.with_python_environment(python_environment);
+    }
     Ok(Arc::new(SomaApplication::new(
         Arc::new(service),
         Arc::new(registry),
-        ApplicationPorts::unavailable(),
+        ports,
     )))
 }
 
@@ -483,7 +495,12 @@ pub(crate) async fn stdio_state() -> Result<AppState> {
     let gateway = gateway_product_state_from_env()?;
     #[cfg(feature = "oauth")]
     configure_gateway_upstream_oauth_from_config(&gateway, &config.mcp.auth).await?;
-    let runtime = runtime_for_components(service, provider_registry, gateway);
+    let runtime = runtime_for_components(
+        service,
+        provider_registry,
+        gateway,
+        python_environment_port(&config)?,
+    );
     Ok(AppState::new(
         config.mcp,
         AuthPolicy::LoopbackDev,
@@ -506,7 +523,12 @@ pub(crate) async fn http_state() -> Result<AppState> {
     let gateway = gateway_product_state_from_env()?;
     #[cfg(feature = "oauth")]
     configure_gateway_upstream_oauth_for_policy(&gateway, &auth_policy, &config.mcp.auth).await?;
-    let runtime = runtime_for_components(service, provider_registry, gateway);
+    let runtime = runtime_for_components(
+        service,
+        provider_registry,
+        gateway,
+        python_environment_port(&config)?,
+    );
     Ok(AppState::new(
         config.mcp,
         auth_policy,

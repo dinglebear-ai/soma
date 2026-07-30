@@ -129,7 +129,10 @@ fn enforce_scope(tool: &ProviderTool, call: &ProviderCall) -> Result<(), Provide
 }
 
 fn enforce_admin(tool: &ProviderTool, call: &ProviderCall) -> Result<(), ProviderError> {
-    if !tool.requires_admin || provider_principal_is_admin(&call.principal) {
+    if !tool.requires_admin
+        || !matches!(call.auth_mode, ProviderAuthMode::Mounted)
+        || provider_principal_is_admin(&call.principal)
+    {
         return Ok(());
     }
     Err(ProviderError::new(

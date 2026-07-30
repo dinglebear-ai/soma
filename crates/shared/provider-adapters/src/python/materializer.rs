@@ -32,7 +32,7 @@ pub use update::{
     PythonEnvironmentUpdateRequest,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PreparedPythonEnvironment {
     pub key: String,
     pub directory: PathBuf,

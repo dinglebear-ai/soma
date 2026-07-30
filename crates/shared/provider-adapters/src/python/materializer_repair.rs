@@ -6,6 +6,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use serde::Serialize;
 use thiserror::Error;
 
 use super::{
@@ -16,14 +17,15 @@ use crate::python::environment::PythonEnvironmentPlan;
 
 static REPAIR_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PythonEnvironmentRepairOutcome {
     Healthy,
     Prepared,
     Rebuilt,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PythonEnvironmentRepairReport {
     pub outcome: PythonEnvironmentRepairOutcome,
     pub environment: PreparedPythonEnvironment,

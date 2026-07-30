@@ -16,7 +16,7 @@ upstream_refs:
   - "crates/shared/provider-adapters/src/python_protocol.rs"
   - "crates/shared/provider-adapters/src/python/"
   - "packages/python/"
-last_reviewed: "2026-07-29"
+last_reviewed: "2026-07-30"
 ---
 
 # Python Provider Platform Plan
@@ -46,8 +46,8 @@ path must use it and its failure behavior must be verified.
 
 ## Verified Snapshot
 
-Last reconciled on **2026-07-29** against the implementation through
-`47bb3131`.
+Last reconciled on **2026-07-30** against the Phase 5–7 implementation branch
+stacked on the production-environment work in PR #249.
 
 The immutable-environment stack was merged by `749bc026` and ends at
 `4993e57e`; the supervised persistent runner was merged by `47bb3131`:
@@ -182,9 +182,9 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 2. Runner protocol | Foundation complete | Cross-language protocol is versioned and tested. |
 | 3. Python SDK | Complete baseline | Facade, Context identity, schemas, examples, and compatibility paths exist. |
 | 4. PyO3/maturin | Complete baseline | Thin abi3 validation binding and wheel CI exist. |
-| 5. PEP 723 and `uv` lifecycle | Partial | Planning through production immutable activation is implemented; operator status, prune, repair, and update surfaces remain. |
-| 6. Persistent supervised runner | Partial, opt-in | Installed-wheel supervised workers cover all authoring paths; active cancellation and structured/operator-visible logs remain. |
-| 7. Generation-aware reload | Partial | Candidate preflight, atomic swap, refresh coalescing, and bounded retirement exist; debounce/operator rollback remain. |
+| 5. PEP 723 and `uv` lifecycle | Complete | Planning, production immutable activation, and authorized operator status/prune/repair/update surfaces are implemented. |
+| 6. Persistent supervised runner | Complete, opt-in | Installed-wheel supervised workers cover all authoring paths with cancellation, bounded redacted logs, status, quarantine, and reset controls. |
+| 7. Generation-aware reload | Complete | Candidate preflight, debounced/coalesced atomic activation, bounded retained history, retirement, status, and rollback are implemented. |
 | 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
 | 9. WIT/WASI components | Planned | Versioned component ABI and reference provider exist. |
 | 10. Graduation tooling | Planned | Scaffold, compare, promote, and rollback manual rewrites. |
@@ -192,14 +192,14 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
 
 The earlier session-local implementation plan numbered the `uv` lifecycle as
-Phase 4 and the persistent runner as Phase 5. Their principal library/runtime
-implementations have landed, but the production exit gates above remain open.
-This canonical plan separates PyO3/maturin into its own Phase 4, so those same
-slices appear here as Phases 5 and 6.
+Phase 4 and the persistent runner as Phase 5. This canonical plan separates
+PyO3/maturin into its own Phase 4, so those same slices appear here as Phases 5
+and 6. Their production exit gates are now recorded in the completed phase
+sections below.
 
 ## Phase 5: PEP 723 and Immutable `uv` Environments
 
-**Partially delivered through production activation.**
+**Complete.**
 
 The planner, materializer, readiness checks, cache operations, update flow, and
 candidate validation are implemented and tested. Application tests prove that a
@@ -217,13 +217,19 @@ wheel digest, requires a private cache root, and rejects a mismatched policy
 version before provider activation. `update = true` resolves an immutable
 candidate during preparation, while `offline = true` reopens only complete
 caches and does not require `uv` to remain installed. Both one-shot and
-persistent runners receive the resulting prepared interpreter. Completing this
-phase still requires operator-facing status, prune, repair, and update command
-surfaces.
+persistent runners receive the resulting prepared interpreter.
+
+The shared application operator surface inventories ready, incomplete, corrupt,
+and staging entries without importing provider code; creates bounded
+conservative prune plans; applies race-safe prune plans after confirmation;
+repairs an exact managed provider environment; and prepares, validates, then
+atomically activates explicit immutable updates. CLI, MCP, and REST use the
+same action catalog, authorization, confirmation, path-containment, and
+response-size checks.
 
 ## Phase 6: Persistent Supervised Runner
 
-**Partially delivered as an explicit opt-in with one-shot rollback.**
+**Complete as an explicit opt-in with one-shot rollback.**
 
 Scope:
 
@@ -256,14 +262,17 @@ timeout followed by a non-replayed restart, persistent-environment eligibility,
 candidate preflight, and retention of the previous snapshot when a Python
 candidate fails.
 
-Open gates:
+The remaining gates are delivered:
 
-- active invocations can be cancelled deterministically;
-- bounded worker logs are structured and operator-visible;
-- production bootstrap/config selection is covered by the same parity proof;
-- missing-wheel, malformed-frame, source-substitution, quarantine exhaustion,
-  and secret-bearing stderr/error/result failures have end-to-end
-  production-path evidence.
+- active invocations are cancelled deterministically at the process-tree
+  boundary, and later work starts a clean worker without replay;
+- bounded stderr is split into structured sequenced entries, redacted before
+  retention, and exposed through shared operator status;
+- production bootstrap/config selection uses the prepared interpreter and is
+  covered by the same authoring-path parity proof;
+- missing runner/wheel, malformed protocol frames, source substitution,
+  quarantine exhaustion/reset, and secret-bearing diagnostics have focused
+  fail-closed evidence.
 
 Implementation notes:
 
@@ -272,17 +281,18 @@ Implementation notes:
 - The worker connects to an ephemeral loopback listener and authenticates with
   a per-launch token before protocol negotiation.
 - Provider stdout is redirected to stderr. The host continuously drains it into
-  a private bounded byte ring; this is diagnostic retention, not structured or
-  operator-visible logging.
+  a bounded structured line ring, applies public diagnostic redaction before
+  retention, and exposes it through the authorized worker-status action.
 - One invocation is active per worker. Concurrent work receives
   `python_provider_busy` without queueing.
-- The active feature set does not include `cancel`; cancellation tokens are
-  carried in invocation envelopes but cannot yet interrupt running work.
+- The active feature set does not require cooperative `cancel`: cancellation
+  terminates the Unix worker process group or uses Windows `taskkill /T /F`,
+  then the supervisor restarts cleanly on later work.
 - Provider/tool runtime environment declarations are rejected in persistent
   mode. Phase-8 broker capabilities, actor scopes, and trace propagation are
   intentionally unavailable.
-- Unix workers own a process group and Windows workers own a kill-on-close Job
-  Object so timeout and retirement include descendants.
+- Unix workers own a process group. Windows uses best-effort process-tree
+  termination; stronger Job Object containment remains part of Phase 8.
 
 ## Phase 7: Generation-Aware Reload
 
@@ -304,6 +314,23 @@ Exit gates:
 - activation is all-or-nothing across catalog, environment, and workers;
 - old generations drain without receiving new work;
 - repeated file events cannot create rebuild storms.
+
+All exit gates are delivered. Async refreshes share a single serialized
+preparation lane, recheck settled inputs after acquiring it, and wait through
+a short filesystem debounce window before fingerprinting settled inputs.
+Candidate environments and persistent workers
+are fully prepared and health-checked before publication. The registry swaps
+provider routing, catalog snapshot, environment selections, and worker set
+together; failed candidates retain the prior generation. A bounded three-entry
+history keeps recent generations eligible for explicit rollback while newer
+requests route only to the active generation. Each retained Python generation
+owns a content-addressed, non-symlink snapshot of the complete provider tree,
+including adjacent data files, subject to 4,096-file and 64 MiB bounds.
+Dispatch leases let calls already routed to an old generation drain before its
+worker is parked; reference-counted snapshots are reclaimed after the last
+active, retained, or in-flight provider releases them. Evicted generations
+drain and retire outside registry locks. Authorized status and confirmed
+rollback actions are shared across CLI, MCP, and REST.
 
 ## Phase 8: Capability Broker and Containment
 
@@ -432,18 +459,13 @@ of unsupported dependency sources.
 
 ## Recommended Delivery Order
 
-1. Configure and install the immutable environment lifecycle in production,
-   including release-wheel/runtime policy and operator surfaces.
-2. Add active cancellation and structured, operator-visible worker logs.
-3. Finish generation debounce, status, operator rollback, and environment /
-   worker activation as one production generation.
-4. Add logging/progress/cancellation broker calls.
-5. Add HTTP, secrets, and state.
-6. Add explicit execution profiles and containment.
-7. Implement the WIT component ABI.
-8. Add conformance and graduation tooling.
-9. Evaluate `componentize-py`.
-10. Finish release provenance, status, performance, and soak gates.
+1. Add logging, progress, and brokered cancellation capability calls.
+2. Add brokered HTTP, secrets, and state.
+3. Add explicit execution profiles and enforced containment.
+4. Implement the WIT component ABI and shared conformance fixtures.
+5. Add graduation comparison, activation, and rollback tooling.
+6. Evaluate the experimental `componentize-py` path.
+7. Finish release provenance, performance budgets, and soak gates.
 
 The persistent runner and generation boundary are load-bearing. Do not bypass
 them to begin component or graduation work.

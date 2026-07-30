@@ -10,14 +10,40 @@ fn action_metadata_is_the_action_source_of_truth() {
             "greet",
             "echo",
             "status",
+            "python_environment_status",
+            "python_environment_prune_plan",
+            "python_environment_prune",
+            "python_environment_repair",
+            "python_environment_update",
+            "python_worker_status",
+            "python_worker_cancel",
+            "python_worker_reset",
+            "python_generation_status",
+            "python_generation_rollback",
             "elicit_name",
             "scaffold_intent",
             "help"
         ]
     );
-    assert_eq!(rest_action_names(), vec!["greet", "echo", "status", "help"]);
-    assert_eq!(cli_action_names(), vec!["greet", "echo", "status", "help"]);
-    assert_eq!(cli_commands(), vec!["greet", "echo", "status", "help"]);
+    let cross_surface = vec![
+        "greet",
+        "echo",
+        "status",
+        "python_environment_status",
+        "python_environment_prune_plan",
+        "python_environment_prune",
+        "python_environment_repair",
+        "python_environment_update",
+        "python_worker_status",
+        "python_worker_cancel",
+        "python_worker_reset",
+        "python_generation_status",
+        "python_generation_rollback",
+        "help",
+    ];
+    assert_eq!(rest_action_names(), cross_surface);
+    assert_eq!(cli_action_names(), cross_surface);
+    assert_eq!(cli_commands(), cross_surface);
     assert_eq!(
         mcp_only_action_names(),
         vec!["elicit_name", "scaffold_intent"]
@@ -38,6 +64,15 @@ fn action_metadata_is_the_action_source_of_truth() {
     assert!(echo.cli.unwrap().flags[0].required);
     assert!(!echo.destructive);
     assert!(!echo.requires_admin);
+    let worker_status =
+        action_spec("python_worker_status").expect("worker status spec should exist");
+    assert_eq!(worker_status.required_scope, Some(WRITE_SCOPE));
+    assert!(worker_status.requires_admin);
+    for action in ["python_environment_status", "python_environment_prune_plan"] {
+        let spec = action_spec(action).expect("environment diagnostic spec should exist");
+        assert_eq!(spec.required_scope, Some(WRITE_SCOPE));
+        assert!(spec.requires_admin);
+    }
 }
 
 #[test]

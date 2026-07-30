@@ -17,14 +17,38 @@ use super::{
 use crate::{
     ApplicationError, ApplicationErrorDetails, ApplicationPorts, CodeModePort,
     DynamicResourceTemplate, ExecutionContext, GatewayPort, OpenApiPort, PortError, ProviderCall,
-    ProviderError, ProviderOutput, ProviderRegistry, SomaService, StaticRustProvider,
-    provider_registry::Provider,
+    ProviderError, ProviderOutput, ProviderRegistry, PythonEnvironmentPort, SomaService,
+    StaticRustProvider, provider_registry::Provider,
 };
 
 struct RecordingProvider {
     catalog: ProviderCatalog,
     output: Value,
     calls: Mutex<Vec<ProviderCall>>,
+}
+
+struct BlockingGenerationProvider {
+    catalog: ProviderCatalog,
+    label: &'static str,
+    entered: Option<Arc<tokio::sync::Notify>>,
+    release: Option<Arc<tokio::sync::Notify>>,
+}
+
+#[async_trait]
+impl Provider for BlockingGenerationProvider {
+    fn catalog(&self) -> ProviderCatalog {
+        self.catalog.clone()
+    }
+
+    async fn call(&self, _call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
+        if let Some(entered) = &self.entered {
+            entered.notify_one();
+        }
+        if let Some(release) = &self.release {
+            release.notified().await;
+        }
+        Ok(ProviderOutput::json(json!({"echo": self.label})))
+    }
 }
 
 #[async_trait]
@@ -36,6 +60,14 @@ impl Provider for RecordingProvider {
     async fn call(&self, call: ProviderCall) -> Result<ProviderOutput, crate::ProviderError> {
         self.calls.lock().unwrap().push(call);
         Ok(ProviderOutput::json(self.output.clone()))
+    }
+
+    fn runtime_status(&self) -> Option<Value> {
+        Some(json!({"running": true, "logs": []}))
+    }
+
+    fn cancel_active(&self) -> bool {
+        true
     }
 
     fn dynamic_resource_templates(&self) -> Vec<DynamicResourceTemplate> {
@@ -173,6 +205,42 @@ impl OpenApiPort for RecordingEngines {
     }
 }
 
+#[derive(Default)]
+struct RecordingPythonEnvironments {
+    calls: Mutex<Vec<String>>,
+}
+
+#[async_trait]
+impl PythonEnvironmentPort for RecordingPythonEnvironments {
+    async fn status(&self) -> Result<Value, PortError> {
+        self.calls.lock().unwrap().push("status".to_owned());
+        Ok(json!({"entries": [{"state": "ready"}]}))
+    }
+
+    async fn prune(
+        &self,
+        stale_before_unix_seconds: u64,
+        max_entries: usize,
+        apply: bool,
+    ) -> Result<Value, PortError> {
+        self.calls.lock().unwrap().push(format!(
+            "prune:{stale_before_unix_seconds}:{max_entries}:{apply}"
+        ));
+        Ok(json!({"apply": apply, "selected": max_entries}))
+    }
+
+    async fn repair(&self, _provider_path: &std::path::Path) -> Result<Value, PortError> {
+        unreachable!("repair is covered by the lifecycle tests")
+    }
+
+    async fn update(
+        &self,
+        _provider_path: &std::path::Path,
+    ) -> Result<crate::PythonEnvironmentUpdateCandidate, PortError> {
+        unreachable!("update activation is covered by registry lifecycle tests")
+    }
+}
+
 fn application(
     destructive: bool,
     output: Value,
@@ -183,7 +251,9 @@ fn application(
 ) {
     let mut catalog = StaticRustProvider::catalog_static();
     catalog.provider.name = "recording".to_owned();
-    catalog.tools.retain(|tool| tool.name == "echo");
+    catalog
+        .tools
+        .retain(|tool| tool.name == "echo" || tool.name.starts_with("python_"));
     catalog.tools[0].destructive = destructive;
     catalog.prompts[0].template = Some("Run {{action}}".to_owned());
     catalog.prompts[0].scope = Some(READ_SCOPE.to_owned());
@@ -204,16 +274,25 @@ fn application(
     let registry = ProviderRegistry::new(vec![provider.clone()]).unwrap();
     let service = SomaService::new(SomaClient::new(&SomaConfig::default()).unwrap());
     let engines = Arc::new(RecordingEngines::default());
-    let ports = ApplicationPorts {
-        gateway: engines.clone(),
-        codemode: engines.clone(),
-        openapi: engines.clone(),
-    };
+    let ports = ApplicationPorts::unavailable()
+        .with_gateway(engines.clone())
+        .with_codemode(engines.clone())
+        .with_openapi(engines.clone());
     (
         SomaApplication::new(Arc::new(service), Arc::new(registry), ports),
         provider,
         engines,
     )
+}
+
+fn application_with_python_environments(
+    environments: Arc<RecordingPythonEnvironments>,
+) -> SomaApplication {
+    let service = SomaService::new(SomaClient::new(&SomaConfig::default()).unwrap());
+    let registry =
+        ProviderRegistry::new(vec![Arc::new(StaticRustProvider::new(service.clone()))]).unwrap();
+    let ports = ApplicationPorts::unavailable().with_python_environment(environments);
+    SomaApplication::new(Arc::new(service), Arc::new(registry), ports)
 }
 
 fn mounted_context(confirmation: Confirmation, response_limit: Option<usize>) -> ExecutionContext {
@@ -263,6 +342,287 @@ async fn execute_action_enforces_destructive_confirmation() {
         .unwrap_err();
 
     assert_eq!(error.code, "confirmation_required");
+}
+
+#[tokio::test]
+async fn python_environment_status_uses_the_shared_operator_port() {
+    let environments = Arc::new(RecordingPythonEnvironments::default());
+    let application = application_with_python_environments(environments.clone());
+    let mut context = mounted_context(Confirmation::Missing, None);
+    context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE, "soma:admin"]),
+    ));
+
+    let response = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_environment_status".to_owned(),
+                params: json!({}),
+            },
+            context,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.output["entries"][0]["state"], "ready");
+    assert_eq!(environments.calls.lock().unwrap().as_slice(), ["status"]);
+}
+
+#[tokio::test]
+async fn trusted_loopback_cli_can_run_admin_operator_status() {
+    let environments = Arc::new(RecordingPythonEnvironments::default());
+    let application = application_with_python_environments(environments.clone());
+    let context =
+        ExecutionContext::loopback(Surface::Cli, RequestId::new("local-python-status").unwrap());
+
+    let response = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_environment_status".to_owned(),
+                params: json!({}),
+            },
+            context,
+        )
+        .await
+        .expect("trusted local status bypasses mounted admin enforcement");
+
+    assert_eq!(response.output["entries"][0]["state"], "ready");
+    assert_eq!(environments.calls.lock().unwrap().as_slice(), ["status"]);
+}
+
+#[tokio::test]
+async fn python_environment_prune_requires_write_scope_and_confirmation() {
+    let environments = Arc::new(RecordingPythonEnvironments::default());
+    let application = application_with_python_environments(environments.clone());
+    let request = || ExecuteActionRequest {
+        action: "python_environment_prune".to_owned(),
+        params: json!({
+            "stale_before_unix_seconds": 42,
+            "max_entries": 3
+        }),
+    };
+
+    let error = application
+        .execute_action(request(), mounted_context(Confirmation::Confirmed, None))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "insufficient_scope");
+
+    let mut context = mounted_context(Confirmation::Missing, None);
+    context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE]),
+    ));
+    let error = application
+        .execute_action(request(), context.clone())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "confirmation_required");
+
+    context.destructive_confirmation = Confirmation::Confirmed;
+    let response = application
+        .execute_action(request(), context)
+        .await
+        .unwrap();
+    assert_eq!(response.output, json!({"apply": true, "selected": 3}));
+    assert_eq!(
+        environments.calls.lock().unwrap().as_slice(),
+        ["prune:42:3:true"]
+    );
+}
+
+#[tokio::test]
+async fn python_worker_status_and_cancel_share_registry_authorization() {
+    let (application, _, _) = application(false, json!({}));
+    let error = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_worker_status".to_owned(),
+                params: json!({}),
+            },
+            mounted_context(Confirmation::Missing, None),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "insufficient_scope");
+
+    let mut status_context = mounted_context(Confirmation::Missing, None);
+    status_context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE, "soma:admin"]),
+    ));
+    let status = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_worker_status".to_owned(),
+                params: json!({}),
+            },
+            status_context,
+        )
+        .await
+        .unwrap();
+    assert_eq!(status.output["workers"][0]["provider"], "recording");
+
+    let request = || ExecuteActionRequest {
+        action: "python_worker_cancel".to_owned(),
+        params: json!({"provider": "recording"}),
+    };
+    let error = application
+        .execute_action(request(), mounted_context(Confirmation::Confirmed, None))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "insufficient_scope");
+
+    let mut context = mounted_context(Confirmation::Confirmed, None);
+    context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE]),
+    ));
+    let cancelled = application
+        .execute_action(request(), context)
+        .await
+        .unwrap();
+    assert_eq!(cancelled.output["cancelled"], true);
+}
+
+#[tokio::test]
+async fn python_control_prefix_does_not_shadow_dynamic_provider_actions() {
+    let mut catalog = StaticRustProvider::catalog_static();
+    catalog.provider.name = "prefix-provider".to_owned();
+    catalog.tools.retain(|tool| tool.name == "echo");
+    catalog.tools[0].name = "python_environment_status_extra".to_owned();
+    let provider = Arc::new(RecordingProvider {
+        catalog,
+        output: json!({"echo": "provider-owned"}),
+        calls: Mutex::new(Vec::new()),
+    });
+    let registry = ProviderRegistry::new(vec![provider.clone()]).unwrap();
+    let service = SomaService::new(SomaClient::new(&SomaConfig::default()).unwrap());
+    let application = SomaApplication::new(
+        Arc::new(service),
+        Arc::new(registry),
+        ApplicationPorts::unavailable(),
+    );
+
+    let response = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_environment_status_extra".to_owned(),
+                params: json!({"message": "provider-owned"}),
+            },
+            ExecutionContext::loopback(
+                Surface::Rest,
+                RequestId::new("python-prefix-provider").unwrap(),
+            ),
+        )
+        .await
+        .expect("prefixed dynamic action should dispatch normally");
+
+    assert_eq!(response.output, json!({"echo": "provider-owned"}));
+    assert_eq!(provider.calls.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn python_generation_rollback_requires_write_scope_and_confirmation() {
+    let (application, _, _) = application(false, json!({}));
+    let status = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_generation_status".to_owned(),
+                params: json!({}),
+            },
+            mounted_context(Confirmation::Missing, None),
+        )
+        .await
+        .unwrap();
+    assert_eq!(status.output["active"]["generation_id"], 1);
+
+    let request = || ExecuteActionRequest {
+        action: "python_generation_rollback".to_owned(),
+        params: json!({"generation_id": 1}),
+    };
+    let error = application
+        .execute_action(request(), mounted_context(Confirmation::Confirmed, None))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "insufficient_scope");
+
+    let mut context = mounted_context(Confirmation::Missing, None);
+    context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE]),
+    ));
+    let error = application
+        .execute_action(request(), context)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "confirmation_required");
+}
+
+#[tokio::test]
+async fn generation_swap_keeps_in_flight_work_on_original_provider() {
+    let catalog = || {
+        let mut catalog = StaticRustProvider::catalog_static();
+        catalog.provider.name = "generation-provider".to_owned();
+        catalog.tools.retain(|tool| tool.name == "echo");
+        catalog
+    };
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let old: Arc<dyn Provider> = Arc::new(BlockingGenerationProvider {
+        catalog: catalog(),
+        label: "old",
+        entered: Some(entered.clone()),
+        release: Some(release.clone()),
+    });
+    let registry = ProviderRegistry::new(vec![old]).unwrap();
+    let active_call = {
+        let registry = registry.clone();
+        tokio::spawn(async move {
+            registry
+                .dispatch(ProviderCall {
+                    provider: String::new(),
+                    action: "echo".to_owned(),
+                    params: json!({"message": "started"}),
+                    principal: crate::ProviderPrincipal::loopback_dev(),
+                    auth_mode: crate::ProviderAuthMode::LoopbackDev,
+                    surface: crate::ProviderSurface::Rest,
+                    destructive_confirmed: false,
+                    limits: crate::ProviderRequestLimits::default(),
+                    snapshot_id: String::new(),
+                })
+                .await
+        })
+    };
+    entered.notified().await;
+
+    let replacement: Arc<dyn Provider> = Arc::new(BlockingGenerationProvider {
+        catalog: catalog(),
+        label: "new",
+        entered: None,
+        release: None,
+    });
+    registry.reload(vec![replacement]).unwrap();
+    let fresh = registry
+        .dispatch(ProviderCall {
+            provider: String::new(),
+            action: "echo".to_owned(),
+            params: json!({"message": "fresh"}),
+            principal: crate::ProviderPrincipal::loopback_dev(),
+            auth_mode: crate::ProviderAuthMode::LoopbackDev,
+            surface: crate::ProviderSurface::Rest,
+            destructive_confirmed: false,
+            limits: crate::ProviderRequestLimits::default(),
+            snapshot_id: String::new(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(fresh.value["echo"], "new");
+
+    release.notify_one();
+    let original = active_call.await.unwrap().unwrap();
+    assert_eq!(original.value["echo"], "old");
 }
 
 #[tokio::test]

@@ -1,6 +1,23 @@
 use std::{collections::BTreeSet, path::Path};
 
+use crate::providers::filesystem::{
+    FileProviderLoadError, FileProviderSource, PythonProviderEnvironmentSelections,
+};
+
 use super::{ProviderSurface, RegistrySnapshot, provider_tool_surface_enabled};
+
+pub(super) async fn fingerprint_file_source(
+    source: FileProviderSource,
+    environments: PythonProviderEnvironmentSelections,
+) -> Result<String, FileProviderLoadError> {
+    let root = source.root().to_path_buf();
+    tokio::task::spawn_blocking(move || source.fingerprint_with_python_environments(&environments))
+        .await
+        .map_err(|error| FileProviderLoadError {
+            path: root,
+            message: format!("provider fingerprint task failed: {error}"),
+        })?
+}
 
 pub(super) struct ProviderRefreshEvent {
     fingerprint: String,

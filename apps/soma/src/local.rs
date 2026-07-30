@@ -15,7 +15,8 @@ use soma_config::Config;
 /// `std::env::args()` here would silently ignore args a caller passed
 /// explicitly to `soma::run()` (e.g. an embedder or an in-process test).
 pub(crate) async fn run(args: &[String]) -> Result<()> {
-    let parsed = cli::parse_args_from(args.iter().cloned())?;
+    let (assume_yes, command_args) = split_confirmation_flag(args);
+    let parsed = cli::parse_args_from(command_args.iter().cloned())?;
     // Translate CLAUDE_PLUGIN_OPTION_* into SOMA_* env vars BEFORE Config::load()
     // so the plugin hook can call the binary directly (no plugin-setup.sh wrapper).
     if matches!(
@@ -38,7 +39,7 @@ pub(crate) async fn run(args: &[String]) -> Result<()> {
         }
         Some(cmd) => {
             let application = crate::bootstrap::cli_application(&config).await?;
-            let mut io = cli::StandardCliIo;
+            let mut io = cli::StandardCliIo::new(assume_yes);
             cli::run(application, cmd.into(), &mut io).await?;
             Ok(())
         }
@@ -46,6 +47,13 @@ pub(crate) async fn run(args: &[String]) -> Result<()> {
             eprintln!("Unknown command. Run `soma --help` for usage.");
             std::process::exit(1);
         }
+    }
+}
+
+fn split_confirmation_flag(args: &[String]) -> (bool, &[String]) {
+    match args.split_first() {
+        Some((flag, rest)) if matches!(flag.as_str(), "-y" | "--yes") => (true, rest),
+        _ => (false, args),
     }
 }
 

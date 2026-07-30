@@ -16,6 +16,9 @@
 use serde::Serialize;
 use serde_json::{Value, json};
 
+#[path = "actions_python.rs"]
+mod python;
+
 // ── Action error types ────────────────────────────────────────────────────────
 
 /// Top-level error for action parsing and validation.
@@ -353,6 +356,16 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
             description: "Show service status.",
         }),
     },
+    python::ENVIRONMENT_STATUS,
+    python::ENVIRONMENT_PRUNE_PLAN,
+    python::ENVIRONMENT_PRUNE,
+    python::ENVIRONMENT_REPAIR,
+    python::ENVIRONMENT_UPDATE,
+    python::WORKER_STATUS,
+    python::WORKER_CANCEL,
+    python::WORKER_RESET,
+    python::GENERATION_STATUS,
+    python::GENERATION_ROLLBACK,
     ActionSpec {
         name: "elicit_name",
         description: "Ask the MCP client to collect a name, then return a personalised greeting.",
@@ -666,6 +679,51 @@ pub enum SomaAction {
     },
     /// Return server status and configuration info.
     Status,
+    /// Inspect immutable Python environment cache state.
+    PythonEnvironmentStatus,
+    /// Plan a bounded prune of stale non-ready Python environment entries.
+    PythonEnvironmentPrunePlan {
+        /// Oldest modification timestamp selected by the plan.
+        stale_before_unix_seconds: u64,
+        /// Maximum number of entries included in the plan.
+        max_entries: usize,
+    },
+    /// Apply a bounded prune of stale non-ready Python environment entries.
+    PythonEnvironmentPrune {
+        /// Oldest modification timestamp selected by the plan.
+        stale_before_unix_seconds: u64,
+        /// Maximum number of entries removed.
+        max_entries: usize,
+    },
+    /// Repair one managed Python provider environment.
+    PythonEnvironmentRepair {
+        /// Provider path relative to the configured provider root, or an absolute managed path.
+        provider_path: String,
+    },
+    /// Prepare and atomically activate one managed Python provider update.
+    PythonEnvironmentUpdate {
+        /// Provider path relative to the configured provider root, or an absolute managed path.
+        provider_path: String,
+    },
+    /// Inspect persistent Python worker state and bounded redacted logs.
+    PythonWorkerStatus,
+    /// Cancel one active persistent Python invocation.
+    PythonWorkerCancel {
+        /// Loaded persistent Python provider name.
+        provider: String,
+    },
+    /// Clear one persistent Python worker crash-loop quarantine.
+    PythonWorkerReset {
+        /// Loaded persistent Python provider name.
+        provider: String,
+    },
+    /// Inspect active and retained Python provider generations.
+    PythonGenerationStatus,
+    /// Atomically reactivate one retained generation.
+    PythonGenerationRollback {
+        /// Retained generation identifier.
+        generation_id: u64,
+    },
     /// Show the action reference.
     Help,
     /// Ask the MCP client to collect a name, then greet it (MCP-only).
@@ -681,6 +739,16 @@ impl SomaAction {
             Self::Greet { .. } => "greet",
             Self::Echo { .. } => "echo",
             Self::Status => "status",
+            Self::PythonEnvironmentStatus => "python_environment_status",
+            Self::PythonEnvironmentPrunePlan { .. } => "python_environment_prune_plan",
+            Self::PythonEnvironmentPrune { .. } => "python_environment_prune",
+            Self::PythonEnvironmentRepair { .. } => "python_environment_repair",
+            Self::PythonEnvironmentUpdate { .. } => "python_environment_update",
+            Self::PythonWorkerStatus => "python_worker_status",
+            Self::PythonWorkerCancel { .. } => "python_worker_cancel",
+            Self::PythonWorkerReset { .. } => "python_worker_reset",
+            Self::PythonGenerationStatus => "python_generation_status",
+            Self::PythonGenerationRollback { .. } => "python_generation_rollback",
             Self::Help => "help",
             Self::ElicitName => "elicit_name",
             Self::ScaffoldIntent => "scaffold_intent",
@@ -733,6 +801,32 @@ impl SomaAction {
                 Ok(Self::Echo { message })
             }
             "status" => Ok(Self::Status),
+            "python_environment_status" => Ok(Self::PythonEnvironmentStatus),
+            "python_environment_prune_plan" => Ok(Self::PythonEnvironmentPrunePlan {
+                stale_before_unix_seconds: required_u64_param(params, "stale_before_unix_seconds")?,
+                max_entries: bounded_entries(params)?,
+            }),
+            "python_environment_prune" => Ok(Self::PythonEnvironmentPrune {
+                stale_before_unix_seconds: required_u64_param(params, "stale_before_unix_seconds")?,
+                max_entries: bounded_entries(params)?,
+            }),
+            "python_environment_repair" => Ok(Self::PythonEnvironmentRepair {
+                provider_path: required_string_param(params, "provider_path")?,
+            }),
+            "python_environment_update" => Ok(Self::PythonEnvironmentUpdate {
+                provider_path: required_string_param(params, "provider_path")?,
+            }),
+            "python_worker_status" => Ok(Self::PythonWorkerStatus),
+            "python_worker_cancel" => Ok(Self::PythonWorkerCancel {
+                provider: required_string_param(params, "provider")?,
+            }),
+            "python_worker_reset" => Ok(Self::PythonWorkerReset {
+                provider: required_string_param(params, "provider")?,
+            }),
+            "python_generation_status" => Ok(Self::PythonGenerationStatus),
+            "python_generation_rollback" => Ok(Self::PythonGenerationRollback {
+                generation_id: required_u64_param(params, "generation_id")?,
+            }),
             "help" => Ok(Self::Help),
             "elicit_name" => Ok(Self::ElicitName),
             "scaffold_intent" => Ok(Self::ScaffoldIntent),
@@ -767,6 +861,33 @@ fn optional_string_param(params: &Value, name: &str) -> Result<Option<String>, V
             .map(|s| Some(s.to_owned()))
             .ok_or_else(|| ValidationError::WrongType { field: name.into() }),
     }
+}
+
+fn required_string_param(params: &Value, name: &str) -> Result<String, ValidationError> {
+    optional_string_param(params, name)?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ValidationError::MissingField { field: name.into() })
+}
+
+fn required_u64_param(params: &Value, name: &str) -> Result<u64, ValidationError> {
+    params
+        .get(name)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| ValidationError::WrongType { field: name.into() })
+}
+
+fn bounded_entries(params: &Value) -> Result<usize, ValidationError> {
+    let entries = params.get("max_entries").map_or(Ok(100_u64), |value| {
+        value.as_u64().ok_or_else(|| ValidationError::WrongType {
+            field: "max_entries".into(),
+        })
+    })?;
+    if !(1..=1000).contains(&entries) {
+        return Err(ValidationError::WrongType {
+            field: "max_entries".into(),
+        });
+    }
+    Ok(entries as usize)
 }
 
 fn action_error(error: ValidationError) -> anyhow::Error {

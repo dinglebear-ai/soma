@@ -408,13 +408,20 @@ async fn direct_rest_validation_errors_are_bad_requests() {
 async fn direct_rest_help_excludes_mcp_only_actions_from_rest_actions() {
     let app = server::router(loopback_state());
     let (status, body) = request_json(app, Method::GET, "/v1/help", None, None).await;
+    let expected_rest_actions = ACTION_SPECS
+        .iter()
+        .filter(|spec| spec.rest_method.is_some())
+        .map(|spec| spec.name)
+        .collect::<Vec<_>>();
+    let expected_mcp_only_actions = ACTION_SPECS
+        .iter()
+        .filter(|spec| spec.rest_method.is_none())
+        .map(|spec| spec.name)
+        .collect::<Vec<_>>();
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["actions"], json!(["greet", "echo", "status", "help"]));
-    assert_eq!(
-        body["mcp_only_actions"],
-        json!(["elicit_name", "scaffold_intent"])
-    );
+    assert_eq!(body["actions"], json!(expected_rest_actions));
+    assert_eq!(body["mcp_only_actions"], json!(expected_mcp_only_actions));
 }
 
 #[tokio::test]

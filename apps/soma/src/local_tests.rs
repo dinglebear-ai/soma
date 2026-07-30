@@ -11,3 +11,16 @@ use super::*;
 fn run_is_the_sole_cli_dispatch_entrypoint() {
     let _ = run;
 }
+
+#[test]
+fn leading_yes_flag_is_removed_before_command_parsing() {
+    let args = vec![
+        "--yes".to_owned(),
+        "python_environment_prune".to_owned(),
+        "--json".to_owned(),
+        "{}".to_owned(),
+    ];
+    let (assume_yes, command) = split_confirmation_flag(&args);
+    assert!(assume_yes);
+    assert_eq!(command[0], "python_environment_prune");
+}

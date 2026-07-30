@@ -40,7 +40,8 @@ pub use filesystem_python::{
     PythonProviderEnvironmentPreparer, PythonProviderEnvironmentSelections,
 };
 use filesystem_python::{
-    collect_python_dependency_paths, fingerprint_python_environment, is_python_provider_source,
+    collect_python_dependency_paths, fingerprint_python_environment, immutable_python_generation,
+    is_python_provider_source, python_worker_generation_digest, retain_python_snapshot,
 };
 
 /// File-backed provider source rooted at a provider directory.
@@ -399,18 +400,31 @@ impl FileProviderSource {
         }
         self.validate_python_environment_selections(selections)?;
         let mut providers: Vec<std::sync::Arc<dyn Provider>> = Vec::new();
-        for path in self.provider_paths()? {
+        let paths = self.provider_paths()?;
+        let immutable_generation = paths
+            .iter()
+            .any(|path| is_python_provider_source(path))
+            .then(|| immutable_python_generation(&self.root))
+            .transpose()?;
+        for path in paths {
             let interpreter = self.python_interpreter_with_environments(&path, selections)?;
-            let catalog = load_catalog_with_interpreter(&path, &interpreter)?;
+            let immutable = immutable_generation
+                .as_ref()
+                .filter(|_| is_python_provider_source(&path))
+                .map(|generation| generation.source(&self.root, &path))
+                .transpose()?;
+            let execution_path = immutable
+                .as_ref()
+                .map_or_else(|| path.clone(), |source| source.path.clone());
+            let catalog = load_catalog_with_interpreter(&execution_path, &interpreter)?;
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
-            providers.push(provider_for_catalog(
-                path,
-                catalog,
-                interpreter,
-                &self.python_runner,
-            )?);
+            let provider =
+                provider_for_catalog(execution_path, catalog, interpreter, &self.python_runner)?;
+            providers.push(immutable.map_or(provider.clone(), |source| {
+                retain_python_snapshot(provider, source.lease)
+            }));
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
             let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
@@ -430,28 +444,76 @@ impl FileProviderSource {
         selections: &PythonProviderEnvironmentSelections,
     ) -> Result<Vec<std::sync::Arc<dyn Provider>>, FileProviderLoadError> {
         if matches!(self.python_runner, PythonRunnerSelection::OneShot) {
-            return self.load_with_python_environments(selections);
+            let source = self.clone();
+            let selections = selections.clone();
+            let root = self.root.clone();
+            return tokio::task::spawn_blocking(move || {
+                source.load_with_python_environments(&selections)
+            })
+            .await
+            .map_err(|error| FileProviderLoadError {
+                path: root,
+                message: format!("one-shot Python provider load task failed: {error}"),
+            })?;
         }
         self.validate_python_environment_selections(selections)?;
         let mut providers: Vec<std::sync::Arc<dyn Provider>> = Vec::new();
-        for path in self.provider_paths()? {
-            if path.extension().and_then(|value| value.to_str()) == Some("py") {
-                let metadata =
-                    fs::symlink_metadata(&path).map_err(|error| FileProviderLoadError {
-                        path: path.clone(),
-                        message: format!("failed to inspect Python provider source: {error}"),
+        let paths = self.provider_paths()?;
+        let immutable_generation = if paths.iter().any(|path| is_python_provider_source(path)) {
+            let root = self.root.clone();
+            Some(
+                tokio::task::spawn_blocking(move || immutable_python_generation(&root))
+                    .await
+                    .map_err(|error| FileProviderLoadError {
+                        path: self.root.clone(),
+                        message: format!("Python generation snapshot task failed: {error}"),
+                    })??,
+            )
+        } else {
+            None
+        };
+        let worker_generation = immutable_generation
+            .as_ref()
+            .map(|generation| python_worker_generation_digest(&generation.digest, selections));
+        for path in paths {
+            let interpreter_source = self.clone();
+            let interpreter_path = path.clone();
+            let interpreter_selections = selections.clone();
+            let interpreter = tokio::task::spawn_blocking(move || {
+                if interpreter_path.extension().and_then(|value| value.to_str()) == Some("py") {
+                    let metadata = fs::symlink_metadata(&interpreter_path).map_err(|error| {
+                        FileProviderLoadError {
+                            path: interpreter_path.clone(),
+                            message: format!("failed to inspect Python provider source: {error}"),
+                        }
                     })?;
-                if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
-                    return Err(FileProviderLoadError {
-                        path,
-                        message:
-                            "persistent Python provider source must be a regular non-symlink file"
+                    if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+                        return Err(FileProviderLoadError {
+                            path: interpreter_path,
+                            message: "persistent Python provider source must be a regular non-symlink file"
                                 .to_owned(),
-                    });
+                        });
+                    }
                 }
-            }
-            let interpreter = self.python_interpreter_with_environments(&path, selections)?;
-            let catalog_path = path.clone();
+                interpreter_source.python_interpreter_with_environments(
+                    &interpreter_path,
+                    &interpreter_selections,
+                )
+            })
+            .await
+            .map_err(|error| FileProviderLoadError {
+                path: path.clone(),
+                message: format!("Python environment preparation task failed: {error}"),
+            })??;
+            let immutable = immutable_generation
+                .as_ref()
+                .filter(|_| is_python_provider_source(&path))
+                .map(|generation| generation.source(&self.root, &path))
+                .transpose()?;
+            let execution_path = immutable
+                .as_ref()
+                .map_or_else(|| path.clone(), |source| source.path.clone());
+            let catalog_path = execution_path.clone();
             let catalog_interpreter = interpreter.clone();
             let catalog = tokio::task::spawn_blocking(move || {
                 load_catalog_with_interpreter(&catalog_path, &catalog_interpreter)
@@ -471,15 +533,18 @@ impl FileProviderSource {
                 let PythonRunnerSelection::Persistent(config) = &self.python_runner else {
                     unreachable!("one-shot returned above")
                 };
-                let provider = PythonProvider::arc_persistent(
-                    path.clone(),
+                let provider = PythonProvider::arc_persistent_in_generation(
+                    execution_path.clone(),
                     catalog,
                     PROVIDER_ENV_PREFIX,
                     interpreter,
                     config.clone(),
+                    worker_generation
+                        .clone()
+                        .expect("persistent Python source has an immutable generation"),
                 )
                 .map_err(|error| FileProviderLoadError {
-                    path: path.clone(),
+                    path: execution_path.clone(),
                     message: error.to_string(),
                 })?;
                 if let Err(error) = provider.preflight().await {
@@ -488,18 +553,24 @@ impl FileProviderSource {
                     }
                     soma_provider_core::Provider::retire(provider.as_ref()).await;
                     return Err(FileProviderLoadError {
-                        path,
+                        path: execution_path,
                         message: error.to_string(),
                     });
                 }
-                providers.push(SharedAdapter::wrap(provider));
+                let provider = SharedAdapter::wrap(provider);
+                providers.push(immutable.map_or(provider.clone(), |source| {
+                    retain_python_snapshot(provider, source.lease)
+                }));
             } else {
-                providers.push(provider_for_catalog(
-                    path,
+                let provider = provider_for_catalog(
+                    execution_path,
                     catalog,
                     interpreter,
                     &self.python_runner,
-                )?);
+                )?;
+                providers.push(immutable.map_or(provider.clone(), |source| {
+                    retain_python_snapshot(provider, source.lease)
+                }));
             }
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use serde_json::Value;
 use soma_domain::{
     AuthorizationMode, Principal, Surface,
+    actions::SomaAction,
     scopes::{READ_SCOPE, WRITE_SCOPE},
     token_limit::MAX_RESPONSE_BYTES,
 };
@@ -19,6 +20,8 @@ use crate::{
     ScaffoldIntentRequest, SomaService,
 };
 
+#[path = "app_python_operations.rs"]
+mod python_operations;
 #[cfg(test)]
 #[path = "app_tests.rs"]
 mod tests;
@@ -54,6 +57,23 @@ impl SomaApplication {
         request: ExecuteActionRequest,
         context: ExecutionContext,
     ) -> Result<ExecuteActionResponse, ApplicationError> {
+        if matches!(
+            request.action.as_str(),
+            "python_environment_status"
+                | "python_environment_prune_plan"
+                | "python_environment_prune"
+                | "python_environment_repair"
+                | "python_environment_update"
+                | "python_worker_status"
+                | "python_worker_cancel"
+                | "python_worker_reset"
+                | "python_generation_status"
+                | "python_generation_rollback"
+        ) {
+            return self
+                .execute_python_environment_action(request, context)
+                .await;
+        }
         let limits = ProviderRequestLimits {
             max_response_bytes: context
                 .response_limit
