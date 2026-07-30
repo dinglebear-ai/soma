@@ -9,6 +9,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.7.0](https://github.com/dinglebear-ai/soma/compare/v0.6.1...v0.7.0) (2026-07-30)
+
+
+### Added
+
+* **auth:** implement RFC 7009 token revocation at POST /revoke ([af80c37](https://github.com/dinglebear-ai/soma/commit/af80c3709b75ebe12db51126737499d7ba9939ca))
+* **auth:** MCP 2026 machine-client authentication groundwork ([890d66c](https://github.com/dinglebear-ai/soma/commit/890d66c4fbe182d13edd5ca2a756480aeb041c5f))
+* **auth:** OAuth client authentication, machine grants, and RFC 7009 revocation ([3037bc8](https://github.com/dinglebear-ai/soma/commit/3037bc8ab6f418afe924a42c1eb3bfa1d1d42f23))
+* **auth:** wire client authentication and machine grants into /token ([41b833b](https://github.com/dinglebear-ai/soma/commit/41b833bc2290dc28a35776c760f2601f90f0bdb6))
+* **mcp:** port RMCP 3 and MCP 2026 compatibility ([910df94](https://github.com/dinglebear-ai/soma/commit/910df94bd379aec51840c4b4990bf44f5fed1311))
+* **providers:** activate immutable Python environment candidates ([4993e57](https://github.com/dinglebear-ai/soma/commit/4993e57e6ec1cb6a08532fa99fdd868a0346fc46))
+* **providers:** add PyO3 native bindings ([4ed50f3](https://github.com/dinglebear-ai/soma/commit/4ed50f3eeba9af9fd7985139080368398c7c0ceb))
+* **providers:** add Python authoring contract ([1d4b3e1](https://github.com/dinglebear-ai/soma/commit/1d4b3e1b60c1a5397854f53ddcd4cec6b9ff11df))
+* **providers:** add Python SDK context ([c79c155](https://github.com/dinglebear-ai/soma/commit/c79c1555e6cb1d0fa52a235dc3c208babdfa387c))
+* **providers:** define Python runner protocol ([237d138](https://github.com/dinglebear-ai/soma/commit/237d1382da9107db4bdd73e891cb03252c8cec39))
+* **providers:** inventory Python environment caches ([cb6c957](https://github.com/dinglebear-ai/soma/commit/cb6c957b33f3eaa6e6be0aed03e8772cb0d63f24))
+* **providers:** materialize uv environments ([3df74c7](https://github.com/dinglebear-ai/soma/commit/3df74c74582ebb3d0b011f84c3e69f388ed8ab33))
+* **providers:** package Python SDK ([2d91e8e](https://github.com/dinglebear-ai/soma/commit/2d91e8ef142d23677eee1168f144cccc858e6c27))
+* **providers:** plan uv environments ([eacebcd](https://github.com/dinglebear-ai/soma/commit/eacebcda4bf9c459d6ca9cb46f899d2e80c95247))
+* **providers:** prepare immutable Python updates ([305b00d](https://github.com/dinglebear-ai/soma/commit/305b00dd7d09c0f46db68001b5842e47f4bd7221))
+* **providers:** prepare Python candidates before activation ([a463cf7](https://github.com/dinglebear-ai/soma/commit/a463cf74e70d4ebc1db7d8c4692f788b0b06ed3e))
+* **providers:** prune stale Python cache entries ([3c105d8](https://github.com/dinglebear-ai/soma/commit/3c105d872290c6c7c0bef661fdd81834cd0c6146))
+* **providers:** repair Python environment caches ([4a55996](https://github.com/dinglebear-ai/soma/commit/4a55996dc8b7c06dbb1723a36fc6755fdcee647f))
+* **providers:** select prepared Python interpreters ([a8e7887](https://github.com/dinglebear-ai/soma/commit/a8e78876506ea5dc480c1e5d0964ef1e14fc71c3))
+* **providers:** validate Python runtime compatibility ([11df06b](https://github.com/dinglebear-ai/soma/commit/11df06b7e69ecb82ebd2dce263713e8968f58497))
+* **providers:** verify Python environment readiness ([dbc03a6](https://github.com/dinglebear-ai/soma/commit/dbc03a68f1adb94aae6077d9857ccb88f9219041))
+* **python:** activate supervised persistent runner ([#243](https://github.com/dinglebear-ai/soma/issues/243)) ([47bb313](https://github.com/dinglebear-ai/soma/commit/47bb3131e5621a736b1f14c42f7b8f3bba3f416b))
+
+
+### Fixed
+
+* **auth:** authenticate public clients from the grant, not a live fetch ([a6ead90](https://github.com/dinglebear-ai/soma/commit/a6ead90a2870b18b30662cb27f5c255866c265e5))
+* **auth:** rate-limit POST /token ([16c4bf8](https://github.com/dinglebear-ai/soma/commit/16c4bf8f30d1cf22361268bf2eb86741301d4e2d))
+* **auth:** reject machine clients that shadow OAuth registrations ([5a3c656](https://github.com/dinglebear-ai/soma/commit/5a3c6569651a1c998a629c69bf29c46d8be770c6))
+* **ci:** disable forced color for gh in the codex schema drift monitor ([09eb9f6](https://github.com/dinglebear-ai/soma/commit/09eb9f67cba1ee377a434a1cf6714f8c0d7fa25d))
+* **ci:** drop non-ASCII separators from kache-gate.sh header ([156c167](https://github.com/dinglebear-ai/soma/commit/156c167bde3411ac50a1a4f941f8f3a8db0f9489))
+* **ci:** install just in the Test job instead of assuming the runner has it ([314b7cf](https://github.com/dinglebear-ai/soma/commit/314b7cfa6f211ea9c6d3745b5f9c495b5c5189c8))
+* **ci:** repair the gates the python and rmcp3 merges broke ([f986058](https://github.com/dinglebear-ai/soma/commit/f98605858101f6ddac9ca421435a03e5ae285d34))
+* **ci:** save the kache asset under its released filename ([a2c51b6](https://github.com/dinglebear-ai/soma/commit/a2c51b6d8a434d849f53574970f06316708eba70))
+* **ci:** stop forced color corrupting rmcp-release-monitor gh api payloads ([0deed4b](https://github.com/dinglebear-ai/soma/commit/0deed4bb12cddf39dbd836020f1e6c144e22403e))
+* **ci:** unblock MSRV link step and keep the runner-protocol fixture ASCII ([12fc929](https://github.com/dinglebear-ai/soma/commit/12fc929b8bc37e76739793ad3a6e9b50619d6e03))
+* **ci:** unbreak main's Soma Contracts job ([#244](https://github.com/dinglebear-ai/soma/issues/244)) ([0dd199e](https://github.com/dinglebear-ai/soma/commit/0dd199e28cfe4b01d076b15a51df8e10e91bd815))
+* **codex-client:** repair clippy under --features rest ([a189239](https://github.com/dinglebear-ai/soma/commit/a1892396c75cf8625b2e6484c5d6cae2464e6fea))
+* **codex-client:** split paths.rs back under its size limit ([8833235](https://github.com/dinglebear-ai/soma/commit/883323546c5ddb371f2460b5bcaca360ba24e103))
+* **plugin:** stop the monitor command referencing ${user_config.*} ([a0a2667](https://github.com/dinglebear-ai/soma/commit/a0a2667722272bf311b46a5c7cbe71055b8b4fb9))
+* **python:** make the native-fallback test independent of local builds ([d0f476a](https://github.com/dinglebear-ai/soma/commit/d0f476a0814bc0a099f4a5231ad3b2900c1f1b7f))
+* **xtask:** hold cargo audit to deny.toml's accepted advisories ([663b055](https://github.com/dinglebear-ai/soma/commit/663b055d4442da5315a3292bd9e86661d643e813))
+* **xtask:** parse exactly-pinned rmcp versions in the release monitor ([a556648](https://github.com/dinglebear-ai/soma/commit/a55664884a02021b20e7afd069f9c8e0e2ae64f2))
+
+
+### Dependencies
+
+* bump ed25519-dalek to 3.0 ([dee79cf](https://github.com/dinglebear-ai/soma/commit/dee79cffa788b24402b36ba8714ad23acf9c2cef))
+* roll up current dependency updates ([#246](https://github.com/dinglebear-ai/soma/issues/246)) ([fb36a5b](https://github.com/dinglebear-ai/soma/commit/fb36a5be098c421cdeb1f3e9e25dfc3c6d5d29e8))
+
+
+### Changed
+
+* **auth:** consolidate OAuth cache stamps and error-object assembly ([5d9c5c2](https://github.com/dinglebear-ai/soma/commit/5d9c5c240cc8ed2c0b69e601b09aa59b50a68b9e))
+* **auth:** split sqlite.rs along upstream-OAuth and session seams ([60a28f0](https://github.com/dinglebear-ai/soma/commit/60a28f0f6f1713e3f37840cb8ae1b22236671267))
+* **auth:** unify the CIMD-vs-store branch in the two client resolvers ([9b33e53](https://github.com/dinglebear-ai/soma/commit/9b33e53faae5bee129d0860d1117022e9da65d46))
+* **xtask:** split payload diagnosis out of rmcp_release_monitor ([2ab76d9](https://github.com/dinglebear-ai/soma/commit/2ab76d9b333e2cc1c69ac0cdd367b096f54abb99))
+* **xtask:** split rmcp-release-monitor along its real seams ([45a8484](https://github.com/dinglebear-ai/soma/commit/45a84842eb47d93ecf07a37e733be66185d5ae4d))
+
 ## [Unreleased]
 
 ### Changed
