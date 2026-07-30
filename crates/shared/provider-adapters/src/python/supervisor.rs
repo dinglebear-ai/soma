@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex as StdMutex, OnceLock, Weak,
-        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -13,11 +13,11 @@ use std::{
 use serde::Serialize;
 use serde_json::Value;
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
     process::{Child, Command},
-    sync::{Mutex, OwnedSemaphorePermit, Semaphore},
+    sync::{Mutex, Notify, OwnedSemaphorePermit, Semaphore},
     task::JoinHandle,
     time::timeout,
 };
@@ -32,6 +32,10 @@ use crate::{
     },
     sidecar::{resolve_sidecar_command, sidecar_base_env},
 };
+
+#[path = "supervisor_logs.rs"]
+mod logs;
+use logs::drain_stderr;
 
 const FRAME_HEADER_BYTES: usize = 4;
 
@@ -159,13 +163,16 @@ pub struct PythonWorkerSupervisor {
     worker: Mutex<Option<Worker>>,
     busy: AtomicBool,
     accepting: AtomicBool,
+    dispatch_leases: AtomicUsize,
+    leases_released: Notify,
     request_id: AtomicU64,
     restarts: Mutex<VecDeque<Instant>>,
+    restart_count: AtomicUsize,
     quarantined: AtomicBool,
     started_once: AtomicBool,
     discard_worker: AtomicBool,
     cancel_epoch: AtomicU64,
-    active_pid: AtomicU32,
+    active_pid: Arc<AtomicU32>,
     logs: Arc<StdMutex<WorkerLogBuffer>>,
 }
 
@@ -183,13 +190,16 @@ impl PythonWorkerSupervisor {
             worker: Mutex::new(None),
             busy: AtomicBool::new(false),
             accepting: AtomicBool::new(true),
+            dispatch_leases: AtomicUsize::new(0),
+            leases_released: Notify::new(),
             request_id: AtomicU64::new(1),
             restarts: Mutex::new(VecDeque::new()),
+            restart_count: AtomicUsize::new(0),
             quarantined: AtomicBool::new(false),
             started_once: AtomicBool::new(false),
             discard_worker: AtomicBool::new(false),
             cancel_epoch: AtomicU64::new(0),
-            active_pid: AtomicU32::new(0),
+            active_pid: Arc::new(AtomicU32::new(0)),
             logs: Arc::new(StdMutex::new(WorkerLogBuffer::default())),
         })
     }
@@ -201,10 +211,6 @@ impl PythonWorkerSupervisor {
             .logs
             .lock()
             .expect("Python worker log lock should not be poisoned");
-        let restart_count = self
-            .restarts
-            .try_lock()
-            .map_or(0, |restarts| restarts.len());
         PythonWorkerStatus {
             provider_source: self.identity.path.clone(),
             generation_id: self.identity.generation_id.clone(),
@@ -212,7 +218,7 @@ impl PythonWorkerSupervisor {
             accepting: self.accepting.load(Ordering::Acquire),
             busy: self.busy.load(Ordering::Acquire),
             quarantined: self.quarantined.load(Ordering::Acquire),
-            restart_count,
+            restart_count: self.restart_count.load(Ordering::Acquire),
             logs: logs.entries.iter().cloned().collect(),
         }
     }
@@ -237,6 +243,7 @@ impl PythonWorkerSupervisor {
         self.quarantined.store(false, Ordering::Release);
         self.started_once.store(false, Ordering::Release);
         self.restarts.lock().await.clear();
+        self.restart_count.store(0, Ordering::Release);
         self.discard_worker.store(true, Ordering::Release);
     }
 
@@ -249,6 +256,41 @@ impl PythonWorkerSupervisor {
     /// Re-enables a retained generation during atomic rollback.
     pub fn activate(&self) {
         self.accepting.store(true, Ordering::Release);
+    }
+
+    /// Reserves a call while a registry generation is still active.
+    pub fn acquire_dispatch(&self) -> bool {
+        if !self.accepting.load(Ordering::Acquire) {
+            return false;
+        }
+        self.dispatch_leases.fetch_add(1, Ordering::AcqRel);
+        if self.accepting.load(Ordering::Acquire) {
+            return true;
+        }
+        self.release_dispatch();
+        false
+    }
+
+    /// Releases a call reservation after the routed invocation completes.
+    pub fn release_dispatch(&self) {
+        let previous = self.dispatch_leases.fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(previous > 0, "dispatch lease count must not underflow");
+        if previous == 1 {
+            self.leases_released.notify_waiters();
+        }
+    }
+
+    /// Permanently parks this generation after all already-routed calls drain.
+    pub async fn suspend(&self) {
+        self.deactivate();
+        while self.dispatch_leases.load(Ordering::Acquire) != 0 {
+            let notified = self.leases_released.notified();
+            if self.dispatch_leases.load(Ordering::Acquire) == 0 {
+                break;
+            }
+            notified.await;
+        }
+        self.shutdown().await;
     }
 
     pub async fn preflight(&self) -> Result<Value, PythonSupervisorError> {
@@ -269,7 +311,9 @@ impl PythonWorkerSupervisor {
         snapshot_id: &str,
         timeout_override: Duration,
     ) -> Result<Value, PythonSupervisorError> {
-        if !self.accepting.load(Ordering::Acquire) {
+        if !self.accepting.load(Ordering::Acquire)
+            && self.dispatch_leases.load(Ordering::Acquire) == 0
+        {
             return Err(PythonSupervisorError::new(
                 "python_worker_draining",
                 "Python provider generation is draining",
@@ -665,6 +709,7 @@ impl PythonWorkerSupervisor {
             stderr,
             self.logs.clone(),
             self.config.max_stderr_bytes,
+            self.active_pid.clone(),
         ));
         let mut worker = Worker {
             child,
@@ -754,6 +799,7 @@ impl PythonWorkerSupervisor {
         {
             restarts.pop_front();
         }
+        self.restart_count.store(restarts.len(), Ordering::Release);
         if restarts.len() >= self.config.max_restarts as usize {
             self.quarantined.store(true, Ordering::Release);
             return Err(PythonSupervisorError::new(
@@ -762,6 +808,7 @@ impl PythonWorkerSupervisor {
             ));
         }
         restarts.push_back(now);
+        self.restart_count.store(restarts.len(), Ordering::Release);
         Ok(())
     }
 
@@ -793,6 +840,7 @@ impl PythonWorkerSupervisor {
     pub async fn shutdown(&self) {
         let mut slot = self.worker.lock().await;
         let Some(mut worker) = slot.take() else {
+            self.started_once.store(false, Ordering::Release);
             return;
         };
         let request_id = self.next_request_id();
@@ -803,6 +851,7 @@ impl PythonWorkerSupervisor {
         let _ = timeout(self.config.shutdown_grace, worker.child.wait()).await;
         terminate_worker(Some(worker)).await;
         self.active_pid.store(0, Ordering::Release);
+        self.started_once.store(false, Ordering::Release);
     }
 
     /// Stop accepting work, then shut the worker down within the configured
@@ -979,67 +1028,6 @@ async fn read_frame<T: serde::de::DeserializeOwned>(
     let mut payload = vec![0; length];
     reader.read_exact(&mut payload).await?;
     serde_json::from_slice(&payload).map_err(|_| protocol_error())
-}
-
-async fn drain_stderr<R: AsyncRead + Unpin>(
-    mut reader: R,
-    retained: Arc<StdMutex<WorkerLogBuffer>>,
-    limit: usize,
-) {
-    let mut buffer = [0_u8; 4096];
-    let mut pending = Vec::new();
-    loop {
-        let Ok(read) = reader.read(&mut buffer).await else {
-            return;
-        };
-        if read == 0 {
-            return;
-        }
-        if limit == 0 {
-            continue;
-        }
-        pending.extend_from_slice(&buffer[..read]);
-        while let Some(newline) = pending.iter().position(|byte| *byte == b'\n') {
-            let line = pending.drain(..=newline).collect::<Vec<_>>();
-            retain_log_line(&retained, &line, limit);
-        }
-        if pending.len() > limit {
-            let split = pending.len().saturating_sub(limit);
-            pending.drain(..split);
-        }
-    }
-}
-
-fn retain_log_line(retained: &StdMutex<WorkerLogBuffer>, line: &[u8], limit: usize) {
-    let raw = String::from_utf8_lossy(line)
-        .trim_end_matches(['\r', '\n'])
-        .to_owned();
-    if raw.is_empty() {
-        return;
-    }
-    let message = crate::error::redact_public(&raw);
-    let size = message.len();
-    let mut retained = retained
-        .lock()
-        .expect("Python worker log lock should not be poisoned");
-    while retained.retained_bytes.saturating_add(size) > limit {
-        let Some(removed) = retained.entries.pop_front() else {
-            break;
-        };
-        retained.retained_bytes = retained
-            .retained_bytes
-            .saturating_sub(removed.message.len());
-    }
-    if size <= limit {
-        let sequence = retained.next_sequence;
-        retained.next_sequence = retained.next_sequence.saturating_add(1);
-        retained.retained_bytes = retained.retained_bytes.saturating_add(size);
-        retained.entries.push_back(PythonWorkerLogEntry {
-            sequence,
-            stream: "stderr",
-            message,
-        });
-    }
 }
 
 async fn terminate_worker(worker: Option<Worker>) {
@@ -1332,6 +1320,71 @@ def wait(delay_ms: int) -> dict:
             )
             .await
             .expect("rollback activation permits new work");
+        supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn suspension_drains_routed_calls_and_does_not_consume_restart_budget() {
+        let Some(python) = installed_test_python() else {
+            return;
+        };
+        let temp = tempfile::tempdir().expect("tempdir");
+        let provider = temp.path().join("generation.py");
+        fs::write(
+            &provider,
+            r#"
+PROVIDER = {"name": "generation-test", "kind": "python"}
+def value() -> dict:
+    return {"value": "ok"}
+"#,
+        )
+        .expect("write provider");
+        let supervisor = PythonWorkerSupervisor::new(
+            identity(&provider),
+            PythonInterpreter::Prepared(python),
+            PythonSupervisorConfig {
+                restart_backoff: Duration::ZERO,
+                ..PythonSupervisorConfig::default()
+            },
+        );
+        supervisor.preflight().await.expect("preflight");
+        assert!(supervisor.acquire_dispatch());
+        let suspending = {
+            let supervisor = supervisor.clone();
+            tokio::spawn(async move { supervisor.suspend().await })
+        };
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert!(!supervisor.acquire_dispatch());
+        let routed = supervisor
+            .invoke(
+                "generation-test",
+                "value",
+                json!({}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-a",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect("already-routed call drains");
+        assert_eq!(routed, json!({"value": "ok"}));
+        supervisor.release_dispatch();
+        suspending.await.expect("suspension task");
+
+        supervisor.activate();
+        assert!(supervisor.acquire_dispatch());
+        supervisor
+            .invoke(
+                "generation-test",
+                "value",
+                json!({}),
+                soma_provider_core::ProviderSurface::Mcp,
+                "snapshot-b",
+                Duration::from_secs(1),
+            )
+            .await
+            .expect("rollback starts a planned fresh worker");
+        supervisor.release_dispatch();
+        assert_eq!(supervisor.status().restart_count, 0);
         supervisor.shutdown().await;
     }
 

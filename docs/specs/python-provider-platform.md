@@ -16,7 +16,7 @@ upstream_refs:
   - "crates/shared/provider-adapters/src/python_protocol.rs"
   - "crates/shared/provider-adapters/src/python/"
   - "packages/python/"
-last_reviewed: "2026-07-29"
+last_reviewed: "2026-07-30"
 ---
 
 # Python Provider Platform Plan
@@ -46,8 +46,8 @@ path must use it and its failure behavior must be verified.
 
 ## Verified Snapshot
 
-Last reconciled on **2026-07-29** against the implementation through
-`47bb3131`.
+Last reconciled on **2026-07-30** against the Phase 5–7 implementation branch
+stacked on the production-environment work in PR #249.
 
 The immutable-environment stack was merged by `749bc026` and ends at
 `4993e57e`; the supervised persistent runner was merged by `47bb3131`:
@@ -192,10 +192,10 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
 
 The earlier session-local implementation plan numbered the `uv` lifecycle as
-Phase 4 and the persistent runner as Phase 5. Their principal library/runtime
-implementations have landed, but the production exit gates above remain open.
-This canonical plan separates PyO3/maturin into its own Phase 4, so those same
-slices appear here as Phases 5 and 6.
+Phase 4 and the persistent runner as Phase 5. This canonical plan separates
+PyO3/maturin into its own Phase 4, so those same slices appear here as Phases 5
+and 6. Their production exit gates are now recorded in the completed phase
+sections below.
 
 ## Phase 5: PEP 723 and Immutable `uv` Environments
 
@@ -286,14 +286,13 @@ Implementation notes:
 - One invocation is active per worker. Concurrent work receives
   `python_provider_busy` without queueing.
 - The active feature set does not require cooperative `cancel`: cancellation
-  terminates the worker process group or Job Object so uninterruptible
-  synchronous Python and descendants cannot survive, then the supervisor
-  restarts cleanly on later work.
+  terminates the Unix worker process group or uses Windows `taskkill /T /F`,
+  then the supervisor restarts cleanly on later work.
 - Provider/tool runtime environment declarations are rejected in persistent
   mode. Phase-8 broker capabilities, actor scopes, and trace propagation are
   intentionally unavailable.
-- Unix workers own a process group and Windows workers own a kill-on-close Job
-  Object so timeout and retirement include descendants.
+- Unix workers own a process group. Windows uses best-effort process-tree
+  termination; stronger Job Object containment remains part of Phase 8.
 
 ## Phase 7: Generation-Aware Reload
 
@@ -316,16 +315,22 @@ Exit gates:
 - old generations drain without receiving new work;
 - repeated file events cannot create rebuild storms.
 
-All exit gates are delivered. Async refreshes share a single non-queueing
-preparation lane and wait through a short filesystem debounce window before
-fingerprinting settled inputs. Candidate environments and persistent workers
+All exit gates are delivered. Async refreshes share a single serialized
+preparation lane, recheck settled inputs after acquiring it, and wait through
+a short filesystem debounce window before fingerprinting settled inputs.
+Candidate environments and persistent workers
 are fully prepared and health-checked before publication. The registry swaps
 provider routing, catalog snapshot, environment selections, and worker set
 together; failed candidates retain the prior generation. A bounded three-entry
 history keeps recent generations eligible for explicit rollback while newer
-requests route only to the active generation. Evicted generations drain and
-retire outside registry locks. Authorized status and confirmed rollback actions
-are shared across CLI, MCP, and REST.
+requests route only to the active generation. Each retained Python generation
+owns a content-addressed, non-symlink snapshot of the complete provider tree,
+including adjacent data files, subject to 4,096-file and 64 MiB bounds.
+Dispatch leases let calls already routed to an old generation drain before its
+worker is parked; reference-counted snapshots are reclaimed after the last
+active, retained, or in-flight provider releases them. Evicted generations
+drain and retire outside registry locks. Authorized status and confirmed
+rollback actions are shared across CLI, MCP, and REST.
 
 ## Phase 8: Capability Broker and Containment
 

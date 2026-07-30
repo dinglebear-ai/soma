@@ -28,16 +28,6 @@ A single MCP tool, `mcp__soma__soma`, dispatches on a required `action` argument
 | `greet` | Return a greeting. | `name` (optional string) |
 | `echo` | Echo a message back unchanged. | `message` (required string) |
 | `status` | Return server status and configuration info. | none |
-| `python_environment_status` | Inspect immutable Python environment cache state without executing provider code. | none |
-| `python_environment_prune_plan` | Plan a bounded prune of stale non-ready Python environment cache entries. | `stale_before_unix_seconds` (required integer), `max_entries` (optional integer) |
-| `python_environment_prune` | Apply a bounded prune of stale non-ready Python environment cache entries. | `stale_before_unix_seconds` (required integer), `max_entries` (optional integer), `confirm` (required boolean) |
-| `python_environment_repair` | Repair the immutable environment for one managed Python provider. | `provider_path` (required string), `confirm` (required boolean) |
-| `python_environment_update` | Resolve, prepare, validate, and atomically activate an immutable update for one managed Python provider. | `provider_path` (required string), `confirm` (required boolean) |
-| `python_worker_status` | Inspect persistent Python worker health, quarantine, restart counts, and bounded redacted logs. | none |
-| `python_worker_cancel` | Cancel one active persistent Python invocation by terminating its process tree. | `provider` (required string), `confirm` (required boolean) |
-| `python_worker_reset` | Clear one persistent Python worker crash-loop quarantine. | `provider` (required string), `confirm` (required boolean) |
-| `python_generation_status` | Inspect the active Python provider generation and bounded rollback history. | none |
-| `python_generation_rollback` | Atomically reactivate a retained Python provider generation. | `generation_id` (required integer), `confirm` (required boolean) |
 | `elicit_name` | Ask the MCP client to collect a name, then return a personalised greeting. | none |
 | `scaffold_intent` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. | none |
 | `help` | Show the action reference. | none |

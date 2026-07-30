@@ -210,13 +210,14 @@ struct RecordingPythonEnvironments {
     calls: Mutex<Vec<String>>,
 }
 
+#[async_trait]
 impl PythonEnvironmentPort for RecordingPythonEnvironments {
-    fn status(&self) -> Result<Value, PortError> {
+    async fn status(&self) -> Result<Value, PortError> {
         self.calls.lock().unwrap().push("status".to_owned());
         Ok(json!({"entries": [{"state": "ready"}]}))
     }
 
-    fn prune(
+    async fn prune(
         &self,
         stale_before_unix_seconds: u64,
         max_entries: usize,
@@ -228,11 +229,11 @@ impl PythonEnvironmentPort for RecordingPythonEnvironments {
         Ok(json!({"apply": apply, "selected": max_entries}))
     }
 
-    fn repair(&self, _provider_path: &std::path::Path) -> Result<Value, PortError> {
+    async fn repair(&self, _provider_path: &std::path::Path) -> Result<Value, PortError> {
         unreachable!("repair is covered by the lifecycle tests")
     }
 
-    fn update(
+    async fn update(
         &self,
         _provider_path: &std::path::Path,
     ) -> Result<crate::PythonEnvironmentUpdateCandidate, PortError> {
@@ -347,6 +348,11 @@ async fn execute_action_enforces_destructive_confirmation() {
 async fn python_environment_status_uses_the_shared_operator_port() {
     let environments = Arc::new(RecordingPythonEnvironments::default());
     let application = application_with_python_environments(environments.clone());
+    let mut context = mounted_context(Confirmation::Missing, None);
+    context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE, "soma:admin"]),
+    ));
 
     let response = application
         .execute_action(
@@ -354,7 +360,7 @@ async fn python_environment_status_uses_the_shared_operator_port() {
                 action: "python_environment_status".to_owned(),
                 params: json!({}),
             },
-            mounted_context(Confirmation::Missing, None),
+            context,
         )
         .await
         .unwrap();
@@ -407,13 +413,30 @@ async fn python_environment_prune_requires_write_scope_and_confirmation() {
 #[tokio::test]
 async fn python_worker_status_and_cancel_share_registry_authorization() {
     let (application, _, _) = application(false, json!({}));
-    let status = application
+    let error = application
         .execute_action(
             ExecuteActionRequest {
                 action: "python_worker_status".to_owned(),
                 params: json!({}),
             },
             mounted_context(Confirmation::Missing, None),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "insufficient_scope");
+
+    let mut status_context = mounted_context(Confirmation::Missing, None);
+    status_context.principal = Some(Principal::new(
+        "operator",
+        ScopeSet::from([READ_SCOPE, WRITE_SCOPE, "soma:admin"]),
+    ));
+    let status = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_worker_status".to_owned(),
+                params: json!({}),
+            },
+            status_context,
         )
         .await
         .unwrap();
@@ -439,6 +462,43 @@ async fn python_worker_status_and_cancel_share_registry_authorization() {
         .await
         .unwrap();
     assert_eq!(cancelled.output["cancelled"], true);
+}
+
+#[tokio::test]
+async fn python_control_prefix_does_not_shadow_dynamic_provider_actions() {
+    let mut catalog = StaticRustProvider::catalog_static();
+    catalog.provider.name = "prefix-provider".to_owned();
+    catalog.tools.retain(|tool| tool.name == "echo");
+    catalog.tools[0].name = "python_environment_status_extra".to_owned();
+    let provider = Arc::new(RecordingProvider {
+        catalog,
+        output: json!({"echo": "provider-owned"}),
+        calls: Mutex::new(Vec::new()),
+    });
+    let registry = ProviderRegistry::new(vec![provider.clone()]).unwrap();
+    let service = SomaService::new(SomaClient::new(&SomaConfig::default()).unwrap());
+    let application = SomaApplication::new(
+        Arc::new(service),
+        Arc::new(registry),
+        ApplicationPorts::unavailable(),
+    );
+
+    let response = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_environment_status_extra".to_owned(),
+                params: json!({"message": "provider-owned"}),
+            },
+            ExecutionContext::loopback(
+                Surface::Rest,
+                RequestId::new("python-prefix-provider").unwrap(),
+            ),
+        )
+        .await
+        .expect("prefixed dynamic action should dispatch normally");
+
+    assert_eq!(response.output, json!({"echo": "provider-owned"}));
+    assert_eq!(provider.calls.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]

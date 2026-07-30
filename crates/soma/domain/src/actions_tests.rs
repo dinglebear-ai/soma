@@ -64,6 +64,15 @@ fn action_metadata_is_the_action_source_of_truth() {
     assert!(echo.cli.unwrap().flags[0].required);
     assert!(!echo.destructive);
     assert!(!echo.requires_admin);
+    let worker_status =
+        action_spec("python_worker_status").expect("worker status spec should exist");
+    assert_eq!(worker_status.required_scope, Some(WRITE_SCOPE));
+    assert!(worker_status.requires_admin);
+    for action in ["python_environment_status", "python_environment_prune_plan"] {
+        let spec = action_spec(action).expect("environment diagnostic spec should exist");
+        assert_eq!(spec.required_scope, Some(WRITE_SCOPE));
+        assert!(spec.requires_admin);
+    }
 }
 
 #[test]

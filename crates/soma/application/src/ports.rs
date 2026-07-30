@@ -226,20 +226,24 @@ pub struct PythonEnvironmentUpdateCandidate {
 }
 
 /// Operator control plane for production-managed Python environments.
+#[async_trait]
 pub trait PythonEnvironmentPort: Send + Sync {
     /// Inventories every managed cache entry without executing provider code.
-    fn status(&self) -> Result<Value, PortError>;
+    async fn status(&self) -> Result<Value, PortError>;
     /// Plans or applies a bounded prune of stale non-ready entries.
-    fn prune(
+    async fn prune(
         &self,
         stale_before_unix_seconds: u64,
         max_entries: usize,
         apply: bool,
     ) -> Result<Value, PortError>;
     /// Repairs the exact environment planned for one managed provider.
-    fn repair(&self, provider_path: &Path) -> Result<Value, PortError>;
+    async fn repair(&self, provider_path: &Path) -> Result<Value, PortError>;
     /// Prepares an immutable candidate for later atomic registry activation.
-    fn update(&self, provider_path: &Path) -> Result<PythonEnvironmentUpdateCandidate, PortError>;
+    async fn update(
+        &self,
+        provider_path: &Path,
+    ) -> Result<PythonEnvironmentUpdateCandidate, PortError>;
 }
 
 /// Bundle of the engine ports the application depends on.
@@ -403,12 +407,13 @@ impl OpenApiPort for UnavailableEnginePort {
     }
 }
 
+#[async_trait]
 impl PythonEnvironmentPort for UnavailableEnginePort {
-    fn status(&self) -> Result<Value, PortError> {
+    async fn status(&self) -> Result<Value, PortError> {
         Err(Self::error("Python environment lifecycle"))
     }
 
-    fn prune(
+    async fn prune(
         &self,
         _stale_before_unix_seconds: u64,
         _max_entries: usize,
@@ -417,11 +422,14 @@ impl PythonEnvironmentPort for UnavailableEnginePort {
         Err(Self::error("Python environment lifecycle"))
     }
 
-    fn repair(&self, _provider_path: &Path) -> Result<Value, PortError> {
+    async fn repair(&self, _provider_path: &Path) -> Result<Value, PortError> {
         Err(Self::error("Python environment lifecycle"))
     }
 
-    fn update(&self, _provider_path: &Path) -> Result<PythonEnvironmentUpdateCandidate, PortError> {
+    async fn update(
+        &self,
+        _provider_path: &Path,
+    ) -> Result<PythonEnvironmentUpdateCandidate, PortError> {
         Err(Self::error("Python environment lifecycle"))
     }
 }

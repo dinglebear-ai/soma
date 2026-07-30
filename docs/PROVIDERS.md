@@ -241,8 +241,8 @@ Operators use the same application actions from CLI, MCP, or REST:
 
 | Action | Scope | Purpose |
 |---|---|---|
-| `python_environment_status` | `soma:read` | Inventory ready, incomplete, corrupt, and staging cache entries without importing provider code. |
-| `python_environment_prune_plan` | `soma:read` | Produce a bounded conservative prune plan. |
+| `python_environment_status` | `soma:write` + admin | Inventory ready, incomplete, corrupt, and staging cache entries without importing provider code. |
+| `python_environment_prune_plan` | `soma:write` + admin | Produce a bounded conservative prune plan. |
 | `python_environment_prune` | `soma:write` + confirmation | Apply the bounded plan with race-safe revalidation. |
 | `python_environment_repair` | `soma:write` | Repair the exact environment for a managed provider path. |
 | `python_environment_update` | `soma:write` | Prepare, validate, and atomically activate a new immutable candidate. |
@@ -302,7 +302,7 @@ surface:
 
 | Action | Scope | Purpose |
 |---|---|---|
-| `python_worker_status` | `soma:read` | Inspect running/busy/quarantined state, restart counts, generation identity, and bounded redacted logs. |
+| `python_worker_status` | `soma:write` + admin | Inspect running/busy/quarantined state, restart counts, generation identity, and bounded redacted logs. |
 | `python_worker_cancel` | `soma:write` + confirmation | Cancel active work by terminating the worker process tree. |
 | `python_worker_reset` | `soma:write` + confirmation | Clear crash-loop quarantine and permit a fresh worker. |
 | `python_generation_status` | `soma:read` | Inspect the active generation and bounded rollback window. |
@@ -312,7 +312,10 @@ Filesystem refresh uses a single coalescing preparation lane and a short
 debounce window. Candidate catalogs, immutable environments, and persistent
 workers are prepared and health-checked before one atomic registry publication.
 The last three generations are retained for rollback; older generations are
-drained and retired outside registry locks. New requests never route to a
+drained and retired outside registry locks. Python generations snapshot the
+complete non-symlink provider tree, including adjacent data files, with a
+4,096-file/64 MiB bound; snapshots are reclaimed after the last active,
+retained, or in-flight provider releases them. New requests never route to a
 retained generation, while calls already holding that generation finish on it.
 
 The main controls are:

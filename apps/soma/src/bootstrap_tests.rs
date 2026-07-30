@@ -161,6 +161,12 @@ async fn local_cli_composition_prepares_python_with_configured_immutable_environ
 
 def configured_echo(value: str):
     return {"value": value}
+
+def configured_secret_error():
+    raise RuntimeError("authorization: Bearer production-secret")
+
+def configured_invalid_result():
+    return {1, 2, 3}
 "#,
     )
     .unwrap();
@@ -300,11 +306,35 @@ esac
         "production composition should publish a ready immutable cache"
     );
     let context = |id: &str| {
-        soma_application::ExecutionContext::loopback(
+        let mut context = soma_application::ExecutionContext::loopback(
             soma_domain::Surface::Cli,
             soma_domain::RequestId::new(id).unwrap(),
-        )
+        );
+        context.principal = Some(soma_domain::Principal::new(
+            "local-python-operator",
+            soma_domain::ScopeSet::from([
+                soma_domain::scopes::READ_SCOPE,
+                soma_domain::scopes::WRITE_SCOPE,
+                soma_domain::scopes::ADMIN_SCOPE,
+            ]),
+        ));
+        context
     };
+    let environment_status = one_shot
+        .execute_action(
+            soma_application::ExecuteActionRequest {
+                action: "python_environment_status".to_owned(),
+                params: serde_json::json!({}),
+            },
+            context("configured-python-environment-status"),
+        )
+        .await
+        .expect("production composition should wire Python environment operations");
+    assert!(
+        environment_status.output["entries"]
+            .as_array()
+            .is_some_and(|entries| !entries.is_empty())
+    );
     let output = one_shot
         .execute_action(
             soma_application::ExecuteActionRequest {
@@ -332,6 +362,34 @@ esac
         .await
         .expect("prepared persistent provider should execute");
     assert_eq!(output.output["value"], "configured:persistent");
+    for action in ["configured_secret_error", "configured_invalid_result"] {
+        let error = persistent
+            .execute_action(
+                soma_application::ExecuteActionRequest {
+                    action: action.to_owned(),
+                    params: serde_json::json!({}),
+                },
+                context(&format!("configured-python-{action}")),
+            )
+            .await
+            .expect_err("secret-bearing and invalid results must fail closed");
+        let public = format!("{error:?}");
+        assert!(!public.contains("production-secret"));
+        assert!(!public.contains("Bearer"));
+    }
+    let worker_status = persistent
+        .execute_action(
+            soma_application::ExecuteActionRequest {
+                action: "python_worker_status".to_owned(),
+                params: serde_json::json!({}),
+            },
+            context("configured-python-worker-status"),
+        )
+        .await
+        .expect("authorized worker status");
+    let public_status = serde_json::to_string(&worker_status.output).unwrap();
+    assert!(!public_status.contains("production-secret"));
+    assert!(!public_status.contains("Bearer"));
 
     let unavailable_uv = temporary.path().join("fake-uv-unavailable");
     std::fs::rename(&uv, &unavailable_uv).unwrap();

@@ -107,6 +107,7 @@ pub(super) fn is_test_file(path: &Path) -> bool {
     let path = path.to_string_lossy();
     path.contains("/tests/")
         || path.ends_with("_test.rs")
+        || path.ends_with("_tests.rs")
         || path.ends_with("/tests.rs")
         || path.ends_with(".test.ts")
         || path.ends_with(".test.tsx")
@@ -209,6 +210,13 @@ mod tests {
     fn effective_loc_counts_code_after_inline_block_comment() {
         let text = "/* license */ pub fn one() {}\nlet two = 2;";
         assert_eq!(effective_loc_from_text(text, false), 2);
+    }
+
+    #[test]
+    fn test_file_detection_accepts_both_common_rust_suffixes() {
+        assert!(is_test_file(Path::new("src/provider_test.rs")));
+        assert!(is_test_file(Path::new("src/provider_tests.rs")));
+        assert!(!is_test_file(Path::new("src/provider.rs")));
     }
 
     #[test]

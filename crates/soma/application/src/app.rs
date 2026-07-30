@@ -20,6 +20,8 @@ use crate::{
     ScaffoldIntentRequest, SomaService,
 };
 
+#[path = "app_python_operations.rs"]
+mod python_operations;
 #[cfg(test)]
 #[path = "app_tests.rs"]
 mod tests;
@@ -55,10 +57,19 @@ impl SomaApplication {
         request: ExecuteActionRequest,
         context: ExecutionContext,
     ) -> Result<ExecuteActionResponse, ApplicationError> {
-        if request.action.starts_with("python_environment_")
-            || request.action.starts_with("python_worker_")
-            || request.action.starts_with("python_generation_")
-        {
+        if matches!(
+            request.action.as_str(),
+            "python_environment_status"
+                | "python_environment_prune_plan"
+                | "python_environment_prune"
+                | "python_environment_repair"
+                | "python_environment_update"
+                | "python_worker_status"
+                | "python_worker_cancel"
+                | "python_worker_reset"
+                | "python_generation_status"
+                | "python_generation_rollback"
+        ) {
             return self
                 .execute_python_environment_action(request, context)
                 .await;
@@ -83,152 +94,6 @@ impl SomaApplication {
         let output = self.legacy_registry.dispatch(call).await?;
         Ok(ExecuteActionResponse {
             output: output.value,
-            request_id: context.request_id.as_str().to_owned(),
-        })
-    }
-
-    async fn execute_python_environment_action(
-        &self,
-        request: ExecuteActionRequest,
-        context: ExecutionContext,
-    ) -> Result<ExecuteActionResponse, ApplicationError> {
-        let limits = ProviderRequestLimits {
-            max_response_bytes: context
-                .response_limit
-                .unwrap_or(ProviderRequestLimits::default().max_response_bytes),
-            ..ProviderRequestLimits::default()
-        };
-        let call = ProviderCall {
-            provider: String::new(),
-            action: request.action.clone(),
-            params: request.params.clone(),
-            principal: provider_principal(context.principal.as_ref()),
-            auth_mode: provider_auth_mode(context.authorization_mode),
-            surface: provider_surface(context.surface),
-            destructive_confirmed: context.destructive_confirmation.is_confirmed(),
-            limits,
-            snapshot_id: String::new(),
-        };
-        let call = self.legacy_registry.authorize_operator_action(call)?;
-        let action = SomaAction::from_rest(&request.action, &request.params)
-            .map_err(|error| ApplicationError::service(&error))?;
-        let output = match action {
-            SomaAction::PythonEnvironmentStatus => self.ports.python_environment.status()?,
-            SomaAction::PythonEnvironmentPrunePlan {
-                stale_before_unix_seconds,
-                max_entries,
-            } => self.ports.python_environment.prune(
-                stale_before_unix_seconds,
-                max_entries,
-                false,
-            )?,
-            SomaAction::PythonEnvironmentPrune {
-                stale_before_unix_seconds,
-                max_entries,
-            } => {
-                self.ports
-                    .python_environment
-                    .prune(stale_before_unix_seconds, max_entries, true)?
-            }
-            SomaAction::PythonEnvironmentRepair { provider_path } => {
-                let provider_path = self
-                    .legacy_registry
-                    .resolve_python_provider_path(std::path::Path::new(&provider_path))
-                    .map_err(|error| {
-                        ApplicationError::new(
-                            error.code(),
-                            error.message(),
-                            false,
-                            "Use a managed Python provider path and retry.",
-                        )
-                    })?;
-                self.ports.python_environment.repair(&provider_path)?
-            }
-            SomaAction::PythonEnvironmentUpdate { provider_path } => {
-                let provider_path = self
-                    .legacy_registry
-                    .resolve_python_provider_path(std::path::Path::new(&provider_path))
-                    .map_err(|error| {
-                        ApplicationError::new(
-                            error.code(),
-                            error.message(),
-                            false,
-                            "Use a managed Python provider path and retry.",
-                        )
-                    })?;
-                let update = self.ports.python_environment.update(&provider_path)?;
-                let snapshot = self
-                    .legacy_registry
-                    .activate_python_candidate(&provider_path, update.candidate)
-                    .await
-                    .map_err(|error| {
-                        ApplicationError::new(
-                            error.code(),
-                            crate::provider_errors::redact_public(error.message()),
-                            false,
-                            "Keep the active generation, inspect the candidate, and retry.",
-                        )
-                    })?;
-                serde_json::json!({
-                    "update": update.report,
-                    "active_snapshot": {
-                        "id": snapshot.id,
-                        "fingerprint": snapshot.fingerprint,
-                    }
-                })
-            }
-            SomaAction::PythonWorkerStatus => self.legacy_registry.python_worker_status(),
-            SomaAction::PythonWorkerCancel { provider } => {
-                let cancelled = self
-                    .legacy_registry
-                    .cancel_python_worker(&provider)
-                    .map_err(ApplicationError::from)?;
-                serde_json::json!({
-                    "provider": provider,
-                    "cancelled": cancelled,
-                })
-            }
-            SomaAction::PythonWorkerReset { provider } => {
-                self.legacy_registry
-                    .reset_python_worker_quarantine(&provider)
-                    .await
-                    .map_err(ApplicationError::from)?;
-                serde_json::json!({
-                    "provider": provider,
-                    "reset": true,
-                })
-            }
-            SomaAction::PythonGenerationStatus => self.legacy_registry.python_generation_status(),
-            SomaAction::PythonGenerationRollback { generation_id } => self
-                .legacy_registry
-                .rollback_python_generation(generation_id)
-                .await
-                .map_err(ApplicationError::from)?,
-            _ => {
-                return Err(ApplicationError::new(
-                    "invalid_python_environment_action",
-                    "action is not a Python environment operation",
-                    false,
-                    "Use one of the documented Python environment actions.",
-                ));
-            }
-        };
-        let actual = serde_json::to_vec(&output)
-            .map_err(|error| ApplicationError::legacy("response serialization", error))?
-            .len();
-        if actual > call.limits.max_response_bytes {
-            return Err(ApplicationError::new(
-                "response_too_large",
-                format!(
-                    "Python environment response exceeded {} bytes",
-                    call.limits.max_response_bytes
-                ),
-                false,
-                "Reduce the requested bound and retry.",
-            ));
-        }
-        Ok(ExecuteActionResponse {
-            output,
             request_id: context.request_id.as_str().to_owned(),
         })
     }

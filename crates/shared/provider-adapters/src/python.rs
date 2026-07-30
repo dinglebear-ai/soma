@@ -469,6 +469,12 @@ impl Provider for PythonProvider {
         }
     }
 
+    async fn suspend(&self) {
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.suspend().await;
+        }
+    }
+
     fn deactivate(&self) {
         if let Some(supervisor) = &self.supervisor {
             supervisor.deactivate();
@@ -478,6 +484,18 @@ impl Provider for PythonProvider {
     fn activate(&self) {
         if let Some(supervisor) = &self.supervisor {
             supervisor.activate();
+        }
+    }
+
+    fn acquire_dispatch(&self) -> bool {
+        self.supervisor
+            .as_ref()
+            .is_none_or(|supervisor| supervisor.acquire_dispatch())
+    }
+
+    fn release_dispatch(&self) {
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.release_dispatch();
         }
     }
 

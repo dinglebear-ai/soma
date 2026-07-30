@@ -40,7 +40,8 @@ pub use filesystem_python::{
     PythonProviderEnvironmentPreparer, PythonProviderEnvironmentSelections,
 };
 use filesystem_python::{
-    collect_python_dependency_paths, fingerprint_python_environment, is_python_provider_source,
+    collect_python_dependency_paths, fingerprint_python_environment, immutable_python_source,
+    is_python_provider_source, retain_python_snapshot,
 };
 
 /// File-backed provider source rooted at a provider directory.
@@ -401,16 +402,23 @@ impl FileProviderSource {
         let mut providers: Vec<std::sync::Arc<dyn Provider>> = Vec::new();
         for path in self.provider_paths()? {
             let interpreter = self.python_interpreter_with_environments(&path, selections)?;
-            let catalog = load_catalog_with_interpreter(&path, &interpreter)?;
+            let immutable = if is_python_provider_source(&path) {
+                Some(immutable_python_source(&self.root, &path)?)
+            } else {
+                None
+            };
+            let execution_path = immutable
+                .as_ref()
+                .map_or_else(|| path.clone(), |source| source.path.clone());
+            let catalog = load_catalog_with_interpreter(&execution_path, &interpreter)?;
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
-            providers.push(provider_for_catalog(
-                path,
-                catalog,
-                interpreter,
-                &self.python_runner,
-            )?);
+            let provider =
+                provider_for_catalog(execution_path, catalog, interpreter, &self.python_runner)?;
+            providers.push(immutable.map_or(provider.clone(), |source| {
+                retain_python_snapshot(provider, source.lease)
+            }));
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {
             let provider = ResourceFileProvider::arc(absolute.clone(), &relative, &canonical_root)
@@ -451,7 +459,15 @@ impl FileProviderSource {
                 }
             }
             let interpreter = self.python_interpreter_with_environments(&path, selections)?;
-            let catalog_path = path.clone();
+            let immutable = if is_python_provider_source(&path) {
+                Some(immutable_python_source(&self.root, &path)?)
+            } else {
+                None
+            };
+            let execution_path = immutable
+                .as_ref()
+                .map_or_else(|| path.clone(), |source| source.path.clone());
+            let catalog_path = execution_path.clone();
             let catalog_interpreter = interpreter.clone();
             let catalog = tokio::task::spawn_blocking(move || {
                 load_catalog_with_interpreter(&catalog_path, &catalog_interpreter)
@@ -472,14 +488,14 @@ impl FileProviderSource {
                     unreachable!("one-shot returned above")
                 };
                 let provider = PythonProvider::arc_persistent(
-                    path.clone(),
+                    execution_path.clone(),
                     catalog,
                     PROVIDER_ENV_PREFIX,
                     interpreter,
                     config.clone(),
                 )
                 .map_err(|error| FileProviderLoadError {
-                    path: path.clone(),
+                    path: execution_path.clone(),
                     message: error.to_string(),
                 })?;
                 if let Err(error) = provider.preflight().await {
@@ -488,18 +504,24 @@ impl FileProviderSource {
                     }
                     soma_provider_core::Provider::retire(provider.as_ref()).await;
                     return Err(FileProviderLoadError {
-                        path,
+                        path: execution_path,
                         message: error.to_string(),
                     });
                 }
-                providers.push(SharedAdapter::wrap(provider));
+                let provider = SharedAdapter::wrap(provider);
+                providers.push(immutable.map_or(provider.clone(), |source| {
+                    retain_python_snapshot(provider, source.lease)
+                }));
             } else {
-                providers.push(provider_for_catalog(
-                    path,
+                let provider = provider_for_catalog(
+                    execution_path,
                     catalog,
                     interpreter,
                     &self.python_runner,
-                )?);
+                )?;
+                providers.push(immutable.map_or(provider.clone(), |source| {
+                    retain_python_snapshot(provider, source.lease)
+                }));
             }
         }
         for (absolute, relative, canonical_root) in self.resource_pairs_with_canonical_root()? {

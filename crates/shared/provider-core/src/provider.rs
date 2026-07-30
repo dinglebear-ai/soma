@@ -15,6 +15,9 @@ pub trait Provider: Send + Sync {
     /// an atomic generation swap, outside registry locks.
     async fn retire(&self) {}
 
+    /// Parks runtime resources while keeping a retained generation callable.
+    async fn suspend(&self) {}
+
     /// Returns product-neutral operator status for a stateful runtime.
     fn runtime_status(&self) -> Option<Value> {
         None
@@ -33,4 +36,15 @@ pub trait Provider: Send + Sync {
 
     /// Re-enables a retained generation selected by operator rollback.
     fn activate(&self) {}
+
+    /// Acquires a dispatch lease while the provider is still active.
+    ///
+    /// Registries call this while holding their generation read lock so an
+    /// already-routed invocation can drain safely across an atomic swap.
+    fn acquire_dispatch(&self) -> bool {
+        true
+    }
+
+    /// Releases a dispatch lease acquired by [`Provider::acquire_dispatch`].
+    fn release_dispatch(&self) {}
 }

@@ -1,11 +1,21 @@
 {
   "schema_version": 1,
-  "provider_fingerprint": "sha256:acd5dd24f91640f2ecd98cc350220d74037b74d4e7ba5ce7f159784f205bd4cb",
+  "provider_fingerprint": "sha256:4326cc6a5488ddfde39a1bd2a992f828e466bef7c8941f9e025b78c3b89a6cc1",
   "commands": [
     "echo",
     "elicit_name",
     "greet",
     "help",
+    "python_environment_prune",
+    "python_environment_prune_plan",
+    "python_environment_repair",
+    "python_environment_status",
+    "python_environment_update",
+    "python_generation_rollback",
+    "python_generation_status",
+    "python_worker_cancel",
+    "python_worker_reset",
+    "python_worker_status",
     "scaffold_intent",
     "status"
   ],

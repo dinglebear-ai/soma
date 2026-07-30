@@ -22,12 +22,19 @@ use crate::{
     providers::filesystem::{FileProviderSource, PythonProviderEnvironmentSelections},
 };
 
+mod dispatch_lease;
 mod enforcement;
+mod generations;
+mod python_operations;
 mod refresh;
 mod reports;
 mod resources;
+use dispatch_lease::DispatchLease;
 pub(super) use enforcement::provider_tool_surface_enabled;
 use enforcement::{enforce_capabilities, enforce_pre_input, enforce_response_limit};
+use generations::{
+    StoredGeneration, publish_generation, settle_transition, settle_transition_async,
+};
 use refresh::ProviderRefreshEvent;
 use resources::ResourceIndex;
 pub use resources::{DynamicResourceTemplate, ResourceReadOutput};
@@ -50,6 +57,9 @@ pub trait Provider: Send + Sync {
     /// generation swap.
     async fn retire(&self) {}
 
+    /// Parks runtime resources while preserving rollback capability.
+    async fn suspend(&self) {}
+
     /// Returns product-neutral operator status for a stateful runtime.
     fn runtime_status(&self) -> Option<Value> {
         None
@@ -68,6 +78,14 @@ pub trait Provider: Send + Sync {
 
     /// Re-enables a retained generation selected by operator rollback.
     fn activate(&self) {}
+
+    /// Reserves an invocation while this provider is still active.
+    fn acquire_dispatch(&self) -> bool {
+        true
+    }
+
+    /// Releases a reservation acquired by [`Provider::acquire_dispatch`].
+    fn release_dispatch(&self) {}
 
     /// Dynamic resource templates this provider serves. Every provider
     /// inherits the empty default — only file-based dynamic resource
@@ -360,17 +378,6 @@ struct RegistryState {
     history: VecDeque<StoredGeneration>,
 }
 
-#[derive(Clone)]
-struct StoredGeneration {
-    generation_id: u64,
-    providers: BTreeMap<String, Arc<dyn Provider>>,
-    core_registry: CoreRegistry,
-    snapshot: Arc<RegistrySnapshot>,
-    file_fingerprint: Option<String>,
-    python_environments: PythonProviderEnvironmentSelections,
-}
-
-const GENERATION_HISTORY_LIMIT: usize = 3;
 const REFRESH_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(75);
 
 impl ProviderRegistry {
@@ -486,289 +493,6 @@ impl ProviderRegistry {
             .clone()
     }
 
-    /// Resolves one exact managed Python provider path without importing it.
-    pub fn resolve_python_provider_path(
-        &self,
-        provider_path: &Path,
-    ) -> Result<PathBuf, ProviderValidationError> {
-        let source = self.file_source.as_ref().ok_or_else(|| {
-            ProviderValidationError::new(
-                "provider_file_source_unavailable",
-                "Python environment operations require a file-backed provider registry",
-            )
-        })?;
-        source
-            .resolve_python_provider_path(provider_path)
-            .map_err(|error| {
-                ProviderValidationError::new("provider_candidate_path_invalid", error.to_string())
-            })
-    }
-
-    /// Applies the active registry's authorization, scope, confirmation, and
-    /// input-size policy without invoking the provider implementation.
-    ///
-    /// Application-owned operator actions use this before calling their
-    /// control-plane port because those operations also need the registry to
-    /// activate a candidate atomically.
-    pub fn authorize_operator_action(
-        &self,
-        mut call: ProviderCall,
-    ) -> Result<ProviderCall, ProviderError> {
-        let state = self
-            .state
-            .read()
-            .expect("provider registry lock should not be poisoned");
-        let entry = state
-            .snapshot
-            .core_snapshot()
-            .tool(&call.action)
-            .ok_or_else(|| {
-                ProviderError::validation(
-                    "registry",
-                    call.action.clone(),
-                    "unknown_action",
-                    format!("unknown provider action `{}`", call.action),
-                )
-            })?;
-        let provider_name = entry.provider_id().as_str();
-        let provider_kind = state
-            .snapshot
-            .catalogs
-            .iter()
-            .find(|catalog| catalog.provider.name == provider_name)
-            .map(|catalog| catalog.provider.kind)
-            .ok_or_else(|| {
-                ProviderError::new(
-                    "provider_not_loaded",
-                    provider_name,
-                    Some(call.action.clone()),
-                    "provider is not loaded in the active registry",
-                    "Reload providers and retry.",
-                )
-            })?;
-        if !provider_tool_surface_enabled(entry.spec(), call.surface) {
-            return Err(ProviderError::validation(
-                provider_name,
-                call.action.clone(),
-                "surface_disabled",
-                "action is not enabled on this surface",
-            ));
-        }
-        call.provider = provider_name.to_owned();
-        call.snapshot_id = state.snapshot.id.clone();
-        enforce_pre_input(entry.spec(), &call, provider_kind)?;
-        Ok(call)
-    }
-
-    /// Inventories persistent worker state and bounded redacted logs.
-    pub fn python_worker_status(&self) -> Value {
-        let state = self
-            .state
-            .read()
-            .expect("provider registry lock should not be poisoned");
-        let workers = state
-            .providers
-            .iter()
-            .filter_map(|(name, provider)| {
-                provider.runtime_status().map(|status| {
-                    json!({
-                        "provider": name,
-                        "status": status,
-                    })
-                })
-            })
-            .collect::<Vec<_>>();
-        json!({
-            "snapshot_id": state.snapshot.id,
-            "workers": workers,
-        })
-    }
-
-    /// Returns the active generation and bounded rollback history.
-    pub fn python_generation_status(&self) -> Value {
-        let state = self
-            .state
-            .read()
-            .expect("provider registry lock should not be poisoned");
-        let describe = |generation_id: u64,
-                        snapshot: &Arc<RegistrySnapshot>,
-                        file_fingerprint: &Option<String>,
-                        environments: &PythonProviderEnvironmentSelections| {
-            json!({
-                "generation_id": generation_id,
-                "snapshot_id": snapshot.id,
-                "catalog_fingerprint": snapshot.fingerprint,
-                "file_fingerprint": file_fingerprint,
-                "python_environment_count": environments.len(),
-            })
-        };
-        json!({
-            "active": describe(
-                state.generation_id,
-                &state.snapshot,
-                &state.file_fingerprint,
-                &state.python_environments,
-            ),
-            "rollback_candidates": state.history.iter().map(|generation| {
-                describe(
-                    generation.generation_id,
-                    &generation.snapshot,
-                    &generation.file_fingerprint,
-                    &generation.python_environments,
-                )
-            }).collect::<Vec<_>>(),
-        })
-    }
-
-    /// Atomically reactivates a retained provider generation.
-    pub async fn rollback_python_generation(
-        &self,
-        target_generation_id: u64,
-    ) -> Result<Value, ProviderError> {
-        let (report, retired) = {
-            let mut state = self
-                .state
-                .write()
-                .expect("provider registry lock should not be poisoned");
-            let position = state
-                .history
-                .iter()
-                .position(|generation| generation.generation_id == target_generation_id)
-                .ok_or_else(|| {
-                    ProviderError::validation(
-                        "registry",
-                        "python_generation_rollback",
-                        "python_generation_unavailable",
-                        format!(
-                            "generation `{target_generation_id}` is not in the rollback window"
-                        ),
-                    )
-                })?;
-            let target = state
-                .history
-                .remove(position)
-                .expect("located generation must remain present");
-            let previous_generation_id = state.generation_id;
-            for provider in state.providers.values() {
-                if !target
-                    .providers
-                    .values()
-                    .any(|candidate| Arc::ptr_eq(candidate, provider))
-                {
-                    provider.deactivate();
-                }
-            }
-            for provider in target.providers.values() {
-                provider.activate();
-            }
-            let previous = StoredGeneration {
-                generation_id: state.generation_id,
-                providers: state.providers.clone(),
-                core_registry: state.core_registry.clone(),
-                snapshot: state.snapshot.clone(),
-                file_fingerprint: state.file_fingerprint.clone(),
-                python_environments: state.python_environments.clone(),
-            };
-            state.history.push_front(previous);
-            state.generation_id = state.generation_id.saturating_add(1);
-            state.providers = target.providers;
-            state.core_registry = target.core_registry;
-            state.snapshot = target.snapshot;
-            state.file_fingerprint = target.file_fingerprint;
-            state.python_environments = target.python_environments;
-            let mut retired = Vec::new();
-            while state.history.len() > GENERATION_HISTORY_LIMIT {
-                if let Some(evicted) = state.history.pop_back() {
-                    for provider in evicted.providers.into_values() {
-                        let retained = state
-                            .providers
-                            .values()
-                            .chain(
-                                state
-                                    .history
-                                    .iter()
-                                    .flat_map(|generation| generation.providers.values()),
-                            )
-                            .any(|candidate| Arc::ptr_eq(candidate, &provider));
-                        if !retained {
-                            retired.push(provider);
-                        }
-                    }
-                }
-            }
-            (
-                json!({
-                    "previous_generation_id": previous_generation_id,
-                    "restored_generation_id": target_generation_id,
-                    "active_generation_id": state.generation_id,
-                    "snapshot_id": state.snapshot.id,
-                }),
-                retired,
-            )
-        };
-        for provider in retired {
-            provider.retire().await;
-        }
-        Ok(report)
-    }
-
-    /// Cancels the active invocation for one persistent Python provider.
-    pub fn cancel_python_worker(&self, provider_name: &str) -> Result<bool, ProviderError> {
-        let state = self
-            .state
-            .read()
-            .expect("provider registry lock should not be poisoned");
-        let provider = state.providers.get(provider_name).ok_or_else(|| {
-            ProviderError::validation(
-                "registry",
-                "python_worker_cancel",
-                "provider_not_loaded",
-                format!("provider `{provider_name}` is not loaded"),
-            )
-        })?;
-        if provider.runtime_status().is_none() {
-            return Err(ProviderError::validation(
-                provider_name,
-                "python_worker_cancel",
-                "python_worker_unavailable",
-                "provider does not use a persistent Python worker",
-            ));
-        }
-        Ok(provider.cancel_active())
-    }
-
-    /// Clears one persistent worker's crash-loop quarantine.
-    pub async fn reset_python_worker_quarantine(
-        &self,
-        provider_name: &str,
-    ) -> Result<(), ProviderError> {
-        let provider = {
-            let state = self
-                .state
-                .read()
-                .expect("provider registry lock should not be poisoned");
-            let provider = state.providers.get(provider_name).cloned().ok_or_else(|| {
-                ProviderError::validation(
-                    "registry",
-                    "python_worker_reset",
-                    "provider_not_loaded",
-                    format!("provider `{provider_name}` is not loaded"),
-                )
-            })?;
-            if provider.runtime_status().is_none() {
-                return Err(ProviderError::validation(
-                    provider_name,
-                    "python_worker_reset",
-                    "python_worker_unavailable",
-                    "provider does not use a persistent Python worker",
-                ));
-            }
-            provider
-        };
-        provider.reset_quarantine().await;
-        Ok(())
-    }
-
     /// Refreshes providers from the file source, if any. Per the drop-in
     /// provider layout contract ("If a resource disappears or becomes
     /// invalid, a reload must leave the last valid snapshot active until a
@@ -839,7 +563,7 @@ impl ProviderRegistry {
         }
         let previous = state.snapshot.clone();
         let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
-        let retired = publish_generation(
+        let transition = publish_generation(
             &mut state,
             providers,
             core_registry,
@@ -852,7 +576,7 @@ impl ProviderRegistry {
         }
         let active = state.snapshot.clone();
         drop(state);
-        retire_evicted(retired);
+        settle_transition(transition);
         Ok(active)
     }
 
@@ -882,11 +606,28 @@ impl ProviderRegistry {
         {
             return Ok(self.snapshot());
         }
-        // A refresh already in progress must never queue unrelated request
-        // paths. They continue on the last atomically published snapshot.
-        let Ok(_refresh_guard) = self.refresh_gate.try_lock() else {
-            return Ok(self.snapshot());
+        // Contending events share one refresh lane. After acquiring it, every
+        // waiter rechecks the fingerprint and returns immediately when the
+        // preceding refresh already published its change.
+        let _refresh_guard = self.refresh_gate.lock().await;
+        let (serialized_fingerprint, serialized_environments) = {
+            let state = self
+                .state
+                .read()
+                .expect("provider registry lock should not be poisoned");
+            (
+                state.file_fingerprint.clone(),
+                state.python_environments.clone(),
+            )
         };
+        if file_source
+            .fingerprint_with_python_environments(&serialized_environments)
+            .ok()
+            .as_deref()
+            == serialized_fingerprint.as_deref()
+        {
+            return Ok(self.snapshot());
+        }
         // Editors commonly emit write/rename/chmod bursts. Hold the single
         // refresh lane briefly, then fingerprint the settled directory once.
         tokio::time::sleep(REFRESH_DEBOUNCE).await;
@@ -939,35 +680,32 @@ impl ProviderRegistry {
                 ));
             }
         };
-        let mut state = self
-            .state
-            .write()
-            .expect("provider registry lock should not be poisoned");
-        if state.file_fingerprint != baseline_fingerprint
-            || state.python_environments != active_environments
-        {
-            return Ok(state.snapshot.clone());
-        }
-        let previous = state.snapshot.clone();
-        let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
-        let retired = publish_generation(
-            &mut state,
-            providers,
-            core_registry,
-            snapshot.clone(),
-            Some(file_fingerprint),
-            active_environments,
-        );
-        if public_catalog_changed {
-            ProviderRefreshEvent::new(&previous, &snapshot).log(file_source.root());
-        }
-        let active = state.snapshot.clone();
-        drop(state);
-        for provider in retired {
-            tokio::spawn(async move {
-                provider.retire().await;
-            });
-        }
+        let (active, transition) = {
+            let mut state = self
+                .state
+                .write()
+                .expect("provider registry lock should not be poisoned");
+            if state.file_fingerprint != baseline_fingerprint
+                || state.python_environments != active_environments
+            {
+                return Ok(state.snapshot.clone());
+            }
+            let previous = state.snapshot.clone();
+            let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
+            let transition = publish_generation(
+                &mut state,
+                providers,
+                core_registry,
+                snapshot.clone(),
+                Some(file_fingerprint),
+                active_environments,
+            );
+            if public_catalog_changed {
+                ProviderRefreshEvent::new(&previous, &snapshot).log(file_source.root());
+            }
+            (state.snapshot.clone(), transition)
+        };
+        settle_transition_async(transition).await;
         Ok(active)
     }
 
@@ -1022,38 +760,35 @@ impl ProviderRegistry {
         providers.extend(dynamic_providers);
         let (providers, core_registry, snapshot) = build_registry(providers)?;
 
-        let mut state = self
-            .state
-            .write()
-            .expect("provider registry lock should not be poisoned");
-        if state.file_fingerprint != baseline_fingerprint
-            || state.python_environments != baseline_environments
-        {
-            return Err(ProviderValidationError::new(
-                "provider_candidate_activation_raced",
-                "provider registry changed while the candidate was being validated",
-            ));
-        }
-        let previous = state.snapshot.clone();
-        let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
-        let retired = publish_generation(
-            &mut state,
-            providers,
-            core_registry,
-            snapshot.clone(),
-            Some(file_fingerprint),
-            next_environments,
-        );
-        if public_catalog_changed {
-            ProviderRefreshEvent::new(&previous, &snapshot).log(file_source.root());
-        }
-        let active = state.snapshot.clone();
-        drop(state);
-        for provider in retired {
-            tokio::spawn(async move {
-                provider.retire().await;
-            });
-        }
+        let (active, transition) = {
+            let mut state = self
+                .state
+                .write()
+                .expect("provider registry lock should not be poisoned");
+            if state.file_fingerprint != baseline_fingerprint
+                || state.python_environments != baseline_environments
+            {
+                return Err(ProviderValidationError::new(
+                    "provider_candidate_activation_raced",
+                    "provider registry changed while the candidate was being validated",
+                ));
+            }
+            let previous = state.snapshot.clone();
+            let public_catalog_changed = previous.fingerprint != snapshot.fingerprint;
+            let transition = publish_generation(
+                &mut state,
+                providers,
+                core_registry,
+                snapshot.clone(),
+                Some(file_fingerprint),
+                next_environments,
+            );
+            if public_catalog_changed {
+                ProviderRefreshEvent::new(&previous, &snapshot).log(file_source.root());
+            }
+            (state.snapshot.clone(), transition)
+        };
+        settle_transition_async(transition).await;
         Ok(active)
     }
 
@@ -1093,7 +828,7 @@ impl ProviderRegistry {
             .state
             .write()
             .expect("provider registry lock should not be poisoned");
-        let retired = publish_generation(
+        let transition = publish_generation(
             &mut state,
             providers,
             core_registry,
@@ -1103,7 +838,7 @@ impl ProviderRegistry {
         );
         let active = state.snapshot.clone();
         drop(state);
-        retire_evicted(retired);
+        settle_transition(transition);
         Ok(active)
     }
 
@@ -1111,7 +846,7 @@ impl ProviderRegistry {
     /// checks, declared capabilities, and the response size limit around the
     /// provider's own `call`.
     pub async fn dispatch(&self, mut call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
-        let (snapshot, core_registry, provider, tool, capabilities, provider_kind) = {
+        let (snapshot, core_registry, lease, tool, capabilities, provider_kind) = {
             let state = self
                 .state
                 .read()
@@ -1136,6 +871,15 @@ impl ProviderRegistry {
                     "Reload providers and retry.",
                 )
             })?;
+            let lease = DispatchLease::acquire(provider).ok_or_else(|| {
+                ProviderError::new(
+                    "provider_generation_draining",
+                    provider_name,
+                    Some(entry.spec().name.clone()),
+                    "provider generation is draining",
+                    "Retry against the active provider generation.",
+                )
+            })?;
             let (capabilities, provider_kind) = snapshot
                 .catalogs
                 .iter()
@@ -1145,14 +889,14 @@ impl ProviderRegistry {
             (
                 snapshot,
                 state.core_registry.clone(),
-                provider,
+                lease,
                 tool,
                 capabilities,
                 provider_kind,
             )
         };
 
-        call.provider = provider.catalog().provider.name;
+        call.provider = lease.provider.catalog().provider.name;
         call.snapshot_id = snapshot.id.clone();
         let pre_input_call = call.clone();
         let invocation_call = call.clone();
@@ -1173,7 +917,7 @@ impl ProviderRegistry {
                     call.snapshot_id = invocation.snapshot_id;
                     async move {
                         enforce_capabilities(&capabilities, &call, &capability_broker)?;
-                        let output = provider.call(call.clone()).await?;
+                        let output = lease.provider.call(call.clone()).await?;
                         enforce_response_limit(&tool, &call, &output)?;
                         Ok(output)
                     }
@@ -1201,74 +945,6 @@ fn provider_map(
         }
     }
     Ok(map)
-}
-
-fn publish_generation(
-    state: &mut RegistryState,
-    providers: BTreeMap<String, Arc<dyn Provider>>,
-    core_registry: CoreRegistry,
-    snapshot: Arc<RegistrySnapshot>,
-    file_fingerprint: Option<String>,
-    python_environments: PythonProviderEnvironmentSelections,
-) -> Vec<Arc<dyn Provider>> {
-    for provider in state.providers.values() {
-        if !providers
-            .values()
-            .any(|candidate| Arc::ptr_eq(candidate, provider))
-        {
-            provider.deactivate();
-        }
-    }
-    for provider in providers.values() {
-        provider.activate();
-    }
-    state.history.push_front(StoredGeneration {
-        generation_id: state.generation_id,
-        providers: state.providers.clone(),
-        core_registry: state.core_registry.clone(),
-        snapshot: state.snapshot.clone(),
-        file_fingerprint: state.file_fingerprint.clone(),
-        python_environments: state.python_environments.clone(),
-    });
-    state.generation_id = state.generation_id.saturating_add(1);
-    state.providers = providers;
-    state.core_registry = core_registry;
-    state.snapshot = snapshot;
-    state.file_fingerprint = file_fingerprint;
-    state.python_environments = python_environments;
-
-    let mut evicted = Vec::new();
-    while state.history.len() > GENERATION_HISTORY_LIMIT {
-        if let Some(generation) = state.history.pop_back() {
-            for provider in generation.providers.into_values() {
-                let retained = state
-                    .providers
-                    .values()
-                    .chain(
-                        state
-                            .history
-                            .iter()
-                            .flat_map(|generation| generation.providers.values()),
-                    )
-                    .any(|candidate| Arc::ptr_eq(candidate, &provider));
-                if !retained {
-                    evicted.push(provider);
-                }
-            }
-        }
-    }
-    evicted
-}
-
-fn retire_evicted(providers: Vec<Arc<dyn Provider>>) {
-    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-        return;
-    };
-    for provider in providers {
-        runtime.spawn(async move {
-            provider.retire().await;
-        });
-    }
 }
 
 /// Wraps a product-neutral `soma_provider_core::Provider` (as implemented by
@@ -1303,6 +979,10 @@ impl Provider for SharedAdapter {
         self.0.retire().await;
     }
 
+    async fn suspend(&self) {
+        self.0.suspend().await;
+    }
+
     fn runtime_status(&self) -> Option<Value> {
         self.0.runtime_status()
     }
@@ -1321,6 +1001,14 @@ impl Provider for SharedAdapter {
 
     fn activate(&self) {
         self.0.activate();
+    }
+
+    fn acquire_dispatch(&self) -> bool {
+        self.0.acquire_dispatch()
+    }
+
+    fn release_dispatch(&self) {
+        self.0.release_dispatch();
     }
 }
 
@@ -1368,6 +1056,14 @@ impl CoreProvider for CoreProviderAdapter {
                 snapshot_id: call.snapshot_id,
             })
             .await
+    }
+
+    fn acquire_dispatch(&self) -> bool {
+        self.0.acquire_dispatch()
+    }
+
+    fn release_dispatch(&self) {
+        self.0.release_dispatch();
     }
 }
 
