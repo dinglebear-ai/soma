@@ -253,11 +253,17 @@ For example:
 soma python_environment_status
 soma python_environment_prune_plan --json \
   '{"stale_before_unix_seconds": 1722384000, "max_entries": 25}'
-soma python_environment_prune --confirm --json \
-  '{"stale_before_unix_seconds": 1722384000, "max_entries": 25}'
-soma python_environment_repair --json '{"provider_path":"providers/example.py"}'
-soma python_environment_update --json '{"provider_path":"providers/example.py"}'
+soma --yes python_environment_prune --json \
+  '{"stale_before_unix_seconds": 1722384000, "max_entries": 25, "confirm": true}'
+soma --yes python_environment_repair --json \
+  '{"provider_path":"providers/example.py", "confirm": true}'
+soma --yes python_environment_update --json \
+  '{"provider_path":"providers/example.py", "confirm": true}'
 ```
+
+Omit `--yes` in an interactive terminal to receive the typed destructive-action
+prompt. Non-interactive CLI use must pass leading `-y` / `--yes`; REST and MCP
+use the request's explicit `confirm: true` value.
 
 Repair and update paths must resolve to regular, non-symlink `.py` files under
 the configured provider root. Update never mutates the active environment: it

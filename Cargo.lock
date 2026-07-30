@@ -5764,6 +5764,7 @@ name = "soma-provider-adapters"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "getrandom 0.3.4",
  "nix",
  "pep440_rs",
  "reqwest 0.13.4",

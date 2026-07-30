@@ -8,7 +8,7 @@ use crate::{
     GatewayMcpRoundTrip, GatewayPromptRoute, GatewayReloadRequest, GatewayResourceRoute,
     GatewayRouteScope, GatewayToolRoute, OpenApiExecuteRequest,
 };
-use soma_provider_adapters::python::materializer::PreparedPythonEnvironment;
+use soma_provider_adapters::python::materializer::PythonEnvironmentUpdateReport;
 
 /// Error returned by an engine port when an operation cannot be completed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -218,11 +218,19 @@ pub trait OpenApiPort: Send + Sync {
 }
 
 /// Result of preparing an immutable environment update before registry activation.
-pub struct PythonEnvironmentUpdateCandidate {
-    /// Operator-facing update report.
-    pub report: Value,
-    /// Exact candidate that the registry must validate and activate atomically.
-    pub candidate: PreparedPythonEnvironment,
+pub struct PythonEnvironmentUpdateCandidate(PythonEnvironmentUpdateReport);
+
+impl PythonEnvironmentUpdateCandidate {
+    /// Wraps the materializer's typed report so the activated candidate and
+    /// operator-facing report cannot be constructed independently.
+    #[must_use]
+    pub fn from_report(report: PythonEnvironmentUpdateReport) -> Self {
+        Self(report)
+    }
+
+    pub(crate) fn into_report(self) -> PythonEnvironmentUpdateReport {
+        self.0
+    }
 }
 
 /// Operator control plane for production-managed Python environments.

@@ -138,3 +138,73 @@ fn persistent_mode_rejects_provider_and_tool_runtime_environment_requirements() 
         assert_eq!(error.code.as_ref(), "python_persistent_env_unsupported");
     }
 }
+
+#[test]
+fn persistent_identity_changes_with_the_complete_immutable_generation() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("provider.py");
+    fs::write(
+        &path,
+        "PROVIDER = {'name': 'generation-test', 'kind': 'python'}\n",
+    )
+    .unwrap();
+    let catalog = validate_provider_manifest_value(&json!({
+        "schema_version": 1,
+        "provider": {"name": "generation-test", "kind": "python"},
+        "tools": []
+    }))
+    .unwrap();
+    let first = PythonProvider::arc_persistent_in_generation(
+        path.clone(),
+        catalog.clone(),
+        "SOMA",
+        PythonInterpreter::Ambient,
+        Default::default(),
+        "a".repeat(64),
+    )
+    .unwrap();
+    let second = PythonProvider::arc_persistent_in_generation(
+        path,
+        catalog,
+        "SOMA",
+        PythonInterpreter::Ambient,
+        Default::default(),
+        "b".repeat(64),
+    )
+    .unwrap();
+
+    let first = soma_provider_core::Provider::runtime_status(first.as_ref()).unwrap();
+    let second = soma_provider_core::Provider::runtime_status(second.as_ref()).unwrap();
+    assert_ne!(first["generation_id"], second["generation_id"]);
+}
+
+#[test]
+fn persistent_generation_digest_is_validated_without_panicking() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("provider.py");
+    fs::write(
+        &path,
+        "PROVIDER = {'name': 'generation-test', 'kind': 'python'}\n",
+    )
+    .unwrap();
+    let catalog = validate_provider_manifest_value(&json!({
+        "schema_version": 1,
+        "provider": {"name": "generation-test", "kind": "python"},
+        "tools": []
+    }))
+    .unwrap();
+    for invalid in ["short", &"é".repeat(32)] {
+        let error = match PythonProvider::arc_persistent_in_generation(
+            path.clone(),
+            catalog.clone(),
+            "SOMA",
+            PythonInterpreter::Ambient,
+            Default::default(),
+            invalid.to_owned(),
+        ) {
+            Ok(_) => panic!("invalid generation digest must fail closed"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code.as_ref(), "python_generation_digest_invalid");
+    }
+}

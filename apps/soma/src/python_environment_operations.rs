@@ -99,10 +99,7 @@ impl PythonEnvironmentPort for ConfiguredPythonEnvironmentOperations {
             let report = lifecycle
                 .update_provider(&provider_path)
                 .map_err(|error| python_environment_port_error("update", error))?;
-            let candidate = report.candidate.clone();
-            let report = serde_json::to_value(report)
-                .map_err(|error| python_environment_port_error("update serialization", error))?;
-            Ok(PythonEnvironmentUpdateCandidate { report, candidate })
+            Ok(PythonEnvironmentUpdateCandidate::from_report(report))
         })
         .await
     }

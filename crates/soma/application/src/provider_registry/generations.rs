@@ -204,19 +204,15 @@ pub(super) fn publish_generation(
 }
 
 pub(super) fn settle_transition(transition: GenerationTransition) {
-    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+    if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+        runtime.spawn(settle_transition_async(transition));
         return;
-    };
-    for provider in transition.suspended {
-        runtime.spawn(async move {
-            provider.suspend().await;
-        });
     }
-    for provider in transition.evicted {
-        runtime.spawn(async move {
-            provider.retire().await;
-        });
-    }
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("provider transition runtime should build")
+        .block_on(settle_transition_async(transition));
 }
 
 pub(super) async fn settle_transition_async(transition: GenerationTransition) {
@@ -225,5 +221,50 @@ pub(super) async fn settle_transition_async(transition: GenerationTransition) {
     }
     for provider in transition.evicted {
         provider.retire().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+
+    struct LifecycleProbe {
+        suspended: AtomicUsize,
+        retired: AtomicUsize,
+    }
+
+    #[async_trait]
+    impl Provider for LifecycleProbe {
+        fn catalog(&self) -> ProviderCatalog {
+            panic!("lifecycle settlement does not inspect catalogs")
+        }
+
+        async fn call(&self, _call: ProviderCall) -> Result<ProviderOutput, ProviderError> {
+            panic!("lifecycle settlement does not dispatch")
+        }
+
+        async fn suspend(&self) {
+            self.suspended.fetch_add(1, Ordering::SeqCst);
+        }
+
+        async fn retire(&self) {
+            self.retired.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn synchronous_transition_settles_without_an_ambient_tokio_runtime() {
+        let probe = Arc::new(LifecycleProbe {
+            suspended: AtomicUsize::new(0),
+            retired: AtomicUsize::new(0),
+        });
+        settle_transition(GenerationTransition {
+            suspended: vec![probe.clone()],
+            evicted: vec![probe.clone()],
+        });
+        assert_eq!(probe.suspended.load(Ordering::SeqCst), 1);
+        assert_eq!(probe.retired.load(Ordering::SeqCst), 1);
     }
 }

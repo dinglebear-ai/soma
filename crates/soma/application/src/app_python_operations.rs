@@ -53,9 +53,11 @@ impl SomaApplication {
             SomaAction::PythonEnvironmentUpdate { provider_path } => {
                 let provider_path = self.managed_python_provider_path(&provider_path)?;
                 let update = self.ports.python_environment.update(&provider_path).await?;
+                let update = update.into_report();
+                let candidate = update.candidate.clone();
                 let snapshot = self
                     .legacy_registry
-                    .activate_python_candidate(&provider_path, update.candidate)
+                    .activate_python_candidate(&provider_path, candidate)
                     .await
                     .map_err(|error| {
                         ApplicationError::new(
@@ -66,7 +68,7 @@ impl SomaApplication {
                         )
                     })?;
                 serde_json::json!({
-                    "update": update.report,
+                    "update": update,
                     "active_snapshot": {
                         "id": snapshot.id,
                         "fingerprint": snapshot.fingerprint,

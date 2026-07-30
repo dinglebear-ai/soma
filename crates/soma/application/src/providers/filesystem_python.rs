@@ -70,30 +70,111 @@ pub type PythonProviderEnvironmentSelections = BTreeMap<PathBuf, PreparedPythonE
 const MAX_GENERATION_FILES: usize = 4_096;
 const MAX_GENERATION_BYTES: u64 = 64 * 1024 * 1024;
 const STALE_GENERATION_STORE_AGE: Duration = Duration::from_secs(24 * 60 * 60);
-static GENERATION_LEASES: OnceLock<Mutex<HashMap<PathBuf, Weak<PythonGenerationLease>>>> =
-    OnceLock::new();
+struct GenerationLeaseEntry {
+    id: u64,
+    lease: Weak<PythonGenerationLease>,
+}
+
+static GENERATION_LEASES: OnceLock<Mutex<HashMap<PathBuf, GenerationLeaseEntry>>> = OnceLock::new();
 static GENERATION_STORE_INITIALIZED: OnceLock<()> = OnceLock::new();
+static GENERATION_LEASE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 pub(super) struct ImmutablePythonSource {
     pub(super) path: PathBuf,
     pub(super) lease: Arc<PythonGenerationLease>,
 }
 
+pub(super) struct ImmutablePythonGeneration {
+    root: PathBuf,
+    pub(super) digest: String,
+    lease: Arc<PythonGenerationLease>,
+}
+
+impl ImmutablePythonGeneration {
+    pub(super) fn source(
+        &self,
+        provider_root: &Path,
+        path: &Path,
+    ) -> Result<ImmutablePythonSource, FileProviderLoadError> {
+        let relative_source =
+            path.strip_prefix(provider_root)
+                .map_err(|_| FileProviderLoadError {
+                    path: path.to_path_buf(),
+                    message: "Python provider source is outside its managed root".to_owned(),
+                })?;
+        Ok(ImmutablePythonSource {
+            path: self.root.join(relative_source),
+            lease: self.lease.clone(),
+        })
+    }
+}
+
 pub(super) struct PythonGenerationLease {
     generation: PathBuf,
+    id: u64,
 }
 
 impl Drop for PythonGenerationLease {
     fn drop(&mut self) {
-        if let Some(leases) = GENERATION_LEASES.get() {
+        let cleanup = if let Some(leases) = GENERATION_LEASES.get() {
             let mut leases = leases
                 .lock()
                 .expect("Python generation lease lock should not be poisoned");
+            let owns_entry = leases
+                .get(&self.generation)
+                .is_some_and(|entry| entry.id == self.id);
+            if !owns_entry {
+                return;
+            }
             leases.remove(&self.generation);
-            let _ = fs::remove_dir_all(&self.generation);
+            claim_generation_for_cleanup(&self.generation, self.id)
+        } else {
+            claim_generation_for_cleanup(&self.generation, self.id)
+        };
+        let Some(cleanup) = cleanup else {
             return;
+        };
+        let background_cleanup = cleanup.clone();
+        if let Err(error) = std::thread::Builder::new()
+            .name("soma-python-generation-cleanup".to_owned())
+            .spawn(move || remove_claimed_generation(&background_cleanup))
+        {
+            tracing::warn!(
+                path = %cleanup.display(),
+                %error,
+                "failed to start immutable Python generation cleanup thread"
+            );
+            remove_claimed_generation(&cleanup);
         }
-        let _ = fs::remove_dir_all(&self.generation);
+    }
+}
+
+fn claim_generation_for_cleanup(generation: &Path, id: u64) -> Option<PathBuf> {
+    let name = generation.file_name()?.to_string_lossy();
+    let cleanup = generation.with_file_name(format!(".{name}.{id}.reclaiming"));
+    match fs::rename(generation, &cleanup) {
+        Ok(()) => Some(cleanup),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            tracing::warn!(
+                path = %generation.display(),
+                %error,
+                "failed to atomically claim immutable Python generation for cleanup"
+            );
+            None
+        }
+    }
+}
+
+fn remove_claimed_generation(generation: &Path) {
+    if let Err(error) = fs::remove_dir_all(generation)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            path = %generation.display(),
+            %error,
+            "failed to reclaim immutable Python generation"
+        );
     }
 }
 
@@ -159,28 +240,25 @@ impl Provider for SnapshotRetainedProvider {
     }
 }
 
+#[cfg(test)]
 pub(super) fn immutable_python_source(
     provider_root: &Path,
     path: &Path,
 ) -> Result<ImmutablePythonSource, FileProviderLoadError> {
+    immutable_python_generation(provider_root)?.source(provider_root, path)
+}
+
+pub(super) fn immutable_python_generation(
+    provider_root: &Path,
+) -> Result<ImmutablePythonGeneration, FileProviderLoadError> {
     static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(1);
-    let relative_source = path
-        .strip_prefix(provider_root)
-        .map_err(|_| FileProviderLoadError {
-            path: path.to_path_buf(),
-            message: "Python provider source is outside its managed root".to_owned(),
-        })?;
     let mut paths = BTreeSet::new();
     collect_python_dependency_paths(provider_root, &mut paths)?;
     validate_generation_limits(provider_root, &paths)?;
     let digest = python_tree_digest(provider_root, &paths)?;
     let generation_store =
         std::env::temp_dir().join(format!("soma-python-generations.{}", std::process::id()));
-    fs::create_dir_all(&generation_store).map_err(|error| FileProviderLoadError {
-        path: generation_store.clone(),
-        message: format!("failed to create Python generation store: {error}"),
-    })?;
-    secure_generation_store(&generation_store)?;
+    create_private_generation_store(&generation_store)?;
     GENERATION_STORE_INITIALIZED.get_or_init(|| {
         if let Ok(entries) = fs::read_dir(&generation_store) {
             for entry in entries.flatten() {
@@ -195,11 +273,11 @@ pub(super) fn immutable_python_source(
     });
     cleanup_stale_generation_stores(&generation_store);
     let generation = generation_store.join(&digest);
-    let snapshot = generation.join("tree").join(relative_source);
     if generation.exists() {
         verify_immutable_generation(&generation, &digest)?;
-        return Ok(ImmutablePythonSource {
-            path: snapshot,
+        return Ok(ImmutablePythonGeneration {
+            root: generation.join("tree"),
+            digest,
             lease: generation_lease(generation)?,
         });
     }
@@ -234,15 +312,17 @@ pub(super) fn immutable_python_source(
         return Err(error);
     }
     match fs::rename(&staging, &generation) {
-        Ok(()) => Ok(ImmutablePythonSource {
-            path: snapshot,
+        Ok(()) => Ok(ImmutablePythonGeneration {
+            root: generation.join("tree"),
+            digest,
             lease: generation_lease(generation)?,
         }),
         Err(_) if generation.exists() => {
             let _ = fs::remove_dir_all(&staging);
             verify_immutable_generation(&generation, &digest)?;
-            Ok(ImmutablePythonSource {
-                path: snapshot,
+            Ok(ImmutablePythonGeneration {
+                root: generation.join("tree"),
+                digest,
                 lease: generation_lease(generation)?,
             })
         }
@@ -263,7 +343,10 @@ fn generation_lease(
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .expect("Python generation lease lock should not be poisoned");
-    if let Some(lease) = leases.get(&generation).and_then(Weak::upgrade) {
+    if let Some(lease) = leases
+        .get(&generation)
+        .and_then(|entry| Weak::upgrade(&entry.lease))
+    {
         return Ok(lease);
     }
     if !generation.is_dir() {
@@ -272,10 +355,18 @@ fn generation_lease(
             message: "Python generation snapshot disappeared during acquisition".to_owned(),
         });
     }
+    let id = GENERATION_LEASE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let lease = Arc::new(PythonGenerationLease {
         generation: generation.clone(),
+        id,
     });
-    leases.insert(generation, Arc::downgrade(&lease));
+    leases.insert(
+        generation,
+        GenerationLeaseEntry {
+            id,
+            lease: Arc::downgrade(&lease),
+        },
+    );
     Ok(lease)
 }
 
@@ -381,6 +472,31 @@ fn secure_generation_store(path: &Path) -> Result<(), FileProviderLoadError> {
         })?;
     }
     Ok(())
+}
+
+fn create_private_generation_store(path: &Path) -> Result<(), FileProviderLoadError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        let mut builder = fs::DirBuilder::new();
+        builder.mode(0o700);
+        match builder.create(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(FileProviderLoadError {
+                    path: path.to_path_buf(),
+                    message: format!("failed to create Python generation store: {error}"),
+                });
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    fs::create_dir_all(path).map_err(|error| FileProviderLoadError {
+        path: path.to_path_buf(),
+        message: format!("failed to create Python generation store: {error}"),
+    })?;
+    secure_generation_store(path)
 }
 
 fn python_tree_digest(
@@ -613,6 +729,31 @@ pub(super) fn fingerprint_python_environment(
         hasher.update(value.as_bytes());
         hasher.update([0]);
     }
+}
+
+pub(super) fn python_worker_generation_digest(
+    source_tree_digest: &str,
+    selections: &PythonProviderEnvironmentSelections,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"python-worker-generation-v1\0");
+    hasher.update(source_tree_digest.as_bytes());
+    for (path, candidate) in selections {
+        let path = path.to_string_lossy();
+        for value in [
+            path.as_ref(),
+            candidate.key.as_str(),
+            candidate.lock_sha256.as_str(),
+        ] {
+            hasher.update(value.len().to_le_bytes());
+            hasher.update(value.as_bytes());
+        }
+    }
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[cfg(test)]

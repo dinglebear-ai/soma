@@ -3,7 +3,10 @@
 use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use async_trait::async_trait;
@@ -35,7 +38,7 @@ use enforcement::{enforce_capabilities, enforce_pre_input, enforce_response_limi
 use generations::{
     StoredGeneration, publish_generation, settle_transition, settle_transition_async,
 };
-use refresh::ProviderRefreshEvent;
+use refresh::{ProviderRefreshEvent, fingerprint_file_source};
 use resources::ResourceIndex;
 pub use resources::{DynamicResourceTemplate, ResourceReadOutput};
 pub use soma_provider_core::{Provider as CoreProvider, ProviderOutput};
@@ -363,6 +366,7 @@ impl RegistrySnapshot {
 pub struct ProviderRegistry {
     state: Arc<RwLock<RegistryState>>,
     refresh_gate: Arc<tokio::sync::Mutex<()>>,
+    refresh_dirty: Arc<AtomicBool>,
     capabilities: CapabilityBroker,
     base_providers: Arc<Vec<Arc<dyn Provider>>>,
     file_source: Option<FileProviderSource>,
@@ -404,6 +408,7 @@ impl ProviderRegistry {
                 history: VecDeque::new(),
             })),
             refresh_gate: Arc::new(tokio::sync::Mutex::new(())),
+            refresh_dirty: Arc::new(AtomicBool::new(false)),
             capabilities,
             base_providers: Arc::new(Vec::new()),
             file_source: None,
@@ -438,6 +443,7 @@ impl ProviderRegistry {
                 history: VecDeque::new(),
             })),
             refresh_gate: Arc::new(tokio::sync::Mutex::new(())),
+            refresh_dirty: Arc::new(AtomicBool::new(false)),
             capabilities,
             base_providers,
             file_source: Some(file_source),
@@ -478,6 +484,7 @@ impl ProviderRegistry {
                 history: VecDeque::new(),
             })),
             refresh_gate: Arc::new(tokio::sync::Mutex::new(())),
+            refresh_dirty: Arc::new(AtomicBool::new(false)),
             capabilities,
             base_providers,
             file_source: Some(file_source),
@@ -588,6 +595,34 @@ impl ProviderRegistry {
         let Some(file_source) = &self.file_source else {
             return Ok(self.snapshot());
         };
+        // One caller owns candidate preparation. Other request-path refresh
+        // checks keep serving the last healthy generation instead of queueing
+        // behind debounce, catalog import, and old-generation drain.
+        let Ok(_refresh_guard) = self.refresh_gate.try_lock() else {
+            self.refresh_dirty.store(true, Ordering::Release);
+            return Ok(self.snapshot());
+        };
+        let mut active = self.snapshot();
+        for pass in 0..2 {
+            self.refresh_dirty.store(false, Ordering::Release);
+            active = self.refresh_file_providers_owned(file_source).await?;
+            if !self.refresh_dirty.swap(false, Ordering::AcqRel) {
+                break;
+            }
+            if pass == 1 {
+                // Bound request-path work under sustained contention. The
+                // retained dirty bit makes the next caller perform another
+                // refresh instead of forcing this owner to loop forever.
+                self.refresh_dirty.store(true, Ordering::Release);
+            }
+        }
+        Ok(active)
+    }
+
+    async fn refresh_file_providers_owned(
+        &self,
+        file_source: &FileProviderSource,
+    ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
         let (baseline_fingerprint, active_environments) = {
             let state = self
                 .state
@@ -598,51 +633,25 @@ impl ProviderRegistry {
                 state.python_environments.clone(),
             )
         };
-        if file_source
-            .fingerprint_with_python_environments(&active_environments)
-            .ok()
-            .as_deref()
-            == baseline_fingerprint.as_deref()
-        {
-            return Ok(self.snapshot());
-        }
-        // Contending events share one refresh lane. After acquiring it, every
-        // waiter rechecks the fingerprint and returns immediately when the
-        // preceding refresh already published its change.
-        let _refresh_guard = self.refresh_gate.lock().await;
-        let (serialized_fingerprint, serialized_environments) = {
-            let state = self
-                .state
-                .read()
-                .expect("provider registry lock should not be poisoned");
-            (
-                state.file_fingerprint.clone(),
-                state.python_environments.clone(),
-            )
-        };
-        if file_source
-            .fingerprint_with_python_environments(&serialized_environments)
-            .ok()
-            .as_deref()
-            == serialized_fingerprint.as_deref()
-        {
+        let observed_fingerprint =
+            match fingerprint_file_source(file_source.clone(), active_environments.clone()).await {
+                Ok(fingerprint) => fingerprint,
+                Err(error) => {
+                    return Ok(self.snapshot_after_refresh_failure(
+                        file_source,
+                        "provider_file_fingerprint_failed",
+                        &error.to_string(),
+                    ));
+                }
+            };
+        if baseline_fingerprint.as_deref() == Some(observed_fingerprint.as_str()) {
             return Ok(self.snapshot());
         }
         // Editors commonly emit write/rename/chmod bursts. Hold the single
         // refresh lane briefly, then fingerprint the settled directory once.
         tokio::time::sleep(REFRESH_DEBOUNCE).await;
-        let (baseline_fingerprint, active_environments) = {
-            let state = self
-                .state
-                .read()
-                .expect("provider registry lock should not be poisoned");
-            (
-                state.file_fingerprint.clone(),
-                state.python_environments.clone(),
-            )
-        };
         let file_fingerprint =
-            match file_source.fingerprint_with_python_environments(&active_environments) {
+            match fingerprint_file_source(file_source.clone(), active_environments.clone()).await {
                 Ok(fingerprint) => fingerprint,
                 Err(error) => {
                     return Ok(self.snapshot_after_refresh_failure(

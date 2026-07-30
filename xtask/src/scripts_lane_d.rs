@@ -20,6 +20,44 @@ const REST_SCHEMAS: &[(&str, Option<&str>, &str)] = &[
     ("greet", Some("GreetRequest"), "GreetResponse"),
     ("echo", Some("EchoRequest"), "EchoResponse"),
     ("status", None, "StatusResponse"),
+    ("python_environment_status", None, "PythonOperatorResponse"),
+    (
+        "python_environment_prune_plan",
+        Some("PythonEnvironmentPrunePlanRequest"),
+        "PythonOperatorResponse",
+    ),
+    (
+        "python_environment_prune",
+        Some("PythonEnvironmentPruneRequest"),
+        "PythonOperatorResponse",
+    ),
+    (
+        "python_environment_repair",
+        Some("PythonProviderMutationRequest"),
+        "PythonOperatorResponse",
+    ),
+    (
+        "python_environment_update",
+        Some("PythonProviderMutationRequest"),
+        "PythonOperatorResponse",
+    ),
+    ("python_worker_status", None, "PythonOperatorResponse"),
+    (
+        "python_worker_cancel",
+        Some("PythonWorkerMutationRequest"),
+        "PythonOperatorResponse",
+    ),
+    (
+        "python_worker_reset",
+        Some("PythonWorkerMutationRequest"),
+        "PythonOperatorResponse",
+    ),
+    ("python_generation_status", None, "PythonOperatorResponse"),
+    (
+        "python_generation_rollback",
+        Some("PythonGenerationRollbackRequest"),
+        "PythonOperatorResponse",
+    ),
     ("help", None, "HelpResponse"),
 ];
 
@@ -571,10 +609,16 @@ fn openapi_schemas(action_names: Vec<String>) -> Value {
         "ActionName":{"type":"string","enum":action_names,"description":"REST-capable action names from crates/soma/domain/src/actions.rs."},
         "GreetRequest":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","description":"Name to greet. Omit to greet the world."}}},
         "EchoRequest":{"type":"object","additionalProperties":false,"required":["message"],"properties":{"message":{"type":"string","minLength":1,"description":"Message to echo back. Must not be empty."}}},
-        "ActionResponse":{"oneOf":[schema_ref("GreetResponse"),schema_ref("EchoResponse"),schema_ref("StatusResponse"),schema_ref("HelpResponse"),schema_ref("RestTruncationResponse")]},
+        "ActionResponse":{"oneOf":[schema_ref("GreetResponse"),schema_ref("EchoResponse"),schema_ref("StatusResponse"),schema_ref("PythonOperatorResponse"),schema_ref("HelpResponse"),schema_ref("RestTruncationResponse")]},
         "GreetResponse":{"type":"object","required":["greeting","target"],"properties":{"greeting":{"type":"string"},"target":{"type":"string"},"server":{"type":"string"}},"additionalProperties":true},
         "EchoResponse":{"type":"object","required":["echo"],"properties":{"echo":{"type":"string"}},"additionalProperties":true},
         "StatusResponse":{"type":"object","required":["status"],"properties":{"status":{"type":"string"},"note":{"type":"string"},"server":{"type":"string"},"version":{"type":"string"},"transport":{"type":"string"}},"additionalProperties":true},
+        "PythonEnvironmentPrunePlanRequest":{"type":"object","additionalProperties":false,"required":["stale_before_unix_seconds"],"properties":{"stale_before_unix_seconds":{"type":"integer","minimum":0},"max_entries":{"type":"integer","minimum":1,"maximum":1000}}},
+        "PythonEnvironmentPruneRequest":{"type":"object","additionalProperties":false,"required":["stale_before_unix_seconds","confirm"],"properties":{"stale_before_unix_seconds":{"type":"integer","minimum":0},"max_entries":{"type":"integer","minimum":1,"maximum":1000},"confirm":{"type":"boolean","const":true}}},
+        "PythonProviderMutationRequest":{"type":"object","additionalProperties":false,"required":["provider_path","confirm"],"properties":{"provider_path":{"type":"string","minLength":1,"maxLength":4096},"confirm":{"type":"boolean","const":true}}},
+        "PythonWorkerMutationRequest":{"type":"object","additionalProperties":false,"required":["provider","confirm"],"properties":{"provider":{"type":"string","minLength":1,"maxLength":256},"confirm":{"type":"boolean","const":true}}},
+        "PythonGenerationRollbackRequest":{"type":"object","additionalProperties":false,"required":["generation_id","confirm"],"properties":{"generation_id":{"type":"integer","minimum":1},"confirm":{"type":"boolean","const":true}}},
+        "PythonOperatorResponse":{"type":"object","additionalProperties":true,"description":"Action-specific Python environment, worker, or generation result."},
         "HealthResponse":{"type":"object","required":["status"],"properties":{"status":{"type":"string","const":"ok"}},"additionalProperties":false},
         "CapabilitiesResponse":{"type":"object","required":["server","version","preferred_rest_style","supported_routes","routes"],"properties":{"server":{"type":"string"},"version":{"type":"string"},"preferred_rest_style":{"type":"string","const":"direct_routes"},"supported_routes":{"type":"array","items":{"type":"string"}},"routes":{"type":"array","items":schema_ref("RestRoute")}},"additionalProperties":false},
         "RestRoute":{"type":"object","required":["method","path","auth","description"],"properties":{"method":{"type":"string"},"path":{"type":"string"},"action":{"type":["string","null"]},"auth":{"type":"string"},"description":{"type":"string"}},"additionalProperties":false},
@@ -1305,8 +1349,16 @@ fn validate_policy(value: &Value, source: &Path) -> Result<()> {
 }
 
 fn action_entries(root: &Path) -> Result<Vec<ActionEntry>> {
-    let text = read(root.join("crates/soma/domain/src/actions.rs"))?;
-    Ok(parse_action_entries(&text))
+    let mut entries = parse_action_entries(&read(root.join("crates/soma/domain/src/actions.rs"))?);
+    let python_entries = parse_action_entries(&read(
+        root.join("crates/soma/domain/src/actions_python.rs"),
+    )?);
+    let insertion = entries
+        .iter()
+        .position(|entry| entry.name == "status")
+        .map_or(entries.len(), |index| index + 1);
+    entries.splice(insertion..insertion, python_entries);
+    Ok(entries)
 }
 
 fn extract_actions(root: &Path) -> Result<Vec<ActionEntry>> {
@@ -1345,11 +1397,9 @@ fn parse_action_entries(text: &str) -> Vec<ActionEntry> {
 }
 
 fn action_spec_count(root: &Path) -> Result<usize> {
-    let text = read(root.join("crates/soma/domain/src/actions.rs"))?;
-    Ok(action_blocks(&text)
-        .into_iter()
-        .filter(|block| block.trim_start().starts_with("name:"))
-        .count())
+    let actions = read(root.join("crates/soma/domain/src/actions.rs"))?;
+    let python = read(root.join("crates/soma/domain/src/actions_python.rs"))?;
+    Ok(actions.matches("    ActionSpec {").count() + python.matches("= ActionSpec {").count())
 }
 
 fn action_blocks(text: &str) -> Vec<&str> {
@@ -1448,6 +1498,19 @@ fn param_example(action: &str) -> Value {
     match action {
         "greet" => json!({"name":"Alice"}),
         "echo" => json!({"message":"Hello!"}),
+        "python_environment_prune_plan" => {
+            json!({"stale_before_unix_seconds": 1_700_000_000, "max_entries": 100})
+        }
+        "python_environment_prune" => {
+            json!({"stale_before_unix_seconds": 1_700_000_000, "max_entries": 100, "confirm": true})
+        }
+        "python_environment_repair" | "python_environment_update" => {
+            json!({"provider_path": "example.py", "confirm": true})
+        }
+        "python_worker_cancel" | "python_worker_reset" => {
+            json!({"provider": "example", "confirm": true})
+        }
+        "python_generation_rollback" => json!({"generation_id": 1, "confirm": true}),
         _ => json!({}),
     }
 }

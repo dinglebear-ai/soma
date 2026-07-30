@@ -23,7 +23,7 @@ default = []
 sidecar = ["dep:tokio"]
 static-echo = []
 ai-sdk = ["sidecar", "dep:tokio"]
-python = ["sidecar", "dep:pep440_rs", "dep:tokio"]
+python = ["sidecar", "dep:getrandom", "dep:pep440_rs", "dep:tokio"]
 wasm = ["sidecar", "dep:wasmtime", "dep:tokio"]
 openapi = ["dep:reqwest", "dep:rustls", "dep:url", "dep:soma-openapi"]
 codemode = ["dep:soma-codemode", "dep:tokio"]
@@ -38,6 +38,7 @@ soma-provider-core = { workspace = true }
 thiserror = "2"
 toml = "1.1"
 tracing = "0.1"
+getrandom = { version = "0.3", optional = true }
 
 # ai-sdk / python / sidecar / wasm
 tokio = { version = "1", features = ["io-util", "net", "process", "rt", "sync", "time"], optional = true }

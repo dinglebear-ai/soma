@@ -459,18 +459,13 @@ of unsupported dependency sources.
 
 ## Recommended Delivery Order
 
-1. Configure and install the immutable environment lifecycle in production,
-   including release-wheel/runtime policy and operator surfaces.
-2. Add active cancellation and structured, operator-visible worker logs.
-3. Finish generation debounce, status, operator rollback, and environment /
-   worker activation as one production generation.
-4. Add logging/progress/cancellation broker calls.
-5. Add HTTP, secrets, and state.
-6. Add explicit execution profiles and containment.
-7. Implement the WIT component ABI.
-8. Add conformance and graduation tooling.
-9. Evaluate `componentize-py`.
-10. Finish release provenance, status, performance, and soak gates.
+1. Add logging, progress, and brokered cancellation capability calls.
+2. Add brokered HTTP, secrets, and state.
+3. Add explicit execution profiles and enforced containment.
+4. Implement the WIT component ABI and shared conformance fixtures.
+5. Add graduation comparison, activation, and rollback tooling.
+6. Evaluate the experimental `componentize-py` path.
+7. Finish release provenance, performance budgets, and soak gates.
 
 The persistent runner and generation boundary are load-bearing. Do not bypass
 them to begin component or graduation work.

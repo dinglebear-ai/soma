@@ -44,46 +44,13 @@ use supervisor::{PythonSupervisorConfig, PythonWorkerIdentity, PythonWorkerSuper
 
 pub mod cache;
 pub mod environment;
+mod interpreter;
 pub mod lifecycle;
 pub mod materializer;
 pub mod supervisor;
-
-/// Selects the Python interpreter. `Ambient` preserves historical command
-/// overrides, while `Prepared` is authoritative so a managed immutable
-/// environment cannot be bypassed by process or provider configuration.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum PythonInterpreter {
-    #[default]
-    Ambient,
-    Prepared(PathBuf),
-}
-
-impl PythonInterpreter {
-    pub fn prepared(environment: &materializer::PreparedPythonEnvironment) -> Self {
-        Self::Prepared(environment.python.clone())
-    }
-
-    pub(crate) fn command(&self) -> String {
-        match self {
-            Self::Ambient => default_python_command().to_owned(),
-            Self::Prepared(path) => path.to_string_lossy().into_owned(),
-        }
-    }
-}
-
-fn select_python_command(
-    manifest_command: Option<&str>,
-    environment_command: Option<String>,
-    interpreter: &PythonInterpreter,
-) -> String {
-    match interpreter {
-        PythonInterpreter::Prepared(_) => interpreter.command(),
-        PythonInterpreter::Ambient => manifest_command
-            .map(str::to_owned)
-            .or(environment_command)
-            .unwrap_or_else(|| interpreter.command()),
-    }
-}
+pub use interpreter::PythonInterpreter;
+pub(crate) use interpreter::default_python_command;
+use interpreter::select_python_command;
 
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const DEFAULT_MAX_INPUT_BYTES: usize = 64 * 1024;
@@ -150,6 +117,17 @@ impl PythonProvider {
         interpreter: PythonInterpreter,
         config: PythonSupervisorConfig,
     ) -> Result<Self, ProviderError> {
+        Self::new_persistent_inner(path, catalog, env_prefix, interpreter, config, None)
+    }
+
+    fn new_persistent_inner(
+        path: PathBuf,
+        catalog: ProviderCatalog,
+        env_prefix: impl Into<String>,
+        interpreter: PythonInterpreter,
+        config: PythonSupervisorConfig,
+        immutable_generation_digest: Option<String>,
+    ) -> Result<Self, ProviderError> {
         if !catalog.env.is_empty() || catalog.tools.iter().any(|tool| !tool.env.is_empty()) {
             return Err(ProviderError::validation(
                 &catalog.provider.name,
@@ -163,15 +141,25 @@ impl PythonProvider {
                 .with_phase("persistent-preflight")
         })?;
         let source_digest = sha256_hex(&source);
+        let worker_group = immutable_generation_digest.unwrap_or_else(|| source_digest.clone());
+        if worker_group.len() != 64 || !worker_group.as_bytes().iter().all(u8::is_ascii_hexdigit) {
+            return Err(ProviderError::validation(
+                &catalog.provider.name,
+                "",
+                "python_generation_digest_invalid",
+                "immutable Python generation digest must contain exactly 64 ASCII hexadecimal characters",
+            ));
+        }
         let catalog_fingerprint = sha256_hex(
             &serde_json::to_vec(&catalog)
                 .map_err(|error| ProviderError::execution(&catalog.provider.name, "", error))?,
         );
-        let generation_id = format!("{}-{}", catalog.provider.name, &source_digest[..16]);
+        let generation_id = format!("{}-{}", catalog.provider.name, &worker_group[..16]);
         let supervisor = PythonWorkerSupervisor::new(
             PythonWorkerIdentity {
                 path: path.clone(),
                 generation_id,
+                worker_group,
                 source_digest,
                 catalog_fingerprint,
             },
@@ -195,6 +183,27 @@ impl PythonProvider {
         config: PythonSupervisorConfig,
     ) -> Result<Arc<Self>, ProviderError> {
         Self::new_persistent(path, catalog, env_prefix, interpreter, config).map(Arc::new)
+    }
+
+    /// Builds a persistent provider whose identity and worker budget are bound
+    /// to the complete immutable source-tree generation.
+    pub fn arc_persistent_in_generation(
+        path: PathBuf,
+        catalog: ProviderCatalog,
+        env_prefix: impl Into<String>,
+        interpreter: PythonInterpreter,
+        config: PythonSupervisorConfig,
+        immutable_generation_digest: String,
+    ) -> Result<Arc<Self>, ProviderError> {
+        Self::new_persistent_inner(
+            path,
+            catalog,
+            env_prefix,
+            interpreter,
+            config,
+            Some(immutable_generation_digest),
+        )
+        .map(Arc::new)
     }
 
     pub fn arc(
@@ -649,16 +658,6 @@ impl PythonRuntime {
             max_output_bytes,
         })
     }
-}
-
-#[cfg(windows)]
-pub(crate) fn default_python_command() -> &'static str {
-    "python"
-}
-
-#[cfg(not(windows))]
-pub(crate) fn default_python_command() -> &'static str {
-    "python3"
 }
 
 fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>, String> {

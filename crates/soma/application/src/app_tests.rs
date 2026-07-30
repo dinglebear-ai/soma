@@ -370,6 +370,28 @@ async fn python_environment_status_uses_the_shared_operator_port() {
 }
 
 #[tokio::test]
+async fn trusted_loopback_cli_can_run_admin_operator_status() {
+    let environments = Arc::new(RecordingPythonEnvironments::default());
+    let application = application_with_python_environments(environments.clone());
+    let context =
+        ExecutionContext::loopback(Surface::Cli, RequestId::new("local-python-status").unwrap());
+
+    let response = application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_environment_status".to_owned(),
+                params: json!({}),
+            },
+            context,
+        )
+        .await
+        .expect("trusted local status bypasses mounted admin enforcement");
+
+    assert_eq!(response.output["entries"][0]["state"], "ready");
+    assert_eq!(environments.calls.lock().unwrap().as_slice(), ["status"]);
+}
+
+#[tokio::test]
 async fn python_environment_prune_requires_write_scope_and_confirmation() {
     let environments = Arc::new(RecordingPythonEnvironments::default());
     let application = application_with_python_environments(environments.clone());

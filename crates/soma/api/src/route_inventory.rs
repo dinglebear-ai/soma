@@ -95,14 +95,14 @@ pub const REST_ROUTES: &[RestRoute] = &[
         method: "GET",
         path: "/v1/python/environments",
         action: Some("python_environment_status"),
-        auth: "mounted auth policy; requires soma:read when scoped",
+        auth: "mounted auth policy; requires soma:write and soma:admin",
         description: "Inspect immutable Python environment cache state.",
     },
     RestRoute {
         method: "POST",
         path: "/v1/python/environments/prune-plan",
         action: Some("python_environment_prune_plan"),
-        auth: "mounted auth policy; requires soma:read when scoped",
+        auth: "mounted auth policy; requires soma:write and soma:admin",
         description: "Preview a bounded prune of stale non-ready cache entries.",
     },
     RestRoute {
@@ -130,7 +130,7 @@ pub const REST_ROUTES: &[RestRoute] = &[
         method: "GET",
         path: "/v1/python/workers",
         action: Some("python_worker_status"),
-        auth: "mounted auth policy; requires soma:read when scoped",
+        auth: "mounted auth policy; requires soma:write and soma:admin",
         description: "Inspect persistent Python worker state and bounded redacted logs.",
     },
     RestRoute {

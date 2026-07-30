@@ -689,6 +689,8 @@ fn usage_mentions_current_cli_commands_and_loopback_default() {
         "soma doctor",
         "soma setup plugin-hook",
         "soma providers validate",
+        "soma [-y|--yes]",
+        "Confirm destructive local operator actions",
         "soma watch",
         "default 127.0.0.1",
     ] {

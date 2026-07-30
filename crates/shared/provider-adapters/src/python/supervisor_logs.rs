@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -9,19 +8,16 @@ pub(super) async fn drain_stderr<R: AsyncRead + Unpin>(
     mut reader: R,
     retained: Arc<Mutex<WorkerLogBuffer>>,
     limit: usize,
-    active_pid: Arc<AtomicU32>,
 ) {
     let mut buffer = [0_u8; 4096];
     let mut pending = Vec::new();
     loop {
         let Ok(read) = reader.read(&mut buffer).await else {
             retain_pending(&retained, &pending, limit);
-            active_pid.store(0, Ordering::Release);
             return;
         };
         if read == 0 {
             retain_pending(&retained, &pending, limit);
-            active_pid.store(0, Ordering::Release);
             return;
         }
         if limit == 0 {
@@ -52,7 +48,10 @@ fn retain_log_line(retained: &Mutex<WorkerLogBuffer>, line: &[u8], limit: usize)
     if raw.is_empty() {
         return;
     }
-    let message = crate::error::redact_public(&raw);
+    // Provider stderr is fully untrusted and can contain arbitrary secrets
+    // without recognizable key names. Preserve only event shape and ordering;
+    // never expose the provider-controlled payload through operator status.
+    let message = "[redacted provider diagnostic]".to_owned();
     let size = message.len();
     let mut retained = retained
         .lock()
@@ -97,8 +96,7 @@ mod tests {
             .expect("write diagnostic");
         drop(writer);
 
-        let active_pid = Arc::new(AtomicU32::new(42));
-        drain_stderr(reader, retained.clone(), 128, active_pid.clone()).await;
+        drain_stderr(reader, retained.clone(), 128).await;
 
         let retained = retained.lock().expect("log buffer");
         assert_eq!(retained.entries.len(), 1);
@@ -106,6 +104,5 @@ mod tests {
             retained.entries[0].message,
             "[redacted provider diagnostic]"
         );
-        assert_eq!(active_pid.load(Ordering::Acquire), 0);
     }
 }
