@@ -254,13 +254,28 @@ fn enabled_python_environment_requires_complete_absolute_inputs() {
 #[test]
 #[serial]
 fn python_environment_env_inputs_are_typed() {
+    let (cache_root, uv_program, python_executable, sdk_wheel) = if cfg!(windows) {
+        (
+            r"C:\soma\cache",
+            r"C:\soma\bin\uv.exe",
+            r"C:\Python312\python.exe",
+            r"C:\soma\wheels\soma_provider-0.2.0-cp38-abi3-win_amd64.whl",
+        )
+    } else {
+        (
+            "/var/cache/soma",
+            "/usr/local/bin/uv",
+            "/usr/bin/python3",
+            "/opt/soma/soma_provider-0.2.0-cp38-abi3-manylinux_2_17_x86_64.whl",
+        )
+    };
     let _enabled = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_ENABLED", "true");
-    let _cache = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT", "/var/cache/soma");
-    let _uv_program = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM", "/usr/local/bin/uv");
+    let _cache = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT", cache_root);
+    let _uv_program = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM", uv_program);
     let _uv_version = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_UV_VERSION", "0.11.31");
     let _python = EnvVarGuard::set(
         "SOMA_PYTHON_ENVIRONMENT_PYTHON_EXECUTABLE",
-        "/usr/bin/python3",
+        python_executable,
     );
     let _implementation =
         EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_RUNTIME_IMPLEMENTATION", "cpython");
@@ -270,10 +285,7 @@ fn python_environment_env_inputs_are_typed() {
         "SOMA_PYTHON_ENVIRONMENT_WHEEL_PLATFORM_TAG",
         "manylinux_2_17_x86_64",
     );
-    let _wheel = EnvVarGuard::set(
-        "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL",
-        "/opt/soma/soma_provider-0.2.0-cp38-abi3-manylinux_2_17_x86_64.whl",
-    );
+    let _wheel = EnvVarGuard::set("SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL", sdk_wheel);
     let _digest = EnvVarGuard::set(
         "SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL_SHA256",
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -285,7 +297,7 @@ fn python_environment_env_inputs_are_typed() {
     assert!(config.python.environment.enabled);
     assert!(config.python.environment.offline);
     assert_eq!(config.python.environment.policy_version, 2);
-    assert_eq!(config.python.environment.uv_program, "/usr/local/bin/uv");
+    assert_eq!(config.python.environment.uv_program, uv_program);
 }
 
 #[test]

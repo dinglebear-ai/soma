@@ -52,7 +52,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 |---|---|---|---|
 | `check-schema-docs.py` | Python wrapper | `cargo xtask check-schema-docs`, `just schema-docs`, `just schema-docs-check`, CI | Delegates to xtask to generate/check `docs/MCP_SCHEMA.md` and related action references from the canonical action specs. |
 | `check-openapi.py` | Python wrapper | `cargo xtask check-openapi`, `just openapi`, `just openapi-check`, CI | Delegates to xtask to generate/check `docs/generated/openapi.json` for the REST API surface. |
-| `generate-docs.py` | Python | `cargo xtask generate-docs`, `cargo xtask check-docs`, CI | Generates/checks volatile docs and metadata from the service-owned `ACTION_SPECS`, `ENV_KEY_SPECS`, and typed config defaults. |
+| `generate-docs.py` | Python | `cargo xtask generate-docs`, `cargo xtask check-docs`, CI | Generates/checks volatile docs and metadata from the service-owned `ACTION_SPECS`, `ENV_KEY_SPECS`, and typed config defaults, including immutable Python environment keys and examples. |
 | `check-stale-claims.py` | Python | `cargo xtask check-stale-claims`, CI | Fails when known stale hardcoded Soma claims reappear. |
 | `check-readme-guide.py` | Python | `python3 scripts/check-readme-guide.py README.md` | Audits RMCP READMEs against `docs/RMCP_README_GUIDE.md` structural invariants before fleet alignment. |
 | `check-scaffold-intent-contract.py` | Python wrapper | `cargo xtask check-scaffold-intent-contract`, `just scaffold-contract-check`, CI | Delegates to xtask to validate the scaffold intent JSON schema and checked-in examples without third-party packages. |
