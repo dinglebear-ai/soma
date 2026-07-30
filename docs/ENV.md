@@ -24,6 +24,20 @@ This file is generated from `ENV_KEY_SPECS` and typed config defaults. Run `carg
 |---|---:|---:|---|---|---|
 | `SOMA_API_URL` | unset | no | `soma.api_url` | `CLAUDE_PLUGIN_OPTION_SOMA_API_URL` | Deployed platform API or upstream API base URL used by `SomaClient`. Empty selects offline stub mode. |
 | `SOMA_API_KEY` | unset | yes | `soma.api_key` | `CLAUDE_PLUGIN_OPTION_SOMA_API_KEY` | Bearer token or upstream API key. Keep secret. Required when the deployed API requires auth. |
+| `SOMA_PYTHON_ENVIRONMENT_ENABLED` | `false` | no | `python.environment.enabled` | - | Enable immutable PEP 723 Python environments. Disabled by default; all companion identity fields are required when enabled. |
+| `SOMA_PYTHON_ENVIRONMENT_CACHE_ROOT` | unset | no | `python.environment.cache_root` | - | Absolute root for content-addressed Python environment caches. |
+| `SOMA_PYTHON_ENVIRONMENT_UV_PROGRAM` | unset | no | `python.environment.uv_program` | - | Absolute path to the exact `uv` executable used to lock and synchronize environments. |
+| `SOMA_PYTHON_ENVIRONMENT_UV_VERSION` | unset | no | `python.environment.uv_version` | - | Version identity of the configured `uv` executable; included in cache keys. |
+| `SOMA_PYTHON_ENVIRONMENT_PYTHON_EXECUTABLE` | unset | no | `python.environment.python_executable` | - | Absolute path to the Python interpreter used to create environments. |
+| `SOMA_PYTHON_ENVIRONMENT_RUNTIME_IMPLEMENTATION` | unset | no | `python.environment.runtime_implementation` | - | Configured interpreter implementation identity, such as `cpython`. |
+| `SOMA_PYTHON_ENVIRONMENT_RUNTIME_VERSION` | unset | no | `python.environment.runtime_version` | - | Configured interpreter version identity, such as `3.12.4`. |
+| `SOMA_PYTHON_ENVIRONMENT_RUNTIME_PLATFORM` | unset | no | `python.environment.runtime_platform` | - | Configured interpreter platform identity, such as `linux-x86_64`. |
+| `SOMA_PYTHON_ENVIRONMENT_WHEEL_PLATFORM_TAG` | unset | no | `python.environment.wheel_platform_tag` | - | Wheel platform tag required for the configured interpreter, such as `manylinux_2_17_x86_64`. |
+| `SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL` | unset | no | `python.environment.sdk_wheel` | - | Absolute path to the exact Soma SDK/native wheel installed into each environment. |
+| `SOMA_PYTHON_ENVIRONMENT_SDK_WHEEL_SHA256` | unset | no | `python.environment.sdk_wheel_sha256` | - | Expected 64-hex SHA-256 digest of the configured SDK/native wheel. |
+| `SOMA_PYTHON_ENVIRONMENT_OFFLINE` | `false` | no | `python.environment.offline` | - | Require an already-complete cache and forbid `uv` execution on a cache miss. |
+| `SOMA_PYTHON_ENVIRONMENT_UPDATE` | `false` | no | `python.environment.update` | - | Resolve a new immutable candidate generation during provider preparation. |
+| `SOMA_PYTHON_ENVIRONMENT_POLICY_VERSION` | `2` | no | `python.environment.policy_version` | - | Require the configured environment policy schema to match this Soma binary. |
 | `SOMA_MCP_TOKEN` | unset | yes | `mcp.api_token` | `CLAUDE_PLUGIN_OPTION_API_TOKEN` | Static bearer token. Required for bearer-only mounted HTTP. |
 | `SOMA_SERVER_URL` | unset | no | - | `CLAUDE_PLUGIN_OPTION_SERVER_URL` | Optional remote/platform HTTP server URL used by plugin setup and health checks. |
 | `SOMA_MCP_AUTH_MODE` | `bearer` | no | `mcp.auth.mode` | `CLAUDE_PLUGIN_OPTION_AUTH_MODE` | `bearer` or `oauth`. |

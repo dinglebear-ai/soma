@@ -201,7 +201,9 @@ settings or runtime env vars.
 Shared skill action references are generated from the service-owned
 `ACTION_SPECS` registry by `cargo xtask generate-docs`. When action metadata,
 REST routes, or CLI/MCP visibility changes, regenerate docs and confirm the
-shared skill text still matches the service registry.
+shared skill text still matches the service registry. This includes Python
+environment, worker, and generation maintenance actions; their scope and
+confirmation requirements must stay identical across all plugin hosts.
 
 ## Plugin Validation
 

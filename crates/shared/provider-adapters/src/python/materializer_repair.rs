@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use super::{
     PreparedPythonEnvironment, PythonEnvironmentMaterializer, PythonMaterializationError,
-    PythonMaterializationRequest, UvRunner, open_ready, verify_sdk_digest,
+    PythonMaterializationRequest, UvRunner,
 };
 use crate::python::environment::PythonEnvironmentPlan;
 
@@ -71,7 +71,7 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         plan: &PythonEnvironmentPlan,
         request: PythonMaterializationRequest<'_>,
     ) -> Result<PythonEnvironmentRepairReport, PythonEnvironmentRepairError> {
-        let replaced_error = match open_ready(plan) {
+        let replaced_error = match self.open_verified(plan) {
             Ok(Some(environment)) => {
                 return Ok(PythonEnvironmentRepairReport {
                     outcome: PythonEnvironmentRepairOutcome::Healthy,
@@ -97,8 +97,6 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         if request.offline {
             return Err(PythonMaterializationError::OfflineCacheMiss(plan.key.clone()).into());
         }
-        verify_sdk_digest(request.sdk_wheel, &plan.sdk_wheel_sha256)?;
-
         let quarantine = repair_quarantine_path(&plan.directory)?;
         match fs::rename(&plan.directory, &quarantine) {
             Ok(()) => {}

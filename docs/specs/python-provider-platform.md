@@ -85,7 +85,7 @@ Post-environment-merge CI repairs `f9860585` and `12fc929b` are also on
 | SDK | `soma-provider` 0.2.0 provides `provider`, `tool`, `Context`, typing, examples, and pure-Python fallback. |
 | Native binding | Thin PyO3 abi3 module delegates manifest validation to Rust. |
 | Dependencies | PEP 723 is parsed without executing provider code. |
-| Environments | The adapter library can plan, materialize, verify, inventory, prune, repair, update, and activate content-addressed `uv` environments. Production constructors do not yet install that lifecycle, so ordinary runtime startup still selects the ambient/configured interpreter. |
+| Environments | The adapter library can plan, materialize, verify, inventory, prune, repair, update, and activate content-addressed `uv` environments. Production startup installs that lifecycle when the complete, disabled-by-default `[python.environment]` configuration is enabled. |
 | Execution | One-shot remains the default; `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised workers. |
 | Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, async candidate preflight, and prepared-interpreter authoring-path parity are active in persistent mode. Active cancel frames and brokered `host.*` calls remain protocol-only. |
 | Context capabilities | Request identity is injected; HTTP, secrets, state, logging, metrics, progress, and cancellation are not live broker services. |
@@ -182,7 +182,7 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 2. Runner protocol | Foundation complete | Cross-language protocol is versioned and tested. |
 | 3. Python SDK | Complete baseline | Facade, Context identity, schemas, examples, and compatibility paths exist. |
 | 4. PyO3/maturin | Complete baseline | Thin abi3 validation binding and wheel CI exist. |
-| 5. PEP 723 and `uv` lifecycle | Partial | Plan through immutable activation is implemented and tested as a library; production startup does not configure or install the lifecycle. |
+| 5. PEP 723 and `uv` lifecycle | Partial | Planning through production immutable activation is implemented; operator status, prune, repair, and update surfaces remain. |
 | 6. Persistent supervised runner | Partial, opt-in | Installed-wheel supervised workers cover all authoring paths; active cancellation and structured/operator-visible logs remain. |
 | 7. Generation-aware reload | Partial | Candidate preflight, atomic swap, refresh coalescing, and bounded retirement exist; debounce/operator rollback remain. |
 | 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
@@ -199,7 +199,7 @@ slices appear here as Phases 5 and 6.
 
 ## Phase 5: PEP 723 and Immutable `uv` Environments
 
-**Partially delivered as an injectable library lifecycle.**
+**Partially delivered through production activation.**
 
 The planner, materializer, readiness checks, cache operations, update flow, and
 candidate validation are implemented and tested. Application tests prove that a
@@ -207,11 +207,19 @@ candidate validation are implemented and tested. Application tests prove that a
 `FileProviderSource::with_python_environment_preparer(...)` selects prepared
 interpreters before candidate activation.
 
-Production startup does not construct or install that preparer. Completing this
-phase requires product configuration for the cache root, `uv` and Python
-runtime identity, release SDK wheel and digest, offline/update policy, and the
-corresponding status, prune, repair, and update surfaces. Until then, PEP 723
-metadata does not automatically create an environment in a normal Soma process.
+Production startup constructs and installs that preparer when
+`[python.environment] enabled = true` (or the equivalent
+`SOMA_PYTHON_ENVIRONMENT_*` variables) supplies the cache root, `uv` and Python
+runtime identity, release SDK wheel and digest, and offline policy. The feature
+remains disabled by default; enabled but incomplete configuration fails closed.
+Startup probes the selected Python and (outside offline mode) `uv`, verifies the
+wheel digest, requires a private cache root, and rejects a mismatched policy
+version before provider activation. `update = true` resolves an immutable
+candidate during preparation, while `offline = true` reopens only complete
+caches and does not require `uv` to remain installed. Both one-shot and
+persistent runners receive the resulting prepared interpreter. Completing this
+phase still requires operator-facing status, prune, repair, and update command
+surfaces.
 
 ## Phase 6: Persistent Supervised Runner
 

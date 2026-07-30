@@ -93,12 +93,82 @@ pub enum PythonMaterializationError {
 
 pub trait UvRunner: Send + Sync {
     fn run(&self, program: &Path, args: &[OsString], current_dir: &Path) -> Result<(), String>;
+
+    fn verify_identity(&self, _program: &Path, _expected_version: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn verify_python(
+        &self,
+        _program: &Path,
+        _expected: &PythonRuntimeFingerprint,
+    ) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemUvRunner;
 
 impl UvRunner for SystemUvRunner {
+    fn verify_identity(&self, program: &Path, expected_version: &str) -> Result<(), String> {
+        let output = Command::new(program)
+            .arg("--version")
+            .output()
+            .map_err(|error| error.to_string())?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+        let output = String::from_utf8(output.stdout).map_err(|error| error.to_string())?;
+        let actual = output
+            .trim()
+            .strip_prefix("uv ")
+            .unwrap_or(output.trim())
+            .split_whitespace()
+            .next()
+            .unwrap_or_default();
+        if actual != expected_version {
+            return Err(format!(
+                "uv identity mismatch: expected {expected_version:?}, got {actual:?}"
+            ));
+        }
+        Ok(())
+    }
+
+    fn verify_python(
+        &self,
+        program: &Path,
+        expected: &PythonRuntimeFingerprint,
+    ) -> Result<(), String> {
+        let probe = concat!(
+            "import platform,sys\n",
+            "system={'Darwin':'macos','Windows':'windows'}.get(platform.system(),",
+            "platform.system().lower())\n",
+            "machine={'AMD64':'x86_64','arm64':'aarch64'}.get(platform.machine(),",
+            "platform.machine().lower())\n",
+            "print(sys.implementation.name+'\\t'+platform.python_version()+'\\t'+system+'-'+machine)\n"
+        );
+        let output = Command::new(program)
+            .args(["-I", "-c", probe])
+            .output()
+            .map_err(|error| error.to_string())?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+        let actual = String::from_utf8(output.stdout).map_err(|error| error.to_string())?;
+        let expected = format!(
+            "{}\t{}\t{}",
+            expected.implementation, expected.version, expected.platform
+        );
+        if actual.trim() != expected {
+            return Err(format!(
+                "Python runtime identity mismatch: expected {expected:?}, got {:?}",
+                actual.trim()
+            ));
+        }
+        Ok(())
+    }
+
     fn run(&self, program: &Path, args: &[OsString], current_dir: &Path) -> Result<(), String> {
         let output = Command::new(program)
             .args(args)
@@ -157,8 +227,24 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         &self,
         plan: &PythonEnvironmentPlan,
     ) -> Result<PreparedPythonEnvironment, PythonMaterializationError> {
-        open_ready(plan)?
+        self.open_verified(plan)?
             .ok_or_else(|| PythonMaterializationError::OfflineCacheMiss(plan.key.clone()))
+    }
+
+    pub(super) fn open_verified(
+        &self,
+        plan: &PythonEnvironmentPlan,
+    ) -> Result<Option<PreparedPythonEnvironment>, PythonMaterializationError> {
+        let environment = open_ready(plan)?;
+        if let Some(environment) = &environment {
+            self.runner
+                .verify_python(&environment.python, &plan.runtime)
+                .map_err(|message| PythonMaterializationError::Uv {
+                    operation: "Python runtime identity verification",
+                    message,
+                })?;
+        }
+        Ok(environment)
     }
 
     pub fn validate_prepared(
@@ -179,7 +265,7 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         plan: &PythonEnvironmentPlan,
         request: PythonMaterializationRequest<'_>,
     ) -> Result<PreparedPythonEnvironment, PythonMaterializationError> {
-        if let Some(environment) = open_ready(plan)? {
+        if let Some(environment) = self.open_verified(plan)? {
             return Ok(environment);
         }
         if request.offline {
@@ -187,7 +273,13 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
                 plan.key.clone(),
             ));
         }
-        verify_sdk_digest(request.sdk_wheel, &plan.sdk_wheel_sha256)?;
+        self.runner
+            .verify_identity(&self.uv_program, &plan.uv_version)
+            .map_err(|message| PythonMaterializationError::Uv {
+                operation: "identity verification",
+                message,
+            })?;
+        let sdk_wheel_bytes = read_verified_sdk(request.sdk_wheel, &plan.sdk_wheel_sha256)?;
 
         let parent = plan.directory.parent().ok_or_else(|| {
             PythonMaterializationError::IncompleteCache("cache plan has no parent".to_owned())
@@ -195,8 +287,21 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
         fs::create_dir_all(parent)?;
         let staging = staging_path(&plan.directory);
         fs::create_dir(&staging)?;
+        let sdk_wheel_name = request.sdk_wheel.file_name().ok_or_else(|| {
+            PythonMaterializationError::IncompleteCache(
+                "configured SDK wheel has no file name".to_owned(),
+            )
+        })?;
+        let staged_sdk_wheel = staging.join(sdk_wheel_name);
+        fs::write(&staged_sdk_wheel, sdk_wheel_bytes)?;
+        let staged_request = PythonMaterializationRequest {
+            metadata: request.metadata,
+            python_executable: request.python_executable,
+            sdk_wheel: &staged_sdk_wheel,
+            offline: request.offline,
+        };
 
-        let result = self.materialize_staging(&staging, plan, request);
+        let result = self.materialize_staging(&staging, plan, staged_request);
         if let Err(error) = result {
             let _ = fs::remove_dir_all(&staging);
             return Err(error);
@@ -250,6 +355,12 @@ impl<R: UvRunner> PythonEnvironmentMaterializer<R> {
             ],
         )?;
         let python = environment_python(staging);
+        self.runner
+            .verify_python(&python, &plan.runtime)
+            .map_err(|message| PythonMaterializationError::Uv {
+                operation: "Python runtime identity verification",
+                message,
+            })?;
         self.uv(
             "SDK install",
             staging,
@@ -398,12 +509,13 @@ fn marker_matches_plan(marker: &ReadyMarker, plan: &PythonEnvironmentPlan) -> bo
         && marker.uv_version == plan.uv_version
 }
 
-fn verify_sdk_digest(path: &Path, expected: &str) -> Result<(), PythonMaterializationError> {
-    let actual = sha256_hex(&fs::read(path)?);
+fn read_verified_sdk(path: &Path, expected: &str) -> Result<Vec<u8>, PythonMaterializationError> {
+    let bytes = fs::read(path)?;
+    let actual = sha256_hex(&bytes);
     if actual != expected.trim().to_ascii_lowercase() {
         return Err(PythonMaterializationError::SdkDigestMismatch);
     }
-    Ok(())
+    Ok(bytes)
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

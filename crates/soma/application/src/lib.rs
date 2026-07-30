@@ -41,7 +41,8 @@ pub use provider_registry::{
     ProviderRegistry, ProviderRequestLimits, ProviderSurface, RegistrySnapshot, ResourceReadOutput,
 };
 pub use providers::filesystem::{
-    FileProviderSource, PythonProviderEnvironmentPreparer, PythonRunnerSelection,
+    FileProviderSource, PythonProviderEnvironmentPreparer, PythonProviderRuntime,
+    PythonRunnerSelection,
 };
 pub use providers::remote::RemoteCatalogProvider;
 pub use providers::static_rust::StaticRustProvider;
@@ -49,6 +50,12 @@ pub use service::{
     ElicitedNameOutcome, ScaffoldIntent, ScaffoldIntentValidationError, SomaService,
 };
 pub use soma_provider_adapters::python::supervisor::PythonSupervisorConfig;
+pub use soma_provider_adapters::python::{
+    PythonInterpreter,
+    environment::{ENVIRONMENT_PLAN_VERSION, PythonRuntimeFingerprint},
+    lifecycle::{PythonEnvironmentLifecycle, PythonEnvironmentSpec},
+    materializer::PreparedPythonEnvironment,
+};
 pub use types::CodeModeExecuteRequest;
 pub use types::{
     CatalogSnapshot, DoctorReport, ElicitedName, ExecuteActionRequest, ExecuteActionResponse,
@@ -112,8 +119,24 @@ pub async fn dynamic_provider_registry_with_python(
     service: SomaService,
     python_runner: PythonRunnerSelection,
 ) -> anyhow::Result<ProviderRegistry> {
-    dynamic_provider_registry_from_dir_with_python(service, default_provider_dir(), python_runner)
-        .await
+    dynamic_provider_registry_with_python_runtime(
+        service,
+        PythonProviderRuntime::new(python_runner),
+    )
+    .await
+}
+
+/// Builds a dynamic registry with explicit Python execution and environment preparation.
+pub async fn dynamic_provider_registry_with_python_runtime(
+    service: SomaService,
+    python_runtime: PythonProviderRuntime,
+) -> anyhow::Result<ProviderRegistry> {
+    dynamic_provider_registry_from_dir_with_python_runtime(
+        service,
+        default_provider_dir(),
+        python_runtime,
+    )
+    .await
 }
 
 /// Build a registry combining the static provider with file-backed providers
@@ -136,10 +159,25 @@ pub async fn dynamic_provider_registry_from_dir_with_python(
     provider_dir: impl Into<std::path::PathBuf>,
     python_runner: PythonRunnerSelection,
 ) -> anyhow::Result<ProviderRegistry> {
+    dynamic_provider_registry_from_dir_with_python_runtime(
+        service,
+        provider_dir,
+        PythonProviderRuntime::new(python_runner),
+    )
+    .await
+}
+
+/// Builds a dynamic registry from a directory with explicit Python execution
+/// and immutable environment preparation.
+pub async fn dynamic_provider_registry_from_dir_with_python_runtime(
+    service: SomaService,
+    provider_dir: impl Into<std::path::PathBuf>,
+    python_runtime: PythonProviderRuntime,
+) -> anyhow::Result<ProviderRegistry> {
     ProviderRegistry::with_file_source_async(
         vec![std::sync::Arc::new(StaticRustProvider::new(service))],
         crate::capabilities::CapabilityBroker::default_deny(),
-        FileProviderSource::new(provider_dir).with_python_runner(python_runner),
+        python_runtime.configure_source(FileProviderSource::new(provider_dir)),
     )
     .await
     .map_err(|error| anyhow::anyhow!(error.to_string()))

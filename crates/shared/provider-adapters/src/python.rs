@@ -48,9 +48,9 @@ pub mod lifecycle;
 pub mod materializer;
 pub mod supervisor;
 
-/// Selects the Python interpreter used when no provider-level command override
-/// is configured. `Ambient` preserves the historical platform launcher, while
-/// `Prepared` runs through a materialized uv environment.
+/// Selects the Python interpreter. `Ambient` preserves historical command
+/// overrides, while `Prepared` is authoritative so a managed immutable
+/// environment cannot be bypassed by process or provider configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum PythonInterpreter {
     #[default]
@@ -76,10 +76,13 @@ fn select_python_command(
     environment_command: Option<String>,
     interpreter: &PythonInterpreter,
 ) -> String {
-    manifest_command
-        .map(str::to_owned)
-        .or(environment_command)
-        .unwrap_or_else(|| interpreter.command())
+    match interpreter {
+        PythonInterpreter::Prepared(_) => interpreter.command(),
+        PythonInterpreter::Ambient => manifest_command
+            .map(str::to_owned)
+            .or(environment_command)
+            .unwrap_or_else(|| interpreter.command()),
+    }
 }
 
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
