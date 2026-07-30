@@ -195,9 +195,10 @@ provider, action, surface, and snapshot.
 
 The adapter library includes PEP 723 planning and an immutable `uv` environment
 lifecycle, but Soma's production constructors do not configure or install that
-lifecycle yet. Normal startup therefore uses `SOMA_PYTHON_COMMAND` or the
-ambient `python3` interpreter; lifecycle tests and custom embedders can install
-a prepared interpreter explicitly.
+lifecycle yet. One-shot startup uses `SOMA_PYTHON_COMMAND` or the ambient
+`python3` interpreter. Production persistent startup currently uses the ambient
+default interpreter and does not honor `SOMA_PYTHON_COMMAND`; lifecycle tests
+and custom embedders can install a prepared interpreter explicitly.
 
 ### Persistent Python runner
 
@@ -210,11 +211,12 @@ falling back to one-shot.
 
 Persistent workers connect to an ephemeral loopback TCP listener and
 authenticate with a per-launch token before using the length-prefixed JSON
-control protocol. The child process's stdin and stdout are closed. Provider
-stdout is redirected to the continuously drained stderr stream; the host keeps
-only a private bounded byte ring, not structured or operator-visible logs. The
-host negotiates features, describes and health-checks every candidate before
-publishing it, rejects concurrent calls with
+control protocol. The child process's stdin and stdout are redirected to the
+platform null device and are not used for control. Provider stdout is redirected
+to the continuously drained stderr stream; the host keeps only a private bounded
+byte ring, not structured or operator-visible logs. The host negotiates
+features, describes and health-checks every candidate before publishing it,
+rejects concurrent calls with
 `python_provider_busy`, kills the worker process tree on timeout or protocol
 failure, and permits a later serialized restart within the configured
 restart-window budget. Repeated failures quarantine that provider generation.

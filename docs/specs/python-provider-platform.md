@@ -87,7 +87,7 @@ Post-environment-merge CI repairs `f9860585` and `12fc929b` are also on
 | Dependencies | PEP 723 is parsed without executing provider code. |
 | Environments | The adapter library can plan, materialize, verify, inventory, prune, repair, update, and activate content-addressed `uv` environments. Production constructors do not yet install that lifecycle, so ordinary runtime startup still selects the ambient/configured interpreter. |
 | Execution | One-shot remains the default; `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised workers. |
-| Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, async candidate preflight, and authoring-path parity are active in persistent mode. Active cancel frames and brokered `host.*` calls remain protocol-only. |
+| Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, async candidate preflight, and prepared-interpreter authoring-path parity are active in persistent mode. Active cancel frames and brokered `host.*` calls remain protocol-only. |
 | Context capabilities | Request identity is injected; HTTP, secrets, state, logging, metrics, progress, and cancellation are not live broker services. |
 | Isolation | Out of process with filtered environment and bounded I/O, but not OS-sandboxed. |
 | Wasm graduation | Contract boundary exists; WIT components and graduation tooling do not. |
@@ -239,13 +239,23 @@ Delivered gates:
 - unhealthy candidates cannot activate;
 - timeouts cannot poison later calls;
 - restart loops are bounded and visible;
-- plain, decorated, async, LangChain-compatible, and LlamaIndex-compatible
-  fixtures produce equal catalogs and results in both modes.
+- with an explicitly prepared interpreter, plain, decorated, async,
+  LangChain-compatible, and LlamaIndex-compatible fixtures produce equal
+  catalogs and results in both modes.
+
+The focused supervisor/application suites verify serial busy rejection,
+timeout followed by a non-replayed restart, persistent-environment eligibility,
+candidate preflight, and retention of the previous snapshot when a Python
+candidate fails.
 
 Open gates:
 
 - active invocations can be cancelled deterministically;
-- bounded worker logs are structured and operator-visible.
+- bounded worker logs are structured and operator-visible;
+- production bootstrap/config selection is covered by the same parity proof;
+- missing-wheel, malformed-frame, source-substitution, quarantine exhaustion,
+  and secret-bearing stderr/error/result failures have end-to-end
+  production-path evidence.
 
 Implementation notes:
 

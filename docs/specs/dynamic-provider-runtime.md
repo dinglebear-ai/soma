@@ -201,14 +201,18 @@ dependency-free Python codecs consume shared golden fixtures.
 
 Python provider files are trusted code, not inert configuration. Soma imports
 the module to derive the catalog, so top-level Python runs during provider
-refresh. The sidecar starts with a cleared environment and receives only
-declared provider/tool env values during tool execution. Catalog import does
-not receive provider env; provider code must read secrets inside tool functions
-instead of at module import time. A cleared environment and bounded I/O do not
-make the sidecar an OS sandbox; Python code retains the filesystem, network, and
-process authority of the Soma service account. The request `snapshot_id` binds
-dispatch to catalog metadata but does not attest the Python file or its imported
-dependencies; source drift can execute at call time until the registry refreshes.
+refresh. In one-shot mode, the sidecar starts with a cleared environment and
+receives only declared provider/tool env values during tool execution. Catalog
+import does not receive provider env; provider code must read secrets inside
+tool functions instead of at module import time. Its request `snapshot_id`
+binds dispatch to catalog metadata but does not attest the Python file or its
+imported dependencies, so source drift can execute at call time until registry
+refresh.
+
+Persistent mode instead rejects provider/tool runtime environment declarations,
+hashes the source before launch and after `describe`, and invokes the already
+imported worker. Neither mode is an OS sandbox: Python retains the filesystem,
+network, and process authority of the Soma service account.
 
 A Python implementation graduates to WASM by preserving its provider manifest,
 schemas, action names, and surface overlays while replacing the implementation.
@@ -254,8 +258,9 @@ TOOLS = [FunctionTool.from_defaults(add, name="add")]
 
 The provider imports the module, reads `PROVIDER` and `TOOLS`, converts
 LangChain/LlamaIndex tool metadata into provider tool schemas, and executes tool
-calls in a Python sidecar. `SOMA_PYTHON_COMMAND` may point at a virtualenv
-or `uv`/Python wrapper when the default `python3` is not the right interpreter.
+calls in a Python sidecar. For one-shot calls, `SOMA_PYTHON_COMMAND` may point
+at a virtualenv or `uv`/Python wrapper when the default `python3` is not the
+right interpreter.
 The adapter library contains an injectable PEP 723 / immutable-`uv`
 environment lifecycle, but production startup does not install it yet; normal
 runtime startup therefore does not materialize PEP 723 dependencies

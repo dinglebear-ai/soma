@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Historical execution artifact:** The runner implementation described here
+> has landed, but its task checkboxes were not backfilled and are not a current
+> backlog. Use
+> [`docs/specs/python-provider-platform.md`](../../specs/python-provider-platform.md)
+> as the authoritative status ledger and remaining delivery order.
+
 **Goal:** Replace the production one-shot Python sidecar with an opt-in, supervised persistent runner while retaining an explicit one-shot fallback.
 
 **Architecture:** Preserve `soma-provider-core` and the existing versioned `python_protocol` types. A matching installed `soma-provider` wheel makes the isolated Python worker discoverable in both prepared and ambient interpreters. A cross-platform private control transport and process-tree owner isolate the worker; a Rust supervisor owns framing, negotiated initialization, one active invocation, limits, timeout/restart policy, and canonical public error conversion. An async registry refresh coordinator validates workers outside registry locks, atomically publishes only ready candidates, and retains its last valid snapshot on failure.
@@ -357,9 +363,7 @@ git commit -m "feat(python): activate supervised persistent runner"
 - Phase 6's private channel, handshake, catalog/invoke, health/drain/shutdown, bounded concurrency/logging, restart/crash-loop handling, timeout recycle, explicit fallback, and compatibility proof map to Tasks 1–5.
 - Phase 7's generation-aware reload and all Phase 8–12 work are explicitly deferred; they are independent milestones, not incomplete implementation details.
 - `PythonRunnerConfig`, `PythonRunnerHostReply`, and `PythonWorkerSupervisor` are defined before their consumers; application code does not touch raw framing.
-+
-
-## Revised Task Sequence (Authoritative)
+## Historical Revised Task Sequence
 
 The engineering review supersedes Tasks 1-5 above where they conflict. Execute these six tasks in order.
 

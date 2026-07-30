@@ -22,14 +22,13 @@ use soma_provider_adapters::python::{
 };
 
 #[tokio::test]
-async fn python_authoring_fixtures_match_across_one_shot_and_persistent_modes() -> anyhow::Result<()>
-{
-    let Some(python) = installed_sdk_python() else {
-        eprintln!(
-            "skipping persistent parity test: run `uv sync --project packages/python --frozen`"
-        );
-        return Ok(());
-    };
+async fn python_authoring_fixtures_match_across_prepared_runner_modes() -> anyhow::Result<()> {
+    let python = installed_sdk_python().ok_or_else(|| {
+        anyhow::anyhow!(
+            "persistent parity requires the installed SDK; run \
+             `uv sync --project packages/python --frozen`"
+        )
+    })?;
     let temp = test_dir("runner-parity")?;
     let providers = temp.join("providers");
     fs::create_dir(&providers)?;
