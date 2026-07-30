@@ -1,3 +1,9 @@
+---
+title: "Source Baseline"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Source Baseline
 
 This package was prepared against the following public `main` snapshots on 2026-07-21.

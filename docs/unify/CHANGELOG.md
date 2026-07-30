@@ -1,3 +1,9 @@
+---
+title: "Changelog"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Changelog
 
 ## 0.1.2-proposed - 2026-07-22

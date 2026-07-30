@@ -1,5 +1,7 @@
 ---
 title: "Drop-in provider layout contract"
+created: 2026-07-15
+updated: 2026-07-30
 doc_type: "contract"
 status: "implemented"
 owner: "soma"

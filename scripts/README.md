@@ -39,6 +39,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 
 | File | Type | Entry points | What it does |
 |---|---|---|---|
+| `install.sh` | Bash installer | `curl -fsSL https://raw.githubusercontent.com/dinglebear-ai/soma/main/scripts/install.sh \| bash` | Installs the checksum-verified Linux x86_64 release archive; the published root `install.sh` remains a thin compatibility shim. |
 | `pre-release-check.sh` | Bash wrapper | `cargo xtask pre-release-check`, `just pre-release` | Delegates to xtask for the release-readiness gate: patterns, plugin layout, schema/OpenAPI docs, scaffold contract, Soma smoke tests, release version checks, blob size, ASCII hygiene, `just verify`, plugin build, and optional mcporter tests. |
 | `bump-version.sh` | Bash wrapper | `cargo xtask bump-version soma <major|minor|patch>` | Thin wrapper for the xtask version bumper. |
 | `check-version-sync.sh` | Bash wrapper | `cargo xtask check-version-sync` | Thin wrapper for the xtask manifest-backed version sync gate. |

@@ -1,5 +1,7 @@
 ---
 title: "RMCP README Guide"
+created: 2026-07-11
+updated: 2026-07-30
 doc_type: "guide"
 status: "active"
 owner: "soma"

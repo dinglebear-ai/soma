@@ -1,3 +1,9 @@
+---
+title: "ADR 0007: Keep the context broker in Soma's product layer initially"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0007: Keep the context broker in Soma's product layer initially
 
 **Status:** Proposed  

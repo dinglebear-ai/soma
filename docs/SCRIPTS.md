@@ -1,5 +1,7 @@
 ---
 title: "Scripts"
+created: 2026-05-15
+updated: 2026-07-30
 doc_type: "guide"
 status: "active"
 owner: "soma"
@@ -98,8 +100,11 @@ preflight() {
 
 One-line install:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dinglebear-ai/soma/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/dinglebear-ai/soma/main/scripts/install.sh | bash
 ```
+
+The published root `install.sh` remains a thin compatibility shim for existing
+callers and delegates to this canonical script.
 
 After install: `soma doctor` to validate the environment.
 

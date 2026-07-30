@@ -1,3 +1,9 @@
+---
+title: "ADR 0011: Use a transactional semantic outbox"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0011: Use a transactional semantic outbox
 
 **Status:** Proposed  

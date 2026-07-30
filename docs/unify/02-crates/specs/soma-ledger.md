@@ -1,3 +1,9 @@
+---
+title: "`soma-ledger`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-ledger`
 
 **Proposed path:** `crates/shared/knowledge/ledger`  

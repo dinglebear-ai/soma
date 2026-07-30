@@ -1,3 +1,9 @@
+---
+title: "`soma-llm`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-llm`
 
 **Proposed path:** `crates/shared/semantic/llm`  

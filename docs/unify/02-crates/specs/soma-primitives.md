@@ -1,3 +1,9 @@
+---
+title: "`soma-primitives`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-primitives`
 
 **Proposed path:** `crates/shared/context/primitives`  

@@ -1,3 +1,9 @@
+---
+title: "Jobs and Progress Product Contract"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Jobs and Progress Product Contract
 
 ## Durable operations

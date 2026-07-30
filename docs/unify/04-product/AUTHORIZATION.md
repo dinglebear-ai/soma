@@ -1,3 +1,9 @@
+---
+title: "Authorization and Data-Sensitivity Model"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Authorization and Data-Sensitivity Model
 
 Soma's existing OAuth and authorization foundation remains authoritative.

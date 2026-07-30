@@ -1,3 +1,9 @@
+---
+title: "Open Decisions"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Open Decisions
 
 These decisions are intentionally unresolved and have owners before implementation reaches the affected slice.

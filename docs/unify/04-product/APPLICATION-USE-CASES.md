@@ -1,3 +1,9 @@
+---
+title: "Soma Context Layer Application Use Cases"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Soma Context Layer Application Use Cases
 
 All surfaces call these use cases through Soma's existing application layer. No surface owns domain behavior.

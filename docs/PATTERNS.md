@@ -1,3 +1,9 @@
+---
+title: "rmcp-server Patterns"
+created: 2026-05-13
+updated: 2026-07-30
+---
+
 # rmcp-server Patterns
 
 Canonical reference for all patterns used across the Rust MCP server family:

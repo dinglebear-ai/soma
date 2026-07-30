@@ -1,3 +1,9 @@
+---
+title: "Risk Register"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Risk Register
 
 | ID | Risk | Impact | Mitigation | Owner |

@@ -1,3 +1,9 @@
+---
+title: "ADR 0013: Keep Python provider authoring embedded and contract-first"
+created: 2026-07-26
+updated: 2026-07-30
+---
+
 # ADR 0013: Keep Python provider authoring embedded and contract-first
 
 ## Status

@@ -82,15 +82,15 @@ fn public_docs_and_smokes_do_not_reference_removed_example_binary() {
 fn installer_targets_real_soma_release() {
     let root = workspace_root();
     let text = fs::read_to_string(root.join("install.sh")).expect("installer should read");
+    let canonical = fs::read_to_string(root.join("scripts/install.sh"))
+        .expect("canonical installer should read");
 
-    assert!(!text.contains("your-org/soma-mcp"));
-    assert!(text.contains("REPO=\"dinglebear-ai/soma\""));
-    assert!(text.contains("BINARY_NAME=\"soma\""));
-    assert!(text.contains("soma serve"));
-    assert!(text.contains("localhost:40060/health"));
-    let legacy_split_server_command = format!("{}-server serve", "soma");
-    assert!(!text.contains(&legacy_split_server_command));
-    assert!(!text.contains("localhost:3000/health"));
+    assert!(text.contains("scripts/install.sh"));
+    assert!(text.contains("raw.githubusercontent.com/dinglebear-ai/soma/main/scripts/install.sh"));
+    assert!(canonical.contains("dinglebear-ai/soma"));
+    assert!(canonical.contains("binary_name=\"soma\""));
+    assert!(canonical.contains("${binary_name}-linux-x86_64.tar.gz"));
+    assert!(canonical.contains("sha256sum --check"));
 }
 
 #[test]

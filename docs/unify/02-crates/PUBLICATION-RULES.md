@@ -1,3 +1,9 @@
+---
+title: "Shared Crate Publication Rules"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Shared Crate Publication Rules
 
 ## Publication gate

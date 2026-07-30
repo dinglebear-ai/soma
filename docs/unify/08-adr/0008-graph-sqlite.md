@@ -1,3 +1,9 @@
+---
+title: "ADR 0008: Use an evidence-first temporal graph backed by SQLite for v1"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0008: Use an evidence-first temporal graph backed by SQLite for v1
 
 **Status:** Proposed  

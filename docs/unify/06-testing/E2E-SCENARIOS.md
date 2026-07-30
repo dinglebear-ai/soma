@@ -1,3 +1,9 @@
+---
+title: "End-to-End Scenario Catalog"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # End-to-End Scenario Catalog
 
 ## E2E-001: Local repository knowledge

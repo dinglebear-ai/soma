@@ -1,3 +1,9 @@
+---
+title: "Existing Soma Foundation"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Existing Soma Foundation
 
 ## Audited shared crates on the recorded Soma main baseline

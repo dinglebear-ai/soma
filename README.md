@@ -1,17 +1,18 @@
 # Soma
 
+Product-first RMCP runtime for provider-backed agent capabilities with CLI, REST, HTTP MCP, plugins, and derivative scaffold support.
+
 [![Docs](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml/badge.svg)](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml)
 [**API docs**](https://dinglebear-ai.github.io/soma/) — rustdoc for every
 workspace crate plus the Redoc-rendered OpenAPI reference, deployed to GitHub
 Pages from `main`.
 
-`Soma` is a batteries-included RMCP server runtime and shipping binary
-for bringing new agent capabilities online with as little custom Rust as
-possible. It locks in the production patterns that every server in the family
-keeps rediscovering: one compact MCP tool, stdio and Streamable HTTP transports,
-CLI parity, direct REST routes, auth/OAuth, observability, plugin packaging,
-web fallback, Docker/runtime samples, generated contracts, and release
-automation.
+Soma is a batteries-included server runtime and shipping binary for bringing
+new agent capabilities online with as little custom Rust as possible. It locks
+in the production patterns that every server in the family keeps rediscovering:
+one compact MCP tool, stdio and Streamable HTTP transports, CLI parity, direct
+REST routes, auth/OAuth, observability, plugin packaging, web fallback,
+Docker/runtime samples, generated contracts, and release automation.
 
 The repository can still scaffold a renamed project, but Soma is now a shipped
 runtime first. The default product path is to run `soma` in an explicit mode,

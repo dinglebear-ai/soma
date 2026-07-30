@@ -1,3 +1,9 @@
+---
+title: "Vector Collection and Payload Contract"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Vector Collection and Payload Contract
 
 ## Collections

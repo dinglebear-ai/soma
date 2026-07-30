@@ -1,3 +1,9 @@
+---
+title: "ADR 0005: Extract coarse reusable crates instead of mirroring Axon's 23 crates"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0005: Extract coarse reusable crates instead of mirroring Axon's 23 crates
 
 **Status:** Proposed  

@@ -1,3 +1,9 @@
+---
+title: "`soma-sanitize`"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # `soma-sanitize`
 
 **Proposed path:** `crates/shared/context/sanitize`  

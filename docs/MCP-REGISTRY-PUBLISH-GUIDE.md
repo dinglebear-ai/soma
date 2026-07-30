@@ -1,3 +1,9 @@
+---
+title: "MCP Registry Publishing Guide"
+created: 2026-05-13
+updated: 2026-07-30
+---
+
 # MCP Registry Publishing Guide
 
 This guide explains how to publish your MCP server to the

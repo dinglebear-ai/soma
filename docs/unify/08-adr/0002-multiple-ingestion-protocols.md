@@ -1,3 +1,9 @@
+---
+title: "ADR 0002: Use multiple ingestion protocols with one context plane"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0002: Use multiple ingestion protocols with one context plane
 
 **Status:** Proposed  

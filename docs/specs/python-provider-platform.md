@@ -1,5 +1,7 @@
 ---
 title: "Python Provider Platform Plan"
+created: 2026-07-29
+updated: 2026-07-30
 doc_type: "spec"
 status: "active"
 owner: "soma"

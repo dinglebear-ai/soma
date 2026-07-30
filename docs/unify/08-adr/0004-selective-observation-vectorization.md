@@ -1,3 +1,9 @@
+---
+title: "ADR 0004: Vectorize selected semantic units, not every observation row"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0004: Vectorize selected semantic units, not every observation row
 
 **Status:** Proposed  

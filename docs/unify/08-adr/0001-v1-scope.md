@@ -1,3 +1,9 @@
+---
+title: "ADR 0001: V1 merges context planes, not agent orchestration"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # ADR 0001: V1 merges context planes, not agent orchestration
 
 **Status:** Proposed  

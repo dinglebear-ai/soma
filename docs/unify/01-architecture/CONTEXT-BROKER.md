@@ -1,3 +1,9 @@
+---
+title: "Context Broker"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # Context Broker
 
 The Context Broker is a Soma product service, not a v1 publishable shared crate.

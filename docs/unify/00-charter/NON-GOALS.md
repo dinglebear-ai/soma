@@ -1,3 +1,9 @@
+---
+title: "V1 Non-Goals"
+created: 2026-07-24
+updated: 2026-07-30
+---
+
 # V1 Non-Goals
 
 ## Agent orchestration
