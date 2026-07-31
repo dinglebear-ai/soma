@@ -2,6 +2,8 @@ use std::sync::OnceLock;
 
 pub(crate) const PYTHON_SDK: &str =
     include_str!("../../../../packages/python/python/soma_provider/__init__.py");
+pub(crate) const PYTHON_COMPONENTIZE: &str =
+    include_str!("../../../../packages/python/python/soma_provider/_componentize.py");
 
 pub(crate) const PYTHON_BRIDGE: &str = r#"
 import asyncio
@@ -574,11 +576,21 @@ pub(crate) fn python_bridge_program() -> &'static str {
             let sdk_source = serde_json::to_string(PYTHON_SDK).unwrap_or_else(|error| {
                 panic!("failed to serialize the embedded Python SDK: {error}")
             });
+            let componentize_source =
+                serde_json::to_string(PYTHON_COMPONENTIZE).unwrap_or_else(|error| {
+                    panic!("failed to serialize the embedded componentize scanner: {error}")
+                });
             format!(
                 "import sys as _soma_sys\n\
 import types as _soma_types\n\
 _soma_provider = _soma_types.ModuleType(\"soma_provider\")\n\
+_soma_provider.__package__ = \"soma_provider\"\n\
+_soma_provider.__path__ = []\n\
+_soma_componentize = _soma_types.ModuleType(\"soma_provider._componentize\")\n\
+_soma_componentize.__package__ = \"soma_provider\"\n\
 _soma_sys.modules[\"soma_provider\"] = _soma_provider\n\
+_soma_sys.modules[\"soma_provider._componentize\"] = _soma_componentize\n\
+exec({componentize_source}, _soma_componentize.__dict__)\n\
 exec({sdk_source}, _soma_provider.__dict__)\n\
 {PYTHON_BRIDGE}"
             )

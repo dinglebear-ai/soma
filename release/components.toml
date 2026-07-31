@@ -38,3 +38,20 @@ version_files = [
   { kind = "json_no_version", path = "plugins/soma/.codex-plugin/plugin.json" },
   { kind = "json_no_version", path = "plugins/soma/gemini-extension.json" },
 ]
+
+[[components]]
+id = "soma-provider"
+name = "soma-provider"
+tag_prefix = "soma-provider-v"
+release_workflow = "python-wheels.yml"
+shipping_paths = [
+  "packages/python",
+  ".github/workflows/python-wheels.yml",
+]
+version_source = { kind = "py_project", path = "packages/python/pyproject.toml", package = "soma-provider" }
+version_files = [
+  { kind = "py_project", path = "packages/python/pyproject.toml", package = "soma-provider" },
+  { kind = "cargo_package", path = "packages/python/Cargo.toml", package = "soma-provider-python" },
+  { kind = "cargo_lock_package", path = "Cargo.lock", package = "soma-provider-python" },
+  { kind = "python_assignment", path = "packages/python/python/soma_provider/__init__.py", variable = "__version__" },
+]

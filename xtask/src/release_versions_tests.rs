@@ -4,12 +4,16 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[test]
-fn manifest_models_single_soma_component() {
+fn manifest_models_soma_and_python_components() {
     let manifest = load_manifest(&repo_root()).expect("manifest");
     assert_eq!(manifest.schema_version, 1);
-    assert_eq!(manifest.components.len(), 1);
-    let component = &manifest.components[0];
-    assert_eq!(component.id, "soma");
+    assert_eq!(manifest.components.len(), 2);
+
+    let component = manifest
+        .components
+        .iter()
+        .find(|component| component.id == "soma")
+        .expect("soma component");
     assert_eq!(component.tag_prefix, "v");
     assert_eq!(component.release_workflow, "release.yml");
     assert!(component.shipping_paths.contains(&"crates".to_owned()));
@@ -29,13 +33,18 @@ fn manifest_models_single_soma_component() {
             && file.path == "server.json"
             && file.json_pointer.as_deref() == Some("/packages/0/identifier")
     }));
-    assert!(component.version_files.iter().any(|file| {
-        file.kind == VersionKind::OciIdentifierVersion
-            && file.path == "server.json"
-            && file.json_pointer.as_deref()
-                == Some(
-                    "/_meta/io.modelcontextprotocol.registry~1publisher-provided/distribution/ociImage",
-                )
+
+    let python = manifest
+        .components
+        .iter()
+        .find(|component| component.id == "soma-provider")
+        .expect("soma-provider component");
+    assert_eq!(python.tag_prefix, "soma-provider-v");
+    assert_eq!(python.release_workflow, "python-wheels.yml");
+    assert_eq!(python.version_source.kind, VersionKind::PyProject);
+    assert!(python.version_files.iter().any(|file| {
+        file.kind == VersionKind::PythonAssignment
+            && file.variable.as_deref() == Some("__version__")
     }));
 }
 
@@ -85,6 +94,39 @@ version = "0.1.0"
     let updated = replace_cargo_lock_package_version(content, Some("soma"), "0.4.2").unwrap();
     assert!(updated.contains("version = \"0.4.2\""));
     assert!(updated.contains("name = \"xtask\"\nversion = \"0.1.0\""));
+}
+
+#[test]
+fn pyproject_version_round_trips() {
+    let content = r#"[build-system]
+requires = ["maturin"]
+
+[project]
+name = "soma-provider"
+version = "0.2.0"
+requires-python = ">=3.11"
+"#;
+    assert_eq!(
+        read_pyproject_version(content, Some("soma-provider")).unwrap(),
+        "0.2.0"
+    );
+    let updated = replace_pyproject_version(content, Some("soma-provider"), "0.3.0").unwrap();
+    assert!(updated.contains(r#"version = "0.3.0""#));
+    assert!(updated.contains(r#"requires-python = ">=3.11""#));
+}
+
+#[test]
+fn python_assignment_version_round_trips() {
+    let content = r#"__version__ = '0.2.0'
+OTHER = "unchanged"
+"#;
+    assert_eq!(
+        read_python_assignment_version(content, Some("__version__")).unwrap(),
+        "0.2.0"
+    );
+    let updated = replace_python_assignment_version(content, Some("__version__"), "0.3.0").unwrap();
+    assert!(updated.contains(r#"__version__ = "0.3.0""#));
+    assert!(updated.contains(r#"OTHER = "unchanged""#));
 }
 
 #[test]
@@ -302,7 +344,33 @@ version = "0.4.1"
             r#"[[package]]
 name = "soma"
 version = "0.4.1"
+
+[[package]]
+name = "soma-provider-python"
+version = "0.2.0"
 "#,
+        );
+        write(
+            &self.path("packages/python/pyproject.toml"),
+            r#"[project]
+name = "soma-provider"
+version = "0.2.0"
+"#,
+        );
+        write(
+            &self.path("packages/python/Cargo.toml"),
+            r#"[package]
+name = "soma-provider-python"
+version = "0.2.0"
+"#,
+        );
+        write(
+            &self.path("packages/python/python/soma_provider/__init__.py"),
+            "__version__ = \"0.2.0\"\n",
+        );
+        write(
+            &self.path(".github/workflows/python-wheels.yml"),
+            "name: Python wheels\n",
         );
         write(&self.path("CHANGELOG.md"), "# Changelog\n\n## [0.4.1]\n");
         write(

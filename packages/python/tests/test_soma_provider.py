@@ -3,6 +3,8 @@ import subprocess
 import sys
 import textwrap
 import unittest
+from dataclasses import dataclass
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from soma_provider import (
     CapabilityUnavailableError,
@@ -15,6 +17,17 @@ from soma_provider import (
     provider,
     tool,
 )
+
+
+class SchemaProfile(TypedDict):
+    name: Annotated[str, "Display name", {"minLength": 1, "maxLength": 80}]
+    age: NotRequired[int]
+
+
+@dataclass
+class SchemaJob:
+    name: str
+    retries: int = 0
 
 
 class NativeFallbackTests(unittest.TestCase):
@@ -167,6 +180,46 @@ class SchemaTests(unittest.TestCase):
             json_schema(str | None),
             {"anyOf": [{"type": "string"}, {"type": "null"}]},
         )
+
+    def test_annotated_typed_dict_dataclass_and_literal_schemas(self):
+        self.assertEqual(
+            json_schema(SchemaProfile),
+            {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Display name",
+                        "minLength": 1,
+                        "maxLength": 80,
+                    },
+                    "age": {"type": "integer"},
+                },
+                "additionalProperties": False,
+                "required": ["name"],
+            },
+        )
+        self.assertEqual(
+            json_schema(SchemaJob),
+            {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "retries": {"type": "integer"},
+                },
+                "additionalProperties": False,
+                "required": ["name"],
+            },
+        )
+        self.assertEqual(json_schema(Literal["fast", "safe"]), {"enum": ["fast", "safe"]})
+        self.assertEqual(
+            json_schema(dict[str, int]),
+            {"type": "object", "additionalProperties": {"type": "integer"}},
+        )
+
+    def test_annotated_rejects_unknown_schema_keywords(self):
+        with self.assertRaisesRegex(MetadataError, "unsupported Annotated"):
+            json_schema(Annotated[str, {"unknownConstraint": 1}])
 
     def test_context_has_no_public_schema(self):
         with self.assertRaisesRegex(MetadataError, "runner-injected"):

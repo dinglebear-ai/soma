@@ -8,12 +8,19 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import dataclasses
 import json
 import types
 import typing
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, ParamSpec, Protocol, TypeVar, TypedDict, overload
+
+from ._componentize import (
+    ComponentizeFinding,
+    ComponentizeReport,
+    scan_componentize_compatibility,
+)
 
 __version__ = "0.2.0"
 
@@ -31,6 +38,8 @@ else:
 __all__ = [
     "__version__",
     "CapabilityUnavailableError",
+    "ComponentizeFinding",
+    "ComponentizeReport",
     "Context",
     "Http",
     "Log",
@@ -48,6 +57,7 @@ __all__ = [
     "native_available",
     "native_build",
     "provider",
+    "scan_componentize_compatibility",
     "tool",
     "validate_manifest",
 ]
@@ -413,6 +423,29 @@ def provider(**metadata: Any) -> ProviderMetadata:
     return typing.cast(ProviderMetadata, _normalize_json(metadata, "Soma provider metadata"))
 
 
+_ANNOTATED_SCHEMA_KEYS = frozenset(
+    {
+        "default",
+        "deprecated",
+        "description",
+        "examples",
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "format",
+        "maxItems",
+        "maxLength",
+        "maximum",
+        "minItems",
+        "minLength",
+        "minimum",
+        "multipleOf",
+        "pattern",
+        "title",
+        "uniqueItems",
+    }
+)
+
+
 def json_schema(annotation: Any) -> dict[str, Any]:
     """Return the dependency-free JSON Schema subset understood by Soma."""
 
@@ -435,18 +468,72 @@ def json_schema(annotation: Any) -> dict[str, Any]:
     if callable(model_schema):
         return typing.cast(dict[str, Any], _normalize_json(model_schema(), "model JSON schema"))
 
+    if typing.is_typeddict(annotation):
+        return _typed_dict_schema(annotation)
+    if isinstance(annotation, type) and dataclasses.is_dataclass(annotation):
+        return _dataclass_schema(annotation)
+
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
+    if origin is typing.Annotated:
+        schema = json_schema(args[0])
+        for metadata in args[1:]:
+            if isinstance(metadata, str):
+                if metadata:
+                    schema.setdefault("description", metadata)
+                continue
+            if isinstance(metadata, Mapping):
+                overlay = dict(metadata)
+                unsupported = sorted(set(overlay) - _ANNOTATED_SCHEMA_KEYS)
+                if unsupported:
+                    raise MetadataError(
+                        "unsupported Annotated JSON Schema metadata: "
+                        + ", ".join(unsupported)
+                    )
+                schema.update(
+                    typing.cast(
+                        dict[str, Any],
+                        _normalize_json(overlay, "Annotated JSON Schema metadata"),
+                    )
+                )
+        return schema
+
+    required_wrappers = {
+        wrapper
+        for wrapper in (
+            getattr(typing, "Required", None),
+            getattr(typing, "NotRequired", None),
+        )
+        if wrapper is not None
+    }
+    if origin in required_wrappers:
+        return json_schema(args[0]) if args else {}
+
     union_origins = [typing.Union]
     union_type = getattr(types, "UnionType", None)
     if union_type is not None:
         union_origins.append(union_type)
     if origin in union_origins:
         return {"anyOf": [json_schema(item) for item in args]}
-    if origin in (list, tuple, set, frozenset):
+    if origin is typing.Literal:
+        values = typing.cast(list[Any], _normalize_json(list(args), "Literal values"))
+        return {"enum": values}
+    if origin in (list, set, frozenset):
         return {"type": "array", "items": json_schema(args[0]) if args else {}}
+    if origin is tuple:
+        if len(args) == 2 and args[1] is Ellipsis:
+            return {"type": "array", "items": json_schema(args[0])}
+        if args:
+            return {
+                "type": "array",
+                "prefixItems": [json_schema(item) for item in args],
+                "minItems": len(args),
+                "maxItems": len(args),
+            }
+        return {"type": "array", "items": {}}
     if origin is dict:
-        return {"type": "object", "additionalProperties": True}
+        values = json_schema(args[1]) if len(args) == 2 else True
+        return {"type": "object", "additionalProperties": values}
 
     schema_type = {
         str: "string",
@@ -458,6 +545,47 @@ def json_schema(annotation: Any) -> dict[str, Any]:
         type(None): "null",
     }.get(annotation)
     return {"type": schema_type} if schema_type else {}
+
+
+def _type_hints(annotation: Any) -> dict[str, Any]:
+    try:
+        return typing.get_type_hints(annotation, include_extras=True)
+    except Exception:
+        return dict(getattr(annotation, "__annotations__", {}))
+
+
+def _typed_dict_schema(annotation: Any) -> dict[str, Any]:
+    hints = _type_hints(annotation)
+    required = sorted(str(key) for key in getattr(annotation, "__required_keys__", ()))
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {name: json_schema(value) for name, value in hints.items()},
+        "additionalProperties": False,
+    }
+    if required:
+        schema["required"] = required
+    return schema
+
+
+def _dataclass_schema(annotation: type[Any]) -> dict[str, Any]:
+    hints = _type_hints(annotation)
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for field in dataclasses.fields(annotation):
+        properties[field.name] = json_schema(hints.get(field.name, field.type))
+        if (
+            field.default is dataclasses.MISSING
+            and field.default_factory is dataclasses.MISSING
+        ):
+            required.append(field.name)
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": False,
+    }
+    if required:
+        schema["required"] = required
+    return schema
 
 
 def _is_context_annotation(annotation: Any) -> bool:

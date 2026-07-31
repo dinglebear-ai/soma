@@ -75,6 +75,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0]
+
+
+- Begin Python provider Phase 11 with a non-executing, fail-closed source and
+  dependency-wheel compatibility scanner for the experimental componentize path.
+- Begin Phase 12 release hardening with an independent `soma-provider-v*`
+  component and version parity across Python, Cargo, lockfile, and SDK metadata.
+- Begin Phase 13 SDK completeness with richer dependency-free schemas for
+  `Annotated`, `TypedDict`, dataclasses, literals, tuples, mappings, and
+  required/optional fields.
 - Complete Python provider phases 8-10 with invocation-bound capability
   brokering, fail-closed OS containment, a versioned WIT/WASI component runtime,
   a reusable Rust guest SDK, shared Python/component conformance fixtures, and
