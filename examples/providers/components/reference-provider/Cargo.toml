@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib"]
 
@@ -13,3 +16,6 @@ soma-provider-guest = { path = "../../../../crates/shared/provider-guest" }
 wit-bindgen = "0.57.1"
 
 [workspace]
+
+[workspace.lints.rust]
+missing_docs = "warn"
