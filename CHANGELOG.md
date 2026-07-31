@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.8.0](https://github.com/dinglebear-ai/soma/compare/v0.7.0...v0.8.0) (2026-07-31)
+
+
+### Added
+
+* complete Python provider phases 5-7 ([d1ab3d0](https://github.com/dinglebear-ai/soma/commit/d1ab3d047804f50178668970cedc9fb8ee75aadd))
+* complete Python provider phases 5-7 ([#250](https://github.com/dinglebear-ai/soma/issues/250)) ([d1ab3d0](https://github.com/dinglebear-ai/soma/commit/d1ab3d047804f50178668970cedc9fb8ee75aadd))
+* **providers:** productionize Python environments ([#249](https://github.com/dinglebear-ai/soma/issues/249)) ([978a957](https://github.com/dinglebear-ai/soma/commit/978a957985631e58d153320b2c7886dba5c73da7))
+* **python:** wire production immutable environments ([978a957](https://github.com/dinglebear-ai/soma/commit/978a957985631e58d153320b2c7886dba5c73da7))
+* **python:** wire production immutable environments ([a0c0092](https://github.com/dinglebear-ai/soma/commit/a0c0092375053015e7e692f1097d62eba251c695))
+* **rmcp-template-ks2u.2:** expose Python environment operations ([74f4f2f](https://github.com/dinglebear-ai/soma/commit/74f4f2f2b6ee68f0f1e2f544a39c0aa10d53562f))
+* **rmcp-template-ue65+arxb:** complete Python workers and generations ([3475a37](https://github.com/dinglebear-ai/soma/commit/3475a37434b0ea3b09c92102e39ac6cb1d61f14f))
+
+
+### Fixed
+
+* **ci:** install targets on active Rust toolchain ([#248](https://github.com/dinglebear-ai/soma/issues/248)) ([940f1b0](https://github.com/dinglebear-ai/soma/commit/940f1b085140056e32801b1172f120e906474da5))
+* **providers:** harden Python runtime lifecycle ([d153420](https://github.com/dinglebear-ai/soma/commit/d153420352c2a4ae62df9b11096565b9f22bf169))
+* **rmcp-template-ks2u.1:** finish cross-platform contract repairs ([cb406ae](https://github.com/dinglebear-ai/soma/commit/cb406ae99899e4374afcb442227c14b9277597dc))
+* **rmcp-template-ks2u.1:** repair production environment CI ([041cd4c](https://github.com/dinglebear-ai/soma/commit/041cd4c662a97798c154650b53d5eef6112fdd9e))
+* **rmcp-template-ue65+arxb:** harden Python lifecycle completion ([ed36903](https://github.com/dinglebear-ai/soma/commit/ed369038b9dd4dfcf237665c33d84f7535714b8b))
+* satisfy Soma release contracts ([87ca0de](https://github.com/dinglebear-ai/soma/commit/87ca0de8d62381b2381539e006094bd29c559eda))
+
 ## [0.7.0](https://github.com/dinglebear-ai/soma/compare/v0.6.1...v0.7.0) (2026-07-30)
 
 
