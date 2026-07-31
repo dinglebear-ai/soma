@@ -9,9 +9,9 @@ permissions:
   contents: read
 
 jobs:
-  label-array:
-    name: Label array routing
-    runs-on: [ci-pool-ops]
+  canonical-name:
+    name: Canonical name routing
+    runs-on: crf-690c1581f0cc-ops-e2afaa90e8cc
     timeout-minutes: 5
     steps:
       - name: Report runner
