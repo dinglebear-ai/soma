@@ -130,6 +130,8 @@ fn parses_all_graduation_commands_and_optional_inputs() {
     assert_eq!(
         parse_providers_command(&[
             "compare".to_owned(),
+            "--workspace".to_owned(),
+            "graduated".to_owned(),
             "--component".to_owned(),
             "provider.wasm".to_owned(),
             "--fixtures".to_owned(),
@@ -137,7 +139,8 @@ fn parses_all_graduation_commands_and_optional_inputs() {
         ])
         .unwrap(),
         Command::Providers(ProviderCommand::Compare {
-            component: "provider.wasm".into(),
+            workspace: "graduated".into(),
+            component: Some("provider.wasm".into()),
             fixtures: "fixtures.json".into(),
         })
     );
@@ -146,6 +149,8 @@ fn parses_all_graduation_commands_and_optional_inputs() {
             action.to_owned(),
             "--workspace".to_owned(),
             "graduated".to_owned(),
+            "--confirm".to_owned(),
+            "true".to_owned(),
         ])
         .unwrap();
         assert!(matches!(

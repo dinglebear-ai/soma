@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::ApplicationError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use soma_provider_core::ProviderCatalog;
@@ -21,6 +22,83 @@ pub struct ExecuteActionResponse {
     pub output: Value,
     /// Unique id correlating this response with its originating request.
     pub request_id: String,
+    /// Bounded provider progress events emitted during this invocation.
+    #[serde(default)]
+    pub progress: Vec<soma_provider_core::ProviderProgressEvent>,
+}
+
+impl ExecuteActionResponse {
+    pub(crate) fn enforce_serialized_limit(&self, limit: usize) -> Result<(), ApplicationError> {
+        let actual = serde_json::to_vec(self)
+            .map_err(|error| ApplicationError::legacy("response serialization", error))?
+            .len();
+        if actual > limit {
+            return Err(ApplicationError::new(
+                "response_too_large",
+                format!("response envelope exceeded {limit} bytes"),
+                false,
+                "Reduce the requested output or progress volume and retry.",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Returns the stable success envelope shared by REST, CLI, and MCP.
+    #[must_use]
+    pub fn into_surface_value(self) -> Value {
+        serde_json::json!({
+            "output": self.output,
+            "request_id": self.request_id,
+            "progress": self.progress,
+        })
+    }
+}
+
+#[cfg(test)]
+mod response_tests {
+    use super::*;
+
+    #[test]
+    fn response_shape_is_stable_with_or_without_progress() {
+        let legacy = ExecuteActionResponse {
+            output: serde_json::json!({"ok": true}),
+            request_id: "request-1".to_owned(),
+            progress: Vec::new(),
+        };
+        assert_eq!(
+            legacy.into_surface_value(),
+            serde_json::json!({
+                "output": {"ok": true},
+                "request_id": "request-1",
+                "progress": [],
+            })
+        );
+
+        let reported = ExecuteActionResponse {
+            output: serde_json::json!({"ok": true}),
+            request_id: "request-2".to_owned(),
+            progress: vec![soma_provider_core::ProviderProgressEvent {
+                current: 1,
+                total: Some(2),
+                message: Some("halfway".to_owned()),
+            }],
+        };
+        assert_eq!(reported.into_surface_value()["progress"][0]["current"], 1);
+    }
+
+    #[test]
+    fn serialized_limit_includes_progress_and_envelope_fields() {
+        let response = ExecuteActionResponse {
+            output: serde_json::json!(null),
+            request_id: "request-1".to_owned(),
+            progress: vec![soma_provider_core::ProviderProgressEvent {
+                current: 1,
+                total: None,
+                message: Some("x".repeat(64)),
+            }],
+        };
+        assert!(response.enforce_serialized_limit(32).is_err());
+    }
 }
 
 /// Outcome of an MCP elicitation prompt asking the client for a name.

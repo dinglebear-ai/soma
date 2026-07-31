@@ -48,14 +48,20 @@ pub enum ProviderCommand {
         component: PathBuf,
     },
     Compare {
-        component: PathBuf,
+        workspace: PathBuf,
+        component: Option<PathBuf>,
         fixtures: PathBuf,
+    },
+    GraduationStatus {
+        workspace: PathBuf,
     },
     Activate {
         workspace: PathBuf,
+        confirmed: bool,
     },
     Rollback {
         workspace: PathBuf,
+        confirmed: bool,
     },
 }
 
@@ -69,12 +75,6 @@ impl ProviderCommand {
             ProviderCommand::List { .. }
                 | ProviderCommand::Lint { .. }
                 | ProviderCommand::Status { .. }
-                | ProviderCommand::Graduate { .. }
-                | ProviderCommand::BuildComponent { .. }
-                | ProviderCommand::VerifyComponent { .. }
-                | ProviderCommand::Compare { .. }
-                | ProviderCommand::Activate { .. }
-                | ProviderCommand::Rollback { .. }
         )
     }
 }
@@ -104,23 +104,152 @@ pub(crate) async fn run_provider_management_command(
                     "ok": true,
                     "action": action,
                     "provider": provider,
-                    "result": output.output
+                    "result": output.output,
+                    "request_id": output.request_id,
+                    "progress": output.progress,
                 })),
                 Err(error) => Err(anyhow!(error)),
             }
         }
+        ProviderCommand::Graduate {
+            source,
+            workspace,
+            fixtures,
+        } => {
+            graduation_action(
+                application,
+                "graduate",
+                workspace,
+                Some(source),
+                None,
+                fixtures.as_ref(),
+                destructive_confirmed,
+            )
+            .await
+        }
+        ProviderCommand::BuildComponent {
+            workspace,
+            component,
+        } => {
+            graduation_action(
+                application,
+                "build-component",
+                workspace,
+                None,
+                component.as_ref(),
+                None,
+                destructive_confirmed,
+            )
+            .await
+        }
+        ProviderCommand::VerifyComponent { component } => {
+            graduation_action(
+                application,
+                "verify-component",
+                component
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new(".")),
+                None,
+                Some(component),
+                None,
+                destructive_confirmed,
+            )
+            .await
+        }
+        ProviderCommand::Compare {
+            workspace,
+            component,
+            fixtures,
+        } => {
+            graduation_action(
+                application,
+                "compare",
+                workspace,
+                None,
+                component.as_ref(),
+                Some(fixtures),
+                destructive_confirmed,
+            )
+            .await
+        }
+        ProviderCommand::GraduationStatus { workspace } => application
+            .execute_action(
+                ExecuteActionRequest {
+                    action: "python_graduation_status".to_owned(),
+                    params: json!({"workspace": workspace}),
+                },
+                cli_execution_context(destructive_confirmed),
+            )
+            .await
+            .map(|response| response.into_surface_value())
+            .map_err(anyhow::Error::from),
+        ProviderCommand::Activate { workspace, .. } => {
+            graduation_action(
+                application,
+                "activate",
+                workspace,
+                None,
+                None,
+                None,
+                destructive_confirmed,
+            )
+            .await
+        }
+        ProviderCommand::Rollback { workspace, .. } => {
+            graduation_action(
+                application,
+                "rollback",
+                workspace,
+                None,
+                None,
+                None,
+                destructive_confirmed,
+            )
+            .await
+        }
         ProviderCommand::List { .. }
         | ProviderCommand::Lint { .. }
-        | ProviderCommand::Status { .. }
-        | ProviderCommand::Graduate { .. }
-        | ProviderCommand::BuildComponent { .. }
-        | ProviderCommand::VerifyComponent { .. }
-        | ProviderCommand::Compare { .. }
-        | ProviderCommand::Activate { .. }
-        | ProviderCommand::Rollback { .. } => {
+        | ProviderCommand::Status { .. } => {
             unreachable!("non-executing provider commands are handled before registry construction")
         }
     }
+}
+
+async fn graduation_action(
+    application: &SomaApplication,
+    operation: &str,
+    workspace: &std::path::Path,
+    source: Option<&std::path::PathBuf>,
+    component: Option<&std::path::PathBuf>,
+    fixtures: Option<&std::path::PathBuf>,
+    confirmed: bool,
+) -> Result<Value> {
+    let mut params = json!({
+        "operation": operation,
+        "workspace": workspace,
+        "confirm": confirmed,
+    });
+    let object = params.as_object_mut().expect("object");
+    if let Some(source) = source {
+        object.insert("source".to_owned(), json!(source));
+    }
+    if let Some(component) = component {
+        object.insert("component".to_owned(), json!(component));
+    }
+    if let Some(fixtures) = fixtures {
+        object.insert("fixtures".to_owned(), json!(fixtures));
+    }
+    application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_graduation_apply".to_owned(),
+                params,
+            },
+            cli_execution_context(confirmed),
+        )
+        .await
+        .map(|response| response.into_surface_value())
+        .map_err(anyhow::Error::from)
 }
 
 pub(crate) fn parse_providers_command(args: &[String]) -> Result<Command> {
@@ -156,6 +285,7 @@ pub(crate) fn parse_providers_command(args: &[String]) -> Result<Command> {
                     | "build-component"
                     | "verify-component"
                     | "compare"
+                    | "graduation-status"
                     | "activate"
                     | "rollback"
             ) =>
@@ -164,7 +294,7 @@ pub(crate) fn parse_providers_command(args: &[String]) -> Result<Command> {
         }
         [] => Err(anyhow!(
             "providers requires list, lint, status, validate, inspect, test, graduate, \
-             build-component, verify-component, compare, activate, or rollback"
+             build-component, verify-component, compare, graduation-status, activate, or rollback"
         )),
         [unexpected, ..] => Err(anyhow!("providers does not accept argument `{unexpected}`")),
     }
@@ -181,12 +311,13 @@ fn parse_graduation_command(command: &str, args: &[String]) -> Result<ProviderCo
         "graduate" => &["--source", "--workspace", "--fixtures"][..],
         "build-component" => &["--workspace", "--component"][..],
         "verify-component" => &["--component"][..],
-        "compare" => &["--component", "--fixtures"][..],
-        "activate" | "rollback" => &["--workspace"][..],
+        "compare" => &["--workspace", "--component", "--fixtures"][..],
+        "graduation-status" => &["--workspace"][..],
+        "activate" | "rollback" => &["--workspace", "--confirm"][..],
         _ => unreachable!(),
     };
     let required_count = match command {
-        "graduate" => 2,
+        "graduate" | "compare" => 2,
         "build-component" => 1,
         _ => expected.len(),
     };
@@ -232,14 +363,29 @@ fn parse_graduation_command(command: &str, args: &[String]) -> Result<ProviderCo
             component: required("--component")?,
         }),
         "compare" => Ok(ProviderCommand::Compare {
-            component: required("--component")?,
+            workspace: required("--workspace")?,
+            component: args
+                .windows(2)
+                .find(|pair| pair[0] == "--component")
+                .map(|pair| PathBuf::from(&pair[1])),
             fixtures: required("--fixtures")?,
+        }),
+        "graduation-status" => Ok(ProviderCommand::GraduationStatus {
+            workspace: required("--workspace")?,
         }),
         "activate" => Ok(ProviderCommand::Activate {
             workspace: required("--workspace")?,
+            confirmed: args
+                .windows(2)
+                .find(|pair| pair[0] == "--confirm")
+                .is_some_and(|pair| pair[1] == "true"),
         }),
         "rollback" => Ok(ProviderCommand::Rollback {
             workspace: required("--workspace")?,
+            confirmed: args
+                .windows(2)
+                .find(|pair| pair[0] == "--confirm")
+                .is_some_and(|pair| pair[1] == "true"),
         }),
         _ => unreachable!(),
     }

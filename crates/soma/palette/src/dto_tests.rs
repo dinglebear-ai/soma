@@ -93,6 +93,7 @@ fn execute_request_deserializes_confirm_destructive_camel_case_and_defaults() {
 fn execute_response_uses_request_id_camel_case() {
     let response = LauncherExecuteResponse {
         output: json!({"ok": true}),
+        progress: Vec::new(),
         request_id: "palette-1-1".to_string(),
     };
     let value = serde_json::to_value(&response).unwrap();

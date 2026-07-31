@@ -331,7 +331,7 @@ pub async fn run(
         .execute_action(request, cli_execution_context(destructive_confirmed))
         .await
     {
-        Ok(output) => output.output,
+        Ok(output) => output.into_surface_value(),
         Err(error) => {
             io.stderr(&soma_cli_core::json::to_pretty_string(&error)?)?;
             return Err(anyhow!(error.message));
@@ -388,6 +388,20 @@ fn confirm_command_if_destructive(
     application: &SomaApplication,
     io: &mut dyn CliIo,
 ) -> Result<bool> {
+    if matches!(
+        cmd,
+        Command::Providers(
+            ProviderCommand::Activate {
+                confirmed: true,
+                ..
+            } | ProviderCommand::Rollback {
+                confirmed: true,
+                ..
+            }
+        )
+    ) {
+        return Ok(true);
+    }
     let Some(action) = command_action_name(cmd, application)? else {
         return Ok(false);
     };
@@ -402,6 +416,17 @@ fn command_action_name(cmd: &Command, application: &SomaApplication) -> Result<O
     match cmd {
         Command::Provider { .. } => provider_action_from_command(cmd, application).map(Some),
         Command::Providers(ProviderCommand::Test { action, .. }) => Ok(Some(action.clone())),
+        Command::Providers(ProviderCommand::GraduationStatus { .. }) => {
+            Ok(Some("python_graduation_status".to_owned()))
+        }
+        Command::Providers(
+            ProviderCommand::Graduate { .. }
+            | ProviderCommand::BuildComponent { .. }
+            | ProviderCommand::VerifyComponent { .. }
+            | ProviderCommand::Compare { .. }
+            | ProviderCommand::Activate { .. }
+            | ProviderCommand::Rollback { .. },
+        ) => Ok(Some("python_graduation_apply".to_owned())),
         Command::Providers(_) => Ok(None),
         _ => Ok(service_action_from_command(cmd).map(|action| action.name().to_owned())),
     }
@@ -451,6 +476,8 @@ fn cli_params(action: &SomaAction) -> serde_json::Value {
         | SomaAction::PythonWorkerReset { .. }
         | SomaAction::PythonGenerationStatus
         | SomaAction::PythonGenerationRollback { .. }
+        | SomaAction::PythonGraduationStatus { .. }
+        | SomaAction::PythonGraduationApply { .. }
         | SomaAction::Help
         | SomaAction::ElicitName
         | SomaAction::ScaffoldIntent => serde_json::json!({}),

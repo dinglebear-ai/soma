@@ -29,18 +29,26 @@ use crate::{
     },
     python_protocol::{
         PythonInvocationRequest, PythonInvocationState, PythonRequestState, PythonRunnerFeature,
-        PythonRunnerHostMessage, PythonRunnerHostRequest, PythonRunnerProtocolVersion,
-        PythonRunnerReply, PythonRunnerWorkerMessage, negotiate_runner_features,
+        PythonRunnerHostCall, PythonRunnerHostMessage, PythonRunnerHostRequest,
+        PythonRunnerProtocolVersion, PythonRunnerReply, PythonRunnerWorkerMessage,
+        negotiate_runner_features,
     },
     sidecar::{resolve_sidecar_command, sidecar_base_env},
 };
 
+#[cfg(test)]
+#[path = "supervisor_cancel_tests.rs"]
+mod cancel_tests;
+#[path = "supervisor/cancellation.rs"]
+mod cancellation;
 #[path = "supervisor_frames.rs"]
 mod frames;
 #[path = "supervisor_logs.rs"]
 mod logs;
 #[path = "supervisor_state.rs"]
 mod state;
+#[path = "supervisor/status.rs"]
+mod status;
 #[path = "supervisor_termination.rs"]
 mod termination;
 use frames::{host_call_invocation_id, host_call_request_id, read_frame, write_frame};
@@ -150,6 +158,7 @@ pub(super) struct Worker {
     stdout: Box<dyn AsyncRead + Unpin + Send>,
     pub(super) stderr_task: JoinHandle<()>,
     described: bool,
+    provider_path: PathBuf,
 }
 
 /// One persistent worker per Python provider. Invocations are deliberately
@@ -220,52 +229,6 @@ impl PythonWorkerSupervisor {
             logs: Arc::new(StdMutex::new(WorkerLogBuffer::default())),
             host,
         })
-    }
-
-    /// Returns a bounded, redacted snapshot without executing provider code.
-    #[must_use]
-    pub fn status(&self) -> PythonWorkerStatus {
-        let restart_count = self.current_restart_count();
-        let running = self.worker_running();
-        let logs = self
-            .logs
-            .lock()
-            .expect("Python worker log lock should not be poisoned");
-        PythonWorkerStatus {
-            provider_source: self.identity.path.clone(),
-            generation_id: self.identity.generation_id.clone(),
-            running,
-            accepting: self.accepting.load(Ordering::Acquire),
-            busy: self.busy.load(Ordering::Acquire),
-            quarantined: self.quarantined.load(Ordering::Acquire),
-            restart_count,
-            logs: logs.entries.iter().cloned().collect(),
-            execution_profile: self.host.profile(),
-            host_audit: self.host.audit_events(),
-        }
-    }
-
-    /// Deterministically cancels the active invocation by terminating its
-    /// complete process tree. The next invocation starts a fresh worker.
-    pub fn cancel_active(&self) -> bool {
-        self.cancel_active_with(terminate_process_tree)
-    }
-
-    fn cancel_active_with(&self, terminator: impl FnOnce(Option<u32>) -> bool) -> bool {
-        if !self.busy.load(Ordering::Acquire) {
-            return false;
-        }
-        let pid = self.active_pid.load(Ordering::Acquire);
-        if pid == 0 || !terminator(Some(pid)) {
-            return false;
-        }
-        self.host.cancel_invocation();
-        self.cancel_epoch.fetch_add(1, Ordering::AcqRel);
-        let _ = self
-            .active_pid
-            .compare_exchange(pid, 0, Ordering::AcqRel, Ordering::Acquire);
-        self.discard_worker.store(true, Ordering::Release);
-        true
     }
 
     /// Clears a crash-loop quarantine after an explicit operator action.
@@ -437,12 +400,17 @@ impl PythonWorkerSupervisor {
         }
         let worker = slot.as_mut().expect("worker was ensured");
         let request_id = self.next_request_id();
-        let invocation_id = format!("{}-{request_id}", self.identity.generation_id);
+        let invocation_id = if context.request_id.is_empty() {
+            format!("{}-{request_id}", self.identity.generation_id)
+        } else {
+            context.request_id.clone()
+        };
         self.host.begin_invocation();
+        let wait = self.config.request_timeout.min(timeout_override);
         let deadline = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
-            .saturating_add(timeout_override)
+            .saturating_add(wait)
             .as_millis()
             .min(u128::from(u64::MAX)) as u64;
         let actor_context =
@@ -458,6 +426,7 @@ impl PythonWorkerSupervisor {
                 request_id,
                 invocation: Box::new(PythonInvocationRequest {
                     invocation_id: invocation_id.clone(),
+                    request_id: invocation_id.clone(),
                     provider: provider.to_owned(),
                     action: action.to_owned(),
                     arguments,
@@ -520,7 +489,22 @@ impl PythonWorkerSupervisor {
                         }
                         let (result, error) =
                             match self.host.execute(&call, actor_context.as_ref()).await {
-                                Ok(result) => (Some(result), None),
+                                Ok(result) => {
+                                    if let PythonRunnerHostCall::Progress {
+                                        current,
+                                        total,
+                                        message,
+                                        ..
+                                    } = &call
+                                    {
+                                        context.progress.report(
+                                            *current,
+                                            *total,
+                                            message.as_deref(),
+                                        );
+                                    }
+                                    (Some(result), None)
+                                }
                                 Err(error) => (None, Some(*error)),
                             };
                         write_frame(
@@ -537,7 +521,6 @@ impl PythonWorkerSupervisor {
                 }
             }
         };
-        let wait = self.config.request_timeout.min(timeout_override);
         match timeout(wait, exchange).await {
             Ok(Ok(_)) if self.cancel_epoch.load(Ordering::Acquire) != cancel_epoch => {
                 self.active_pid.store(0, Ordering::Release);
@@ -618,7 +601,7 @@ impl PythonWorkerSupervisor {
         let describe = PythonRunnerHostMessage::Request {
             request: PythonRunnerHostRequest::Describe {
                 request_id,
-                path: self.identity.path.clone(),
+                path: worker.provider_path.clone(),
                 generation_id: self.identity.generation_id.clone(),
             },
         };
@@ -658,13 +641,8 @@ impl PythonWorkerSupervisor {
                 return Err(protocol_error());
             }
         };
-        let actual_catalog = {
-            use sha2::{Digest, Sha256};
-            Sha256::digest(serde_json::to_vec(&manifest).map_err(|_| protocol_error())?)
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>()
-        };
+        let actual_catalog =
+            super::python_catalog_fingerprint(&manifest).map_err(|_| protocol_error())?;
         if !self.identity.catalog_fingerprint.is_empty()
             && actual_catalog != self.identity.catalog_fingerprint
         {
@@ -721,15 +699,20 @@ impl PythonWorkerSupervisor {
             .map_err(|_| start_error())?;
         let address = listener.local_addr().map_err(|_| start_error())?;
         let brokered = self.config.execution_profile == PythonExecutionProfile::Brokered;
-        let (mut process, brokered_launch) = if brokered {
-            let (process, launch) = BrokeredLaunch::prepare(
+        let (mut process, brokered_launch, worker_provider_path) = if brokered {
+            let (process, launch, worker_provider_path) = BrokeredLaunch::prepare(
                 resolve_sidecar_command(&command)
                     .to_str()
                     .ok_or_else(start_error)?,
+                &self.identity.path,
             )?;
-            (process, Some(launch))
+            (process, Some(launch), worker_provider_path)
         } else {
-            (Command::new(resolve_sidecar_command(&command)), None)
+            (
+                Command::new(resolve_sidecar_command(&command)),
+                None,
+                self.identity.path.clone(),
+            )
         };
         let token = {
             let mut token = [0_u8; 32];
@@ -866,6 +849,7 @@ impl PythonWorkerSupervisor {
             stdout,
             stderr_task,
             described: false,
+            provider_path: worker_provider_path,
         };
         startup_guard.disarm();
         let hello = timeout(
@@ -895,6 +879,7 @@ impl PythonWorkerSupervisor {
             PythonRunnerFeature::Health,
             PythonRunnerFeature::Drain,
             PythonRunnerFeature::Shutdown,
+            PythonRunnerFeature::HostCalls,
         ];
         let features = negotiate_runner_features(&requested, &features);
         if features != requested {
@@ -1090,30 +1075,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn failed_process_tree_termination_does_not_report_cancellation() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let provider = temp.path().join("cancel_failure.py");
-        fs::write(&provider, "PROVIDER = {'name': 'cancel-failure'}\n").expect("provider");
-        let supervisor = PythonWorkerSupervisor::new(
-            identity(&provider),
-            PythonInterpreter::Ambient,
-            PythonSupervisorConfig::default(),
-        );
-        supervisor.busy.store(true, Ordering::Release);
-        supervisor.active_pid.store(42, Ordering::Release);
-
-        assert!(!supervisor.cancel_active_with(|_| false));
-        assert_eq!(supervisor.active_pid.load(Ordering::Acquire), 42);
-        assert_eq!(supervisor.cancel_epoch.load(Ordering::Acquire), 0);
-        assert!(!supervisor.discard_worker.load(Ordering::Acquire));
-
-        assert!(supervisor.cancel_active_with(|pid| pid == Some(42)));
-        assert_eq!(supervisor.active_pid.load(Ordering::Acquire), 0);
-        assert_eq!(supervisor.cancel_epoch.load(Ordering::Acquire), 1);
-        assert!(supervisor.discard_worker.load(Ordering::Acquire));
-    }
-
     #[tokio::test]
     async fn installed_runner_preflights_invokes_times_out_and_restarts() {
         let python = installed_test_python();
@@ -1193,12 +1154,22 @@ def execute(value: str, delay_ms: int = 0) -> dict:
         let python = installed_test_python();
         let temp = tempfile::tempdir().expect("tempdir");
         let provider = temp.path().join("brokered.py");
+        fs::write(temp.path().join("host-sentinel.txt"), "must remain hidden")
+            .expect("write sentinel");
         fs::write(
             &provider,
             r#"
+from pathlib import Path
+
+try:
+    Path(__file__).with_name("host-sentinel.txt").read_text()
+    SENTINEL_VISIBLE = True
+except OSError:
+    SENTINEL_VISIBLE = False
+
 PROVIDER = {"name": "brokered-test", "kind": "python"}
 def execute(value: str) -> dict:
-    return {"value": value}
+    return {"value": value, "sentinel_visible": SENTINEL_VISIBLE}
 "#,
         )
         .expect("write provider");
@@ -1223,7 +1194,10 @@ def execute(value: str) -> dict:
             )
             .await
             .expect("brokered invocation");
-        assert_eq!(output, json!({"value": "contained"}));
+        assert_eq!(
+            output,
+            json!({"value": "contained", "sentinel_visible": false})
+        );
         supervisor.shutdown().await;
     }
 

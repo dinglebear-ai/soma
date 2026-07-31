@@ -662,6 +662,7 @@ fn python_call(action: &str) -> ProviderCall {
         request_id: String::new(),
         traceparent: None,
         tracestate: None,
+        progress: Default::default(),
     }
 }
 

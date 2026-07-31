@@ -365,6 +365,14 @@ fn cli_parser_covers_every_cli_action_in_registry() {
             | "python_environment_status"
             | "python_worker_status"
             | "python_generation_status" => vec![cli.command],
+            "python_graduation_status" => {
+                vec![cli.command, "--json", r#"{"workspace":"/tmp/graduated"}"#]
+            }
+            "python_graduation_apply" => vec![
+                cli.command,
+                "--json",
+                r#"{"operation":"rollback","workspace":"/tmp/graduated","confirm":true}"#,
+            ],
             "python_environment_prune_plan" => {
                 vec![cli.command, "--json", r#"{"stale_before_unix_seconds":0}"#]
             }
@@ -530,8 +538,20 @@ async fn run_dynamic_command_uses_application_dispatch() {
     )
     .await
     .expect("dynamic command should run through the application facade");
-    assert_eq!(io.stdout, vec!["{}"]);
+    assert_success_envelope(&io.stdout, serde_json::json!({}));
     assert!(io.stderr.is_empty());
+}
+
+fn assert_success_envelope(stdout: &[String], expected_output: serde_json::Value) {
+    assert_eq!(stdout.len(), 1);
+    let value: serde_json::Value = serde_json::from_str(&stdout[0]).expect("valid JSON");
+    assert_eq!(value["output"], expected_output);
+    assert!(
+        value["request_id"]
+            .as_str()
+            .is_some_and(|request_id| !request_id.is_empty())
+    );
+    assert_eq!(value["progress"], serde_json::json!([]));
 }
 
 // ── run() coverage for the built-in service actions (greet/echo/status/help) ──
@@ -552,13 +572,12 @@ async fn run_greet_command_prints_default_greeting_json() {
         .await
         .expect("greet should run through the application facade");
 
-    let expected = serde_json::to_string_pretty(&serde_json::json!({
+    let expected = serde_json::json!({
         "greeting": "Hello, World!",
         "target": "World",
         "server": "",
-    }))
-    .unwrap();
-    assert_eq!(io.stdout, vec![expected]);
+    });
+    assert_success_envelope(&io.stdout, expected);
     assert!(io.stderr.is_empty());
 }
 
@@ -577,13 +596,12 @@ async fn run_greet_command_with_name_prints_personalized_greeting_json() {
     .await
     .expect("greet --name should run through the application facade");
 
-    let expected = serde_json::to_string_pretty(&serde_json::json!({
+    let expected = serde_json::json!({
         "greeting": "Hello, Alice!",
         "target": "Alice",
         "server": "",
-    }))
-    .unwrap();
-    assert_eq!(io.stdout, vec![expected]);
+    });
+    assert_success_envelope(&io.stdout, expected);
     assert!(io.stderr.is_empty());
 }
 
@@ -602,8 +620,7 @@ async fn run_echo_command_prints_message_json() {
     .await
     .expect("echo should run through the application facade");
 
-    let expected = serde_json::to_string_pretty(&serde_json::json!({ "echo": "hello" })).unwrap();
-    assert_eq!(io.stdout, vec![expected]);
+    assert_success_envelope(&io.stdout, serde_json::json!({ "echo": "hello" }));
     assert!(io.stderr.is_empty());
 }
 
@@ -632,12 +649,11 @@ async fn run_status_command_prints_status_json() {
 
     result.expect("status should run through the application facade");
 
-    let expected = serde_json::to_string_pretty(&serde_json::json!({
+    let expected = serde_json::json!({
         "status": "ok",
         "note": "stub — replace with real health endpoint",
-    }))
-    .unwrap();
-    assert_eq!(io.stdout, vec![expected]);
+    });
+    assert_success_envelope(&io.stdout, expected);
     assert!(io.stderr.is_empty());
 }
 
@@ -651,6 +667,13 @@ async fn run_help_command_prints_action_reference_json() {
 
     assert_eq!(io.stdout.len(), 1);
     let result: serde_json::Value = serde_json::from_str(&io.stdout[0]).unwrap();
+    assert!(
+        result["request_id"]
+            .as_str()
+            .is_some_and(|request_id| !request_id.is_empty())
+    );
+    assert_eq!(result["progress"], serde_json::json!([]));
+    let result = &result["output"];
 
     assert_eq!(result["preferred_rest_style"], "direct_routes");
     assert_eq!(

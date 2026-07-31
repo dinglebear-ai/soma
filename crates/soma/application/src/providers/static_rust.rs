@@ -67,7 +67,9 @@ impl Provider for StaticRustProvider {
             | SomaAction::PythonWorkerCancel { .. }
             | SomaAction::PythonWorkerReset { .. }
             | SomaAction::PythonGenerationStatus
-            | SomaAction::PythonGenerationRollback { .. } => {
+            | SomaAction::PythonGenerationRollback { .. }
+            | SomaAction::PythonGraduationStatus { .. }
+            | SomaAction::PythonGraduationApply { .. } => {
                 return Err(ProviderError::validation(
                     "static-rust",
                     call.action,

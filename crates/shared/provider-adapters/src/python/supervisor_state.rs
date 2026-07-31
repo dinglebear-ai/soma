@@ -141,6 +141,10 @@ pub(super) fn map_worker_error(code: PythonRunnerErrorCode) -> PythonSupervisorE
             "python_output_too_large",
             "Python provider output exceeded its limit",
         ),
+        PythonRunnerErrorCode::PythonPolicyDenied => PythonSupervisorError::new(
+            "python_policy_denied",
+            "Python provider host capability was denied",
+        ),
         _ => PythonSupervisorError::new(
             "python_provider_failed",
             "Python provider invocation failed",

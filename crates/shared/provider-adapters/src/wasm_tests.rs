@@ -1,5 +1,5 @@
 use super::*;
-use soma_provider_core::{BrokerCapability, HostCapabilities};
+use soma_provider_core::{BrokerCapability, HostCapabilities, ProviderInvocationContext};
 
 #[test]
 fn epoch_deadline_interrupts_running_guest_code() {
@@ -20,21 +20,28 @@ fn epoch_deadline_interrupts_running_guest_code() {
     let temp = tempfile::NamedTempFile::new().expect("temporary artifact");
     std::fs::write(temp.path(), wasm).expect("write artifact");
     let runtime = WasmRuntime::new().expect("runtime");
+    let capabilities = HostCapabilities::default();
+    let context = ProviderInvocationContext::default();
     let started = std::time::Instant::now();
     let error = runtime
         .run(
             temp.path(),
-            b"{}",
-            WasmRuntimeLimits {
-                timeout_ms: 20,
-                max_input_bytes: 1024,
-                max_output_bytes: 1024,
-                fuel: u64::MAX,
-                max_memory_bytes: 1024 * 1024,
-                max_table_elements: 16,
-                max_instances: 2,
+            WasmInvocation {
+                input: b"{}",
+                limits: WasmRuntimeLimits {
+                    timeout_ms: 20,
+                    max_input_bytes: 1024,
+                    max_output_bytes: 1024,
+                    fuel: u64::MAX,
+                    max_memory_bytes: 1024 * 1024,
+                    max_table_elements: 16,
+                    max_instances: 2,
+                },
+                capabilities: &capabilities,
+                context: &context,
+                resolved_hosts: BTreeMap::new(),
+                deadline: Instant::now() + Duration::from_millis(20),
             },
-            &HostCapabilities::default(),
         )
         .expect_err("epoch deadline must trap the infinite loop");
     assert!(
@@ -59,6 +66,13 @@ fn component_state_is_namespaced_and_requires_write_authority() {
             ..HostCapabilities::default()
         },
         state: runtime.state.clone(),
+        context: ProviderInvocationContext {
+            actor_id: Some("test-actor".to_owned()),
+            actor_scopes: vec!["soma:read".to_owned(), "soma:write".to_owned()],
+            ..ProviderInvocationContext::default()
+        },
+        deadline: Instant::now() + Duration::from_secs(1),
+        resolved_hosts: BTreeMap::new(),
         wasi: wasmtime_wasi::WasiCtxBuilder::new().build(),
         table: wasmtime::component::ResourceTable::new(),
     };
@@ -94,7 +108,65 @@ fn verification_rejects_a_component_without_the_soma_provider_world() {
     let component = wat::parse_str("(component)").expect("valid empty component");
     let runtime = WasmRuntime::new().expect("runtime");
     let error = runtime
-        .verify_component(&component)
+        .verify_component(
+            &component,
+            std::time::Instant::now() + std::time::Duration::from_secs(5),
+        )
         .expect_err("an arbitrary component is not a Soma provider");
     assert!(error.contains("soma:provider@1.0.0"), "{error}");
+}
+
+#[test]
+fn retained_artifact_survives_global_cache_eviction() {
+    let runtime = WasmRuntime::new().expect("runtime");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let original = wat::parse_str(
+        r#"
+(module
+  (memory (export "memory") 1)
+  (data (i32.const 0) "{}")
+  (func (export "soma_input_alloc") (param i32) (result i32) (i32.const 0))
+  (func (export "soma_input_ptr") (result i32) (i32.const 0))
+  (func (export "soma_call") (result i32) (i32.const 0))
+  (func (export "soma_output_ptr") (result i32) (i32.const 0))
+  (func (export "soma_output_len") (result i32) (i32.const 2)))
+"#,
+    )
+    .expect("provider module");
+    let retained = runtime
+        .artifact(&original, deadline)
+        .expect("compiled module");
+    for index in 0..=WasmArtifactCache::MAX_ARTIFACTS {
+        let bytes = wat::parse_str(format!(
+            "(module (memory 1) (data (i32.const 0) \"artifact-{index}\"))"
+        ))
+        .expect("pressure module");
+        runtime
+            .artifact(&bytes, deadline)
+            .expect("compiled pressure");
+    }
+    let capabilities = HostCapabilities::default();
+    let context = ProviderInvocationContext::default();
+    let output = runtime
+        .run_artifact(
+            retained,
+            WasmInvocation {
+                input: b"{}",
+                limits: WasmRuntimeLimits {
+                    timeout_ms: 1_000,
+                    max_input_bytes: 1024,
+                    max_output_bytes: 1024,
+                    fuel: 100_000,
+                    max_memory_bytes: 1024 * 1024,
+                    max_table_elements: 16,
+                    max_instances: 2,
+                },
+                capabilities: &capabilities,
+                context: &context,
+                resolved_hosts: BTreeMap::new(),
+                deadline,
+            },
+        )
+        .expect("retained artifact remains executable");
+    assert_eq!(output, b"{}");
 }

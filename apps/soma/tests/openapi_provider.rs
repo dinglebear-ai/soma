@@ -84,9 +84,12 @@ async fn openapi_provider_executes_pinned_local_operation() {
     let provider = SharedAdapter::wrap(OpenApiProvider::arc(catalog));
     let registry = ProviderRegistry::with_capabilities(
         vec![provider],
-        CapabilityBroker::new(vec![CapabilityGrant::Network {
-            allowed_hosts: vec!["127.0.0.1".to_owned()],
-        }]),
+        CapabilityBroker::new(vec![(
+            "weather-openapi".to_owned(),
+            CapabilityGrant::Network {
+                allowed_hosts: vec!["127.0.0.1".to_owned()],
+            },
+        )]),
     )
     .expect("registry");
     let output = registry
@@ -117,9 +120,12 @@ async fn openapi_provider_rejects_absolute_operation_urls() {
     let provider = SharedAdapter::wrap(OpenApiProvider::arc(catalog));
     let registry = ProviderRegistry::with_capabilities(
         vec![provider],
-        CapabilityBroker::new(vec![CapabilityGrant::Network {
-            allowed_hosts: vec!["127.0.0.1".to_owned()],
-        }]),
+        CapabilityBroker::new(vec![(
+            "weather-openapi".to_owned(),
+            CapabilityGrant::Network {
+                allowed_hosts: vec!["127.0.0.1".to_owned()],
+            },
+        )]),
     )
     .expect("registry");
     let error = registry
@@ -288,6 +294,7 @@ fn call() -> ProviderCall {
         request_id: String::new(),
         traceparent: None,
         tracestate: None,
+        progress: Default::default(),
     }
 }
 

@@ -62,6 +62,7 @@ export async function call(input) {
             request_id: String::new(),
             traceparent: None,
             tracestate: None,
+            progress: Default::default(),
         })
         .await?;
 
@@ -207,6 +208,7 @@ async fn dispatch(
             request_id: String::new(),
             traceparent: None,
             tracestate: None,
+            progress: Default::default(),
         })
         .await?;
     Ok(output.value)

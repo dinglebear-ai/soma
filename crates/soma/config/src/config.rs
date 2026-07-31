@@ -10,6 +10,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::python_environment::PythonEnvironmentConfig;
+mod env;
+use env::{
+    boolean as env_bool, list as env_list, optional_parse as env_opt_parse,
+    optional_string as env_opt_str, parse as env_parse, string as env_str,
+};
 #[path = "python_runner_profile.rs"]
 mod python_runner_profile;
 pub use python_runner_profile::{PythonExecutionProfile, PythonRunnerMode};
@@ -33,6 +38,8 @@ pub struct PythonRunnerConfig {
     pub environment: PythonEnvironmentConfig,
     pub mode: PythonRunnerMode,
     pub execution_profile: PythonExecutionProfile,
+    /// Provider identities eligible for broker deployment grants.
+    pub broker_allowed_providers: Vec<String>,
     /// Deployment-policy allowlist for brokered outbound HTTP.
     pub broker_allowed_http_hosts: Vec<String>,
     /// Deployment-policy allowlist for secret handles exposed to providers.
@@ -60,6 +67,7 @@ impl Default for PythonRunnerConfig {
             environment: PythonEnvironmentConfig::default(),
             mode: PythonRunnerMode::OneShot,
             execution_profile: PythonExecutionProfile::Trusted,
+            broker_allowed_providers: Vec::new(),
             broker_allowed_http_hosts: Vec::new(),
             broker_secret_names: Vec::new(),
             broker_state_namespaces: Vec::new(),
@@ -554,6 +562,10 @@ impl Config {
             &mut config.mcp.auth.authelia_callback_path,
         );
         env_list(
+            "SOMA_PYTHON_BROKER_ALLOWED_PROVIDERS",
+            &mut config.python.broker_allowed_providers,
+        );
+        env_list(
             "SOMA_MCP_AUTHELIA_SCOPES",
             &mut config.mcp.auth.authelia_scopes,
         );
@@ -811,71 +823,6 @@ impl Config {
         config.python.validate()?;
 
         Ok(config)
-    }
-}
-
-// ── env helpers ───────────────────────────────────────────────────────────────
-
-fn env_str(key: &str, target: &mut String) {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = v;
-    }
-}
-
-fn env_opt_str(key: &str, target: &mut Option<String>) {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = Some(v);
-    }
-}
-
-fn env_parse<T: std::str::FromStr>(key: &str, target: &mut T) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = v
-            .parse()
-            .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?;
-    }
-    Ok(())
-}
-
-fn env_opt_parse<T: std::str::FromStr>(key: &str, target: &mut Option<T>) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = Some(
-            v.parse()
-                .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?,
-        );
-    }
-    Ok(())
-}
-
-fn env_bool(key: &str, target: &mut bool) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key) {
-        match v.to_lowercase().as_str() {
-            "1" | "true" | "yes" => *target = true,
-            "0" | "false" | "no" => *target = false,
-            other => anyhow::bail!("{key}: expected bool, got {other:?}"),
-        }
-    }
-    Ok(())
-}
-
-fn env_list(key: &str, target: &mut Vec<String>) {
-    if let Ok(v) = std::env::var(key) {
-        let items: Vec<String> = v
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        if !items.is_empty() {
-            *target = items;
-        }
     }
 }
 

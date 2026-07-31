@@ -379,7 +379,35 @@
         "env": { "$ref": "#/$defs/envCapability" },
         "terminal": { "$ref": "#/$defs/terminalCapability" },
         "browser": { "$ref": "#/$defs/browserCapability" },
-        "github": { "$ref": "#/$defs/githubCapability" }
+        "github": { "$ref": "#/$defs/githubCapability" },
+        "broker": { "$ref": "#/$defs/brokerCapability" }
+      }
+    },
+    "brokerCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "secret_names": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "default": []
+        },
+        "state_namespace": {
+          "type": ["string", "null"],
+          "maxLength": 256,
+          "pattern": "^[a-z0-9][a-z0-9/-]*$"
+        },
+        "state_write": { "type": "boolean", "default": false },
+        "logging": { "type": "boolean", "default": false },
+        "metrics": { "type": "boolean", "default": false },
+        "progress": { "type": "boolean", "default": false }
       }
     },
     "filesystemCapability": {

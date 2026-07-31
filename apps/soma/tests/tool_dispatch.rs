@@ -98,7 +98,7 @@ impl Provider for DynamicProvider {
 async fn test_greet_no_name_returns_greeting() {
     let result = call_mcp_action(json!({ "action": "greet" })).await;
     let greeting = result
-        .get("greeting")
+        .pointer("/output/greeting")
         .and_then(|v| v.as_str())
         .expect("greeting field should be present");
     assert!(
@@ -111,7 +111,7 @@ async fn test_greet_no_name_returns_greeting() {
 async fn test_greet_with_name_includes_name() {
     let result = call_mcp_action(json!({ "action": "greet", "name": "Alice" })).await;
     let greeting = result
-        .get("greeting")
+        .pointer("/output/greeting")
         .and_then(|v| v.as_str())
         .expect("greeting field should be present");
     assert!(
@@ -124,7 +124,7 @@ async fn test_greet_with_name_includes_name() {
 async fn test_echo_returns_message() {
     let result = call_mcp_action(json!({ "action": "echo", "message": "hello world" })).await;
     let echo = result
-        .get("echo")
+        .pointer("/output/echo")
         .and_then(|v| v.as_str())
         .expect("echo field should be present");
     assert_eq!(echo, "hello world");
@@ -134,7 +134,7 @@ async fn test_echo_returns_message() {
 async fn test_status_returns_ok() {
     let result = call_mcp_action(json!({ "action": "status" })).await;
     let status = result
-        .get("status")
+        .pointer("/output/status")
         .and_then(|v| v.as_str())
         .expect("status field should be present");
     assert_eq!(status, "ok");
@@ -154,9 +154,9 @@ async fn test_dynamic_provider_action_dispatches_without_static_action_enum() {
     .await
     .expect("dynamic provider action should dispatch");
 
-    assert_eq!(result["provider"], "dynamic");
-    assert_eq!(result["action"], "weather");
-    assert_eq!(result["city"], "Paris");
+    assert_eq!(result["output"]["provider"], "dynamic");
+    assert_eq!(result["output"]["action"], "weather");
+    assert_eq!(result["output"]["city"], "Paris");
 }
 
 #[tokio::test]
@@ -187,7 +187,7 @@ async fn test_real_call_tool_path_returns_status_json() -> anyhow::Result<()> {
         .expect("call_tool result should contain JSON text");
     let payload: serde_json::Value = serde_json::from_str(text)?;
 
-    assert_eq!(payload["status"], "ok");
+    assert_eq!(payload["output"]["status"], "ok");
     assert_eq!(result.structured_content.as_ref(), Some(&payload));
 
     client.cancel().await?;
@@ -254,7 +254,7 @@ async fn test_all_actions_return_valid_json_object() {
 async fn test_greet_target_defaults_to_world() {
     let result = call_mcp_action(json!({ "action": "greet" })).await;
     let target = result
-        .get("target")
+        .pointer("/output/target")
         .and_then(|v| v.as_str())
         .expect("target field should be present");
     assert_eq!(target, "World");

@@ -106,7 +106,7 @@ async fn dispatch_non_elicitation_action(
             context,
         )
         .await?
-        .output)
+        .into_surface_value())
 }
 
 fn action_name(args: &Value) -> anyhow::Result<&str> {

@@ -39,6 +39,8 @@ fn static_service_actions_keep_action_metadata() {
             "python_worker_reset",
             "python_generation_status",
             "python_generation_rollback",
+            "python_graduation_status",
+            "python_graduation_apply",
             "help",
         ]
     );

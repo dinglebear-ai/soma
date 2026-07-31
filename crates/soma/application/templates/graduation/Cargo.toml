@@ -1,0 +1,18 @@
+[package]
+name = "graduated-soma-provider"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+component = ["dep:wit-bindgen"]
+python = ["dep:pyo3"]
+
+[dependencies]
+serde_json = "1"
+pyo3 = { version = "0.28", optional = true, features = ["abi3-py311", "extension-module"] }
+wit-bindgen = { version = "0.57.1", optional = true }

@@ -219,7 +219,7 @@ async fn run_provider_rest_action(
     context.destructive_confirmation = confirmation;
 
     match state.application().execute_action(request, context).await {
-        Ok(output) => Json(output.output).into_response(),
+        Ok(output) => Json(output.into_surface_value()).into_response(),
         Err(error) => application_error_response(error),
     }
 }
@@ -248,6 +248,22 @@ fn rest_params(action: &SomaAction) -> Value {
         SomaAction::PythonGenerationRollback { generation_id } => {
             json!({"generation_id": generation_id})
         }
+        SomaAction::PythonGraduationStatus { workspace } => {
+            json!({"workspace": workspace})
+        }
+        SomaAction::PythonGraduationApply {
+            operation,
+            workspace,
+            source,
+            component,
+            fixtures,
+        } => json!({
+            "operation": operation,
+            "workspace": workspace,
+            "source": source,
+            "component": component,
+            "fixtures": fixtures,
+        }),
         SomaAction::Status
         | SomaAction::PythonEnvironmentStatus
         | SomaAction::PythonWorkerStatus

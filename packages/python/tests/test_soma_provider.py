@@ -188,7 +188,7 @@ class ContextTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(context.request.request_id, 7)
+        self.assertEqual(context.request.request_id, "7")
         self.assertEqual(context.request.provider, "network-tools")
         self.assertEqual(context.request.action, "status")
         self.assertEqual(context.request.surface, "mcp")

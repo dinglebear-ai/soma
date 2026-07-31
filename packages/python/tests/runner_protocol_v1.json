@@ -3,13 +3,14 @@
     "protocol": {"major": 1, "minor": 0},
     "sdk_version": "0.1.0",
     "python": {"implementation": "cpython", "version": "3.13.5"},
-    "features": ["describe", "invoke", "cancel", "health", "host-calls"]
+    "features": ["describe", "invoke", "health", "host-calls"]
   },
   "invoke": {
     "method": "invoke",
     "request_id": 42,
     "invocation": {
       "invocation_id": "invoke-42",
+      "request_id": "request-42",
       "provider": "demo",
       "action": "lookup",
       "arguments": {"query": "soma"},

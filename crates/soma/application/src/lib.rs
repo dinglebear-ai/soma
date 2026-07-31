@@ -73,6 +73,11 @@ pub use types::{
     ResourceTemplateSpec, ScaffoldIntentRequest,
 };
 
+/// Configure the durable state path shared by Python and component providers.
+pub fn configure_provider_state_path(path: std::path::PathBuf) -> Result<(), String> {
+    soma_provider_adapters::configure_provider_state_path(path)
+}
+
 pub use soma_provider_core::{CapabilityGrant, ProviderPrompt, ProviderResource};
 
 /// Unified dispatch seam shared by every surface (MCP, REST, CLI).
@@ -255,7 +260,9 @@ pub async fn execute_service_action(
         | SomaAction::PythonWorkerCancel { .. }
         | SomaAction::PythonWorkerReset { .. }
         | SomaAction::PythonGenerationStatus
-        | SomaAction::PythonGenerationRollback { .. } => Err(anyhow::anyhow!(
+        | SomaAction::PythonGenerationRollback { .. }
+        | SomaAction::PythonGraduationStatus { .. }
+        | SomaAction::PythonGraduationApply { .. } => Err(anyhow::anyhow!(
             "Python operator actions require the shared application control plane"
         )),
         SomaAction::Help => Ok(rest_help()),

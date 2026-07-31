@@ -43,6 +43,7 @@ use crate::{
 use supervisor::{PythonSupervisorConfig, PythonWorkerIdentity, PythonWorkerSupervisor};
 
 pub mod cache;
+mod catalog;
 mod containment;
 pub mod environment;
 pub mod host;
@@ -57,6 +58,8 @@ use interpreter::select_python_command;
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const DEFAULT_MAX_INPUT_BYTES: usize = 64 * 1024;
 const DEFAULT_MAX_OUTPUT_BYTES: usize = 256 * 1024;
+
+pub use catalog::describe_persistent_catalog;
 
 fn protocol_output_limit(payload_limit: usize) -> usize {
     payload_limit.saturating_add(PYTHON_PROTOCOL_HEADROOM_BYTES)
@@ -152,10 +155,8 @@ impl PythonProvider {
                 "immutable Python generation digest must contain exactly 64 ASCII hexadecimal characters",
             ));
         }
-        let catalog_fingerprint = sha256_hex(
-            &serde_json::to_vec(&catalog)
-                .map_err(|error| ProviderError::execution(&catalog.provider.name, "", error))?,
-        );
+        let catalog_fingerprint = python_catalog_fingerprint(&catalog)
+            .map_err(|error| ProviderError::execution(&catalog.provider.name, "", error))?;
         let generation_id = format!("{}-{}", catalog.provider.name, &worker_group[..16]);
         let supervisor = PythonWorkerSupervisor::new_with_capabilities(
             PythonWorkerIdentity {
@@ -230,6 +231,14 @@ impl PythonProvider {
             interpreter,
         ))
     }
+}
+
+fn python_catalog_fingerprint(catalog: &ProviderCatalog) -> Result<String, serde_json::Error> {
+    let mut catalog = catalog.clone();
+    // The file source owns this location and rewrites it from the immutable
+    // execution snapshot to the operator-facing provider path.
+    catalog.provider.source = None;
+    serde_json::to_vec(&catalog).map(|bytes| sha256_hex(&bytes))
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

@@ -141,57 +141,34 @@ fn structured_output_schema(catalogs: &[ProviderCatalog]) -> Value {
 }
 
 fn action_output_variant_schema(tool: &ProviderTool) -> Value {
-    let Some(mut schema) = tool.output_schema.clone() else {
-        return loose_action_output_schema(&tool.name);
-    };
-    if add_action_discriminator_to_schema(&mut schema, &tool.name) {
-        schema
-    } else {
-        loose_action_output_schema(&tool.name)
-    }
-}
-
-fn add_action_discriminator_to_schema(schema: &mut Value, action: &str) -> bool {
-    let Some(schema_object) = schema.as_object_mut() else {
-        return false;
-    };
-    let properties = schema_object
-        .entry("properties")
-        .or_insert_with(|| Value::Object(Map::new()));
-    let Some(properties) = properties.as_object_mut() else {
-        return false;
-    };
-    properties.insert(
-        ACTION_DISCRIMINATOR_FIELD.to_owned(),
-        json!({
-            "const": action,
-            "description": format!("MCP adapter discriminator for action `{action}`."),
-        }),
-    );
-    let required = schema_object
-        .entry("required")
-        .or_insert_with(|| Value::Array(Vec::new()));
-    let Some(required) = required.as_array_mut() else {
-        return false;
-    };
-    if !required
-        .iter()
-        .any(|value| value.as_str() == Some(ACTION_DISCRIMINATOR_FIELD))
-    {
-        required.push(Value::String(ACTION_DISCRIMINATOR_FIELD.to_owned()));
-    }
-    true
-}
-
-fn loose_action_output_schema(action: &str) -> Value {
+    let output_schema = tool.output_schema.clone().unwrap_or_else(|| json!({}));
     json!({
         "type": "object",
-        "additionalProperties": true,
-        "required": [ACTION_DISCRIMINATOR_FIELD],
+        "additionalProperties": false,
+        "required": [ACTION_DISCRIMINATOR_FIELD, "output", "request_id", "progress"],
         "properties": {
             ACTION_DISCRIMINATOR_FIELD: {
-                "const": action,
-                "description": format!("MCP adapter discriminator for action `{action}`."),
+                "const": tool.name,
+                "description": format!("MCP adapter discriminator for action `{}`.", tool.name),
+            },
+            "output": output_schema,
+            "request_id": {"type": "string", "minLength": 1},
+            "progress": progress_events_schema(),
+        }
+    })
+}
+
+fn progress_events_schema() -> Value {
+    json!({
+        "type": "array",
+        "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["current"],
+            "properties": {
+                "current": {"type": "integer", "minimum": 0},
+                "total": {"type": ["integer", "null"], "minimum": 0},
+                "message": {"type": ["string", "null"]},
             }
         }
     })

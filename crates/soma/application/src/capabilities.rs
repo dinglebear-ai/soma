@@ -11,12 +11,12 @@ use crate::provider_errors::ProviderError;
 /// grants, denying any capability that is not explicitly allowed.
 #[derive(Debug, Clone, Default)]
 pub struct CapabilityBroker {
-    grants: Vec<CapabilityGrant>,
+    grants: Vec<(String, CapabilityGrant)>,
 }
 
 impl CapabilityBroker {
     /// Builds a broker backed by the given policy grants.
-    pub fn new(grants: Vec<CapabilityGrant>) -> Self {
+    pub fn new(grants: Vec<(String, CapabilityGrant)>) -> Self {
         Self { grants }
     }
 
@@ -34,100 +34,138 @@ impl CapabilityBroker {
         requested: &HostCapabilities,
     ) -> Result<(), ProviderError> {
         if let Some(capability) = enabled_filesystem(requested) {
-            let granted = self.grants.iter().any(|grant| match grant {
-                CapabilityGrant::Filesystem {
-                    read_roots,
-                    write_roots,
-                } => {
-                    all_paths_allowed(&capability.read_roots, read_roots)
-                        && all_paths_allowed(&capability.write_roots, write_roots)
-                }
-                _ => false,
+            let granted = self.grants.iter().any(|(owner, grant)| {
+                owner == provider
+                    && match grant {
+                        CapabilityGrant::Filesystem {
+                            read_roots,
+                            write_roots,
+                        } => {
+                            all_paths_allowed(&capability.read_roots, read_roots)
+                                && all_paths_allowed(&capability.write_roots, write_roots)
+                        }
+                        _ => false,
+                    }
             });
             if !granted {
                 return Err(denied(provider, action, "filesystem"));
             }
         }
         if let Some(capability) = enabled_network(requested) {
-            let granted = self.grants.iter().any(|grant| match grant {
-                CapabilityGrant::Network { allowed_hosts } => {
-                    all_items_allowed(&capability.allowed_hosts, allowed_hosts)
-                }
-                _ => false,
+            let granted = self.grants.iter().any(|(owner, grant)| {
+                owner == provider
+                    && match grant {
+                        CapabilityGrant::Network { allowed_hosts } => {
+                            all_items_allowed(&capability.allowed_hosts, allowed_hosts)
+                        }
+                        _ => false,
+                    }
             });
             if !granted {
                 return Err(denied(provider, action, "network"));
             }
         }
         if let Some(capability) = enabled_env(requested) {
-            let granted = self.grants.iter().any(|grant| match grant {
-                CapabilityGrant::Env { allowed } => all_items_allowed(&capability.allowed, allowed),
-                _ => false,
+            let granted = self.grants.iter().any(|(owner, grant)| {
+                owner == provider
+                    && match grant {
+                        CapabilityGrant::Env { allowed } => {
+                            all_items_allowed(&capability.allowed, allowed)
+                        }
+                        _ => false,
+                    }
             });
             if !granted {
                 return Err(denied(provider, action, "env"));
             }
         }
         if let Some(capability) = enabled_terminal(requested) {
-            let granted = self.grants.iter().any(|grant| match grant {
-                CapabilityGrant::Terminal {
-                    working_dir,
-                    allowlist,
-                } => {
-                    working_dir_allows(capability.working_dir.as_deref(), working_dir.as_deref())
-                        && all_items_allowed(&capability.allowlist, allowlist)
-                }
-                _ => false,
+            let granted = self.grants.iter().any(|(owner, grant)| {
+                owner == provider
+                    && match grant {
+                        CapabilityGrant::Terminal {
+                            working_dir,
+                            allowlist,
+                        } => {
+                            working_dir_allows(
+                                capability.working_dir.as_deref(),
+                                working_dir.as_deref(),
+                            ) && all_items_allowed(&capability.allowlist, allowlist)
+                        }
+                        _ => false,
+                    }
             });
             if !granted {
                 return Err(denied(provider, action, "terminal"));
             }
         }
         if let Some(capability) = enabled_browser(requested) {
-            let granted = self.grants.iter().any(|grant| match grant {
-                CapabilityGrant::Browser { allowed_origins } => {
-                    all_items_allowed(&capability.allowed_origins, allowed_origins)
-                }
-                _ => false,
+            let granted = self.grants.iter().any(|(owner, grant)| {
+                owner == provider
+                    && match grant {
+                        CapabilityGrant::Browser { allowed_origins } => {
+                            all_items_allowed(&capability.allowed_origins, allowed_origins)
+                        }
+                        _ => false,
+                    }
             });
             if !granted {
                 return Err(denied(provider, action, "browser"));
             }
         }
         if let Some(capability) = enabled_github(requested) {
-            let granted = self.grants.iter().any(|grant| match grant {
-                CapabilityGrant::Github {
-                    allowed_repos,
-                    read_only,
-                } => {
-                    all_items_allowed(&capability.allowed_repos, allowed_repos)
-                        && (capability.read_only || !read_only)
-                }
-                _ => false,
+            let granted = self.grants.iter().any(|(owner, grant)| {
+                owner == provider
+                    && match grant {
+                        CapabilityGrant::Github {
+                            allowed_repos,
+                            read_only,
+                        } => {
+                            all_items_allowed(&capability.allowed_repos, allowed_repos)
+                                && (capability.read_only || !read_only)
+                        }
+                        _ => false,
+                    }
             });
             if !granted {
                 return Err(denied(provider, action, "github"));
             }
         }
         if let Some(capability) = enabled_broker(requested) {
-            let granted = self.grants.iter().any(|grant| match grant {
-                CapabilityGrant::Broker {
-                    secret_names,
-                    state_namespaces,
-                    allow_logging,
-                    allow_metrics,
-                    allow_progress,
-                } => {
-                    all_items_allowed(&capability.secret_names, secret_names)
-                        && capability
-                            .state_namespace
-                            .as_ref()
-                            .is_none_or(|namespace| state_namespaces.contains(namespace))
-                        && (!capability.logging || *allow_logging)
-                        && (!capability.metrics || *allow_metrics)
-                        && (!capability.progress || *allow_progress)
-                }
-                _ => false,
+            let provider_scoped = capability
+                .secret_names
+                .iter()
+                .all(|name| provider_owns_name(provider, name))
+                && capability
+                    .state_namespace
+                    .as_ref()
+                    .is_none_or(|name| provider_owns_name(provider, name));
+            if !provider_scoped {
+                return Err(denied(provider, action, "broker"));
+            }
+            let granted = self.grants.iter().any(|(owner, grant)| {
+                owner == provider
+                    && match grant {
+                        CapabilityGrant::Broker {
+                            secret_names,
+                            state_read_namespaces,
+                            state_write_namespaces,
+                            allow_logging,
+                            allow_metrics,
+                            allow_progress,
+                        } => {
+                            all_items_allowed(&capability.secret_names, secret_names)
+                                && capability.state_namespace.as_ref().is_none_or(|namespace| {
+                                    state_read_namespaces.contains(namespace)
+                                        && (!capability.state_write
+                                            || state_write_namespaces.contains(namespace))
+                                })
+                                && (!capability.logging || *allow_logging)
+                                && (!capability.metrics || *allow_metrics)
+                                && (!capability.progress || *allow_progress)
+                        }
+                        _ => false,
+                    }
             });
             if !granted {
                 return Err(denied(provider, action, "broker"));
@@ -135,6 +173,13 @@ impl CapabilityBroker {
         }
         Ok(())
     }
+}
+
+fn provider_owns_name(provider: &str, name: &str) -> bool {
+    name == provider
+        || name
+            .strip_prefix(provider)
+            .is_some_and(|suffix| suffix.starts_with('-') || suffix.starts_with('/'))
 }
 
 fn enabled_filesystem(requested: &HostCapabilities) -> Option<&FilesystemCapability> {
@@ -212,13 +257,17 @@ mod tests {
 
     #[test]
     fn broker_grants_intersect_every_requested_authority() {
-        let broker = CapabilityBroker::new(vec![CapabilityGrant::Broker {
-            secret_names: vec!["weather-key".to_owned()],
-            state_namespaces: vec!["weather".to_owned()],
-            allow_logging: true,
-            allow_metrics: false,
-            allow_progress: true,
-        }]);
+        let broker = CapabilityBroker::new(vec![(
+            "weather".to_owned(),
+            CapabilityGrant::Broker {
+                secret_names: vec!["weather-key".to_owned()],
+                state_read_namespaces: vec!["weather".to_owned()],
+                state_write_namespaces: vec!["weather".to_owned()],
+                allow_logging: true,
+                allow_metrics: false,
+                allow_progress: true,
+            },
+        )]);
         let requested = HostCapabilities {
             broker: Some(BrokerCapability {
                 enabled: true,
@@ -234,12 +283,32 @@ mod tests {
         broker
             .authorize("weather", "forecast", &requested)
             .expect("matching provider and deployment authority is allowed");
+        assert!(
+            broker.authorize("billing", "forecast", &requested).is_err(),
+            "a deployment grant for one provider must not become global authority"
+        );
 
-        let mut excessive = requested;
+        let mut excessive = requested.clone();
         excessive.broker.as_mut().unwrap().metrics = true;
         let error = broker
             .authorize("weather", "forecast", &excessive)
             .expect_err("an ungranted metric request must be denied");
+        assert_eq!(&*error.code, "capability_denied");
+
+        let read_only = CapabilityBroker::new(vec![(
+            "weather".to_owned(),
+            CapabilityGrant::Broker {
+                secret_names: Vec::new(),
+                state_read_namespaces: vec!["weather".to_owned()],
+                state_write_namespaces: Vec::new(),
+                allow_logging: false,
+                allow_metrics: false,
+                allow_progress: false,
+            },
+        )]);
+        let error = read_only
+            .authorize("weather", "forecast", &requested)
+            .expect_err("read-only deployment policy must deny state writes");
         assert_eq!(&*error.code, "capability_denied");
     }
 }

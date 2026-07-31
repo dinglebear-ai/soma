@@ -3,12 +3,11 @@
 
 use std::{
     collections::BTreeMap,
-    fs,
     io::Read,
-    net::ToSocketAddrs,
+    net::{IpAddr, SocketAddr},
     path::PathBuf,
-    sync::{Arc, Mutex},
-    time::Duration,
+    sync::{Arc, Mutex, OnceLock},
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -22,65 +21,73 @@ use wasmtime::{
     component::{Component, Linker},
 };
 
+#[cfg(test)]
+use crate::wasm_memory::public_ip as component_public_ip;
 use crate::{
+    broker_state::BrokerStateStore,
     sidecar::execution_payload,
     wasm_limits::WasmRuntimeLimits,
-    wasm_memory::{public_ip as component_public_ip, read_memory, typed, write_memory},
+    wasm_memory::{read_memory, typed, write_memory},
 };
+
+mod artifact;
+mod direct;
+mod host;
+mod runtime_support;
+use artifact::{artifact_digest, compile_artifact, read_artifact};
+pub use direct::{
+    PreparedComponentArtifact, invoke_authorized_component_artifact,
+    invoke_component_artifact_async, invoke_component_artifact_before_async,
+    invoke_prepared_component_artifact_before_async, prepare_component_artifact_before,
+    verify_component_artifact, verify_component_artifact_before,
+};
+use host::{component_diagnostic, component_linker};
+#[cfg(test)]
+use host::{component_state_get, component_state_put};
+use runtime_support::{
+    EpochTicker, WasmArtifactCache, acquire_execution, component_broker,
+    component_forbidden_header, component_metric, component_progress, component_remaining,
+    component_require_scope, resolve_component_hosts,
+};
+
+const MAX_WASM_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct WasmProvider {
     path: PathBuf,
     catalog: ProviderCatalog,
+    runtime: Result<PreparedWasmProvider, String>,
+}
+
+#[derive(Clone)]
+struct PreparedWasmProvider {
     runtime: Arc<WasmRuntime>,
+    artifact: Arc<WasmArtifact>,
+    digest: String,
 }
 
 impl WasmProvider {
     pub fn new(path: PathBuf, catalog: ProviderCatalog) -> Self {
+        let runtime = shared_wasm_runtime().and_then(|runtime| {
+            let bytes = read_artifact(&path)?;
+            let digest = artifact_digest(&bytes);
+            let artifact = runtime.artifact(&bytes, Instant::now() + Duration::from_secs(30))?;
+            Ok(PreparedWasmProvider {
+                runtime,
+                artifact,
+                digest,
+            })
+        });
         Self {
             path,
             catalog,
-            runtime: Arc::new(WasmRuntime::new().expect("Wasmtime runtime configuration is valid")),
+            runtime,
         }
     }
 
     pub fn arc(path: PathBuf, catalog: ProviderCatalog) -> Arc<Self> {
         Arc::new(Self::new(path, catalog))
     }
-}
-
-/// Validate and invoke a component artifact directly. Graduation tooling uses
-/// this seam to replay recorded Python fixtures before activation.
-pub fn invoke_component_artifact(
-    path: &std::path::Path,
-    input: &Value,
-    capabilities: &soma_provider_core::HostCapabilities,
-) -> Result<Value, String> {
-    let bytes = serde_json::to_vec(input).map_err(|error| error.to_string())?;
-    let runtime = WasmRuntime::new()?;
-    let output = runtime.run(
-        path,
-        &bytes,
-        WasmRuntimeLimits {
-            timeout_ms: 5_000,
-            max_input_bytes: 64 * 1024,
-            max_output_bytes: 256 * 1024,
-            fuel: 1_000_000,
-            max_memory_bytes: 64 * 1024 * 1024,
-            max_table_elements: 10_000,
-            max_instances: 16,
-        },
-        capabilities,
-    )?;
-    serde_json::from_slice(&output).map_err(|error| error.to_string())
-}
-
-/// Validate that `path` contains a component-model artifact, not merely a
-/// legacy core-Wasm module.
-pub fn verify_component_artifact(path: &std::path::Path) -> Result<(), String> {
-    let bytes = fs::read(path).map_err(|error| error.to_string())?;
-    let runtime = WasmRuntime::new()?;
-    runtime.verify_component(&bytes)
 }
 
 #[async_trait]
@@ -94,9 +101,32 @@ impl Provider for WasmProvider {
         let provider = self.catalog.provider.name.clone();
         let action = call.action.clone();
         let source = self.path.display().to_string();
-        let path = self.path.clone();
-        let runtime = self.runtime.clone();
+        let prepared = self.runtime.clone().map_err(|error| {
+            ProviderError::execution(&provider, action.clone(), error)
+                .with_provider_kind("wasm")
+                .with_source(source.clone())
+                .with_phase("runtime-initialization")
+        })?;
+        let current_digest = read_artifact(&self.path)
+            .map(|bytes| artifact_digest(&bytes))
+            .map_err(|error| {
+                ProviderError::execution(&provider, action.clone(), error)
+                    .with_provider_kind("wasm")
+                    .with_source(source.clone())
+                    .with_phase("artifact-verification")
+            })?;
+        if current_digest != prepared.digest {
+            return Err(ProviderError::execution(
+                &provider,
+                action.clone(),
+                "WASM artifact changed after provider activation",
+            )
+            .with_provider_kind("wasm")
+            .with_source(source)
+            .with_phase("artifact-verification"));
+        }
         let capabilities = self.catalog.capabilities.clone();
+        let context = call.context.clone();
         let input = execution_payload(&call).map_err(|error| {
             ProviderError::execution(&provider, call.action.clone(), error)
                 .with_provider_kind("wasm")
@@ -117,9 +147,32 @@ impl Provider for WasmProvider {
         }
 
         let timeout_ms = limits.timeout_ms;
-        let task =
-            tokio::task::spawn_blocking(move || runtime.run(&path, &input, limits, &capabilities));
-        let output = timeout(Duration::from_millis(timeout_ms), task)
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        let resolved_hosts = resolve_component_hosts(&capabilities, deadline)
+            .await
+            .map_err(|error| {
+                ProviderError::execution(&provider, action.clone(), error)
+                    .with_provider_kind("wasm")
+                    .with_source(source.clone())
+                    .with_phase("network-resolution")
+            })?;
+        let task = tokio::task::spawn_blocking(move || {
+            prepared.runtime.run_artifact(
+                prepared.artifact,
+                WasmInvocation {
+                    input: &input,
+                    limits,
+                    capabilities: &capabilities,
+                    context: &context,
+                    resolved_hosts,
+                    deadline,
+                },
+            )
+        });
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .unwrap_or(Duration::ZERO);
+        let task_result = timeout(remaining, task)
             .await
             .map_err(|_| {
                 ProviderError::new(
@@ -138,13 +191,25 @@ impl Provider for WasmProvider {
                     .with_provider_kind("wasm")
                     .with_source(source.clone())
                     .with_phase("execution")
-            })?
-            .map_err(|error| {
-                ProviderError::execution(&provider, action.clone(), error)
-                    .with_provider_kind("wasm")
-                    .with_source(source.clone())
-                    .with_phase("execution")
             })?;
+        if Instant::now() >= deadline {
+            return Err(ProviderError::new(
+                "wasm_provider_timeout",
+                &provider,
+                Some(action.clone()),
+                format!("WASM provider exceeded {timeout_ms}ms timeout"),
+                "Increase tool.limits.timeout_ms or fix the WASM provider.",
+            )
+            .with_provider_kind("wasm")
+            .with_source(source.clone())
+            .with_phase("execution"));
+        }
+        let output = task_result.map_err(|error| {
+            ProviderError::execution(&provider, action.clone(), error)
+                .with_provider_kind("wasm")
+                .with_source(source.clone())
+                .with_phase("execution")
+        })?;
 
         let value = serde_json::from_slice(&output).map_err(|error| {
             ProviderError::validation(
@@ -158,6 +223,23 @@ impl Provider for WasmProvider {
             .with_phase("output-validation")
         })?;
         Ok(ProviderOutput::json(value))
+    }
+
+    fn runtime_status(&self) -> Option<Value> {
+        Some(match &self.runtime {
+            Ok(prepared) => serde_json::json!({
+                "kind": "wasm",
+                "ready": true,
+                "artifact": self.path,
+                "artifact_sha256": prepared.digest,
+            }),
+            Err(error) => serde_json::json!({
+                "kind": "wasm",
+                "ready": false,
+                "artifact": self.path,
+                "error": error,
+            }),
+        })
     }
 }
 
@@ -186,7 +268,10 @@ enum WasmArtifact {
 pub(super) struct WasmStoreState {
     limits: StoreLimits,
     capabilities: soma_provider_core::HostCapabilities,
-    state: Arc<Mutex<BTreeMap<String, Value>>>,
+    state: Result<Arc<BrokerStateStore>, String>,
+    context: soma_provider_core::ProviderInvocationContext,
+    resolved_hosts: BTreeMap<String, Vec<IpAddr>>,
+    deadline: Instant,
     wasi: wasmtime_wasi::WasiCtx,
     table: wasmtime::component::ResourceTable,
 }
@@ -202,8 +287,25 @@ impl wasmtime_wasi::WasiView for WasmStoreState {
 
 struct WasmRuntime {
     engine: Engine,
-    cache: Mutex<BTreeMap<String, Arc<WasmArtifact>>>,
-    state: Arc<Mutex<BTreeMap<String, Value>>>,
+    cache: Mutex<WasmArtifactCache>,
+    state: Result<Arc<BrokerStateStore>, String>,
+    _ticker: EpochTicker,
+}
+
+struct WasmInvocation<'a> {
+    input: &'a [u8],
+    limits: WasmRuntimeLimits,
+    capabilities: &'a soma_provider_core::HostCapabilities,
+    context: &'a soma_provider_core::ProviderInvocationContext,
+    resolved_hosts: BTreeMap<String, Vec<IpAddr>>,
+    deadline: Instant,
+}
+
+fn shared_wasm_runtime() -> Result<Arc<WasmRuntime>, String> {
+    static RUNTIME: OnceLock<Result<Arc<WasmRuntime>, String>> = OnceLock::new();
+    RUNTIME
+        .get_or_init(|| WasmRuntime::new().map(Arc::new))
+        .clone()
 }
 
 impl WasmRuntime {
@@ -213,59 +315,39 @@ impl WasmRuntime {
         config.epoch_interruption(true);
         config.wasm_component_model(true);
         let engine = Engine::new(&config).map_err(|error| error.to_string())?;
-        let ticker = engine.clone();
-        std::thread::Builder::new()
-            .name("soma-wasm-epoch".to_owned())
-            .spawn(move || {
-                loop {
-                    std::thread::sleep(Duration::from_millis(10));
-                    ticker.increment_epoch();
-                }
-            })
-            .map_err(|error| error.to_string())?;
+        let ticker = EpochTicker::start(engine.clone())?;
         Ok(Self {
             engine,
-            cache: Mutex::new(BTreeMap::new()),
-            state: Arc::new(Mutex::new(BTreeMap::new())),
+            cache: Mutex::new(WasmArtifactCache::default()),
+            state: BrokerStateStore::configured(),
+            _ticker: ticker,
         })
     }
 
-    fn artifact(&self, bytes: &[u8]) -> Result<Arc<WasmArtifact>, String> {
-        use sha2::{Digest, Sha256};
-        let digest = Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        if let Some(artifact) = self
+    fn artifact(&self, bytes: &[u8], deadline: Instant) -> Result<Arc<WasmArtifact>, String> {
+        let digest = artifact_digest(bytes);
+        let cell = self
             .cache
             .lock()
             .map_err(|_| "WASM cache lock is poisoned".to_owned())?
-            .get(&digest)
-            .cloned()
-        {
-            return Ok(artifact);
-        }
-        let artifact = Component::from_binary(&self.engine, bytes)
-            .map(WasmArtifact::Component)
-            .or_else(|_| Module::from_binary(&self.engine, bytes).map(WasmArtifact::Core))
-            .map_err(|error| error.to_string())?;
-        let artifact = Arc::new(artifact);
-        let mut cache = self
-            .cache
+            .cell(digest, bytes.len().saturating_mul(8));
+        let result = cell.get_or_compile(deadline, || compile_artifact(self, bytes, deadline));
+        self.cache
             .lock()
-            .map_err(|_| "WASM cache lock is poisoned".to_owned())?;
-        if cache.len() >= 32
-            && let Some(oldest) = cache.keys().next().cloned()
-        {
-            cache.remove(&oldest);
-        }
-        cache.insert(digest, artifact.clone());
-        Ok(artifact)
+            .map_err(|_| "WASM cache lock is poisoned".to_owned())?
+            .prune();
+        result
     }
 
-    fn verify_component(&self, bytes: &[u8]) -> Result<(), String> {
-        let component =
-            Component::from_binary(&self.engine, bytes).map_err(|error| error.to_string())?;
+    fn verify_prepared_component(
+        &self,
+        artifact: &Arc<WasmArtifact>,
+        deadline: Instant,
+    ) -> Result<(), String> {
+        let _execution = acquire_execution(deadline, 16 * 1024 * 1024)?;
+        let WasmArtifact::Component(component) = artifact.as_ref() else {
+            return Err("artifact is core Wasm, not a component".to_owned());
+        };
         let mut store = self.store(
             WasmRuntimeLimits {
                 timeout_ms: 1_000,
@@ -277,10 +359,18 @@ impl WasmRuntime {
                 max_instances: 8,
             },
             &soma_provider_core::HostCapabilities::default(),
+            &soma_provider_core::ProviderInvocationContext {
+                request_id: "component-verification".to_owned(),
+                actor_id: Some("soma-verifier".to_owned()),
+                actor_scopes: vec!["soma:read".to_owned()],
+                ..Default::default()
+            },
+            BTreeMap::new(),
+            deadline,
         )?;
         let linker = component_linker(&self.engine)?;
         let instance = linker
-            .instantiate(&mut store, &component)
+            .instantiate(&mut store, component)
             .map_err(|error| error.to_string())?;
         instance
             .get_typed_func::<(String,), (Result<String, String>,)>(&mut store, "invoke")
@@ -288,16 +378,37 @@ impl WasmRuntime {
             .map_err(|error| format!("component does not implement soma:provider@1.0.0: {error}"))
     }
 
+    #[cfg(test)]
+    fn verify_component(&self, bytes: &[u8], deadline: Instant) -> Result<(), String> {
+        let artifact = self.artifact(bytes, deadline)?;
+        self.verify_prepared_component(&artifact, deadline)
+    }
+
     fn run(
         &self,
         path: &std::path::Path,
-        input: &[u8],
-        limits: WasmRuntimeLimits,
-        capabilities: &soma_provider_core::HostCapabilities,
+        invocation: WasmInvocation<'_>,
     ) -> Result<Vec<u8>, String> {
-        let bytes = fs::read(path).map_err(|error| error.to_string())?;
-        let artifact = self.artifact(&bytes)?;
-        let mut store = self.store(limits, capabilities)?;
+        let bytes = read_artifact(path)?;
+        let artifact = self.artifact(&bytes, invocation.deadline)?;
+        self.run_artifact(artifact, invocation)
+    }
+
+    fn run_artifact(
+        &self,
+        artifact: Arc<WasmArtifact>,
+        invocation: WasmInvocation<'_>,
+    ) -> Result<Vec<u8>, String> {
+        let WasmInvocation {
+            input,
+            limits,
+            capabilities,
+            context,
+            resolved_hosts,
+            deadline,
+        } = invocation;
+        let _execution = acquire_execution(deadline, limits.max_memory_bytes)?;
+        let mut store = self.store(limits, capabilities, context, resolved_hosts, deadline)?;
         match artifact.as_ref() {
             WasmArtifact::Core(module) => run_core_wasm(&mut store, module, input, limits),
             WasmArtifact::Component(component) => {
@@ -310,6 +421,9 @@ impl WasmRuntime {
         &self,
         limits: WasmRuntimeLimits,
         capabilities: &soma_provider_core::HostCapabilities,
+        context: &soma_provider_core::ProviderInvocationContext,
+        resolved_hosts: BTreeMap<String, Vec<IpAddr>>,
+        deadline: Instant,
     ) -> Result<Store<WasmStoreState>, String> {
         let store_limits = StoreLimitsBuilder::new()
             .memory_size(limits.max_memory_bytes)
@@ -324,6 +438,9 @@ impl WasmRuntime {
                 limits: store_limits,
                 capabilities: capabilities.clone(),
                 state: self.state.clone(),
+                context: context.clone(),
+                resolved_hosts,
+                deadline,
                 wasi: {
                     let mut builder = wasmtime_wasi::WasiCtxBuilder::new();
                     builder.allow_blocking_current_thread(true);
@@ -336,7 +453,12 @@ impl WasmRuntime {
         store
             .set_fuel(limits.fuel)
             .map_err(|error| error.to_string())?;
-        store.set_epoch_deadline(limits.timeout_ms.div_ceil(10).max(1));
+        let remaining_ms = deadline
+            .checked_duration_since(Instant::now())
+            .unwrap_or(Duration::ZERO)
+            .as_millis()
+            .min(u128::from(u64::MAX)) as u64;
+        store.set_epoch_deadline(remaining_ms.div_ceil(10).max(1));
         store.epoch_deadline_trap();
         Ok(store)
     }
@@ -416,303 +538,6 @@ fn run_component_wasm(
         ));
     }
     Ok(output.into_bytes())
-}
-
-fn component_linker(engine: &Engine) -> Result<Linker<WasmStoreState>, String> {
-    let mut linker = Linker::new(engine);
-    wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(|error| error.to_string())?;
-    let mut host = linker
-        .instance("soma:provider/host@1.0.0")
-        .map_err(|error| error.to_string())?;
-    host.func_wrap("http", |mut store, (request,): (String,)| {
-        Ok((component_http(store.data_mut(), &request),))
-    })
-    .map_err(|error| error.to_string())?;
-    host.func_wrap("secret", |mut store, (name,): (String,)| {
-        Ok((component_secret(store.data_mut(), &name),))
-    })
-    .map_err(|error| error.to_string())?;
-    host.func_wrap("state-get", |mut store, (key,): (String,)| {
-        Ok((component_state_get(store.data_mut(), &key),))
-    })
-    .map_err(|error| error.to_string())?;
-    host.func_wrap("state-put", |mut store, (key, value): (String, String)| {
-        Ok((component_state_put(store.data_mut(), &key, &value),))
-    })
-    .map_err(|error| error.to_string())?;
-    host.func_wrap(
-        "log",
-        |mut store, (level, message, fields): (String, String, String)| {
-            Ok((component_log(store.data_mut(), &level, &message, &fields),))
-        },
-    )
-    .map_err(|error| error.to_string())?;
-    host.func_wrap(
-        "metric",
-        |mut store, (name, value, attributes): (String, f64, String)| {
-            Ok((component_metric(
-                store.data_mut(),
-                &name,
-                value,
-                &attributes,
-            ),))
-        },
-    )
-    .map_err(|error| error.to_string())?;
-    host.func_wrap(
-        "progress",
-        |mut store, (current, total, message): (u64, Option<u64>, Option<String>)| {
-            Ok((component_progress(
-                store.data_mut(),
-                current,
-                total,
-                message.as_deref(),
-            ),))
-        },
-    )
-    .map_err(|error| error.to_string())?;
-    Ok(linker)
-}
-
-fn component_broker(
-    state: &WasmStoreState,
-) -> Result<&soma_provider_core::BrokerCapability, String> {
-    state
-        .capabilities
-        .broker
-        .as_ref()
-        .filter(|capability| capability.enabled)
-        .ok_or_else(|| "broker capability not declared".to_owned())
-}
-
-fn component_http(state: &WasmStoreState, request: &str) -> Result<String, String> {
-    let network = state
-        .capabilities
-        .network
-        .as_ref()
-        .filter(|capability| capability.enabled)
-        .ok_or_else(|| "network capability not declared".to_owned())?;
-    let request: Value =
-        serde_json::from_str(request).map_err(|_| "HTTP request JSON is invalid".to_owned())?;
-    let raw_url = request
-        .get("url")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "HTTP request URL is required".to_owned())?;
-    let url = url::Url::parse(raw_url).map_err(|_| "HTTP request URL is invalid".to_owned())?;
-    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
-        return Err("component HTTP requires HTTPS without URL credentials".to_owned());
-    }
-    let hostname = url
-        .host_str()
-        .ok_or_else(|| "HTTP request host is required".to_owned())?;
-    if !network
-        .allowed_hosts
-        .iter()
-        .any(|allowed| allowed == hostname)
-    {
-        return Err("HTTP request host is not declared".to_owned());
-    }
-    let port = url.port_or_known_default().unwrap_or(443);
-    let addresses = (hostname, port)
-        .to_socket_addrs()
-        .map_err(|_| "HTTP host resolution failed".to_owned())?
-        .collect::<Vec<_>>();
-    if addresses.is_empty()
-        || addresses
-            .iter()
-            .any(|address| !component_public_ip(address.ip()))
-    {
-        return Err("HTTP host resolved to a non-public address".to_owned());
-    }
-    let mut client = reqwest::blocking::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(10))
-        .https_only(true);
-    for address in addresses {
-        client = client.resolve(hostname, address);
-    }
-    let client = client.build().map_err(|error| error.to_string())?;
-    let method = request
-        .get("method")
-        .and_then(Value::as_str)
-        .unwrap_or("GET")
-        .parse::<reqwest::Method>()
-        .map_err(|_| "HTTP method is invalid".to_owned())?;
-    let mut outbound = client.request(method, url);
-    if let Some(headers) = request.get("headers").and_then(Value::as_object) {
-        for (name, value) in headers {
-            if component_forbidden_header(name) {
-                return Err("HTTP header is controlled by the component host".to_owned());
-            }
-            let value = value
-                .as_str()
-                .ok_or_else(|| "HTTP header values must be strings".to_owned())?;
-            outbound = outbound.header(name, value);
-        }
-    }
-    if let Some(body) = request.get("body").and_then(Value::as_str) {
-        outbound = outbound.body(body.to_owned());
-    }
-    let response = outbound
-        .send()
-        .map_err(|_| "HTTP request failed".to_owned())?;
-    if response.status().is_redirection() {
-        return Err("HTTP redirects are not followed by the component host".to_owned());
-    }
-    let status = response.status().as_u16();
-    if response
-        .content_length()
-        .is_some_and(|length| length > 256 * 1024)
-    {
-        return Err("HTTP response exceeds component host limit".to_owned());
-    }
-    let mut body = Vec::new();
-    response
-        .take(256 * 1024 + 1)
-        .read_to_end(&mut body)
-        .map_err(|_| "HTTP response body failed".to_owned())?;
-    if body.len() > 256 * 1024 {
-        return Err("HTTP response exceeds component host limit".to_owned());
-    }
-    serde_json::to_string(&serde_json::json!({
-        "status": status,
-        "body": String::from_utf8_lossy(&body),
-    }))
-    .map_err(|error| error.to_string())
-}
-
-fn component_forbidden_header(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        "host"
-            | "connection"
-            | "content-length"
-            | "proxy-authenticate"
-            | "proxy-authorization"
-            | "te"
-            | "trailer"
-            | "transfer-encoding"
-            | "upgrade"
-    )
-}
-
-fn component_secret(state: &WasmStoreState, name: &str) -> Result<String, String> {
-    let capability = component_broker(state)?;
-    if !capability
-        .secret_names
-        .iter()
-        .any(|allowed| allowed == name)
-    {
-        return Err("secret name is not declared".to_owned());
-    }
-    let normalized = name
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_uppercase()
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    std::env::var(format!("SOMA_COMPONENT_SECRET_{normalized}"))
-        .map_err(|_| "declared secret is unavailable".to_owned())
-}
-
-fn component_state_get(state: &WasmStoreState, key: &str) -> Result<String, String> {
-    let namespace = component_broker(state)?
-        .state_namespace
-        .as_ref()
-        .ok_or_else(|| "state namespace is not declared".to_owned())?;
-    let values = state
-        .state
-        .lock()
-        .map_err(|_| "component state lock is poisoned".to_owned())?;
-    serde_json::to_string(
-        values
-            .get(&format!("{namespace}\0{key}"))
-            .unwrap_or(&Value::Null),
-    )
-    .map_err(|error| error.to_string())
-}
-
-fn component_state_put(state: &WasmStoreState, key: &str, value: &str) -> Result<(), String> {
-    let capability = component_broker(state)?;
-    if !capability.state_write {
-        return Err("state write capability is not declared".to_owned());
-    }
-    let namespace = capability
-        .state_namespace
-        .as_ref()
-        .ok_or_else(|| "state namespace is not declared".to_owned())?;
-    let value: Value =
-        serde_json::from_str(value).map_err(|_| "state value JSON is invalid".to_owned())?;
-    if value.to_string().len() > 64 * 1024 {
-        return Err("state value exceeds component host limit".to_owned());
-    }
-    state
-        .state
-        .lock()
-        .map_err(|_| "component state lock is poisoned".to_owned())?
-        .insert(format!("{namespace}\0{key}"), value);
-    Ok(())
-}
-
-fn component_log(
-    state: &WasmStoreState,
-    level: &str,
-    message: &str,
-    fields: &str,
-) -> Result<(), String> {
-    if !component_broker(state)?.logging {
-        return Err("structured logging capability is not declared".to_owned());
-    }
-    tracing::info!(
-        provider_level = level,
-        message = %message.chars().take(1024).collect::<String>(),
-        fields = %fields.chars().take(1024).collect::<String>(),
-        "component provider log"
-    );
-    Ok(())
-}
-
-fn component_metric(
-    state: &WasmStoreState,
-    name: &str,
-    value: f64,
-    attributes: &str,
-) -> Result<(), String> {
-    if !component_broker(state)?.metrics {
-        return Err("metrics capability is not declared".to_owned());
-    }
-    if !value.is_finite() {
-        return Err("metric value must be finite".to_owned());
-    }
-    tracing::info!(
-        metric = %name.chars().take(128).collect::<String>(),
-        value,
-        attributes = %attributes.chars().take(1024).collect::<String>(),
-        "component provider metric"
-    );
-    Ok(())
-}
-
-fn component_progress(
-    state: &WasmStoreState,
-    current: u64,
-    total: Option<u64>,
-    message: Option<&str>,
-) -> Result<(), String> {
-    if !component_broker(state)?.progress {
-        return Err("progress capability is not declared".to_owned());
-    }
-    tracing::info!(
-        current,
-        ?total,
-        message = %message.unwrap_or_default().chars().take(1024).collect::<String>(),
-        "component provider progress"
-    );
-    Ok(())
 }
 
 #[cfg(test)]

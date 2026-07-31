@@ -62,6 +62,33 @@ pub const fn spec(
 
 pub const ENV_KEY_SPECS: &[EnvKeySpec] = &[
     spec(
+        "SOMA_PROVIDER_STATE_PATH",
+        EnvClassification::KeepEnv,
+        RuntimePlacement::HostOnly,
+        None,
+        LegacyBehavior::Advanced,
+        false,
+        None,
+    ),
+    spec(
+        "SOMA_GRADUATION_ROOT",
+        EnvClassification::KeepEnv,
+        RuntimePlacement::HostOnly,
+        None,
+        LegacyBehavior::Advanced,
+        false,
+        None,
+    ),
+    spec(
+        "SOMA_PYTHON_BROKER_ALLOWED_PROVIDERS",
+        EnvClassification::KeepEnv,
+        RuntimePlacement::HostOnly,
+        Some("python.broker_allowed_providers"),
+        LegacyBehavior::Advanced,
+        false,
+        None,
+    ),
+    spec(
         "SOMA_PYTHON_BROKER_ALLOWED_HTTP_HOSTS",
         EnvClassification::KeepEnv,
         RuntimePlacement::HostOnly,

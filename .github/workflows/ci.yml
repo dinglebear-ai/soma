@@ -178,6 +178,24 @@ jobs:
       - name: Python provider package smoke test
         run: just test-python-package
 
+      - name: Install component target
+        run: rustup target add wasm32-wasip2
+
+      - name: Build reference component
+        run: >-
+          cargo build
+          --manifest-path examples/providers/components/reference-provider/Cargo.toml
+          --target wasm32-wasip2
+          --locked
+
+      - name: Reference component cross-runtime conformance
+        env:
+          SOMA_REFERENCE_COMPONENT: examples/providers/components/reference-provider/target/wasm32-wasip2/debug/soma_reference_component_provider.wasm
+        run: >-
+          cargo test -p soma --test wasm_provider
+          reference_component_matches_cross_runtime_fixture
+          -- --ignored --exact
+
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
 

@@ -281,6 +281,9 @@ pub struct PythonActorContext {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PythonInvocationRequest {
     pub invocation_id: String,
+    /// Surface request identity; unlike the numeric frame id this remains
+    /// stable across runtime boundaries.
+    pub request_id: String,
     pub provider: String,
     pub action: String,
     pub arguments: Value,

@@ -15,11 +15,12 @@ import os
 import socket
 import struct
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 from . import _runtime
-_FEATURES = ["describe", "invoke", "cancel", "health", "drain", "shutdown", "host-calls"]
+_FEATURES = ["describe", "invoke", "health", "drain", "shutdown", "host-calls"]
 _PROTOCOL = {"major": 1, "minor": 0}
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 
@@ -68,6 +69,7 @@ class FramedChannel:
                 connection = socket.create_connection((host, int(port)), timeout=10)
             connection.set_inheritable(False)
             connection.sendall((token or "").encode("ascii"))
+            connection.settimeout(None)
             self._reader = connection.makefile("rb", buffering=0)
             self._writer = connection.makefile("wb", buffering=0)
             return
@@ -82,22 +84,32 @@ class FramedChannel:
             self._writer = os.fdopen(fd, "wb", buffering=0)
 
     def read(self) -> dict[str, Any]:
-        header = self._reader.read(4)
-        if len(header) != 4:
-            raise EOFError("control channel closed")
+        header = self._read_exact(4, "control channel closed")
         length = int.from_bytes(header, "big")
         if length > MAX_FRAME_BYTES:
             raise ProtocolError("Python runner frame exceeds limit")
-        payload = self._reader.read(length)
-        if len(payload) != length:
-            raise EOFError("truncated control frame")
+        payload = self._read_exact(length, "truncated control frame")
         message = decode_frame(header + payload)
         if not isinstance(message, dict):
             raise ProtocolError("control message must be an object")
         return message
 
+    def _read_exact(self, length: int, error: str) -> bytes:
+        chunks = bytearray()
+        while len(chunks) < length:
+            chunk = self._reader.read(length - len(chunks))
+            if not chunk:
+                raise EOFError(error)
+            chunks.extend(chunk)
+        return bytes(chunks)
+
     def write(self, message: dict[str, Any]) -> None:
-        self._writer.write(encode_frame(message))
+        frame = memoryview(encode_frame(message))
+        while frame:
+            written = self._writer.write(frame)
+            if not written:
+                raise EOFError("control channel closed while writing")
+            frame = frame[written:]
         self._writer.flush()
 
 
@@ -121,6 +133,7 @@ class Worker:
         self.module: Any = None
         self.catalog: dict[str, Any] | None = None
         self.host_request_id = 1_000_000
+        self.host_call_lock = threading.Lock()
 
     def hello(self) -> dict[str, Any]:
         return {
@@ -163,7 +176,7 @@ class Worker:
         if self.module is None:
             return _error(message.get("request_id"), "python_protocol_mismatch", "Python provider was not described")
         invocation = message.get("invocation", {})
-        invocation.setdefault("request_id", message.get("request_id", 0))
+        invocation.setdefault("request_id", str(message.get("request_id", "")))
         action = invocation.get("action")
         invocation_id = str(invocation.get("invocation_id", ""))
         previous_host_caller = __import__("soma_provider")._set_host_caller(self.host_call)
@@ -179,6 +192,18 @@ class Worker:
                     result = await _runtime.call_langchain(tool, arguments)
             result = _runtime.jsonable(result, strict=True)
             json.dumps(result, allow_nan=False)
+        except __import__("soma_provider").CapabilityUnavailableError:
+            return _error(
+                message.get("request_id"),
+                "python_policy_denied",
+                "Python provider host capability was denied",
+            )
+        except asyncio.CancelledError:
+            return _error(
+                message.get("request_id"),
+                "python_call_cancelled",
+                "Python provider invocation was cancelled",
+            )
         except Exception:
             return _error(message.get("request_id"), "python_worker_crashed", "Python provider invocation failed")
         finally:
@@ -186,16 +211,17 @@ class Worker:
         return {"type": "reply", "status": "ok", "request_id": message["request_id"], "result": result}
 
     def host_call(self, method: str, invocation_id: str, payload: dict[str, Any]) -> Any:
-        request_id = self.host_request_id
-        self.host_request_id += 1
-        self.channel.write({
-            "type": "host_call",
-            "method": method,
-            "request_id": request_id,
-            "invocation_id": invocation_id,
-            **payload,
-        })
-        reply = self.channel.read()
+        with self.host_call_lock:
+            request_id = self.host_request_id
+            self.host_request_id += 1
+            self.channel.write({
+                "type": "host_call",
+                "method": method,
+                "request_id": request_id,
+                "invocation_id": invocation_id,
+                **payload,
+            })
+            reply = self.channel.read()
         if reply.get("type") != "host_reply" or reply.get("request_id") != request_id:
             raise ProtocolError("unexpected host capability reply")
         error = reply.get("error")

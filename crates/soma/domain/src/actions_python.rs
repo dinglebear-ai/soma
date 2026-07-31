@@ -96,6 +96,73 @@ const ROLLBACK_PARAMS: &[ParamSpec] = &[
     },
 ];
 
+const GRADUATION_STATUS_PARAMS: &[ParamSpec] = &[ParamSpec {
+    name: "workspace",
+    ty: "string",
+    required: true,
+    description: "Absolute graduation workspace path.",
+    max_len: Some(4096),
+    enum_values: &[],
+}];
+
+const GRADUATION_APPLY_PARAMS: &[ParamSpec] = &[
+    ParamSpec {
+        name: "operation",
+        ty: "string",
+        required: true,
+        description: "Graduation operation to perform.",
+        max_len: Some(32),
+        enum_values: &[
+            "graduate",
+            "build-component",
+            "verify-component",
+            "compare",
+            "activate",
+            "rollback",
+        ],
+    },
+    ParamSpec {
+        name: "workspace",
+        ty: "string",
+        required: true,
+        description: "Absolute graduation workspace path.",
+        max_len: Some(4096),
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "source",
+        ty: "string",
+        required: false,
+        description: "Python source path required by the graduate operation.",
+        max_len: Some(4096),
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "component",
+        ty: "string",
+        required: false,
+        description: "Component path used by build, verify, and compare.",
+        max_len: Some(4096),
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "fixtures",
+        ty: "string",
+        required: false,
+        description: "Conformance fixture path used by graduate and compare.",
+        max_len: Some(4096),
+        enum_values: &[],
+    },
+    ParamSpec {
+        name: "confirm",
+        ty: "boolean",
+        required: true,
+        description: "Must be true to mutate graduation or live provider state.",
+        max_len: None,
+        enum_values: &[],
+    },
+];
+
 const fn cli(
     command: &'static str,
     usage: &'static str,
@@ -296,5 +363,43 @@ pub(super) const GENERATION_ROLLBACK: ActionSpec = ActionSpec {
         "python_generation_rollback",
         "soma python_generation_rollback --json '{\"generation_id\": 1, \"confirm\": true}'",
         "Atomically reactivate a retained generation.",
+    ),
+};
+
+pub(super) const GRADUATION_STATUS: ActionSpec = ActionSpec {
+    name: "python_graduation_status",
+    description: "Inspect digest-bound Python graduation, conformance, activation, and rollback state.",
+    required_scope: Some(READ_SCOPE),
+    transport: ActionTransport::Any,
+    rest_method: Some("POST"),
+    rest_path: Some("/v1/python/graduation/status"),
+    destructive: false,
+    requires_admin: true,
+    cost: ActionCost::Cheap,
+    params: GRADUATION_STATUS_PARAMS,
+    returns: "PythonGraduationStatus",
+    cli: cli(
+        "python_graduation_status",
+        "soma python_graduation_status --json '{\"workspace\":\"/absolute/path\"}'",
+        "Inspect a graduation workspace.",
+    ),
+};
+
+pub(super) const GRADUATION_APPLY: ActionSpec = ActionSpec {
+    name: "python_graduation_apply",
+    description: "Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace.",
+    required_scope: Some(WRITE_SCOPE),
+    transport: ActionTransport::Any,
+    rest_method: Some("POST"),
+    rest_path: Some("/v1/python/graduation/apply"),
+    destructive: true,
+    requires_admin: true,
+    cost: ActionCost::Write,
+    params: GRADUATION_APPLY_PARAMS,
+    returns: "PythonGraduationReport",
+    cli: cli(
+        "python_graduation_apply",
+        "soma python_graduation_apply --json '{\"operation\":\"compare\",\"workspace\":\"/absolute/path\",\"fixtures\":\"/absolute/fixtures.json\",\"confirm\":true}'",
+        "Run a confirmed graduation operation.",
     ),
 };

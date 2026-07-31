@@ -69,9 +69,9 @@ def request_identity(payload):
             f"python_protocol_mismatch: unsupported schema version {schema_version!r}; expected 1"
         )
     request_id = payload.get("request_id")
-    if isinstance(request_id, bool) or not isinstance(request_id, int):
-        raise RuntimeError("python_protocol_mismatch: request_id must be an integer")
-    return request_id
+    if isinstance(request_id, bool) or not isinstance(request_id, (int, str)):
+        raise RuntimeError("python_protocol_mismatch: request_id must be an integer or string")
+    return str(request_id)
 
 
 def provider_config(module):

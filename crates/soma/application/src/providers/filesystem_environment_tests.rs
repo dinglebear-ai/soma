@@ -163,6 +163,7 @@ fn provider_call(provider: &str, action: &str, params: serde_json::Value) -> Pro
         request_id: String::new(),
         traceparent: None,
         tracestate: None,
+        progress: Default::default(),
     }
 }
 

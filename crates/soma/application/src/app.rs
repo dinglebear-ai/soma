@@ -20,6 +20,8 @@ use crate::{
     ScaffoldIntentRequest, SomaService,
 };
 
+#[path = "app_python_graduation.rs"]
+mod python_graduation;
 #[path = "app_python_operations.rs"]
 mod python_operations;
 #[cfg(test)]
@@ -69,6 +71,8 @@ impl SomaApplication {
                 | "python_worker_reset"
                 | "python_generation_status"
                 | "python_generation_rollback"
+                | "python_graduation_status"
+                | "python_graduation_apply"
         ) {
             return self
                 .execute_python_environment_action(request, context)
@@ -99,12 +103,17 @@ impl SomaApplication {
                 .trace
                 .as_ref()
                 .and_then(|trace| trace.tracestate.clone()),
+            progress: Default::default(),
         };
+        let max_response_bytes = call.limits.max_response_bytes;
         let output = self.legacy_registry.dispatch(call).await?;
-        Ok(ExecuteActionResponse {
+        let response = ExecuteActionResponse {
             output: output.value,
             request_id: context.request_id.as_str().to_owned(),
-        })
+            progress: output.progress,
+        };
+        response.enforce_serialized_limit(max_response_bytes)?;
+        Ok(response)
     }
 
     /// Build the greeting for the elicited-name demo from the collected outcome.

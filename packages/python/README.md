@@ -45,6 +45,23 @@ logging, metrics, progress, and cancellation handles under the provider
 declaration, deployment policy, actor scopes, and host availability
 intersection.
 
+Broker capability calls are async so they do not block the provider event loop:
+
+~~~python
+response = await ctx.http.request("GET", "https://api.example.com/data")
+secret = await ctx.secrets.get("example-key")
+current = await ctx.state.get("counter")
+await ctx.state.set("counter", (current or 0) + 1)
+await ctx.log.emit("info", "updated", counter=current)
+await ctx.metrics.increment("updates")
+await ctx.progress.update(1, total=1, message="done")
+~~~
+
+HTTP request and response bodies are lossless bytes (`body_bytes`) with
+base64-encoded transport. Broker policy denials remain typed
+`CapabilityUnavailableError` failures instead of being reported as worker
+crashes.
+
 Rust's provider-core manifest and adapter validation remain authoritative. The
 `tests/soma_runner_protocol.py` module is also internal: it implements the
 bounded length-prefixed JSON codec, version negotiation, and feature intersection

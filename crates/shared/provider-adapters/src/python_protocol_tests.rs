@@ -235,6 +235,7 @@ fn executable_handshake_and_request_state_round_trip() {
 fn every_host_request_round_trips_with_at_most_once_context() {
     let invocation = PythonInvocationRequest {
         invocation_id: "invoke-7".to_owned(),
+        request_id: "request-7".to_owned(),
         provider: "demo".to_owned(),
         action: "lookup".to_owned(),
         arguments: json!({"query": "soma"}),

@@ -594,6 +594,7 @@ async fn generation_swap_keeps_in_flight_work_on_original_provider() {
                     request_id: String::new(),
                     traceparent: None,
                     tracestate: None,
+                    progress: Default::default(),
                 })
                 .await
         })
@@ -621,6 +622,7 @@ async fn generation_swap_keeps_in_flight_work_on_original_provider() {
             request_id: String::new(),
             traceparent: None,
             tracestate: None,
+            progress: Default::default(),
         })
         .await
         .unwrap();
@@ -898,6 +900,12 @@ fn rest_catalog_queries_and_openapi_stay_behind_the_application_facade() {
         application.openapi_document().unwrap()["paths"]
             .get("/v1/echo")
             .is_some()
+    );
+    let document = application.openapi_document().unwrap();
+    assert_eq!(
+        document["paths"]["/v1/echo"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
+            ["required"],
+        json!(["output", "request_id", "progress"])
     );
 }
 

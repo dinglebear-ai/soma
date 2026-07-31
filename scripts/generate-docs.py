@@ -286,6 +286,16 @@ def default_int(fn_name: str) -> int:
 
 def env_purpose(spec: EnvSpec) -> str:
     purposes = {
+        "SOMA_PROVIDER_STATE_PATH": "Durable quota-enforced state file shared by Python and component provider generations.",
+        "SOMA_GRADUATION_ROOT": "Absolute managed root containing agent-accessible graduation workspaces, fixtures, and component artifacts.",
+        "SOMA_PYTHON_BROKER_ALLOWED_HTTP_HOSTS": "Comma-separated deployment allowlist intersected with provider-declared HTTPS hosts.",
+        "SOMA_PYTHON_BROKER_SECRET_NAMES": "Comma-separated secret handles exposed through the broker; values use `SOMA_PROVIDER_SECRET_<NORMALIZED_NAME>`.",
+        "SOMA_PYTHON_BROKER_STATE_NAMESPACES": "Comma-separated state namespaces available to brokered providers.",
+        "SOMA_PYTHON_BROKER_ALLOW_LOGGING": "Allow provider-declared structured logging through the broker.",
+        "SOMA_PYTHON_BROKER_ALLOW_METRICS": "Allow provider-declared metrics through the broker.",
+        "SOMA_PYTHON_BROKER_ALLOW_PROGRESS": "Allow provider-declared progress events through the broker.",
+        "SOMA_PYTHON_BROKER_CGROUP_ROOT": "Delegated cgroup-v2 root required for fail-closed Linux brokered containment.",
+        "SOMA_PYTHON_EXECUTION_PROFILE": "Python execution profile: `disabled`, `trusted`, or fail-closed `brokered`.",
         "SOMA_API_URL": "Deployed platform API or upstream API base URL used by `SomaClient`. Empty selects offline stub mode.",
         "SOMA_API_KEY": "Bearer token or upstream API key. Keep secret. Required when the deployed API requires auth.",
         "SOMA_PYTHON_ENVIRONMENT_ENABLED": "Enable immutable PEP 723 Python environments. Disabled by default; all companion identity fields are required when enabled.",
@@ -448,6 +458,16 @@ def render_env_doc() -> str:
 
 def placeholder_for(spec: EnvSpec) -> str:
     placeholders = {
+        "SOMA_PROVIDER_STATE_PATH": "/var/lib/soma/provider-state.json",
+        "SOMA_GRADUATION_ROOT": "/var/lib/soma/graduation",
+        "SOMA_PYTHON_BROKER_ALLOWED_HTTP_HOSTS": "api.example.com",
+        "SOMA_PYTHON_BROKER_SECRET_NAMES": "weather-api-key",
+        "SOMA_PYTHON_BROKER_STATE_NAMESPACES": "weather",
+        "SOMA_PYTHON_BROKER_ALLOW_LOGGING": "true",
+        "SOMA_PYTHON_BROKER_ALLOW_METRICS": "false",
+        "SOMA_PYTHON_BROKER_ALLOW_PROGRESS": "true",
+        "SOMA_PYTHON_BROKER_CGROUP_ROOT": "/sys/fs/cgroup/soma",
+        "SOMA_PYTHON_EXECUTION_PROFILE": "trusted",
         "SOMA_API_URL": "https://api.example.com",
         "SOMA_API_KEY": "your-api-key-here",
         "SOMA_PYTHON_ENVIRONMENT_ENABLED": "false",

@@ -1,13 +1,13 @@
 //! Capability broker for persistent Python workers.
 
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::VecDeque,
     net::{IpAddr, SocketAddr},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use serde::Serialize;
@@ -15,9 +15,12 @@ use serde_json::{Value, json};
 use soma_provider_core::{BrokerCapability, HostCapabilities, NetworkCapability};
 use url::Url;
 
-use crate::python_protocol::{
-    PythonActorContext, PythonRunnerError, PythonRunnerErrorCode, PythonRunnerErrorPhase,
-    PythonRunnerHostCall,
+use crate::{
+    broker_state::BrokerStateStore,
+    python_protocol::{
+        PythonActorContext, PythonRunnerError, PythonRunnerErrorCode, PythonRunnerErrorPhase,
+        PythonRunnerHostCall,
+    },
 };
 
 const MAX_AUDIT_EVENTS: usize = 256;
@@ -48,10 +51,8 @@ pub struct PythonHostBroker {
     profile: PythonExecutionProfile,
     network: Option<NetworkCapability>,
     broker: Option<BrokerCapability>,
-    secret_env_prefix: String,
     max_http_response_bytes: usize,
-    max_state_value_bytes: usize,
-    state: Mutex<BTreeMap<String, Value>>,
+    state: Result<Arc<BrokerStateStore>, String>,
     audit: Mutex<VecDeque<PythonHostAuditEvent>>,
     cancelled: Arc<AtomicBool>,
 }
@@ -78,10 +79,8 @@ impl PythonHostBroker {
             profile,
             network: capabilities.network.clone(),
             broker: capabilities.broker.clone(),
-            secret_env_prefix: "SOMA_PYTHON_SECRET_".to_owned(),
             max_http_response_bytes: 256 * 1024,
-            max_state_value_bytes: 64 * 1024,
-            state: Mutex::new(BTreeMap::new()),
+            state: BrokerStateStore::configured(),
             audit: Mutex::new(VecDeque::new()),
             cancelled,
         })
@@ -139,7 +138,7 @@ impl PythonHostBroker {
                 invocation_id, key, ..
             } => {
                 self.require_scope(actor, false, call)?;
-                self.state_get(invocation_id, key)
+                self.state_get(invocation_id, key).await
             }
             PythonRunnerHostCall::StatePut {
                 invocation_id,
@@ -148,7 +147,7 @@ impl PythonHostBroker {
                 ..
             } => {
                 self.require_scope(actor, true, call)?;
-                self.state_put(invocation_id, key, value)
+                self.state_put(invocation_id, key, value).await
             }
             PythonRunnerHostCall::Log {
                 invocation_id,
@@ -156,21 +155,30 @@ impl PythonHostBroker {
                 message,
                 fields,
                 ..
-            } => self.log(invocation_id, level, message, fields),
+            } => {
+                self.require_scope(actor, false, call)?;
+                self.log(invocation_id, level, message, fields)
+            }
             PythonRunnerHostCall::Metric {
                 invocation_id,
                 name,
                 value,
                 attributes,
                 ..
-            } => self.metric(invocation_id, name, value, attributes),
+            } => {
+                self.require_scope(actor, false, call)?;
+                self.metric(invocation_id, name, value, attributes)
+            }
             PythonRunnerHostCall::Progress {
                 invocation_id,
                 current,
                 total,
                 message,
                 ..
-            } => self.progress(invocation_id, *current, *total, message.as_deref()),
+            } => {
+                self.require_scope(actor, false, call)?;
+                self.progress(invocation_id, *current, *total, message.as_deref())
+            }
             PythonRunnerHostCall::Cancelled { invocation_id, .. } => {
                 let value = self.cancelled.load(Ordering::Acquire);
                 self.record(invocation_id, "cancelled", true, "queried".to_owned());
@@ -194,9 +202,8 @@ impl PythonHostBroker {
         write: bool,
         call: &PythonRunnerHostCall,
     ) -> HostResult<()> {
-        let Some(actor) = actor else {
-            return Ok(());
-        };
+        let actor =
+            actor.ok_or_else(|| self.denied(call, "authenticated actor context is required"))?;
         let allowed = actor
             .scopes
             .iter()
@@ -248,6 +255,7 @@ impl PythonHostBroker {
         }
 
         let mut builder = reqwest::Client::builder()
+            .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(10))
             .https_only(true);
@@ -271,7 +279,15 @@ impl PythonHostBroker {
                 outbound = outbound.header(name, value);
             }
         }
-        if let Some(body) = request.get("body").and_then(Value::as_str) {
+        if let Some(body) = request.get("body_base64").and_then(Value::as_str) {
+            use base64::Engine as _;
+
+            let body = base64::engine::general_purpose::STANDARD
+                .decode(body)
+                .map_err(|_| self.policy_error("HTTP request body_base64 is invalid"))?;
+            outbound = outbound.body(body);
+        } else if let Some(body) = request.get("body").and_then(Value::as_str) {
+            // Protocol 1.0 compatibility for older SDKs.
             outbound = outbound.body(body.to_owned());
         }
         let mut response = outbound
@@ -310,10 +326,18 @@ impl PythonHostBroker {
                 bytes.len()
             ),
         );
-        Ok(json!({
+        use base64::Engine as _;
+
+        let mut result = json!({
             "status": status,
-            "body": String::from_utf8_lossy(&bytes),
-        }))
+            "body_base64": base64::engine::general_purpose::STANDARD.encode(&bytes),
+        });
+        if let Ok(body) = String::from_utf8(bytes)
+            && let Some(object) = result.as_object_mut()
+        {
+            object.insert("body".to_owned(), Value::String(body));
+        }
+        Ok(result)
     }
 
     fn secret(&self, invocation_id: &str, name: &str) -> HostResult<Value> {
@@ -325,41 +349,48 @@ impl PythonHostBroker {
         {
             return Err(self.policy_error("secret name is not declared"));
         }
-        let variable = format!("{}{}", self.secret_env_prefix, normalize_secret_name(name));
+        let variable = crate::secret_name::environment_name(name)
+            .map_err(|message| self.policy_error(&message))?;
         let secret = std::env::var(variable)
             .map_err(|_| self.policy_error("declared secret is unavailable"))?;
         self.record(invocation_id, "secret", true, name.to_owned());
         Ok(Value::String(secret))
     }
 
-    fn state_get(&self, invocation_id: &str, key: &str) -> HostResult<Value> {
-        let namespace = self.state_namespace()?;
-        let namespaced = format!("{namespace}\0{key}");
-        let result = self
-            .state
-            .lock()
-            .expect("Python broker state lock should not be poisoned")
-            .get(&namespaced)
-            .cloned()
-            .unwrap_or(Value::Null);
-        self.record(invocation_id, "state.get", true, key.to_owned());
+    async fn state_get(&self, invocation_id: &str, key: &str) -> HostResult<Value> {
+        let namespace = self.state_namespace()?.to_owned();
+        let key = key.to_owned();
+        let task_key = key.clone();
+        let state = self.state_store()?;
+        let cancelled = self.cancelled.clone();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let result = tokio::task::spawn_blocking(move || {
+            state.get(&namespace, &task_key, deadline, Some(&cancelled))
+        })
+        .await
+        .map_err(|_| self.policy_error("provider state task failed"))?
+        .map_err(|message| self.policy_error(&message))?;
+        self.record(invocation_id, "state.get", true, key);
         Ok(result)
     }
 
-    fn state_put(&self, invocation_id: &str, key: &str, value: &Value) -> HostResult<Value> {
+    async fn state_put(&self, invocation_id: &str, key: &str, value: &Value) -> HostResult<Value> {
         let capability = self.broker_capability()?;
         if !capability.state_write {
             return Err(self.policy_error("provider did not declare state write access"));
         }
-        let namespace = self.state_namespace()?;
-        if serde_json::to_vec(value).map_or(true, |bytes| bytes.len() > self.max_state_value_bytes)
-        {
-            return Err(self.policy_error("state value exceeds broker limit"));
-        }
-        self.state
-            .lock()
-            .expect("Python broker state lock should not be poisoned")
-            .insert(format!("{namespace}\0{key}"), value.clone());
+        let namespace = self.state_namespace()?.to_owned();
+        let state = self.state_store()?;
+        let key_owned = key.to_owned();
+        let value = value.clone();
+        let cancelled = self.cancelled.clone();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        tokio::task::spawn_blocking(move || {
+            state.put(&namespace, &key_owned, &value, deadline, Some(&cancelled))
+        })
+        .await
+        .map_err(|_| self.policy_error("provider state task failed"))?
+        .map_err(|message| self.policy_error(&message))?;
         self.record(invocation_id, "state.put", true, key.to_owned());
         Ok(Value::Null)
     }
@@ -374,12 +405,12 @@ impl PythonHostBroker {
         if !self.broker_capability()?.logging {
             return Err(self.policy_error("provider did not declare structured logging"));
         }
-        let message = public_diagnostic(message);
+        let message = self.public_diagnostic(message);
         tracing::info!(
             provider_invocation = invocation_id,
             provider_level = level,
             message,
-            fields = %public_diagnostic(&fields.to_string()),
+            fields = %self.public_diagnostic(&fields.to_string()),
             "Python provider structured log"
         );
         self.record(invocation_id, "log", true, level.to_owned());
@@ -400,7 +431,7 @@ impl PythonHostBroker {
             provider_invocation = invocation_id,
             metric = name,
             value = %value,
-            attributes = %public_diagnostic(&attributes.to_string()),
+            attributes = %self.public_diagnostic(&attributes.to_string()),
             "Python provider metric"
         );
         self.record(invocation_id, "metric", true, name.to_owned());
@@ -421,7 +452,7 @@ impl PythonHostBroker {
             provider_invocation = invocation_id,
             current,
             ?total,
-            message = %public_diagnostic(message.unwrap_or_default()),
+            message = %self.public_diagnostic(message.unwrap_or_default()),
             "Python provider progress"
         );
         self.record(
@@ -445,6 +476,13 @@ impl PythonHostBroker {
             .state_namespace
             .as_deref()
             .ok_or_else(|| self.policy_error("provider did not declare a state namespace"))
+    }
+
+    fn state_store(&self) -> HostResult<Arc<BrokerStateStore>> {
+        self.state
+            .as_ref()
+            .map(Arc::clone)
+            .map_err(|message| self.policy_error(message))
     }
 
     fn denied(&self, call: &PythonRunnerHostCall, message: &str) -> Box<PythonRunnerError> {
@@ -487,8 +525,17 @@ impl PythonHostBroker {
             invocation_id: invocation_id.to_owned(),
             operation,
             allowed,
-            detail: public_diagnostic(&detail),
+            detail: self.public_diagnostic(&detail),
         });
+    }
+
+    fn public_diagnostic(&self, message: &str) -> String {
+        let names = self
+            .broker
+            .as_ref()
+            .map(|broker| broker.secret_names.as_slice())
+            .unwrap_or_default();
+        crate::secret_name::redact(message, names)
     }
 }
 
@@ -518,18 +565,6 @@ fn operation(call: &PythonRunnerHostCall) -> &'static str {
     }
 }
 
-fn normalize_secret_name(name: &str) -> String {
-    name.chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_uppercase()
-            } else {
-                '_'
-            }
-        })
-        .collect()
-}
-
 fn forbidden_forwarded_header(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
@@ -543,18 +578,6 @@ fn forbidden_forwarded_header(name: &str) -> bool {
             | "transfer-encoding"
             | "upgrade"
     )
-}
-
-fn public_diagnostic(message: &str) -> String {
-    let lower = message.to_ascii_lowercase();
-    if ["token", "secret", "password", "authorization", "api_key"]
-        .iter()
-        .any(|marker| lower.contains(marker))
-    {
-        "[redacted]".to_owned()
-    } else {
-        message.chars().take(1024).collect()
-    }
 }
 
 fn public_ip(ip: IpAddr) -> bool {
@@ -618,11 +641,12 @@ mod tests {
 
     #[tokio::test]
     async fn state_is_namespaced_and_actor_write_scope_is_required() {
-        let broker = PythonHostBroker::new(
+        let mut broker = PythonHostBroker::new(
             PythonExecutionProfile::Brokered,
             &capabilities("provider-a"),
             Arc::new(AtomicBool::new(false)),
         );
+        Arc::get_mut(&mut broker).unwrap().state = Ok(BrokerStateStore::in_memory_for_test());
         let denied = broker
             .execute(
                 &PythonRunnerHostCall::StatePut {
@@ -683,10 +707,36 @@ mod tests {
         assert_eq!(error.code, PythonRunnerErrorCode::PythonPolicyDenied);
     }
 
+    #[tokio::test]
+    async fn missing_actor_context_fails_closed() {
+        let broker = PythonHostBroker::new(
+            PythonExecutionProfile::Brokered,
+            &capabilities("provider-a"),
+            Arc::new(AtomicBool::new(false)),
+        );
+        let error = broker
+            .execute(
+                &PythonRunnerHostCall::StateGet {
+                    request_id: 1,
+                    invocation_id: "invocation".to_owned(),
+                    key: "count".to_owned(),
+                },
+                None,
+            )
+            .await
+            .expect_err("brokered host services require an authenticated actor");
+        assert_eq!(error.code, PythonRunnerErrorCode::PythonPolicyDenied);
+    }
+
     #[test]
     fn diagnostics_and_network_targets_are_conservative() {
+        let broker = PythonHostBroker::new(
+            PythonExecutionProfile::Trusted,
+            &HostCapabilities::default(),
+            Arc::new(AtomicBool::new(false)),
+        );
         assert_eq!(
-            public_diagnostic("Authorization: bearer value"),
+            broker.public_diagnostic("Authorization: bearer value"),
             "[redacted]"
         );
         assert!(!public_ip("127.0.0.1".parse().unwrap()));

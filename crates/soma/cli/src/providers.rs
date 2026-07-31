@@ -16,13 +16,6 @@ use soma_application::providers::filesystem::{
 use crate::ProviderCommand;
 
 pub fn run_providers_command(command: ProviderCommand) -> Result<()> {
-    if let Some(result) = run_graduation_command(&command)? {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-        if matches!(command, ProviderCommand::Compare { .. }) && result["ok"] != true {
-            anyhow::bail!("component behavior differs from recorded Python fixtures");
-        }
-        return Ok(());
-    }
     let json_output = matches!(
         command,
         ProviderCommand::List { json: true, .. }
@@ -46,30 +39,6 @@ pub fn run_providers_command(command: ProviderCommand) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn run_graduation_command(command: &ProviderCommand) -> Result<Option<Value>> {
-    use soma_application::graduation;
-    let result = match command {
-        ProviderCommand::Graduate {
-            source,
-            workspace,
-            fixtures,
-        } => graduation::graduate(source, workspace, fixtures.as_deref())?,
-        ProviderCommand::BuildComponent {
-            workspace,
-            component,
-        } => graduation::build_component(workspace, component.as_deref())?,
-        ProviderCommand::VerifyComponent { component } => graduation::verify_component(component)?,
-        ProviderCommand::Compare {
-            component,
-            fixtures,
-        } => graduation::compare(component, fixtures)?,
-        ProviderCommand::Activate { workspace } => graduation::activate(workspace)?,
-        ProviderCommand::Rollback { workspace } => graduation::rollback(workspace)?,
-        _ => return Ok(None),
-    };
-    Ok(Some(result))
 }
 
 #[cfg(test)]
@@ -97,6 +66,7 @@ fn inspect_for_command(command: &ProviderCommand) -> Result<ProviderDirectoryIns
         | ProviderCommand::BuildComponent { .. }
         | ProviderCommand::VerifyComponent { .. }
         | ProviderCommand::Compare { .. }
+        | ProviderCommand::GraduationStatus { .. }
         | ProviderCommand::Activate { .. }
         | ProviderCommand::Rollback { .. } => {
             unreachable!("only non-executing ProviderCommand variants reach the filesystem CLI")

@@ -11,7 +11,7 @@ use std::{
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use soma_domain::provider_validation::{ProviderValidationError, validate_provider_manifest};
 use soma_provider_adapters::python::materializer::PreparedPythonEnvironment;
 use soma_provider_core::{
@@ -31,6 +31,8 @@ mod generations;
 #[path = "provider_registry_map.rs"]
 mod map;
 use map::provider_map;
+#[path = "provider_registry_openapi.rs"]
+mod openapi;
 mod python_operations;
 mod refresh;
 mod reports;
@@ -41,6 +43,7 @@ use enforcement::{enforce_capabilities, enforce_pre_input, enforce_response_limi
 use generations::{
     StoredGeneration, publish_generation, settle_transition, settle_transition_async,
 };
+use openapi::openapi_paths_from_core;
 use refresh::{ProviderRefreshEvent, fingerprint_file_source};
 use resources::ResourceIndex;
 pub use resources::{DynamicResourceTemplate, ResourceReadOutput};
@@ -252,11 +255,21 @@ pub struct ProviderCall {
     pub traceparent: Option<String>,
     /// Optional distributed trace state propagated after authentication.
     pub tracestate: Option<String>,
+    /// Invocation-scoped progress collector shared with provider adapters.
+    pub progress: soma_provider_core::ProviderProgressReporter,
 }
 
 impl ProviderCall {
     /// Strips this call down to the product-neutral core invocation shape.
     pub fn provider_invocation(&self) -> ProviderInvocation {
+        self.provider_invocation_with_progress(self.progress.clone())
+    }
+
+    /// Builds the core invocation with a host-owned progress collector.
+    pub fn provider_invocation_with_progress(
+        &self,
+        progress: soma_provider_core::ProviderProgressReporter,
+    ) -> ProviderInvocation {
         ProviderInvocation {
             provider: self.provider.clone(),
             action: self.action.clone(),
@@ -270,6 +283,7 @@ impl ProviderCall {
                 actor_scopes: self.principal.scopes.clone(),
                 traceparent: self.traceparent.clone(),
                 tracestate: self.tracestate.clone(),
+                progress,
             },
         }
     }
@@ -402,6 +416,12 @@ struct RegistryState {
 const REFRESH_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(75);
 
 impl ProviderRegistry {
+    /// Returns the configured dynamic-provider root, when file providers are enabled.
+    #[must_use]
+    pub fn file_provider_root(&self) -> Option<&std::path::Path> {
+        self.file_source.as_ref().map(FileProviderSource::root)
+    }
+
     /// Builds a registry from the given providers with a default-deny
     /// capability broker.
     pub fn new(providers: Vec<Arc<dyn Provider>>) -> Result<Self, ProviderValidationError> {
@@ -517,6 +537,17 @@ impl ProviderRegistry {
             .clone()
     }
 
+    /// Authorize a not-yet-active candidate against the same deployment
+    /// grants used by normal provider dispatch.
+    pub(crate) fn authorize_candidate_capabilities(
+        &self,
+        catalog: &ProviderCatalog,
+        action: &str,
+    ) -> Result<(), ProviderError> {
+        self.capabilities
+            .authorize(&catalog.provider.name, action, &catalog.capabilities)
+    }
+
     /// Refreshes providers from the file source, if any. Per the drop-in
     /// provider layout contract ("If a resource disappears or becomes
     /// invalid, a reload must leave the last valid snapshot active until a
@@ -622,7 +653,9 @@ impl ProviderRegistry {
         let mut active = self.snapshot();
         for pass in 0..2 {
             self.refresh_dirty.store(false, Ordering::Release);
-            active = self.refresh_file_providers_owned(file_source).await?;
+            active = self
+                .refresh_file_providers_owned(file_source, false)
+                .await?;
             if !self.refresh_dirty.swap(false, Ordering::AcqRel) {
                 break;
             }
@@ -636,9 +669,26 @@ impl ProviderRegistry {
         Ok(active)
     }
 
+    /// Acquires the exclusive provider publication lane for a multi-step
+    /// filesystem mutation, strict refresh, verification, and commit.
+    pub(crate) async fn lock_refresh_lane(&self) -> tokio::sync::OwnedMutexGuard<()> {
+        self.refresh_gate.clone().lock_owned().await
+    }
+
+    /// Strictly refreshes while the caller holds [`Self::lock_refresh_lane`].
+    pub(crate) async fn refresh_file_providers_strict_in_lane(
+        &self,
+    ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
+        let Some(file_source) = &self.file_source else {
+            return Ok(self.snapshot());
+        };
+        self.refresh_file_providers_owned(file_source, true).await
+    }
+
     async fn refresh_file_providers_owned(
         &self,
         file_source: &FileProviderSource,
+        strict: bool,
     ) -> Result<Arc<RegistrySnapshot>, ProviderValidationError> {
         let (baseline_fingerprint, active_environments) = {
             let state = self
@@ -654,6 +704,12 @@ impl ProviderRegistry {
             match fingerprint_file_source(file_source.clone(), active_environments.clone()).await {
                 Ok(fingerprint) => fingerprint,
                 Err(error) => {
+                    if strict {
+                        return Err(ProviderValidationError::new(
+                            "provider_file_fingerprint_failed",
+                            error.to_string(),
+                        ));
+                    }
                     return Ok(self.snapshot_after_refresh_failure(
                         file_source,
                         "provider_file_fingerprint_failed",
@@ -671,6 +727,12 @@ impl ProviderRegistry {
             match fingerprint_file_source(file_source.clone(), active_environments.clone()).await {
                 Ok(fingerprint) => fingerprint,
                 Err(error) => {
+                    if strict {
+                        return Err(ProviderValidationError::new(
+                            "provider_file_fingerprint_failed",
+                            error.to_string(),
+                        ));
+                    }
                     return Ok(self.snapshot_after_refresh_failure(
                         file_source,
                         "provider_file_fingerprint_failed",
@@ -687,6 +749,12 @@ impl ProviderRegistry {
         {
             Ok(providers) => providers,
             Err(error) => {
+                if strict {
+                    return Err(ProviderValidationError::new(
+                        "provider_file_load_failed",
+                        error.to_string(),
+                    ));
+                }
                 return Ok(self.snapshot_after_refresh_failure(
                     file_source,
                     "provider_file_load_failed",
@@ -694,11 +762,27 @@ impl ProviderRegistry {
                 ));
             }
         };
+        if strict
+            && let Some((provider, status)) = dynamic_providers.iter().find_map(|provider| {
+                provider
+                    .runtime_status()
+                    .filter(|status| status.get("ready").and_then(Value::as_bool) == Some(false))
+                    .map(|status| (provider.catalog().provider.name, status))
+            })
+        {
+            return Err(ProviderValidationError::new(
+                "provider_runtime_not_ready",
+                format!("provider `{provider}` failed runtime preparation: {status}"),
+            ));
+        }
         let mut all_providers = self.base_providers.iter().cloned().collect::<Vec<_>>();
         all_providers.extend(dynamic_providers);
         let (providers, core_registry, snapshot) = match build_registry(all_providers) {
             Ok(parts) => parts,
             Err(error) => {
+                if strict {
+                    return Err(error);
+                }
                 return Ok(self.snapshot_after_refresh_failure(
                     file_source,
                     error.code(),
@@ -714,6 +798,12 @@ impl ProviderRegistry {
             if state.file_fingerprint != baseline_fingerprint
                 || state.python_environments != active_environments
             {
+                if strict {
+                    return Err(ProviderValidationError::new(
+                        "provider_refresh_raced",
+                        "provider registry changed during strict refresh",
+                    ));
+                }
                 return Ok(state.snapshot.clone());
             }
             let previous = state.snapshot.clone();
@@ -928,9 +1018,10 @@ impl ProviderRegistry {
         let invocation_call = call.clone();
         let pre_input_tool = tool.clone();
         let capability_broker = self.capabilities.clone();
-        core_registry
+        let progress = soma_provider_core::ProviderProgressReporter::default();
+        let mut output = core_registry
             .dispatch_with_pre_input(
-                call.provider_invocation(),
+                call.provider_invocation_with_progress(progress.clone()),
                 move |invocation| {
                     let mut call = pre_input_call;
                     call.provider.clone_from(&invocation.provider);
@@ -941,6 +1032,7 @@ impl ProviderRegistry {
                     let mut call = invocation_call;
                     call.provider = invocation.provider;
                     call.snapshot_id = invocation.snapshot_id;
+                    call.progress = invocation.context.progress;
                     async move {
                         enforce_capabilities(&capabilities, &call, &capability_broker)?;
                         let output = lease.provider.call(call.clone()).await?;
@@ -953,7 +1045,9 @@ impl ProviderRegistry {
             .inspect_err(|error| {
                 let (provider, action, code) = error.log_code();
                 tracing::warn!(provider, action, code, "provider call failed");
-            })
+            })?;
+        output.progress.extend(progress.events());
+        Ok(output)
     }
 }
 
@@ -1067,6 +1161,7 @@ impl CoreProvider for CoreProviderAdapter {
                 request_id: call.context.request_id,
                 traceparent: call.context.traceparent,
                 tracestate: call.context.tracestate,
+                progress: call.context.progress,
             })
             .await
     }
@@ -1138,88 +1233,4 @@ fn build_snapshot(
         cached_openapi_bytes,
         cached_catalog_summary,
     })
-}
-
-fn openapi_paths_from_core(core: &CoreRegistrySnapshot) -> Value {
-    let mut paths = Map::new();
-    paths.insert(
-        "/v1/capabilities".to_owned(),
-        json!({
-            "get": {
-                "summary": "List REST capabilities",
-                "operationId": "v1Capabilities",
-                "responses": {
-                    "200": {"description": "Route inventory and server metadata"}
-                }
-            }
-        }),
-    );
-    paths.insert(
-        "/v1/providers".to_owned(),
-        json!({
-            "get": {
-                "summary": "Inspect live providers",
-                "operationId": "v1Providers",
-                "responses": {
-                    "200": {"description": "Live provider catalog and runtime inventory"}
-                }
-            }
-        }),
-    );
-    paths.insert(
-        "/v1/tools/{action}".to_owned(),
-        json!({
-            "post": {
-                "summary": "Run a provider tool",
-                "operationId": "runProviderTool",
-                "parameters": [{
-                    "name": "action",
-                    "in": "path",
-                    "required": true,
-                    "schema": {"type": "string"},
-                    "description": "Provider tool action name"
-                }],
-                "requestBody": {
-                    "required": false,
-                    "content": {
-                        "application/json": {
-                            "schema": {"type": "object", "additionalProperties": true}
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {"description": "Provider action response"},
-                    "400": {"description": "Provider validation error"},
-                    "403": {"description": "Provider authorization error"},
-                    "404": {"description": "Unknown action or surface not exposed"}
-                }
-            }
-        }),
-    );
-
-    let mut routes = core
-        .rest_routes()
-        .map(|(method, path, action)| (method.to_owned(), path.to_owned(), action.to_owned()))
-        .collect::<Vec<_>>();
-    routes.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
-
-    for (method, path, action) in routes {
-        let entry = paths
-            .entry(path)
-            .or_insert_with(|| Value::Object(Map::new()));
-        if let Value::Object(methods) = entry {
-            methods.insert(
-                method.to_ascii_lowercase(),
-                json!({
-                    "summary": format!("Provider action `{action}`"),
-                    "operationId": action,
-                    "responses": {
-                        "200": {"description": "Provider action response"},
-                        "400": {"description": "Provider validation error"}
-                    }
-                }),
-            );
-        }
-    }
-    Value::Object(paths)
 }

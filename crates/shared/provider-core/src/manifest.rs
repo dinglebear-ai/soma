@@ -355,7 +355,10 @@ pub enum CapabilityGrant {
     },
     Broker {
         secret_names: Vec<String>,
-        state_namespaces: Vec<String>,
+        #[serde(default, alias = "state_namespaces")]
+        state_read_namespaces: Vec<String>,
+        #[serde(default)]
+        state_write_namespaces: Vec<String>,
         allow_logging: bool,
         allow_metrics: bool,
         allow_progress: bool,

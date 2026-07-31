@@ -82,6 +82,7 @@ async fn soma_preserves_legacy_provider_shape_and_uses_core_registry_snapshot() 
             request_id: String::new(),
             traceparent: None,
             tracestate: None,
+            progress: Default::default(),
         })
         .await
         .unwrap();

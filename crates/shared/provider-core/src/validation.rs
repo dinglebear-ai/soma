@@ -487,6 +487,19 @@ fn validate_capabilities(capabilities: &HostCapabilities) -> Result<(), Provider
             "broker state_write requires a state_namespace",
         ));
     }
+    if capabilities.broker.as_ref().is_some_and(|capability| {
+        capability.secret_names.iter().any(|name| {
+            name.is_empty()
+                || !name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        })
+    }) {
+        return Err(ProviderValidationError::new(
+            "invalid_capability_scope",
+            "broker secret handles must use lowercase ASCII letters, digits, and hyphens",
+        ));
+    }
     Ok(())
 }
 

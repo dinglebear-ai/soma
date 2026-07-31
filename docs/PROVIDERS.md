@@ -369,20 +369,34 @@ imports.
 Use the honest graduation workflow:
 
 ```text
-soma providers graduate --source provider.py --workspace graduated/provider --fixtures fixtures.json
-soma providers build-component --workspace graduated/provider
+export SOMA_GRADUATION_ROOT=/absolute/operator-owned/graduations
+soma providers graduate --source /absolute/providers/provider.py --workspace "$SOMA_GRADUATION_ROOT/provider" --fixtures "$SOMA_GRADUATION_ROOT/fixtures.json"
+soma providers build-component --workspace "$SOMA_GRADUATION_ROOT/provider"
 # Or import a component built elsewhere:
-soma providers build-component --workspace graduated/provider --component provider.wasm
-soma providers verify-component --component provider.wasm
-soma providers compare --component provider.wasm --fixtures fixtures.json
-soma providers activate --workspace graduated/provider
-soma providers rollback --workspace graduated/provider
+soma providers build-component --workspace "$SOMA_GRADUATION_ROOT/provider" --component "$SOMA_GRADUATION_ROOT/provider.wasm"
+soma providers verify-component --component "$SOMA_GRADUATION_ROOT/provider/artifacts/candidate-<sha256>.wasm"
+# Compare defaults to the immutable candidate recorded by build-component:
+soma providers compare --workspace "$SOMA_GRADUATION_ROOT/provider" --fixtures "$SOMA_GRADUATION_ROOT/fixtures.json"
+soma providers graduation-status --workspace "$SOMA_GRADUATION_ROOT/provider"
+soma providers activate --workspace "$SOMA_GRADUATION_ROOT/provider" --confirm true
+soma providers rollback --workspace "$SOMA_GRADUATION_ROOT/provider" --confirm true
 ```
 
 The scaffold does not translate Python business logic. It creates a reusable
 Rust-core boundary, buildable thin PyO3/WIT adapters, a versioned WIT copy, and
 a recorded-fixture corpus. The build verifies the exact component ABI, and
-comparison must prove behavioral parity before atomic activation.
+comparison persists a candidate/fixture digest-bound attestation that must prove
+behavioral parity before activation. Activation and rollback use a crash-safe
+workspace transaction, publish the live provider files, and refresh the active
+registry generation. Agent-facing CLI/MCP/REST graduation actions are contained
+under `SOMA_GRADUATION_ROOT` and require admin authority; mutation also requires
+`soma:write` and explicit confirmation.
+
+Python and component providers share the durable, quota-enforced state store at
+`SOMA_PROVIDER_STATE_PATH` (or the platform state-directory default). Declared
+secret handle `example-key` resolves only from
+`SOMA_PROVIDER_SECRET_EXAMPLE_KEY`; secret values are never copied into provider
+process environments.
 
 Immutable-environment controls map directly to the TOML example above:
 `SOMA_PYTHON_ENVIRONMENT_ENABLED`, `CACHE_ROOT`, `UV_PROGRAM`, `UV_VERSION`,

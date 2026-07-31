@@ -48,8 +48,9 @@ path must use it and its failure behavior must be verified.
 
 ## Verified Snapshot
 
-Last reconciled on **2026-07-30** against the Phase 5–7 implementation branch
-stacked on the production-environment work in PR #249.
+Last reconciled on **2026-07-30** against the Phase 8–10 implementation in
+PR #253, stacked on the merged Phase 5–7 runtime and production-environment
+work.
 
 The immutable-environment stack was merged by `749bc026` and ends at
 `4993e57e`; the supervised persistent runner was merged by `47bb3131`:
@@ -186,9 +187,9 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 5. PEP 723 and `uv` lifecycle | Complete | Planning, production immutable activation, and authorized operator status/prune/repair/update surfaces are implemented. |
 | 6. Persistent supervised runner | Complete, opt-in | Installed-wheel supervised workers cover all authoring paths with cancellation, bounded redacted logs, status, quarantine, and reset controls. |
 | 7. Generation-aware reload | Complete | Candidate preflight, debounced/coalesced atomic activation, bounded retained history, retirement, status, and rollback are implemented. |
-| 8. Capability broker and containment | Complete | Context services are live under explicit, fail-closed execution profiles. |
-| 9. WIT/WASI components | Complete | Versioned component ABI, constrained host, guest SDK, and reference provider exist. |
-| 10. Graduation tooling | Complete | Buildable Rust/PyO3/WIT scaffold, fixture comparison, promotion, and rollback exist. |
+| 8. Capability broker and containment | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
+| 9. WIT/WASI components | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
+| 10. Graduation tooling | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
 | 11. `componentize-py` | Experimental | Narrow compatibility-scanned Python component path. |
 | 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
 
@@ -336,7 +337,7 @@ rollback actions are shared across CLI, MCP, and REST.
 
 ## Phase 8: Capability Broker and Containment
 
-Status: complete.
+Status: implemented; pending merge and CI verification.
 
 Make the existing protocol and unavailable Context handles real:
 
@@ -380,7 +381,7 @@ Delivered in Phase 8:
 
 ## Phase 9: WIT/WASI Component Runtime
 
-Status: complete.
+Status: implemented; pending merge and CI verification.
 
 Scope:
 
@@ -405,7 +406,7 @@ The reference Python and Rust component implementations share
 
 ## Phase 10: Graduation Tooling
 
-Status: complete.
+Status: implemented; pending merge and CI verification.
 
 Planned commands:
 
@@ -427,9 +428,17 @@ All six commands are available under `soma providers`. `graduate` copies the
 source and optional recorded fixtures into an isolated workspace and emits a
 manual-rewrite core plus buildable thin PyO3 and WIT adapters.
 `build-component` builds or imports, verifies, and content-addresses a candidate;
-`verify-component` enforces the component ABI; `compare` replays recorded
-fixtures; and `activate`/`rollback` update durable state atomically while
-retaining the previous artifact.
+`verify-component` enforces the component ABI. `compare` accepts only
+side-effect-free providers and non-destructive actions owned by the graduated
+provider; filesystem, network, environment, terminal, browser, GitHub, secret,
+and state-write authority all fail closed before dual-run. It snapshots the
+fixture corpus once, executes live Python, feeds one retained prepared component
+the exact same host-owned execution envelope under one absolute deadline,
+checks the recorded result against the live result, and persists a source,
+catalog, fixture, and artifact digest-bound attestation only after the complete
+surface response passes the caller's byte limit.
+`activate`/`rollback` revalidate the live provider identity, update durable
+state atomically, and retain the previous artifact.
 
 ## Phase 11: Experimental `componentize-py`
 
@@ -476,7 +485,8 @@ These can land independently without delaying the runner:
 - stronger output-schema inference;
 - generated Python catalog models from canonical Rust schemas;
 - richer stubs;
-- broker-backed Context implementations.
+- additional typed SDK conveniences over the delivered broker-backed Context
+  services.
 
 ## Open Policy Decisions
 
@@ -493,15 +503,18 @@ These can land independently without delaying the runner:
 Defaults should favor reproducibility, offline restart, and fail-closed handling
 of unsupported dependency sources.
 
-## Recommended Delivery Order
+## Delivered Order and Next Work
 
-1. Add logging, progress, and brokered cancellation capability calls.
-2. Add brokered HTTP, secrets, and state.
-3. Add explicit execution profiles and enforced containment.
-4. Implement the WIT component ABI and shared conformance fixtures.
-5. Add graduation comparison, activation, and rollback tooling.
-6. Evaluate the experimental `componentize-py` path.
-7. Finish release provenance, performance budgets, and soak gates.
+Phases 8–10 delivered the capability broker, enforced containment, WIT
+component runtime, shared conformance path, isolated offline component builds,
+and source/catalog/fixture/artifact-bound graduation comparison, activation,
+and rollback workflow. The recommended next sequence is:
+
+1. Complete release signing, provenance, SBOM, and dependency-policy gates.
+2. Establish cold/warm performance budgets and mixed-provider soak coverage.
+3. Publish migration and operator recovery documentation.
+4. Evaluate the optional `componentize-py` experiment without weakening the
+   verified graduation path.
 
 The persistent runner and generation boundary are load-bearing. Do not bypass
 them to begin component or graduation work.
