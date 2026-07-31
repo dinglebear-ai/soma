@@ -1,3 +1,9 @@
+---
+title: "Python Provider Threat Model"
+created: 2026-07-30
+updated: 2026-07-30
+---
+
 # Python Provider Threat Model
 
 Status: implemented security boundary for Python provider phases 8-10.
