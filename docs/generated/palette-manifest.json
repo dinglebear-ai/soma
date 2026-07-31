@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "provider_fingerprint": "sha256:4326cc6a5488ddfde39a1bd2a992f828e466bef7c8941f9e025b78c3b89a6cc1",
+  "provider_fingerprint": "sha256:fe9b38c1d7761d636e3e275069cfa6bd7b555f245c52b7a44d0ec5cf4a80a795",
   "commands": [
     "echo",
     "elicit_name",
@@ -13,6 +13,8 @@
     "python_environment_update",
     "python_generation_rollback",
     "python_generation_status",
+    "python_graduation_apply",
+    "python_graduation_status",
     "python_worker_cancel",
     "python_worker_reset",
     "python_worker_status",

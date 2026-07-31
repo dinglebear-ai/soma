@@ -1,8 +1,14 @@
-//! The generic WASM provider kind: runs a drop-in `.wasm` module's exported
-//! `soma_call` ABI in a fuel-bounded wasmtime sandbox. Ported unchanged
-//! (beyond product-type swaps) from `soma-service::providers::wasm`.
+//! Wasmtime-backed provider runtime for both the legacy core-Wasm ABI and the
+//! versioned Soma component-model ABI.
 
-use std::{fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    io::Read,
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+    sync::{Arc, Mutex, OnceLock},
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use serde_json::Value;
@@ -10,19 +16,73 @@ use soma_provider_core::{
     Provider, ProviderCall, ProviderCatalog, ProviderError, ProviderOutput, ProviderTool,
 };
 use tokio::time::timeout;
-use wasmtime::{Config, Engine, Instance, Memory, Module, Store, TypedFunc};
+use wasmtime::{
+    Config, Engine, Instance, Module, Store, StoreLimits, StoreLimitsBuilder,
+    component::{Component, Linker},
+};
 
-use crate::sidecar::execution_payload;
+#[cfg(test)]
+use crate::wasm_memory::public_ip as component_public_ip;
+use crate::{
+    broker_state::BrokerStateStore,
+    sidecar::execution_payload,
+    wasm_limits::WasmRuntimeLimits,
+    wasm_memory::{read_memory, typed, write_memory},
+};
+
+mod artifact;
+mod direct;
+mod host;
+mod runtime_support;
+use artifact::{artifact_digest, compile_artifact, read_artifact};
+pub use direct::{
+    PreparedComponentArtifact, invoke_authorized_component_artifact,
+    invoke_component_artifact_async, invoke_component_artifact_before_async,
+    invoke_prepared_component_artifact_before_async, prepare_component_artifact_before,
+    verify_component_artifact, verify_component_artifact_before,
+};
+use host::{component_diagnostic, component_linker};
+#[cfg(test)]
+use host::{component_state_get, component_state_put};
+use runtime_support::{
+    EpochTicker, WasmArtifactCache, acquire_execution, component_broker,
+    component_forbidden_header, component_metric, component_progress, component_remaining,
+    component_require_scope, resolve_component_hosts,
+};
+
+const MAX_WASM_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct WasmProvider {
     path: PathBuf,
     catalog: ProviderCatalog,
+    runtime: Result<PreparedWasmProvider, String>,
+}
+
+#[derive(Clone)]
+struct PreparedWasmProvider {
+    runtime: Arc<WasmRuntime>,
+    artifact: Arc<WasmArtifact>,
+    digest: String,
 }
 
 impl WasmProvider {
     pub fn new(path: PathBuf, catalog: ProviderCatalog) -> Self {
-        Self { path, catalog }
+        let runtime = shared_wasm_runtime().and_then(|runtime| {
+            let bytes = read_artifact(&path)?;
+            let digest = artifact_digest(&bytes);
+            let artifact = runtime.artifact(&bytes, Instant::now() + Duration::from_secs(30))?;
+            Ok(PreparedWasmProvider {
+                runtime,
+                artifact,
+                digest,
+            })
+        });
+        Self {
+            path,
+            catalog,
+            runtime,
+        }
     }
 
     pub fn arc(path: PathBuf, catalog: ProviderCatalog) -> Arc<Self> {
@@ -41,7 +101,32 @@ impl Provider for WasmProvider {
         let provider = self.catalog.provider.name.clone();
         let action = call.action.clone();
         let source = self.path.display().to_string();
-        let path = self.path.clone();
+        let prepared = self.runtime.clone().map_err(|error| {
+            ProviderError::execution(&provider, action.clone(), error)
+                .with_provider_kind("wasm")
+                .with_source(source.clone())
+                .with_phase("runtime-initialization")
+        })?;
+        let current_digest = read_artifact(&self.path)
+            .map(|bytes| artifact_digest(&bytes))
+            .map_err(|error| {
+                ProviderError::execution(&provider, action.clone(), error)
+                    .with_provider_kind("wasm")
+                    .with_source(source.clone())
+                    .with_phase("artifact-verification")
+            })?;
+        if current_digest != prepared.digest {
+            return Err(ProviderError::execution(
+                &provider,
+                action.clone(),
+                "WASM artifact changed after provider activation",
+            )
+            .with_provider_kind("wasm")
+            .with_source(source)
+            .with_phase("artifact-verification"));
+        }
+        let capabilities = self.catalog.capabilities.clone();
+        let context = call.context.clone();
         let input = execution_payload(&call).map_err(|error| {
             ProviderError::execution(&provider, call.action.clone(), error)
                 .with_provider_kind("wasm")
@@ -62,8 +147,32 @@ impl Provider for WasmProvider {
         }
 
         let timeout_ms = limits.timeout_ms;
-        let task = tokio::task::spawn_blocking(move || run_wasm(&path, &input, limits));
-        let output = timeout(Duration::from_millis(timeout_ms), task)
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        let resolved_hosts = resolve_component_hosts(&capabilities, deadline)
+            .await
+            .map_err(|error| {
+                ProviderError::execution(&provider, action.clone(), error)
+                    .with_provider_kind("wasm")
+                    .with_source(source.clone())
+                    .with_phase("network-resolution")
+            })?;
+        let task = tokio::task::spawn_blocking(move || {
+            prepared.runtime.run_artifact(
+                prepared.artifact,
+                WasmInvocation {
+                    input: &input,
+                    limits,
+                    capabilities: &capabilities,
+                    context: &context,
+                    resolved_hosts,
+                    deadline,
+                },
+            )
+        });
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .unwrap_or(Duration::ZERO);
+        let task_result = timeout(remaining, task)
             .await
             .map_err(|_| {
                 ProviderError::new(
@@ -82,13 +191,25 @@ impl Provider for WasmProvider {
                     .with_provider_kind("wasm")
                     .with_source(source.clone())
                     .with_phase("execution")
-            })?
-            .map_err(|error| {
-                ProviderError::execution(&provider, action.clone(), error)
-                    .with_provider_kind("wasm")
-                    .with_source(source.clone())
-                    .with_phase("execution")
             })?;
+        if Instant::now() >= deadline {
+            return Err(ProviderError::new(
+                "wasm_provider_timeout",
+                &provider,
+                Some(action.clone()),
+                format!("WASM provider exceeded {timeout_ms}ms timeout"),
+                "Increase tool.limits.timeout_ms or fix the WASM provider.",
+            )
+            .with_provider_kind("wasm")
+            .with_source(source.clone())
+            .with_phase("execution"));
+        }
+        let output = task_result.map_err(|error| {
+            ProviderError::execution(&provider, action.clone(), error)
+                .with_provider_kind("wasm")
+                .with_source(source.clone())
+                .with_phase("execution")
+        })?;
 
         let value = serde_json::from_slice(&output).map_err(|error| {
             ProviderError::validation(
@@ -102,6 +223,23 @@ impl Provider for WasmProvider {
             .with_phase("output-validation")
         })?;
         Ok(ProviderOutput::json(value))
+    }
+
+    fn runtime_status(&self) -> Option<Value> {
+        Some(match &self.runtime {
+            Ok(prepared) => serde_json::json!({
+                "kind": "wasm",
+                "ready": true,
+                "artifact": self.path,
+                "artifact_sha256": prepared.digest,
+            }),
+            Err(error) => serde_json::json!({
+                "kind": "wasm",
+                "ready": false,
+                "artifact": self.path,
+                "error": error,
+            }),
+        })
     }
 }
 
@@ -122,90 +260,247 @@ impl WasmProvider {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct WasmRuntimeLimits {
-    timeout_ms: u64,
-    max_input_bytes: usize,
-    max_output_bytes: usize,
-    fuel: u64,
+enum WasmArtifact {
+    Core(Module),
+    Component(Component),
 }
 
-impl WasmRuntimeLimits {
-    fn from_tool(tool: &ProviderTool) -> Self {
-        let meta = tool.meta.get("wasm");
-        Self {
-            timeout_ms: tool
-                .limits
-                .as_ref()
-                .and_then(|limits| limits.timeout_ms)
-                .or_else(|| {
-                    meta.and_then(|value| value.get("timeout_ms"))
-                        .and_then(Value::as_u64)
-                })
-                .unwrap_or(5_000),
-            max_input_bytes: tool
-                .limits
-                .as_ref()
-                .and_then(|limits| limits.max_input_bytes)
-                .unwrap_or(64 * 1024),
-            max_output_bytes: tool
-                .limits
-                .as_ref()
-                .and_then(|limits| limits.max_response_bytes)
-                .unwrap_or(256 * 1024),
-            fuel: meta
-                .and_then(|value| value.get("fuel"))
-                .and_then(Value::as_u64)
-                .unwrap_or(1_000_000),
+pub(super) struct WasmStoreState {
+    limits: StoreLimits,
+    capabilities: soma_provider_core::HostCapabilities,
+    state: Result<Arc<BrokerStateStore>, String>,
+    context: soma_provider_core::ProviderInvocationContext,
+    resolved_hosts: BTreeMap<String, Vec<IpAddr>>,
+    deadline: Instant,
+    wasi: wasmtime_wasi::WasiCtx,
+    table: wasmtime::component::ResourceTable,
+}
+
+impl wasmtime_wasi::WasiView for WasmStoreState {
+    fn ctx(&mut self) -> wasmtime_wasi::WasiCtxView<'_> {
+        wasmtime_wasi::WasiCtxView {
+            ctx: &mut self.wasi,
+            table: &mut self.table,
         }
     }
 }
 
-fn run_wasm(
-    path: &std::path::Path,
+struct WasmRuntime {
+    engine: Engine,
+    cache: Mutex<WasmArtifactCache>,
+    state: Result<Arc<BrokerStateStore>, String>,
+    _ticker: EpochTicker,
+}
+
+struct WasmInvocation<'a> {
+    input: &'a [u8],
+    limits: WasmRuntimeLimits,
+    capabilities: &'a soma_provider_core::HostCapabilities,
+    context: &'a soma_provider_core::ProviderInvocationContext,
+    resolved_hosts: BTreeMap<String, Vec<IpAddr>>,
+    deadline: Instant,
+}
+
+fn shared_wasm_runtime() -> Result<Arc<WasmRuntime>, String> {
+    static RUNTIME: OnceLock<Result<Arc<WasmRuntime>, String>> = OnceLock::new();
+    RUNTIME
+        .get_or_init(|| WasmRuntime::new().map(Arc::new))
+        .clone()
+}
+
+impl WasmRuntime {
+    fn new() -> Result<Self, String> {
+        let mut config = Config::new();
+        config.consume_fuel(true);
+        config.epoch_interruption(true);
+        config.wasm_component_model(true);
+        let engine = Engine::new(&config).map_err(|error| error.to_string())?;
+        let ticker = EpochTicker::start(engine.clone())?;
+        Ok(Self {
+            engine,
+            cache: Mutex::new(WasmArtifactCache::default()),
+            state: BrokerStateStore::configured(),
+            _ticker: ticker,
+        })
+    }
+
+    fn artifact(&self, bytes: &[u8], deadline: Instant) -> Result<Arc<WasmArtifact>, String> {
+        let digest = artifact_digest(bytes);
+        let cell = self
+            .cache
+            .lock()
+            .map_err(|_| "WASM cache lock is poisoned".to_owned())?
+            .cell(digest, bytes.len().saturating_mul(8));
+        let result = cell.get_or_compile(deadline, || compile_artifact(self, bytes, deadline));
+        self.cache
+            .lock()
+            .map_err(|_| "WASM cache lock is poisoned".to_owned())?
+            .prune();
+        result
+    }
+
+    fn verify_prepared_component(
+        &self,
+        artifact: &Arc<WasmArtifact>,
+        deadline: Instant,
+    ) -> Result<(), String> {
+        let _execution = acquire_execution(deadline, 16 * 1024 * 1024)?;
+        let WasmArtifact::Component(component) = artifact.as_ref() else {
+            return Err("artifact is core Wasm, not a component".to_owned());
+        };
+        let mut store = self.store(
+            WasmRuntimeLimits {
+                timeout_ms: 1_000,
+                max_input_bytes: 0,
+                max_output_bytes: 0,
+                fuel: 100_000,
+                max_memory_bytes: 16 * 1024 * 1024,
+                max_table_elements: 1_000,
+                max_instances: 8,
+            },
+            &soma_provider_core::HostCapabilities::default(),
+            &soma_provider_core::ProviderInvocationContext {
+                request_id: "component-verification".to_owned(),
+                actor_id: Some("soma-verifier".to_owned()),
+                actor_scopes: vec!["soma:read".to_owned()],
+                ..Default::default()
+            },
+            BTreeMap::new(),
+            deadline,
+        )?;
+        let linker = component_linker(&self.engine)?;
+        let instance = linker
+            .instantiate(&mut store, component)
+            .map_err(|error| error.to_string())?;
+        instance
+            .get_typed_func::<(String,), (Result<String, String>,)>(&mut store, "invoke")
+            .map(|_| ())
+            .map_err(|error| format!("component does not implement soma:provider@1.0.0: {error}"))
+    }
+
+    #[cfg(test)]
+    fn verify_component(&self, bytes: &[u8], deadline: Instant) -> Result<(), String> {
+        let artifact = self.artifact(bytes, deadline)?;
+        self.verify_prepared_component(&artifact, deadline)
+    }
+
+    fn run(
+        &self,
+        path: &std::path::Path,
+        invocation: WasmInvocation<'_>,
+    ) -> Result<Vec<u8>, String> {
+        let bytes = read_artifact(path)?;
+        let artifact = self.artifact(&bytes, invocation.deadline)?;
+        self.run_artifact(artifact, invocation)
+    }
+
+    fn run_artifact(
+        &self,
+        artifact: Arc<WasmArtifact>,
+        invocation: WasmInvocation<'_>,
+    ) -> Result<Vec<u8>, String> {
+        let WasmInvocation {
+            input,
+            limits,
+            capabilities,
+            context,
+            resolved_hosts,
+            deadline,
+        } = invocation;
+        let _execution = acquire_execution(deadline, limits.max_memory_bytes)?;
+        let mut store = self.store(limits, capabilities, context, resolved_hosts, deadline)?;
+        match artifact.as_ref() {
+            WasmArtifact::Core(module) => run_core_wasm(&mut store, module, input, limits),
+            WasmArtifact::Component(component) => {
+                run_component_wasm(&self.engine, &mut store, component, input, limits)
+            }
+        }
+    }
+
+    fn store(
+        &self,
+        limits: WasmRuntimeLimits,
+        capabilities: &soma_provider_core::HostCapabilities,
+        context: &soma_provider_core::ProviderInvocationContext,
+        resolved_hosts: BTreeMap<String, Vec<IpAddr>>,
+        deadline: Instant,
+    ) -> Result<Store<WasmStoreState>, String> {
+        let store_limits = StoreLimitsBuilder::new()
+            .memory_size(limits.max_memory_bytes)
+            .table_elements(limits.max_table_elements)
+            .instances(limits.max_instances)
+            .memories(4)
+            .tables(4)
+            .build();
+        let mut store = Store::new(
+            &self.engine,
+            WasmStoreState {
+                limits: store_limits,
+                capabilities: capabilities.clone(),
+                state: self.state.clone(),
+                context: context.clone(),
+                resolved_hosts,
+                deadline,
+                wasi: {
+                    let mut builder = wasmtime_wasi::WasiCtxBuilder::new();
+                    builder.allow_blocking_current_thread(true);
+                    builder.build()
+                },
+                table: wasmtime::component::ResourceTable::new(),
+            },
+        );
+        store.limiter(|state| &mut state.limits);
+        store
+            .set_fuel(limits.fuel)
+            .map_err(|error| error.to_string())?;
+        let remaining_ms = deadline
+            .checked_duration_since(Instant::now())
+            .unwrap_or(Duration::ZERO)
+            .as_millis()
+            .min(u128::from(u64::MAX)) as u64;
+        store.set_epoch_deadline(remaining_ms.div_ceil(10).max(1));
+        store.epoch_deadline_trap();
+        Ok(store)
+    }
+}
+
+fn run_core_wasm(
+    store: &mut Store<WasmStoreState>,
+    module: &Module,
     input: &[u8],
     limits: WasmRuntimeLimits,
 ) -> Result<Vec<u8>, String> {
-    let bytes = fs::read(path).map_err(|error| error.to_string())?;
-    let mut config = Config::new();
-    config.consume_fuel(true);
-    let engine = Engine::new(&config).map_err(|error| error.to_string())?;
-    let module = Module::from_binary(&engine, &bytes).map_err(|error| error.to_string())?;
-    let mut store = Store::new(&engine, ());
-    store
-        .set_fuel(limits.fuel)
-        .map_err(|error| error.to_string())?;
-    let instance = Instance::new(&mut store, &module, &[]).map_err(|error| error.to_string())?;
+    let instance = Instance::new(&mut *store, module, &[]).map_err(|error| error.to_string())?;
     let memory = instance
-        .get_memory(&mut store, "memory")
+        .get_memory(&mut *store, "memory")
         .ok_or_else(|| "WASM provider must export memory".to_owned())?;
-    let input_alloc = typed::<i32, i32>(&instance, &mut store, "soma_input_alloc")?;
-    let input_ptr_fn = typed::<(), i32>(&instance, &mut store, "soma_input_ptr")?;
-    let call_fn = typed::<(), i32>(&instance, &mut store, "soma_call")?;
-    let output_ptr_fn = typed::<(), i32>(&instance, &mut store, "soma_output_ptr")?;
-    let output_len_fn = typed::<(), i32>(&instance, &mut store, "soma_output_len")?;
+    let input_alloc = typed::<i32, i32>(&instance, &mut *store, "soma_input_alloc")?;
+    let input_ptr_fn = typed::<(), i32>(&instance, &mut *store, "soma_input_ptr")?;
+    let call_fn = typed::<(), i32>(&instance, &mut *store, "soma_call")?;
+    let output_ptr_fn = typed::<(), i32>(&instance, &mut *store, "soma_output_ptr")?;
+    let output_len_fn = typed::<(), i32>(&instance, &mut *store, "soma_output_len")?;
 
     let ptr = input_alloc
-        .call(&mut store, input.len() as i32)
+        .call(&mut *store, input.len() as i32)
         .map_err(|error| error.to_string())? as usize;
     let input_ptr = input_ptr_fn
-        .call(&mut store, ())
+        .call(&mut *store, ())
         .map_err(|error| error.to_string())? as usize;
     if ptr != input_ptr {
         return Err("WASM provider input pointer mismatch".to_owned());
     }
-    write_memory(&memory, &mut store, ptr, input)?;
+    write_memory(&memory, &mut *store, ptr, input)?;
     let status = call_fn
-        .call(&mut store, ())
+        .call(&mut *store, ())
         .map_err(|error| error.to_string())?;
     if status != 0 {
         return Err(format!("WASM provider returned non-zero status {status}"));
     }
     let output_ptr = output_ptr_fn
-        .call(&mut store, ())
+        .call(&mut *store, ())
         .map_err(|error| error.to_string())? as usize;
     let output_len = output_len_fn
-        .call(&mut store, ())
+        .call(&mut *store, ())
         .map_err(|error| error.to_string())? as usize;
     if output_len > limits.max_output_bytes {
         return Err(format!(
@@ -213,46 +508,36 @@ fn run_wasm(
             limits.max_output_bytes
         ));
     }
-    read_memory(&memory, &mut store, output_ptr, output_len)
+    read_memory(&memory, &mut *store, output_ptr, output_len)
 }
 
-fn typed<Params, Results>(
-    instance: &Instance,
-    store: &mut Store<()>,
-    name: &str,
-) -> Result<TypedFunc<Params, Results>, String>
-where
-    Params: wasmtime::WasmParams,
-    Results: wasmtime::WasmResults,
-{
-    instance
-        .get_typed_func(store, name)
-        .map_err(|error| error.to_string())
-}
-
-fn write_memory(
-    memory: &Memory,
-    store: &mut Store<()>,
-    offset: usize,
-    bytes: &[u8],
-) -> Result<(), String> {
-    memory
-        .write(store, offset, bytes)
-        .map_err(|error| error.to_string())?;
-    Ok(())
-}
-
-fn read_memory(
-    memory: &Memory,
-    store: &mut Store<()>,
-    offset: usize,
-    len: usize,
+fn run_component_wasm(
+    engine: &Engine,
+    store: &mut Store<WasmStoreState>,
+    component: &Component,
+    input: &[u8],
+    limits: WasmRuntimeLimits,
 ) -> Result<Vec<u8>, String> {
-    let mut bytes = vec![0; len];
-    memory
-        .read(store, offset, &mut bytes)
+    let linker = component_linker(engine)?;
+    let instance = linker
+        .instantiate(&mut *store, component)
         .map_err(|error| error.to_string())?;
-    Ok(bytes)
+    let invoke = instance
+        .get_typed_func::<(String,), (Result<String, String>,)>(&mut *store, "invoke")
+        .map_err(|error| error.to_string())?;
+    let input = String::from_utf8(input.to_vec())
+        .map_err(|_| "component input must be UTF-8 JSON".to_owned())?;
+    let (result,) = invoke
+        .call(&mut *store, (input,))
+        .map_err(|error| error.to_string())?;
+    let output = result.map_err(|error| format!("component provider failed: {error}"))?;
+    if output.len() > limits.max_output_bytes {
+        return Err(format!(
+            "WASM provider output exceeds {} bytes",
+            limits.max_output_bytes
+        ));
+    }
+    Ok(output.into_bytes())
 }
 
 #[cfg(test)]

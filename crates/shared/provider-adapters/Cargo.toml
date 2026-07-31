@@ -23,14 +23,17 @@ default = []
 sidecar = ["dep:tokio"]
 static-echo = []
 ai-sdk = ["sidecar", "dep:tokio"]
-python = ["sidecar", "dep:getrandom", "dep:pep440_rs", "dep:tokio"]
-wasm = ["sidecar", "dep:wasmtime", "dep:tokio"]
+python = ["sidecar", "dep:getrandom", "dep:pep440_rs", "dep:reqwest", "dep:rustls", "dep:tempfile", "dep:url", "dep:tokio"]
+wasm = ["sidecar", "dep:reqwest", "dep:rustls", "dep:url", "dep:wasmtime", "dep:wasmtime-wasi", "dep:tokio"]
 openapi = ["dep:reqwest", "dep:rustls", "dep:url", "dep:soma-openapi"]
 codemode = ["dep:soma-codemode", "dep:tokio"]
 gateway = ["dep:rmcp", "dep:reqwest", "dep:rustls", "dep:url", "dep:tokio", "dep:soma-gateway"]
 
 [dependencies]
 async-trait = "0.1"
+atomicwrites = "0.4"
+base64 = "0.22"
+fs2 = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
@@ -39,10 +42,12 @@ thiserror = "2"
 toml = "1.1"
 tracing = "0.1"
 getrandom = { version = "0.3", optional = true }
+tempfile = { version = "3", optional = true }
 
 # ai-sdk / python / sidecar / wasm
 tokio = { version = "1", features = ["io-util", "net", "process", "rt", "sync", "time"], optional = true }
-wasmtime = { version = "47.0.2", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"], optional = true }
+wasmtime = { version = "46.0.1", default-features = false, features = ["anyhow", "component-model", "cranelift", "runtime", "std"], optional = true }
+wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"], optional = true }
 
 # codemode bridge
 soma-codemode = { workspace = true, optional = true }
@@ -55,7 +60,7 @@ soma-gateway = { workspace = true, optional = true }
 # shared by openapi + gateway features: both speak reqwest 0.13/rustls,
 # matching the rest of the shared MCP/OpenAPI ecosystem (soma-mcp-client,
 # soma-gateway, soma-openapi) rather than soma-application's older reqwest 0.12.
-reqwest = { version = "0.13.2", default-features = false, features = ["json", "query", "rustls", "rustls-no-provider"], optional = true }
+reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "query", "rustls", "rustls-no-provider", "stream"], optional = true }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
 url = { version = "2", optional = true }
 
@@ -65,11 +70,18 @@ soma-openapi = { workspace = true, optional = true }
 pep440_rs = { version = "0.7.3", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["process", "signal"] }
+nix = { version = "0.31", features = ["fs", "process", "resource", "signal"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libseccomp = "0.4.0"
+
+[target.'cfg(windows)'.dependencies]
+win32job = "2.0.3"
 
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wat = "1"
 
 [lints]
 workspace = true

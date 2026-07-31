@@ -9,6 +9,45 @@ use soma_application::{
 use soma_client::SomaClient;
 use soma_config::SomaConfig;
 
+#[test]
+#[ignore = "CI builds the reference wasm32-wasip2 component before running this test"]
+fn reference_component_matches_cross_runtime_fixture() -> anyhow::Result<()> {
+    let artifact = std::env::var("SOMA_REFERENCE_COMPONENT")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| anyhow::anyhow!("SOMA_REFERENCE_COMPONENT is required"))?;
+    let artifact = if artifact.is_absolute() {
+        artifact
+    } else {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(artifact)
+    };
+    soma_provider_adapters::wasm::verify_component_artifact(&artifact)
+        .map_err(anyhow::Error::msg)?;
+    let input = json!({
+        "arguments": {"value": "cross-runtime-conformance"},
+        "provider": "reference-component",
+        "action": "reference_echo"
+    });
+    let actual = soma_provider_adapters::wasm::invoke_authorized_component_artifact(
+        &artifact,
+        &input,
+        &Default::default(),
+        &soma_provider_core::ProviderInvocationContext {
+            request_id: "reference-conformance".to_owned(),
+            actor_id: Some("test".to_owned()),
+            actor_scopes: vec!["soma:read".to_owned()],
+            ..Default::default()
+        },
+    )
+    .map_err(anyhow::Error::msg)?;
+    assert_eq!(
+        actual,
+        json!({"ok": true, "echo": "cross-runtime-conformance"})
+    );
+    Ok(())
+}
+
 #[tokio::test]
 async fn wasm_provider_executes_hot_dropped_module() -> anyhow::Result<()> {
     let temp = tempfile::tempdir()?;
@@ -28,6 +67,10 @@ async fn wasm_provider_executes_hot_dropped_module() -> anyhow::Result<()> {
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
+            progress: Default::default(),
         })
         .await?;
 
@@ -55,6 +98,10 @@ async fn wasm_provider_receives_execution_envelope() -> anyhow::Result<()> {
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
+            progress: Default::default(),
         })
         .await?;
 

@@ -12,7 +12,8 @@ mod python_environment;
 mod python_environment_tests;
 
 pub use config::{
-    AuthConfig, AuthMode, Config, EffectiveRuntimeMode, McpConfig, PythonRunnerConfig,
-    PythonRunnerMode, RuntimeMode, SomaConfig, TraceHeaderMode, default_data_dir, load_dotenv,
+    AuthConfig, AuthMode, Config, EffectiveRuntimeMode, McpConfig, PythonExecutionProfile,
+    PythonRunnerConfig, PythonRunnerMode, RuntimeMode, SomaConfig, TraceHeaderMode,
+    default_data_dir, load_dotenv,
 };
 pub use python_environment::PythonEnvironmentConfig;

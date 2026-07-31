@@ -13,13 +13,13 @@ permissions:
 jobs:
   policy:
     name: Fleet Policy
-    uses: dinglebear-ai/workflows/.github/workflows/fleet-policy.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    uses: dinglebear-ai/workflows/.github/workflows/fleet-policy.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       release-file-regex: '(^|/)(release|docker-publish|python-wheels)\.ya?ml$'
 
   contract:
     name: Fleet Contract
-    uses: dinglebear-ai/workflows/.github/workflows/fleet-contract.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    uses: dinglebear-ai/workflows/.github/workflows/fleet-contract.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       profile: rust
-      implementation-ref: 542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+      implementation-ref: 364993bc854c4feb82cb26917e741fd6465cd47a

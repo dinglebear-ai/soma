@@ -278,10 +278,14 @@ fn normalize_capabilities(capabilities: &mut serde_json::Map<String, Value>) {
             "terminal",
             "browser",
             "github",
+            "broker",
         ],
     );
     normalize_object_field(capabilities, "terminal", |terminal| {
         remove_null_fields(terminal, &["working_dir"]);
+    });
+    normalize_object_field(capabilities, "broker", |broker| {
+        remove_null_fields(broker, &["state_namespace"]);
     });
 }
 
@@ -458,6 +462,42 @@ fn validate_capabilities(capabilities: &HostCapabilities) -> Result<(), Provider
         return Err(ProviderValidationError::new(
             "empty_capability_scope",
             "enabled github capability must declare at least one allowed repo",
+        ));
+    }
+    if capabilities.broker.as_ref().is_some_and(|capability| {
+        capability.enabled
+            && capability.secret_names.is_empty()
+            && capability.state_namespace.is_none()
+            && !capability.logging
+            && !capability.metrics
+            && !capability.progress
+    }) {
+        return Err(ProviderValidationError::new(
+            "empty_capability_scope",
+            "enabled broker capability must request at least one host service",
+        ));
+    }
+    if capabilities
+        .broker
+        .as_ref()
+        .is_some_and(|capability| capability.state_write && capability.state_namespace.is_none())
+    {
+        return Err(ProviderValidationError::new(
+            "invalid_capability_scope",
+            "broker state_write requires a state_namespace",
+        ));
+    }
+    if capabilities.broker.as_ref().is_some_and(|capability| {
+        capability.secret_names.iter().any(|name| {
+            name.is_empty()
+                || !name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        })
+    }) {
+        return Err(ProviderValidationError::new(
+            "invalid_capability_scope",
+            "broker secret handles must use lowercase ASCII letters, digits, and hyphens",
         ));
     }
     Ok(())

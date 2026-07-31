@@ -39,17 +39,37 @@ JSON-compatible metadata. Omitted fields keep the adapter's existing defaults:
 function name and docstring discovery, annotation-based input-schema inference,
 and generated CLI exposure. Parameters annotated as Context are excluded from
 the public input schema and injected by the runner. The one-shot compatibility
-runner supplies request identity and explicit unavailable capability handles;
-HTTP, secrets, state, logging, metrics, and cancellation become live through the
-persistent capability broker milestone.
+runner supplies request identity and explicit unavailable capability handles.
+Persistent brokered workers provide live HTTP, secrets, namespaced state,
+logging, metrics, progress, and cancellation handles under the provider
+declaration, deployment policy, actor scopes, and host availability
+intersection.
+
+Broker capability calls are async so they do not block the provider event loop:
+
+~~~python
+response = await ctx.http.request("GET", "https://api.example.com/data")
+secret = await ctx.secrets.get("example-key")
+current = await ctx.state.get("counter")
+await ctx.state.set("counter", (current or 0) + 1)
+await ctx.log.emit("info", "updated", counter=current)
+await ctx.metrics.increment("updates")
+await ctx.progress.update(1, total=1, message="done")
+~~~
+
+HTTP request and response bodies are lossless bytes (`body_bytes`) with
+base64-encoded transport. Broker policy denials remain typed
+`CapabilityUnavailableError` failures instead of being reported as worker
+crashes.
 
 Rust's provider-core manifest and adapter validation remain authoritative. The
 `tests/soma_runner_protocol.py` module is also internal: it implements the
 bounded length-prefixed JSON codec, version negotiation, and feature intersection
 used by persistent-runner contract fixtures. One-shot remains the default
-runtime. `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised installed-wheel
-workers for catalog and invocation; active cancellation and brokered Context
-services are not implemented yet.
+runtime. `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised
+installed-wheel workers for catalog and invocation. Set
+`SOMA_PYTHON_EXECUTION_PROFILE=brokered` with explicit broker policy to activate
+the fail-closed capability and containment boundary.
 
 `pyproject.toml` defines the `soma-provider` 0.2.x maturin mixed package for
 Python 3.11 and newer. The pure-Python facade remains usable without a native

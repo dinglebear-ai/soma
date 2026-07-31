@@ -228,7 +228,7 @@ jobs:
   npm:
     name: Publish soma-rmcp to npm
     needs: [validate-release-tag, release]
-    uses: dinglebear-ai/workflows/.github/workflows/npm-trusted-publish.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    uses: dinglebear-ai/workflows/.github/workflows/npm-trusted-publish.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       checkout-ref: ${{ needs.validate-release-tag.outputs.release_tag }}
       expected-version: ${{ needs.validate-release-tag.outputs.version }}

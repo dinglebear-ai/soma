@@ -6,6 +6,8 @@ without installing a wheel or configuring PYTHONPATH.
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import json
 import types
 import typing
@@ -34,6 +36,8 @@ __all__ = [
     "Log",
     "MetadataError",
     "Metrics",
+    "Progress",
+    "Cancellation",
     "ProviderMetadata",
     "Request",
     "Secrets",
@@ -102,7 +106,7 @@ class ProviderMetadata(TypedDict, total=False):
     version: str
     enabled: bool
     env: list[dict[str, Any]]
-    capabilities: list[str]
+    capabilities: dict[str, Any]
     docs: dict[str, Any]
     plugin: dict[str, Any]
     ui: dict[str, Any]
@@ -134,7 +138,7 @@ class ToolMetadata(TypedDict, total=False):
 class Request:
     """Immutable request identity supplied by the Soma runner."""
 
-    request_id: int
+    request_id: str
     provider: str
     action: str
     surface: str
@@ -152,27 +156,153 @@ class Http(Protocol):
         *,
         headers: Mapping[str, str] | None = None,
         body: bytes | None = None,
-    ) -> Any: ...
+    ) -> Any:
+        pass
 
 
 class Secrets(Protocol):
-    async def get(self, name: str) -> str: ...
+    async def get(self, name: str) -> str:
+        pass
 
 
 class State(Protocol):
-    async def get(self, key: str) -> Any: ...
+    async def get(self, key: str) -> Any:
+        pass
 
-    async def set(self, key: str, value: Any) -> None: ...
+    async def set(self, key: str, value: Any) -> None:
+        pass
 
 
 class Log(Protocol):
-    def emit(self, level: str, message: str, **fields: Any) -> None: ...
+    async def emit(self, level: str, message: str, **fields: Any) -> None:
+        pass
 
 
 class Metrics(Protocol):
-    def increment(self, name: str, value: int = 1, **labels: str) -> None: ...
+    async def increment(self, name: str, value: int = 1, **labels: str) -> None:
+        pass
 
-    def duration(self, name: str, seconds: float, **labels: str) -> None: ...
+    async def duration(self, name: str, seconds: float, **labels: str) -> None:
+        pass
+
+
+class Progress(Protocol):
+    async def update(
+        self, current: int, *, total: int | None = None, message: str | None = None
+    ) -> None:
+        pass
+
+
+class Cancellation(Protocol):
+    async def is_cancelled(self) -> bool:
+        pass
+
+
+_host_caller: Callable[[str, str, dict[str, Any]], Any] | None = None
+
+
+def _set_host_caller(
+    caller: Callable[[str, str, dict[str, Any]], Any] | None,
+) -> Callable[[str, str, dict[str, Any]], Any] | None:
+    global _host_caller
+    previous = _host_caller
+    _host_caller = caller
+    return previous
+
+
+class _BrokerCapability:
+    __slots__ = ("_invocation_id",)
+
+    def __init__(self, invocation_id: str) -> None:
+        self._invocation_id = invocation_id
+
+    def _call(self, method: str, **payload: Any) -> Any:
+        if _host_caller is None:
+            raise CapabilityUnavailableError(
+                f"Soma capability {method!r} is unavailable in the active Python runner"
+            )
+        return _host_caller(method, self._invocation_id, payload)
+
+    async def _call_async(self, method: str, **payload: Any) -> Any:
+        # The private framed channel is intentionally blocking. Move it off
+        # the provider event loop so async providers remain responsive while
+        # DNS, HTTP, and host policy work is in flight.
+        return await asyncio.to_thread(self._call, method, **payload)
+
+
+class _BrokerHttp(_BrokerCapability):
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> Any:
+        result = await self._call_async(
+            "host.http",
+            request={
+                "method": method,
+                "url": url,
+                "headers": dict(headers or {}),
+                "body_base64": None
+                if body is None
+                else base64.b64encode(body).decode("ascii"),
+            },
+        )
+        if isinstance(result, dict) and isinstance(result.get("body_base64"), str):
+            result = dict(result)
+            result["body_bytes"] = base64.b64decode(
+                result["body_base64"], validate=True
+            )
+        return result
+
+
+class _BrokerSecrets(_BrokerCapability):
+    async def get(self, name: str) -> str:
+        return str(await self._call_async("host.secret", name=name))
+
+
+class _BrokerState(_BrokerCapability):
+    async def get(self, key: str) -> Any:
+        return await self._call_async("host.state.get", key=key)
+
+    async def set(self, key: str, value: Any) -> None:
+        await self._call_async("host.state.put", key=key, value=value)
+
+
+class _BrokerLog(_BrokerCapability):
+    async def emit(self, level: str, message: str, **fields: Any) -> None:
+        await self._call_async("host.log", level=level, message=message, fields=fields)
+
+
+class _BrokerMetrics(_BrokerCapability):
+    async def increment(self, name: str, value: int = 1, **labels: str) -> None:
+        await self._call_async(
+            "host.metric", name=name, value=value, attributes={"kind": "counter", **labels}
+        )
+
+    async def duration(self, name: str, seconds: float, **labels: str) -> None:
+        await self._call_async(
+            "host.metric",
+            name=name,
+            value=seconds,
+            attributes={"kind": "duration_seconds", **labels},
+        )
+
+
+class _BrokerProgress(_BrokerCapability):
+    async def update(
+        self, current: int, *, total: int | None = None, message: str | None = None
+    ) -> None:
+        await self._call_async(
+            "host.progress", current=current, total=total, message=message
+        )
+
+
+class _BrokerCancellation(_BrokerCapability):
+    async def is_cancelled(self) -> bool:
+        return bool(await self._call_async("host.cancelled"))
 
 
 class _UnavailableCapability:
@@ -205,12 +335,14 @@ class Context:
     state: State
     log: Log
     metrics: Metrics
+    progress: Progress
+    cancellation: Cancellation
     cancelled: bool = False
 
     @classmethod
     def _from_payload(cls, payload: Mapping[str, Any]) -> Context:
         request = Request(
-            request_id=int(payload["request_id"]),
+            request_id=str(payload["request_id"]),
             provider=str(payload["provider"]),
             action=str(payload["action"]),
             surface=str(payload["surface"]),
@@ -219,13 +351,19 @@ class Context:
             trace=_optional_mapping(payload.get("trace")),
             deadline_unix_ms=_optional_int(payload.get("deadline_unix_ms")),
         )
+        invocation_id = str(payload.get("invocation_id", payload["request_id"]))
+        brokered = _host_caller is not None
         return cls(
             request=request,
-            http=_UnavailableCapability("http"),
-            secrets=_UnavailableCapability("secrets"),
-            state=_UnavailableCapability("state"),
-            log=_UnavailableCapability("log"),
-            metrics=_UnavailableCapability("metrics"),
+            http=_BrokerHttp(invocation_id) if brokered else _UnavailableCapability("http"),
+            secrets=_BrokerSecrets(invocation_id) if brokered else _UnavailableCapability("secrets"),
+            state=_BrokerState(invocation_id) if brokered else _UnavailableCapability("state"),
+            log=_BrokerLog(invocation_id) if brokered else _UnavailableCapability("log"),
+            metrics=_BrokerMetrics(invocation_id) if brokered else _UnavailableCapability("metrics"),
+            progress=_BrokerProgress(invocation_id) if brokered else _UnavailableCapability("progress"),
+            cancellation=_BrokerCancellation(invocation_id)
+            if brokered
+            else _UnavailableCapability("cancellation"),
             cancelled=bool(payload.get("cancelled", False)),
         )
 

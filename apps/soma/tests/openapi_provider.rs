@@ -84,9 +84,12 @@ async fn openapi_provider_executes_pinned_local_operation() {
     let provider = SharedAdapter::wrap(OpenApiProvider::arc(catalog));
     let registry = ProviderRegistry::with_capabilities(
         vec![provider],
-        CapabilityBroker::new(vec![CapabilityGrant::Network {
-            allowed_hosts: vec!["127.0.0.1".to_owned()],
-        }]),
+        CapabilityBroker::new(vec![(
+            "weather-openapi".to_owned(),
+            CapabilityGrant::Network {
+                allowed_hosts: vec!["127.0.0.1".to_owned()],
+            },
+        )]),
     )
     .expect("registry");
     let output = registry
@@ -117,9 +120,12 @@ async fn openapi_provider_rejects_absolute_operation_urls() {
     let provider = SharedAdapter::wrap(OpenApiProvider::arc(catalog));
     let registry = ProviderRegistry::with_capabilities(
         vec![provider],
-        CapabilityBroker::new(vec![CapabilityGrant::Network {
-            allowed_hosts: vec!["127.0.0.1".to_owned()],
-        }]),
+        CapabilityBroker::new(vec![(
+            "weather-openapi".to_owned(),
+            CapabilityGrant::Network {
+                allowed_hosts: vec!["127.0.0.1".to_owned()],
+            },
+        )]),
     )
     .expect("registry");
     let error = registry
@@ -150,6 +156,7 @@ async fn openapi_provider_denies_dispatch_when_network_capability_is_absent() {
             params: json!({"city": "Paris"}),
             surface: soma_provider_core::ProviderSurface::Mcp,
             snapshot_id: "test-snapshot".to_owned(),
+            context: Default::default(),
         })
         .await
         .expect_err("no network capability declared should deny dispatch");
@@ -178,6 +185,7 @@ async fn openapi_provider_denies_dispatch_when_network_capability_is_disabled() 
             params: json!({"city": "Paris"}),
             surface: soma_provider_core::ProviderSurface::Mcp,
             snapshot_id: "test-snapshot".to_owned(),
+            context: Default::default(),
         })
         .await
         .expect_err("disabled network capability should deny dispatch");
@@ -209,6 +217,7 @@ async fn openapi_provider_rejects_non_object_params_for_post() {
             params: json!(["not", "an", "object"]),
             surface: soma_provider_core::ProviderSurface::Mcp,
             snapshot_id: "test-snapshot".to_owned(),
+            context: Default::default(),
         })
         .await
         .expect_err("non-object params should be rejected for POST");
@@ -262,6 +271,7 @@ async fn openapi_provider_substitutes_path_parameters() {
             params: json!({"city": "Paris"}),
             surface: soma_provider_core::ProviderSurface::Mcp,
             snapshot_id: "test-snapshot".to_owned(),
+            context: Default::default(),
         })
         .await
         .expect("path parameter should be substituted and request should succeed");
@@ -281,6 +291,10 @@ fn call() -> ProviderCall {
         destructive_confirmed: false,
         limits: ProviderRequestLimits::default(),
         snapshot_id: String::new(),
+        request_id: String::new(),
+        traceparent: None,
+        tracestate: None,
+        progress: Default::default(),
     }
 }
 

@@ -195,8 +195,8 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
         .structured_content
         .expect("dynamic provider call should return structured content");
     println!("live_wasm_probe_result={structured}");
-    assert_eq!(structured["ok"], true);
-    assert_eq!(structured["action"], "live_wasm_probe");
+    assert_eq!(structured["output"]["ok"], true);
+    assert_eq!(structured["output"]["action"], "live_wasm_probe");
 
     let cli_output = Command::new(env!("CARGO_BIN_EXE_soma"))
         .arg("live_wasm_probe")
@@ -214,7 +214,7 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
         String::from_utf8_lossy(&cli_output.stderr)
     );
     let cli_json: Value = serde_json::from_slice(&cli_output.stdout)?;
-    assert_eq!(cli_json["action"], "live_wasm_probe");
+    assert_eq!(cli_json["output"]["action"], "live_wasm_probe");
 
     let port = unused_loopback_port()?;
     let _server = HttpServerGuard::spawn(temp.path(), port).await?;
@@ -224,7 +224,7 @@ async fn dropped_ts_and_wasm_files_hot_register_provider_tools() -> anyhow::Resu
         "{}",
     )
     .await?;
-    assert_eq!(rest_json["action"], "live_wasm_probe");
+    assert_eq!(rest_json["output"]["action"], "live_wasm_probe");
 
     service.cancel().await?;
     Ok(())

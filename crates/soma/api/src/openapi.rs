@@ -16,7 +16,7 @@ pub(crate) fn augment_with_static_action_routes(value: &mut Value) {
             continue;
         };
         let method = route.method.to_ascii_lowercase();
-        methods.entry(method).or_insert_with(|| {
+        let operation = methods.entry(method).or_insert_with(|| {
             let mut operation = json!({
                 "tags": ["direct-rest"],
                 "summary": format!("Run {action}"),
@@ -53,6 +53,36 @@ pub(crate) fn augment_with_static_action_routes(value: &mut Value) {
             }
             operation
         });
+        if let Some(operation) = operation.as_object_mut() {
+            operation
+                .entry("responses")
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            if let Some(responses) = operation
+                .get_mut("responses")
+                .and_then(Value::as_object_mut)
+            {
+                responses.insert(
+                    "200".to_owned(),
+                    json!({
+                        "description": format!("{action} result envelope"),
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["output", "request_id", "progress"],
+                                    "properties": {
+                                        "output": {},
+                                        "request_id": {"type": "string"},
+                                        "progress": {"type": "array", "items": {"type": "object"}}
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                );
+            }
+        }
     }
 }
 
@@ -101,6 +131,14 @@ fn python_request_contract(action: &str) -> Option<(Value, Value)> {
             json!({"provider": "example", "confirm": true})
         }
         "python_generation_rollback" => json!({"generation_id": 1, "confirm": true}),
+        "python_graduation_status" => json!({"workspace": "/srv/soma/graduations/example"}),
+        "python_graduation_apply" => json!({
+            "operation": "compare",
+            "workspace": "/srv/soma/graduations/example",
+            "component": "/srv/soma/graduations/example/artifacts/candidate.wasm",
+            "fixtures": "/srv/soma/graduations/example/fixtures/conformance-v1.json",
+            "confirm": true
+        }),
         _ => return None,
     };
     Some((

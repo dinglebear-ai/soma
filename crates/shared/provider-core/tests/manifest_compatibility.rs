@@ -257,3 +257,45 @@ fn schema_rejects_prompt_title_and_mcp_icons_absent_from_the_rust_model() {
         "json_schema_failed"
     );
 }
+
+#[test]
+fn broker_capability_is_modeled_by_schema_and_typed_manifest() {
+    let mut manifest = strict_raw_manifest();
+    manifest["capabilities"] = json!({
+        "broker": {
+            "enabled": true,
+            "secret_names": ["database-password"],
+            "state_namespace": "raw-provider/cache",
+            "state_write": true,
+            "logging": true,
+            "metrics": true,
+            "progress": true
+        }
+    });
+    validate_manifest_schema(&manifest).expect("broker capability is schema-valid");
+    let parsed =
+        validate_provider_manifest_value(&manifest).expect("broker capability parses to Rust");
+    let broker = parsed.capabilities.broker.expect("typed broker capability");
+    assert!(broker.enabled);
+    assert_eq!(broker.secret_names, ["database-password"]);
+    assert_eq!(
+        broker.state_namespace.as_deref(),
+        Some("raw-provider/cache")
+    );
+    assert!(broker.state_write);
+}
+
+#[test]
+fn broker_capability_schema_rejects_unmodeled_aliases() {
+    let mut manifest = strict_raw_manifest();
+    manifest["capabilities"] = json!({
+        "broker": {
+            "enabled": true,
+            "secrets": ["database-password"]
+        }
+    });
+    assert_eq!(
+        validate_manifest_schema(&manifest).unwrap_err().code(),
+        "json_schema_failed"
+    );
+}

@@ -41,7 +41,9 @@ Python provider lifecycle administration uses the same tool:
 - persistent workers: `python_worker_status`, `python_worker_cancel`, and
   `python_worker_reset`;
 - provider generations: `python_generation_status` and
-  `python_generation_rollback`.
+  `python_generation_rollback`;
+- Python-to-component graduation: `python_graduation_status` and confirmed
+  `python_graduation_apply`.
 
 **Always prefer the MCP tool**. The default plugin path is stdio. Fall back to HTTP curl only when MCP is unavailable or when explicitly debugging a remote HTTP deployment.
 

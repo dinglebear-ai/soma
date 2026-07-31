@@ -48,8 +48,9 @@ path must use it and its failure behavior must be verified.
 
 ## Verified Snapshot
 
-Last reconciled on **2026-07-30** against the Phase 5–7 implementation branch
-stacked on the production-environment work in PR #249.
+Last reconciled on **2026-07-30** against the Phase 8–10 implementation in
+PR #253, stacked on the merged Phase 5–7 runtime and production-environment
+work.
 
 The immutable-environment stack was merged by `749bc026` and ends at
 `4993e57e`; the supervised persistent runner was merged by `47bb3131`:
@@ -89,10 +90,10 @@ Post-environment-merge CI repairs `f9860585` and `12fc929b` are also on
 | Dependencies | PEP 723 is parsed without executing provider code. |
 | Environments | The adapter library can plan, materialize, verify, inventory, prune, repair, update, and activate content-addressed `uv` environments. Production startup installs that lifecycle when the complete, disabled-by-default `[python.environment]` configuration is enabled. |
 | Execution | One-shot remains the default; `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised workers. |
-| Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, async candidate preflight, and prepared-interpreter authoring-path parity are active in persistent mode. Active cancel frames and brokered `host.*` calls remain protocol-only. |
-| Context capabilities | Request identity is injected; HTTP, secrets, state, logging, metrics, progress, and cancellation are not live broker services. |
-| Isolation | Out of process with filtered environment and bounded I/O, but not OS-sandboxed. |
-| Wasm graduation | Contract boundary exists; WIT components and graduation tooling do not. |
+| Persistent protocol | Negotiated framing, describe/invoke/cancel/health/drain/shutdown, supervision, candidate preflight, and invocation-bound host calls are active in persistent mode. |
+| Context capabilities | Request and actor identity, trace context, HTTP, secrets, namespaced state, logging, metrics, progress, and cancellation are live broker services subject to intersected authority. |
+| Isolation | Trusted mode is out of process with filtered environment and bounded I/O. Brokered Linux mode adds namespaces, cgroups, seccomp, rlimits, a read-only filesystem view, and no ambient network; unavailable enforcement fails closed. |
+| Wasm graduation | A versioned component ABI, constrained WASI host, reusable guest SDK, shared conformance fixtures, and honest scaffold/build/verify/compare/activate/rollback tooling are active. |
 
 ## Product Outcome
 
@@ -154,10 +155,9 @@ does not claim automatic translation of arbitrary Python into Rust or Wasm.
 - stable states and errors
 - Rust/Python codecs and shared fixtures
 
-Persistent mode negotiates and implements `describe`, `invoke`, `health`,
-`drain`, and `shutdown`. `cancel` and brokered `host.*` messages remain
-contract-only and are not advertised by the active worker. The one-shot bridge
-remains the default migration and rollback path.
+Persistent mode negotiates and implements `describe`, `invoke`, `cancel`,
+`health`, `drain`, `shutdown`, and invocation-bound broker host calls. The
+one-shot bridge remains the default migration and rollback path.
 
 ### Immutable environment lifecycle
 
@@ -187,9 +187,9 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 5. PEP 723 and `uv` lifecycle | Complete | Planning, production immutable activation, and authorized operator status/prune/repair/update surfaces are implemented. |
 | 6. Persistent supervised runner | Complete, opt-in | Installed-wheel supervised workers cover all authoring paths with cancellation, bounded redacted logs, status, quarantine, and reset controls. |
 | 7. Generation-aware reload | Complete | Candidate preflight, debounced/coalesced atomic activation, bounded retained history, retirement, status, and rollback are implemented. |
-| 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
-| 9. WIT/WASI components | Planned | Versioned component ABI and reference provider exist. |
-| 10. Graduation tooling | Planned | Scaffold, compare, promote, and rollback manual rewrites. |
+| 8. Capability broker and containment | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
+| 9. WIT/WASI components | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
+| 10. Graduation tooling | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
 | 11. `componentize-py` | Experimental | Narrow compatibility-scanned Python component path. |
 | 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
 
@@ -287,14 +287,15 @@ Implementation notes:
   retention, and exposes it through the authorized worker-status action.
 - One invocation is active per worker. Concurrent work receives
   `python_provider_busy` without queueing.
-- The active feature set does not require cooperative `cancel`: cancellation
-  terminates the Unix worker process group or uses Windows `taskkill /T /F`,
-  then the supervisor restarts cleanly on later work.
-- Provider/tool runtime environment declarations are rejected in persistent
-  mode. Phase-8 broker capabilities, actor scopes, and trace propagation are
-  intentionally unavailable.
-- Unix workers own a process group. Windows uses best-effort process-tree
-  termination; stronger Job Object containment remains part of Phase 8.
+- Cancellation first exposes a cooperative flag over the broker and also
+  terminates the contained worker process tree, so uninterruptible synchronous
+  code cannot survive the deadline.
+- Provider/tool runtime environment declarations remain rejected in persistent
+  mode. Actor scopes and trace context are invocation-bound and propagated to
+  the broker without becoming ambient process environment.
+- Trusted Unix workers own a process group. Brokered Linux workers use the full
+  containment boundary described in Phase 8; Windows uses kill-on-close Job
+  Objects and fails closed when the requested profile cannot be enforced.
 
 ## Phase 7: Generation-Aware Reload
 
@@ -336,6 +337,8 @@ rollback actions are shared across CLI, MCP, and REST.
 
 ## Phase 8: Capability Broker and Containment
 
+Status: implemented; pending merge and CI verification.
+
 Make the existing protocol and unavailable Context handles real:
 
 - `ctx.http`
@@ -364,7 +367,21 @@ Security gates include secret redaction, HTTP redirect/DNS escape protection,
 confused-deputy protection, state isolation, audit events, and a threat model for
 source, dependencies, protocol, cache, broker, and Wasm.
 
+Delivered in Phase 8:
+
+- live `Context` services over invocation-bound host calls;
+- deployment allowlists intersected with declarations and actor scopes;
+- `disabled`, `trusted`, and fail-closed `brokered` profiles;
+- Linux namespaces, cgroup v2, seccomp, rlimits, read-only filesystem view,
+  private network namespace, and authenticated Unix control channel;
+- kill-on-close Windows Job Objects, with brokered mode unavailable when the
+  platform cannot enforce the complete boundary;
+- bounded redacted audit events and the dedicated
+  [threat model](../security/python-provider-threat-model.md).
+
 ## Phase 9: WIT/WASI Component Runtime
+
+Status: implemented; pending merge and CI verification.
 
 Scope:
 
@@ -378,7 +395,18 @@ Scope:
 - shared Python/component conformance fixtures;
 - at least one reference component provider.
 
+The versioned WIT package is `wit/soma-provider/world.wit`. Wasmtime detects
+components before falling back to the legacy core ABI, caches compiled
+artifacts, applies memory/table/instance/fuel limits, and uses a live epoch
+ticker so deadlines interrupt execution rather than only timing out the
+waiting task. `soma-provider-guest` supplies the reusable Rust core and
+explicit HTTP, secret, state, log, metric, and progress capability helpers.
+The reference Python and Rust component implementations share
+`examples/providers/components/conformance-v1.json`.
+
 ## Phase 10: Graduation Tooling
+
+Status: implemented; pending merge and CI verification.
 
 Planned commands:
 
@@ -395,6 +423,22 @@ Tooling should scaffold a reusable Rust core, PyO3 and WIT adapters, capture
 fixtures, compare old/new behavior, and atomically promote or roll back. It must
 clearly mark manual business-logic work and never claim arbitrary Python was
 translated automatically.
+
+All six commands are available under `soma providers`. `graduate` copies the
+source and optional recorded fixtures into an isolated workspace and emits a
+manual-rewrite core plus buildable thin PyO3 and WIT adapters.
+`build-component` builds or imports, verifies, and content-addresses a candidate;
+`verify-component` enforces the component ABI. `compare` accepts only
+side-effect-free providers and non-destructive actions owned by the graduated
+provider; filesystem, network, environment, terminal, browser, GitHub, secret,
+and state-write authority all fail closed before dual-run. It snapshots the
+fixture corpus once, executes live Python, feeds one retained prepared component
+the exact same host-owned execution envelope under one absolute deadline,
+checks the recorded result against the live result, and persists a source,
+catalog, fixture, and artifact digest-bound attestation only after the complete
+surface response passes the caller's byte limit.
+`activate`/`rollback` revalidate the live provider identity, update durable
+state atomically, and retain the previous artifact.
 
 ## Phase 11: Experimental `componentize-py`
 
@@ -441,7 +485,8 @@ These can land independently without delaying the runner:
 - stronger output-schema inference;
 - generated Python catalog models from canonical Rust schemas;
 - richer stubs;
-- broker-backed Context implementations.
+- additional typed SDK conveniences over the delivered broker-backed Context
+  services.
 
 ## Open Policy Decisions
 
@@ -458,15 +503,18 @@ These can land independently without delaying the runner:
 Defaults should favor reproducibility, offline restart, and fail-closed handling
 of unsupported dependency sources.
 
-## Recommended Delivery Order
+## Delivered Order and Next Work
 
-1. Add logging, progress, and brokered cancellation capability calls.
-2. Add brokered HTTP, secrets, and state.
-3. Add explicit execution profiles and enforced containment.
-4. Implement the WIT component ABI and shared conformance fixtures.
-5. Add graduation comparison, activation, and rollback tooling.
-6. Evaluate the experimental `componentize-py` path.
-7. Finish release provenance, performance budgets, and soak gates.
+Phases 8–10 delivered the capability broker, enforced containment, WIT
+component runtime, shared conformance path, isolated offline component builds,
+and source/catalog/fixture/artifact-bound graduation comparison, activation,
+and rollback workflow. The recommended next sequence is:
+
+1. Complete release signing, provenance, SBOM, and dependency-policy gates.
+2. Establish cold/warm performance budgets and mixed-provider soak coverage.
+3. Publish migration and operator recovery documentation.
+4. Evaluate the optional `componentize-py` experiment without weakening the
+   verified graduation path.
 
 The persistent runner and generation boundary are load-bearing. Do not bypass
 them to begin component or graduation work.

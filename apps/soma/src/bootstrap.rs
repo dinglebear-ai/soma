@@ -165,14 +165,62 @@ fn python_runner_selection(config: &Config) -> soma_application::PythonRunnerSel
                     max_pending_bytes: config.python.max_pending_bytes,
                     max_workers: config.python.max_workers,
                     max_candidate_starts: config.python.max_candidate_starts,
+                    execution_profile: match config.python.execution_profile {
+                        soma_config::PythonExecutionProfile::Disabled => {
+                            soma_application::PythonExecutionProfile::Disabled
+                        }
+                        soma_config::PythonExecutionProfile::Trusted => {
+                            soma_application::PythonExecutionProfile::Trusted
+                        }
+                        soma_config::PythonExecutionProfile::Brokered => {
+                            soma_application::PythonExecutionProfile::Brokered
+                        }
+                    },
                 },
             )
         }
     }
 }
 
-fn python_provider_runtime(config: &Config) -> Result<soma_application::PythonProviderRuntime> {
-    let runtime = soma_application::PythonProviderRuntime::new(python_runner_selection(config));
+fn python_provider_runtime(
+    config: &Config,
+    provider_root: &std::path::Path,
+) -> Result<soma_application::PythonProviderRuntime> {
+    if let Some(path) = std::env::var_os("SOMA_PROVIDER_STATE_PATH") {
+        soma_application::configure_provider_state_path(std::path::PathBuf::from(path))
+            .map_err(anyhow::Error::msg)?;
+    }
+    if let Some(root) = std::env::var_os("SOMA_GRADUATION_ROOT") {
+        soma_application::graduation::recover_all(std::path::Path::new(&root), provider_root)?;
+    }
+    let grants = [
+        soma_application::CapabilityGrant::Network {
+            allowed_hosts: config.python.broker_allowed_http_hosts.clone(),
+        },
+        soma_application::CapabilityGrant::Broker {
+            secret_names: config.python.broker_secret_names.clone(),
+            state_read_namespaces: config.python.broker_state_namespaces.clone(),
+            state_write_namespaces: config.python.broker_state_namespaces.clone(),
+            allow_logging: config.python.broker_allow_logging,
+            allow_metrics: config.python.broker_allow_metrics,
+            allow_progress: config.python.broker_allow_progress,
+        },
+    ];
+    let grants = config
+        .python
+        .broker_allowed_providers
+        .iter()
+        .flat_map(|provider| {
+            grants
+                .iter()
+                .cloned()
+                .map(move |grant| (provider.clone(), grant))
+        })
+        .collect();
+    let runtime = soma_application::PythonProviderRuntime::new(python_runner_selection(config))
+        .with_capability_broker(soma_application::capabilities::CapabilityBroker::new(
+            grants,
+        ));
     let environment = &config.python.environment;
     if !environment.enabled {
         return Ok(runtime);
@@ -429,6 +477,10 @@ pub(crate) async fn cli_application_with_provider_dir(
     config: &Config,
     provider_dir: Option<&std::path::Path>,
 ) -> Result<Arc<SomaApplication>> {
+    let default_provider_dir = std::env::var_os("SOMA_PROVIDER_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("providers"));
+    let runtime_provider_dir = provider_dir.unwrap_or(&default_provider_dir);
     let service = SomaService::new(SomaClient::new(&config.soma)?);
     let registry = if config.soma.is_remote_adapter() {
         soma_application::remote_provider_registry(service.clone()).await?
@@ -438,14 +490,14 @@ pub(crate) async fn cli_application_with_provider_dir(
                 soma_application::dynamic_provider_registry_from_dir_with_python_runtime(
                     service.clone(),
                     provider_dir,
-                    python_provider_runtime(config)?,
+                    python_provider_runtime(config, runtime_provider_dir)?,
                 )
                 .await?
             }
             None => {
                 soma_application::dynamic_provider_registry_with_python_runtime(
                     service.clone(),
-                    python_provider_runtime(config)?,
+                    python_provider_runtime(config, runtime_provider_dir)?,
                 )
                 .await?
             }
@@ -480,7 +532,14 @@ pub(crate) async fn stdio_state() -> Result<AppState> {
     } else {
         soma_application::dynamic_provider_registry_with_python_runtime(
             service.clone(),
-            python_provider_runtime(&config)?,
+            python_provider_runtime(
+                &config,
+                std::path::Path::new(
+                    std::env::var_os("SOMA_PROVIDER_DIR")
+                        .as_deref()
+                        .unwrap_or_else(|| std::ffi::OsStr::new("providers")),
+                ),
+            )?,
         )
         .await?
     };
@@ -509,7 +568,14 @@ pub(crate) async fn http_state() -> Result<AppState> {
     let service = SomaService::new(SomaClient::new(&config.soma)?);
     let provider_registry = soma_application::dynamic_provider_registry_with_python_runtime(
         service.clone(),
-        python_provider_runtime(&config)?,
+        python_provider_runtime(
+            &config,
+            std::path::Path::new(
+                std::env::var_os("SOMA_PROVIDER_DIR")
+                    .as_deref()
+                    .unwrap_or_else(|| std::ffi::OsStr::new("providers")),
+            ),
+        )?,
     )
     .await?;
     let gateway = gateway_product_state_from_env()?;

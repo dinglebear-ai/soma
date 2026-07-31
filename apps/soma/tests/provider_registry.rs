@@ -204,6 +204,10 @@ fn call(action: &str, params: serde_json::Value) -> ProviderCall {
         destructive_confirmed: false,
         limits: ProviderRequestLimits::default(),
         snapshot_id: String::new(),
+        request_id: String::new(),
+        traceparent: None,
+        tracestate: None,
+        progress: Default::default(),
     }
 }
 
@@ -563,9 +567,12 @@ async fn capability_grants_must_match_requested_scope() {
     });
     let registry = ProviderRegistry::with_capabilities(
         vec![provider],
-        CapabilityBroker::new(vec![CapabilityGrant::Network {
-            allowed_hosts: vec!["other.internal.example".to_owned()],
-        }]),
+        CapabilityBroker::new(vec![(
+            "demo".to_owned(),
+            CapabilityGrant::Network {
+                allowed_hosts: vec!["other.internal.example".to_owned()],
+            },
+        )]),
     )
     .expect("registry");
 
@@ -595,9 +602,12 @@ async fn matching_capability_grants_allow_requested_scope() {
     });
     let registry = ProviderRegistry::with_capabilities(
         vec![provider],
-        CapabilityBroker::new(vec![CapabilityGrant::Network {
-            allowed_hosts: vec!["api.internal.example".to_owned()],
-        }]),
+        CapabilityBroker::new(vec![(
+            "demo".to_owned(),
+            CapabilityGrant::Network {
+                allowed_hosts: vec!["api.internal.example".to_owned()],
+            },
+        )]),
     )
     .expect("registry");
 

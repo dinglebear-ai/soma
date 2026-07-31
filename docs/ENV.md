@@ -24,6 +24,17 @@ This file is generated from `ENV_KEY_SPECS` and typed config defaults. Run `carg
 
 | Variable | Default | Secret | TOML destination | Plugin option | Purpose |
 |---|---:|---:|---|---|---|
+| `SOMA_PROVIDER_STATE_PATH` | unset | no | - | - | Durable quota-enforced state file shared by Python and component provider generations. |
+| `SOMA_GRADUATION_ROOT` | unset | no | - | - | Absolute managed root containing agent-accessible graduation workspaces, fixtures, and component artifacts. |
+| `SOMA_PYTHON_BROKER_ALLOWED_PROVIDERS` | unset | no | `python.broker_allowed_providers` | - | CUSTOMIZE: document this environment variable. |
+| `SOMA_PYTHON_BROKER_ALLOWED_HTTP_HOSTS` | unset | no | `python.broker_allowed_http_hosts` | - | Comma-separated deployment allowlist intersected with provider-declared HTTPS hosts. |
+| `SOMA_PYTHON_BROKER_SECRET_NAMES` | unset | no | `python.broker_secret_names` | - | Comma-separated secret handles exposed through the broker; values use `SOMA_PROVIDER_SECRET_<NORMALIZED_NAME>`. |
+| `SOMA_PYTHON_BROKER_STATE_NAMESPACES` | unset | no | `python.broker_state_namespaces` | - | Comma-separated state namespaces available to brokered providers. |
+| `SOMA_PYTHON_BROKER_ALLOW_LOGGING` | unset | no | `python.broker_allow_logging` | - | Allow provider-declared structured logging through the broker. |
+| `SOMA_PYTHON_BROKER_ALLOW_METRICS` | unset | no | `python.broker_allow_metrics` | - | Allow provider-declared metrics through the broker. |
+| `SOMA_PYTHON_BROKER_ALLOW_PROGRESS` | unset | no | `python.broker_allow_progress` | - | Allow provider-declared progress events through the broker. |
+| `SOMA_PYTHON_BROKER_CGROUP_ROOT` | unset | no | - | - | Delegated cgroup-v2 root required for fail-closed Linux brokered containment. |
+| `SOMA_PYTHON_EXECUTION_PROFILE` | unset | no | `python.execution_profile` | - | Python execution profile: `disabled`, `trusted`, or fail-closed `brokered`. |
 | `SOMA_API_URL` | unset | no | `soma.api_url` | `CLAUDE_PLUGIN_OPTION_SOMA_API_URL` | Deployed platform API or upstream API base URL used by `SomaClient`. Empty selects offline stub mode. |
 | `SOMA_API_KEY` | unset | yes | `soma.api_key` | `CLAUDE_PLUGIN_OPTION_SOMA_API_KEY` | Bearer token or upstream API key. Keep secret. Required when the deployed API requires auth. |
 | `SOMA_PYTHON_ENVIRONMENT_ENABLED` | `false` | no | `python.environment.enabled` | - | Enable immutable PEP 723 Python environments. Disabled by default; all companion identity fields are required when enabled. |

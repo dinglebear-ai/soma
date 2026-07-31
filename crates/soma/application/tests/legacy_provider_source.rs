@@ -114,6 +114,10 @@ async fn unchanged_pre_extraction_provider_source_compiles_and_dispatches() {
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
+            progress: Default::default(),
         })
         .await
         .unwrap();

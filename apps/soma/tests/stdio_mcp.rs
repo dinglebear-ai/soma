@@ -176,7 +176,10 @@ async fn stdio_child_process_lists_tools_and_calls_actions() -> anyhow::Result<(
     )
     .await?;
     let status = structured_result_json(&status);
-    assert_eq!(status["status"], "ok", "status payload was {status}");
+    assert_eq!(
+        status["output"]["status"], "ok",
+        "status payload was {status}"
+    );
 
     let echo = bounded_stdio_operation(
         "stdio echo tool call",
@@ -192,7 +195,7 @@ async fn stdio_child_process_lists_tools_and_calls_actions() -> anyhow::Result<(
     )
     .await?;
     let echo = structured_result_json(&echo);
-    assert_eq!(echo["echo"], "stdio works");
+    assert_eq!(echo["output"]["echo"], "stdio works");
 
     bounded_stdio_operation(
         "stdio client cancellation",
@@ -297,7 +300,10 @@ async fn raw_stdio_json_rpc_preserves_structured_output_fields() -> anyhow::Resu
     let echo = read_json_rpc_response(&mut stdout, 3, STDIO_RESPONSE_TIMEOUT).await?;
     let echo_result = &echo["result"];
     assert_eq!(echo_result["structuredContent"]["_soma_action"], "echo");
-    assert_eq!(echo_result["structuredContent"]["echo"], "raw stdio works");
+    assert_eq!(
+        echo_result["structuredContent"]["output"]["echo"],
+        "raw stdio works"
+    );
     let echo_text: serde_json::Value =
         serde_json::from_str(echo_result["content"][0]["text"].as_str().unwrap())?;
     assert_eq!(echo_text, echo_result["structuredContent"]);

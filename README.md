@@ -493,7 +493,9 @@ tool with these explicit actions:
 - persistent workers: `python_worker_status`, `python_worker_cancel`, and
   `python_worker_reset`;
 - provider generations: `python_generation_status` and
-  `python_generation_rollback`.
+  `python_generation_rollback`;
+- Python-to-component graduation: `python_graduation_status` and confirmed
+  `python_graduation_apply`.
 
 Built-in business actions keep MCP + CLI + REST parity unless there is a
 protocol reason they cannot. `elicit_name` and `scaffold_intent` are MCP-only

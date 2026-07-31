@@ -61,7 +61,7 @@ jobs:
   # and produce an artifact for download, but do not deploy.
   rustdoc:
     name: Build rustdoc
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     timeout-minutes: 20
     permissions:
       contents: read
@@ -105,7 +105,7 @@ jobs:
     name: Deploy to Pages
     needs: rustdoc
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: [self-hosted, ci-pool-ops]
+    runs-on: ci-pool-ops
     timeout-minutes: 10
     environment:
       name: github-pages

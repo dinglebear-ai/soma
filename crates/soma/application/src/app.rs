@@ -20,6 +20,8 @@ use crate::{
     ScaffoldIntentRequest, SomaService,
 };
 
+#[path = "app_python_graduation.rs"]
+mod python_graduation;
 #[path = "app_python_operations.rs"]
 mod python_operations;
 #[cfg(test)]
@@ -69,6 +71,8 @@ impl SomaApplication {
                 | "python_worker_reset"
                 | "python_generation_status"
                 | "python_generation_rollback"
+                | "python_graduation_status"
+                | "python_graduation_apply"
         ) {
             return self
                 .execute_python_environment_action(request, context)
@@ -84,18 +88,32 @@ impl SomaApplication {
             provider: String::new(),
             action: request.action,
             params: request.params,
-            principal: provider_principal(context.principal.as_ref()),
+            principal: provider_invocation_principal(&context),
             auth_mode: provider_auth_mode(context.authorization_mode),
             surface: provider_surface(context.surface),
             destructive_confirmed: context.destructive_confirmation.is_confirmed(),
             limits,
             snapshot_id: String::new(),
+            request_id: context.request_id.as_str().to_owned(),
+            traceparent: context
+                .trace
+                .as_ref()
+                .and_then(|trace| trace.traceparent.clone()),
+            tracestate: context
+                .trace
+                .as_ref()
+                .and_then(|trace| trace.tracestate.clone()),
+            progress: Default::default(),
         };
+        let max_response_bytes = call.limits.max_response_bytes;
         let output = self.legacy_registry.dispatch(call).await?;
-        Ok(ExecuteActionResponse {
+        let response = ExecuteActionResponse {
             output: output.value,
             request_id: context.request_id.as_str().to_owned(),
-        })
+            progress: output.progress,
+        };
+        response.enforce_serialized_limit(max_response_bytes)?;
+        Ok(response)
     }
 
     /// Build the greeting for the elicited-name demo from the collected outcome.
@@ -627,6 +645,20 @@ fn provider_principal(principal: Option<&Principal>) -> ProviderPrincipal {
             scopes: principal.scopes.to_vec(),
         }
     })
+}
+
+fn provider_invocation_principal(context: &ExecutionContext) -> ProviderPrincipal {
+    if let Some(principal) = context.principal.as_ref() {
+        return provider_principal(Some(principal));
+    }
+    match context.authorization_mode {
+        AuthorizationMode::LoopbackDev => ProviderPrincipal::loopback_dev(),
+        AuthorizationMode::TrustedGateway => ProviderPrincipal {
+            subject: "trusted-gateway".to_owned(),
+            scopes: vec![WRITE_SCOPE.to_owned()],
+        },
+        AuthorizationMode::Mounted => ProviderPrincipal::anonymous(),
+    }
 }
 
 fn provider_auth_mode(mode: AuthorizationMode) -> ProviderAuthMode {

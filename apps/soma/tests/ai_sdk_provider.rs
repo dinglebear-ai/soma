@@ -59,6 +59,10 @@ export async function call(input) {
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
+            progress: Default::default(),
         })
         .await?;
 
@@ -201,6 +205,10 @@ async fn dispatch(
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
+            progress: Default::default(),
         })
         .await?;
     Ok(output.value)

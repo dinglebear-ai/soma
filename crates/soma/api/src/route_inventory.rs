@@ -162,6 +162,20 @@ pub const REST_ROUTES: &[RestRoute] = &[
         description: "Atomically reactivate a retained Python provider generation.",
     },
     RestRoute {
+        method: "POST",
+        path: "/v1/python/graduation/status",
+        action: Some("python_graduation_status"),
+        auth: "mounted auth policy; requires soma:read and soma:admin",
+        description: "Inspect digest-bound Python graduation state.",
+    },
+    RestRoute {
+        method: "POST",
+        path: "/v1/python/graduation/apply",
+        action: Some("python_graduation_apply"),
+        auth: "mounted auth policy; requires soma:write, soma:admin, and confirmation",
+        description: "Run a confirmed Python graduation operation.",
+    },
+    RestRoute {
         method: "GET",
         path: "/v1/help",
         action: Some("help"),

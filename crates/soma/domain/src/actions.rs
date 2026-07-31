@@ -14,10 +14,13 @@
 //! that hazard.
 
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
+#[path = "actions_help.rs"]
+mod help;
 #[path = "actions_python.rs"]
 mod python;
+pub use help::rest_help;
 
 // ── Action error types ────────────────────────────────────────────────────────
 
@@ -366,6 +369,8 @@ pub const ACTION_SPECS: &[ActionSpec] = &[
     python::WORKER_RESET,
     python::GENERATION_STATUS,
     python::GENERATION_ROLLBACK,
+    python::GRADUATION_STATUS,
+    python::GRADUATION_APPLY,
     ActionSpec {
         name: "elicit_name",
         description: "Ask the MCP client to collect a name, then return a personalised greeting.",
@@ -724,6 +729,24 @@ pub enum SomaAction {
         /// Retained generation identifier.
         generation_id: u64,
     },
+    /// Inspect one Python graduation workspace.
+    PythonGraduationStatus {
+        /// Absolute graduation workspace path.
+        workspace: String,
+    },
+    /// Run one confirmed Python graduation mutation.
+    PythonGraduationApply {
+        /// Operation name.
+        operation: String,
+        /// Absolute graduation workspace path.
+        workspace: String,
+        /// Optional Python source path.
+        source: Option<String>,
+        /// Optional component path.
+        component: Option<String>,
+        /// Optional fixture corpus path.
+        fixtures: Option<String>,
+    },
     /// Show the action reference.
     Help,
     /// Ask the MCP client to collect a name, then greet it (MCP-only).
@@ -749,6 +772,8 @@ impl SomaAction {
             Self::PythonWorkerReset { .. } => "python_worker_reset",
             Self::PythonGenerationStatus => "python_generation_status",
             Self::PythonGenerationRollback { .. } => "python_generation_rollback",
+            Self::PythonGraduationStatus { .. } => "python_graduation_status",
+            Self::PythonGraduationApply { .. } => "python_graduation_apply",
             Self::Help => "help",
             Self::ElicitName => "elicit_name",
             Self::ScaffoldIntent => "scaffold_intent",
@@ -827,6 +852,16 @@ impl SomaAction {
             "python_generation_rollback" => Ok(Self::PythonGenerationRollback {
                 generation_id: required_u64_param(params, "generation_id")?,
             }),
+            "python_graduation_status" => Ok(Self::PythonGraduationStatus {
+                workspace: required_string_param(params, "workspace")?,
+            }),
+            "python_graduation_apply" => Ok(Self::PythonGraduationApply {
+                operation: required_string_param(params, "operation")?,
+                workspace: required_string_param(params, "workspace")?,
+                source: optional_string_param(params, "source")?,
+                component: optional_string_param(params, "component")?,
+                fixtures: optional_string_param(params, "fixtures")?,
+            }),
             "help" => Ok(Self::Help),
             "elicit_name" => Ok(Self::ElicitName),
             "scaffold_intent" => Ok(Self::ScaffoldIntent),
@@ -835,22 +870,6 @@ impl SomaAction {
             })),
         }
     }
-}
-
-/// Builds the JSON help payload describing the REST surface and examples.
-pub fn rest_help() -> Value {
-    json!({
-        "actions": rest_action_names(),
-        "mcp_only_actions": mcp_only_action_names(),
-        "catalog": action_catalog(),
-        "preferred_rest_style": "direct_routes",
-        "usage": "Use direct REST routes such as POST /v1/echo or GET /v1/status. MCP keeps a single action-dispatched tool; REST does not expose an action envelope.",
-        "examples": {
-            "greet":  {"method": "POST", "path": "/v1/greet",  "body": {"name": "Alice"}},
-            "echo":   {"method": "POST", "path": "/v1/echo",   "body": {"message": "Hello!"}},
-            "status": {"method": "GET", "path": "/v1/status"},
-        }
-    })
 }
 
 fn optional_string_param(params: &Value, name: &str) -> Result<Option<String>, ValidationError> {

@@ -10,6 +10,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::python_environment::PythonEnvironmentConfig;
+mod env;
+use env::{
+    boolean as env_bool, list as env_list, optional_parse as env_opt_parse,
+    optional_string as env_opt_str, parse as env_parse, string as env_str,
+};
+#[path = "python_runner_profile.rs"]
+mod python_runner_profile;
+pub use python_runner_profile::{PythonExecutionProfile, PythonRunnerMode};
 
 /// CUSTOMIZE: Replace with your service name (e.g. ".unraid", ".gotify").
 const SERVICE_HOME_DIRNAME: &str = ".soma";
@@ -23,23 +31,24 @@ pub struct Config {
     pub python: PythonRunnerConfig,
 }
 
-/// Python provider execution mode.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub enum PythonRunnerMode {
-    /// Spawn one bounded interpreter for each catalog or invocation request.
-    #[default]
-    OneShot,
-    /// Reuse one supervised interpreter per active Python provider.
-    Persistent,
-}
-
 /// Limits for the optional persistent Python provider runner.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct PythonRunnerConfig {
     pub environment: PythonEnvironmentConfig,
     pub mode: PythonRunnerMode,
+    pub execution_profile: PythonExecutionProfile,
+    /// Provider identities eligible for broker deployment grants.
+    pub broker_allowed_providers: Vec<String>,
+    /// Deployment-policy allowlist for brokered outbound HTTP.
+    pub broker_allowed_http_hosts: Vec<String>,
+    /// Deployment-policy allowlist for secret handles exposed to providers.
+    pub broker_secret_names: Vec<String>,
+    /// Deployment-policy allowlist for durable state namespaces.
+    pub broker_state_namespaces: Vec<String>,
+    pub broker_allow_logging: bool,
+    pub broker_allow_metrics: bool,
+    pub broker_allow_progress: bool,
     pub startup_timeout_ms: u64,
     pub request_timeout_ms: u64,
     pub shutdown_grace_ms: u64,
@@ -57,6 +66,14 @@ impl Default for PythonRunnerConfig {
         Self {
             environment: PythonEnvironmentConfig::default(),
             mode: PythonRunnerMode::OneShot,
+            execution_profile: PythonExecutionProfile::Trusted,
+            broker_allowed_providers: Vec::new(),
+            broker_allowed_http_hosts: Vec::new(),
+            broker_secret_names: Vec::new(),
+            broker_state_namespaces: Vec::new(),
+            broker_allow_logging: false,
+            broker_allow_metrics: false,
+            broker_allow_progress: false,
             startup_timeout_ms: 10_000,
             request_timeout_ms: 10_000,
             shutdown_grace_ms: 2_000,
@@ -73,6 +90,18 @@ impl Default for PythonRunnerConfig {
 
 impl PythonRunnerConfig {
     fn validate(&self) -> anyhow::Result<()> {
+        if self.execution_profile != PythonExecutionProfile::Trusted
+            && self.mode != PythonRunnerMode::Persistent
+        {
+            anyhow::bail!(
+                "SOMA_PYTHON_EXECUTION_PROFILE={} requires SOMA_PYTHON_RUNNER_MODE=persistent",
+                match self.execution_profile {
+                    PythonExecutionProfile::Disabled => "disabled",
+                    PythonExecutionProfile::Trusted => "trusted",
+                    PythonExecutionProfile::Brokered => "brokered",
+                }
+            );
+        }
         for (name, value) in [
             (
                 "SOMA_PYTHON_RUNNER_STARTUP_TIMEOUT_MS",
@@ -533,6 +562,10 @@ impl Config {
             &mut config.mcp.auth.authelia_callback_path,
         );
         env_list(
+            "SOMA_PYTHON_BROKER_ALLOWED_PROVIDERS",
+            &mut config.python.broker_allowed_providers,
+        );
+        env_list(
             "SOMA_MCP_AUTHELIA_SCOPES",
             &mut config.mcp.auth.authelia_scopes,
         );
@@ -655,6 +688,42 @@ impl Config {
                 ),
             };
         }
+        if let Ok(value) = std::env::var("SOMA_PYTHON_EXECUTION_PROFILE")
+            && !value.is_empty()
+        {
+            config.python.execution_profile = match value.to_ascii_lowercase().as_str() {
+                "disabled" => PythonExecutionProfile::Disabled,
+                "trusted" => PythonExecutionProfile::Trusted,
+                "brokered" => PythonExecutionProfile::Brokered,
+                other => anyhow::bail!(
+                    "invalid SOMA_PYTHON_EXECUTION_PROFILE {other:?}: must be \"disabled\", \"trusted\", or \"brokered\""
+                ),
+            };
+        }
+        env_list(
+            "SOMA_PYTHON_BROKER_ALLOWED_HTTP_HOSTS",
+            &mut config.python.broker_allowed_http_hosts,
+        );
+        env_list(
+            "SOMA_PYTHON_BROKER_SECRET_NAMES",
+            &mut config.python.broker_secret_names,
+        );
+        env_list(
+            "SOMA_PYTHON_BROKER_STATE_NAMESPACES",
+            &mut config.python.broker_state_namespaces,
+        );
+        env_bool(
+            "SOMA_PYTHON_BROKER_ALLOW_LOGGING",
+            &mut config.python.broker_allow_logging,
+        )?;
+        env_bool(
+            "SOMA_PYTHON_BROKER_ALLOW_METRICS",
+            &mut config.python.broker_allow_metrics,
+        )?;
+        env_bool(
+            "SOMA_PYTHON_BROKER_ALLOW_PROGRESS",
+            &mut config.python.broker_allow_progress,
+        )?;
         env_parse(
             "SOMA_PYTHON_RUNNER_STARTUP_TIMEOUT_MS",
             &mut config.python.startup_timeout_ms,
@@ -754,71 +823,6 @@ impl Config {
         config.python.validate()?;
 
         Ok(config)
-    }
-}
-
-// ── env helpers ───────────────────────────────────────────────────────────────
-
-fn env_str(key: &str, target: &mut String) {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = v;
-    }
-}
-
-fn env_opt_str(key: &str, target: &mut Option<String>) {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = Some(v);
-    }
-}
-
-fn env_parse<T: std::str::FromStr>(key: &str, target: &mut T) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = v
-            .parse()
-            .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?;
-    }
-    Ok(())
-}
-
-fn env_opt_parse<T: std::str::FromStr>(key: &str, target: &mut Option<T>) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key)
-        && !v.is_empty()
-    {
-        *target = Some(
-            v.parse()
-                .map_err(|_| anyhow::anyhow!("{key}: invalid value {v:?}"))?,
-        );
-    }
-    Ok(())
-}
-
-fn env_bool(key: &str, target: &mut bool) -> anyhow::Result<()> {
-    if let Ok(v) = std::env::var(key) {
-        match v.to_lowercase().as_str() {
-            "1" | "true" | "yes" => *target = true,
-            "0" | "false" | "no" => *target = false,
-            other => anyhow::bail!("{key}: expected bool, got {other:?}"),
-        }
-    }
-    Ok(())
-}
-
-fn env_list(key: &str, target: &mut Vec<String>) {
-    if let Ok(v) = std::env::var(key) {
-        let items: Vec<String> = v
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        if !items.is_empty() {
-            *target = items;
-        }
     }
 }
 

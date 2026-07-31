@@ -38,8 +38,8 @@ async fn remote_cli_dynamic_action_posts_to_server_api() -> anyhow::Result<()> {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout: Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(stdout["ok"], true);
-    assert_eq!(stdout["city"], "Paris");
+    assert_eq!(stdout["output"]["ok"], true);
+    assert_eq!(stdout["output"]["city"], "Paris");
 
     let observed = observed.lock().expect("observed requests should lock");
     assert_eq!(observed.len(), 1);

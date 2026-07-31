@@ -149,6 +149,7 @@ const CHECKED_SRC_ROOTS: &[&str] = &[
     "crates/shared/mcp/server/src",
     "crates/shared/observability/src",
     "crates/shared/openapi/src",
+    "crates/shared/provider-guest/src",
     "crates/soma/api/src",
     "crates/soma/cli/src",
     "crates/soma/client/src",

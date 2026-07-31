@@ -569,7 +569,7 @@ def inspect_context(message: str, ctx: Context) -> dict:
 
     let output = dispatch(&registry, "inspect_context", json!({"message": "ready"})).await?;
     assert_eq!(output["message"], "ready");
-    assert_eq!(output["request_id"], 0);
+    assert_eq!(output["request_id"], "0");
     assert_eq!(output["provider"], "context-python");
     assert_eq!(output["action"], "inspect_context");
     assert_eq!(output["surface"], "mcp");
@@ -612,7 +612,9 @@ def shout(message: str) -> dict:
         String::from_utf8_lossy(&output.stderr)
     );
     let value: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(value, json!({"message": "HELLO"}));
+    assert_eq!(value["output"], json!({"message": "HELLO"}));
+    assert!(value["request_id"].is_string());
+    assert_eq!(value["progress"], json!([]));
     Ok(())
 }
 
@@ -1204,6 +1206,10 @@ async fn dispatch_with_confirmation(
             destructive_confirmed,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
+            progress: Default::default(),
         })
         .await?;
     Ok(output.value)

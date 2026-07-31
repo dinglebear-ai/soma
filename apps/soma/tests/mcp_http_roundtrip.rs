@@ -104,7 +104,10 @@ async fn streamable_http_round_trip_lists_tools_and_calls_actions() -> anyhow::R
         )
         .await?;
     let status = structured_result_json(&status);
-    assert_eq!(status["status"], "ok", "status payload was {status}");
+    assert_eq!(
+        status["output"]["status"], "ok",
+        "status payload was {status}"
+    );
 
     let echo = service
         .call_tool(
@@ -117,7 +120,7 @@ async fn streamable_http_round_trip_lists_tools_and_calls_actions() -> anyhow::R
         )
         .await?;
     let echo = structured_result_json(&echo);
-    assert_eq!(echo["echo"], "http round trip works");
+    assert_eq!(echo["output"]["echo"], "http round trip works");
 
     let missing_message = service
         .call_tool(
