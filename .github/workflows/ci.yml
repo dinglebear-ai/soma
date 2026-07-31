@@ -89,7 +89,7 @@ jobs:
     name: Actionlint and ShellCheck
     needs: [changes]
     if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@98e40816bfab64ed9fcce82236e9ecb0c0055d7d
+    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
     with:
       actionlint-version: v1.7.12
       shell-globs: .github/scripts/**/*.sh
@@ -99,11 +99,12 @@ jobs:
     name: Fast Rust
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@98e40816bfab64ed9fcce82236e9ecb0c0055d7d
+    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
     with:
       toolchain: "1.97.1"
       timeout-minutes: 35
       kache-manifest-key: soma-fast-rust
+      uv-version: "0.11.31"
       setup-command: uv sync --project packages/python --frozen
       test-command: cargo test --workspace --locked --exclude soma-provider-python
     secrets:
@@ -213,7 +214,7 @@ jobs:
     name: Frontend checks
     needs: [changes]
     if: ${{ (needs.changes.outputs.web == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.mcp == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@98e40816bfab64ed9fcce82236e9ecb0c0055d7d
+    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
     with:
       node-version: "22"
       pnpm-version: "10"
@@ -422,7 +423,7 @@ jobs:
     name: Cargo Deny
     needs: [changes]
     if: ${{ needs.changes.outputs.security == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@98e40816bfab64ed9fcce82236e9ecb0c0055d7d
+    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
     with:
       toolchain: "1.97.1"
       cargo-deny-version: "0.19.8"

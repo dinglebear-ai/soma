@@ -56,7 +56,7 @@ jobs:
     name: Minimum Supported Rust Version
     needs: [changes]
     if: ${{ (needs.changes.outputs.rust == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.toml == 'true' || needs.changes.outputs.workflow == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/rust-msrv.yml@98e40816bfab64ed9fcce82236e9ecb0c0055d7d
+    uses: dinglebear-ai/workflows/.github/workflows/rust-msrv.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
     with:
       msrv: "1.97.1"
       timeout-minutes: 40
