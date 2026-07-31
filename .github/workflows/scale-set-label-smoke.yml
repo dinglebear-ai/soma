@@ -16,7 +16,5 @@ jobs:
     steps:
       - name: Report runner
         run: |
-          printf 'runner_name=%s
-' "$RUNNER_NAME"
-          printf 'runner_os=%s
-' "$RUNNER_OS"
+          echo "runner_name=$RUNNER_NAME"
+          echo "runner_os=$RUNNER_OS"
