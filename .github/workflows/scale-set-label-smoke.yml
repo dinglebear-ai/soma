@@ -1,0 +1,22 @@
+name: Scale-set label smoke
+
+on:
+  push:
+    branches:
+      - codex/scale-set-label-smoke-20260731
+
+permissions:
+  contents: read
+
+jobs:
+  label-array:
+    name: Label array routing
+    runs-on: [ci-pool-ops]
+    timeout-minutes: 5
+    steps:
+      - name: Report runner
+        run: |
+          printf 'runner_name=%s
+' "$RUNNER_NAME"
+          printf 'runner_os=%s
+' "$RUNNER_OS"
