@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "provider_fingerprint": "sha256:3b6be9f1d729594eaee5e3fb9fed48ddb10f0ea95c3d938a9632f6663f586e6d",
+  "provider_fingerprint": "sha256:1d2417045a14e47fc38ed92cba9774b47b56043482692cdb69f4a1538684bf02",
   "provider_execution_abi": {
     "schema_version": 1,
     "request_fields": [
@@ -328,6 +328,444 @@
           }
         },
         {
+          "name": "python_environment_status",
+          "description": "Inspect immutable Python environment cache state without executing provider code.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonEnvironmentStatus.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": false,
+          "requires_admin": true,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_environment_status",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_environment_status",
+          "rest": true,
+          "rest_route": "GET /v1/python/environments",
+          "examples": [],
+          "meta": {
+            "returns": "PythonEnvironmentStatus",
+            "cli_usage": "soma python_environment_status",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_environment_prune_plan",
+          "description": "Plan a bounded prune of stale non-ready Python environment cache entries.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stale_before_unix_seconds": {
+                "type": "integer",
+                "description": "Only select non-ready cache entries last modified at or before this Unix timestamp."
+              },
+              "max_entries": {
+                "type": "integer",
+                "description": "Maximum cache entries to inspect in this bounded operation (default 100, maximum 1000)."
+              }
+            },
+            "required": [
+              "stale_before_unix_seconds"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonEnvironmentPrunePlan.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": false,
+          "requires_admin": true,
+          "cost": "moderate",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_environment_prune_plan",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_environment_prune_plan --json '{\"stale_before_unix_seconds\": 0}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/environments/prune-plan",
+          "examples": [],
+          "meta": {
+            "returns": "PythonEnvironmentPrunePlan",
+            "cli_usage": "soma python_environment_prune_plan --json '{\"stale_before_unix_seconds\": 0}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_environment_prune",
+          "description": "Apply a bounded prune of stale non-ready Python environment cache entries.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stale_before_unix_seconds": {
+                "type": "integer",
+                "description": "Only select non-ready cache entries last modified at or before this Unix timestamp."
+              },
+              "max_entries": {
+                "type": "integer",
+                "description": "Maximum cache entries to remove in this bounded operation (default 100, maximum 1000)."
+              },
+              "confirm": {
+                "type": "boolean",
+                "description": "Must be true to apply the destructive prune plan."
+              }
+            },
+            "required": [
+              "stale_before_unix_seconds",
+              "confirm"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonEnvironmentPruneReport.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": true,
+          "requires_admin": false,
+          "cost": "write",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_environment_prune",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_environment_prune --json '{\"stale_before_unix_seconds\": 0, \"confirm\": true}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/environments/prune",
+          "examples": [],
+          "meta": {
+            "returns": "PythonEnvironmentPruneReport",
+            "cli_usage": "soma python_environment_prune --json '{\"stale_before_unix_seconds\": 0, \"confirm\": true}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_environment_repair",
+          "description": "Repair the immutable environment for one managed Python provider.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "provider_path": {
+                "type": "string",
+                "description": "Managed Python provider path, relative to the configured provider directory or absolute within it.",
+                "minLength": 1
+              },
+              "confirm": {
+                "type": "boolean",
+                "description": "Must be true to mutate the provider environment lifecycle."
+              }
+            },
+            "required": [
+              "provider_path",
+              "confirm"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonEnvironmentRepairReport.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": true,
+          "requires_admin": false,
+          "cost": "write",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_environment_repair",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_environment_repair --json '{\"provider_path\": \"example.py\", \"confirm\": true}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/environments/repair",
+          "examples": [],
+          "meta": {
+            "returns": "PythonEnvironmentRepairReport",
+            "cli_usage": "soma python_environment_repair --json '{\"provider_path\": \"example.py\", \"confirm\": true}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_environment_update",
+          "description": "Resolve, prepare, validate, and atomically activate an immutable update for one managed Python provider.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "provider_path": {
+                "type": "string",
+                "description": "Managed Python provider path, relative to the configured provider directory or absolute within it.",
+                "minLength": 1
+              },
+              "confirm": {
+                "type": "boolean",
+                "description": "Must be true to mutate the provider environment lifecycle."
+              }
+            },
+            "required": [
+              "provider_path",
+              "confirm"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonEnvironmentUpdateReport.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": true,
+          "requires_admin": false,
+          "cost": "write",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_environment_update",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_environment_update --json '{\"provider_path\": \"example.py\", \"confirm\": true}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/environments/update",
+          "examples": [],
+          "meta": {
+            "returns": "PythonEnvironmentUpdateReport",
+            "cli_usage": "soma python_environment_update --json '{\"provider_path\": \"example.py\", \"confirm\": true}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_worker_status",
+          "description": "Inspect persistent Python worker health, quarantine, restart counts, and bounded redacted logs.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonWorkerStatus.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": false,
+          "requires_admin": true,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_worker_status",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_worker_status",
+          "rest": true,
+          "rest_route": "GET /v1/python/workers",
+          "examples": [],
+          "meta": {
+            "returns": "PythonWorkerStatus",
+            "cli_usage": "soma python_worker_status",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_worker_cancel",
+          "description": "Cancel one active persistent Python invocation by terminating its process tree.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "provider": {
+                "type": "string",
+                "description": "Loaded persistent Python provider name.",
+                "minLength": 1
+              },
+              "confirm": {
+                "type": "boolean",
+                "description": "Must be true to interrupt or reset worker state."
+              }
+            },
+            "required": [
+              "provider",
+              "confirm"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonWorkerCancellation.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": true,
+          "requires_admin": false,
+          "cost": "write",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_worker_cancel",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_worker_cancel --json '{\"provider\": \"example\", \"confirm\": true}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/workers/cancel",
+          "examples": [],
+          "meta": {
+            "returns": "PythonWorkerCancellation",
+            "cli_usage": "soma python_worker_cancel --json '{\"provider\": \"example\", \"confirm\": true}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_worker_reset",
+          "description": "Clear one persistent Python worker crash-loop quarantine.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "provider": {
+                "type": "string",
+                "description": "Loaded persistent Python provider name.",
+                "minLength": 1
+              },
+              "confirm": {
+                "type": "boolean",
+                "description": "Must be true to interrupt or reset worker state."
+              }
+            },
+            "required": [
+              "provider",
+              "confirm"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonWorkerReset.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": true,
+          "requires_admin": false,
+          "cost": "write",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_worker_reset",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_worker_reset --json '{\"provider\": \"example\", \"confirm\": true}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/workers/reset",
+          "examples": [],
+          "meta": {
+            "returns": "PythonWorkerReset",
+            "cli_usage": "soma python_worker_reset --json '{\"provider\": \"example\", \"confirm\": true}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_generation_status",
+          "description": "Inspect the active Python provider generation and bounded rollback history.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonGenerationStatus.",
+            "additionalProperties": true
+          },
+          "scope": "soma:read",
+          "destructive": false,
+          "requires_admin": false,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_generation_status",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_generation_status",
+          "rest": true,
+          "rest_route": "GET /v1/python/generations",
+          "examples": [],
+          "meta": {
+            "returns": "PythonGenerationStatus",
+            "cli_usage": "soma python_generation_status",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_generation_rollback",
+          "description": "Atomically reactivate a retained Python provider generation.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "generation_id": {
+                "type": "integer",
+                "description": "Retained generation identifier to reactivate."
+              },
+              "confirm": {
+                "type": "boolean",
+                "description": "Must be true to replace the active generation."
+              }
+            },
+            "required": [
+              "generation_id",
+              "confirm"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonGenerationRollback.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": true,
+          "requires_admin": false,
+          "cost": "write",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_generation_rollback",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_generation_rollback --json '{\"generation_id\": 1, \"confirm\": true}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/generations/rollback",
+          "examples": [],
+          "meta": {
+            "returns": "PythonGenerationRollback",
+            "cli_usage": "soma python_generation_rollback --json '{\"generation_id\": 1, \"confirm\": true}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
           "name": "elicit_name",
           "description": "Ask the MCP client to collect a name, then return a personalised greeting.",
           "input_schema": {
@@ -547,7 +985,17 @@
       "elicit_name",
       "greet",
       "help",
+      "python_environment_prune",
+      "python_environment_prune_plan",
+      "python_environment_repair",
+      "python_environment_status",
+      "python_environment_update",
+      "python_generation_rollback",
+      "python_generation_status",
       "python_runtime_check",
+      "python_worker_cancel",
+      "python_worker_reset",
+      "python_worker_status",
       "scaffold_intent",
       "status"
     ],
@@ -556,7 +1004,17 @@
       "echo",
       "greet",
       "help",
+      "python_environment_prune",
+      "python_environment_prune_plan",
+      "python_environment_repair",
+      "python_environment_status",
+      "python_environment_update",
+      "python_generation_rollback",
+      "python_generation_status",
       "python_runtime_check",
+      "python_worker_cancel",
+      "python_worker_reset",
+      "python_worker_status",
       "status"
     ],
     "cli_commands": [
@@ -564,15 +1022,35 @@
       "echo",
       "greet",
       "help",
+      "python_environment_prune",
+      "python_environment_prune_plan",
+      "python_environment_repair",
+      "python_environment_status",
+      "python_environment_update",
+      "python_generation_rollback",
+      "python_generation_status",
       "python_runtime_check",
+      "python_worker_cancel",
+      "python_worker_reset",
+      "python_worker_status",
       "status"
     ],
     "rest_routes": [
       "GET /v1/help",
+      "GET /v1/python/environments",
+      "GET /v1/python/generations",
+      "GET /v1/python/workers",
       "GET /v1/status",
       "POST /v1/echo",
       "POST /v1/greet",
       "POST /v1/providers/ai-sdk-brief",
+      "POST /v1/python/environments/prune",
+      "POST /v1/python/environments/prune-plan",
+      "POST /v1/python/environments/repair",
+      "POST /v1/python/environments/update",
+      "POST /v1/python/generations/rollback",
+      "POST /v1/python/workers/cancel",
+      "POST /v1/python/workers/reset",
       "POST /v1/tools/python_runtime_check"
     ],
     "docs": "docs/generated/provider-surfaces.md",
