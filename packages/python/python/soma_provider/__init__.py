@@ -156,36 +156,46 @@ class Http(Protocol):
         *,
         headers: Mapping[str, str] | None = None,
         body: bytes | None = None,
-    ) -> Any: ...
+    ) -> Any:
+        pass
 
 
 class Secrets(Protocol):
-    async def get(self, name: str) -> str: ...
+    async def get(self, name: str) -> str:
+        pass
 
 
 class State(Protocol):
-    async def get(self, key: str) -> Any: ...
+    async def get(self, key: str) -> Any:
+        pass
 
-    async def set(self, key: str, value: Any) -> None: ...
+    async def set(self, key: str, value: Any) -> None:
+        pass
 
 
 class Log(Protocol):
-    async def emit(self, level: str, message: str, **fields: Any) -> None: ...
+    async def emit(self, level: str, message: str, **fields: Any) -> None:
+        pass
 
 
 class Metrics(Protocol):
-    async def increment(self, name: str, value: int = 1, **labels: str) -> None: ...
+    async def increment(self, name: str, value: int = 1, **labels: str) -> None:
+        pass
 
-    async def duration(self, name: str, seconds: float, **labels: str) -> None: ...
+    async def duration(self, name: str, seconds: float, **labels: str) -> None:
+        pass
+
 
 class Progress(Protocol):
     async def update(
         self, current: int, *, total: int | None = None, message: str | None = None
-    ) -> None: ...
+    ) -> None:
+        pass
 
 
 class Cancellation(Protocol):
-    async def is_cancelled(self) -> bool: ...
+    async def is_cancelled(self) -> bool:
+        pass
 
 
 _host_caller: Callable[[str, str, dict[str, Any]], Any] | None = None

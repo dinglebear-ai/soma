@@ -43,6 +43,7 @@ pub mod wasm;
 
 /// Configure the process-shared durable provider state file before any
 /// Python or component provider is constructed.
+#[cfg(any(feature = "python", feature = "wasm"))]
 pub fn configure_provider_state_path(path: std::path::PathBuf) -> Result<(), String> {
     broker_state::configure(path)
 }

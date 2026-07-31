@@ -178,7 +178,6 @@ class Worker:
         invocation = message.get("invocation", {})
         invocation.setdefault("request_id", str(message.get("request_id", "")))
         action = invocation.get("action")
-        invocation_id = str(invocation.get("invocation_id", ""))
         previous_host_caller = __import__("soma_provider")._set_host_caller(self.host_call)
         try:
             kind, tool = _runtime.resolve_tool(self.module, action)
