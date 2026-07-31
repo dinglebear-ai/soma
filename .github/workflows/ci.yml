@@ -44,7 +44,7 @@ jobs:
   changes:
     name: Changes
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     timeout-minutes: 10
     outputs:
       all: ${{ steps.classify.outputs.all }}
@@ -89,7 +89,7 @@ jobs:
     name: Actionlint and ShellCheck
     needs: [changes]
     if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       actionlint-version: v1.7.12
       shell-globs: .github/scripts/**/*.sh
@@ -99,7 +99,7 @@ jobs:
     name: Fast Rust
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       toolchain: "1.97.1"
       timeout-minutes: 35
@@ -116,7 +116,7 @@ jobs:
     name: Architecture
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -135,7 +135,7 @@ jobs:
     name: Test
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -232,7 +232,7 @@ jobs:
     name: Frontend checks
     needs: [changes]
     if: ${{ (needs.changes.outputs.web == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.mcp == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       node-version: "22"
       pnpm-version: "10"
@@ -246,7 +246,7 @@ jobs:
   # -- mcp-smoke: live MCP HTTP tool/resource smoke through mcporter -----------
   mcp-smoke:
     name: MCP Smoke
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     needs: [changes, frontend-assets]
     if: ${{ always() && (needs.changes.outputs.mcp == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true') && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 35
@@ -331,7 +331,7 @@ jobs:
     name: TOML Format
     needs: [changes]
     if: ${{ needs.changes.outputs.toml == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -353,7 +353,7 @@ jobs:
     name: Lefthook Speed
     needs: [changes]
     if: ${{ (needs.changes.outputs.workflow == 'true' || needs.changes.outputs.soma == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, ci-pool-ops]
+    runs-on: ci-pool-ops
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -366,7 +366,7 @@ jobs:
     name: Soma Contracts
     needs: [changes]
     if: ${{ needs.changes.outputs.soma == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -441,7 +441,7 @@ jobs:
     name: Cargo Deny
     needs: [changes]
     if: ${{ needs.changes.outputs.security == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       toolchain: "1.97.1"
       cargo-deny-version: "0.19.8"
@@ -467,7 +467,7 @@ jobs:
       - lefthook-speed
       - soma
       - audit
-    runs-on: [self-hosted, ci-pool-ops]
+    runs-on: ci-pool-ops
     timeout-minutes: 5
     steps:
       - name: Verify all required jobs passed
