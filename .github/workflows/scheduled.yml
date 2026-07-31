@@ -45,7 +45,7 @@ jobs:
   # ── advisories: weekly RUSTSEC refresh + on-demand full dependency audit ──────
   advisories:
     name: Dependency Advisories
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -95,7 +95,7 @@ jobs:
   kache-remote-canary:
     name: kache remote canary (cold cross-runner)
     if: ${{ github.event_name == 'schedule' || inputs.remote_canary }}
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -371,16 +371,8 @@ fn verify_wheel_platform_tag(environment: &soma_config::PythonEnvironmentConfig)
                     || tag.starts_with("musllinux_")
                     || tag == "linux_x86_64")
         }
-        Some(("linux", "aarch64")) => {
-            tag.ends_with("_aarch64")
-                && (tag.starts_with("manylinux_")
-                    || tag.starts_with("musllinux_")
-                    || tag == "linux_aarch64")
-        }
         Some(("windows", "x86_64")) => tag == "win_amd64",
-        Some(("windows", "aarch64")) => tag == "win_arm64",
         Some(("macos", "x86_64")) => tag.starts_with("macosx_") && tag.ends_with("_x86_64"),
-        Some(("macos", "aarch64")) => tag.starts_with("macosx_") && tag.ends_with("_arm64"),
         _ => false,
     };
     if !compatible {
@@ -401,7 +393,7 @@ fn verify_python_runtime(
         "import platform,sys\n",
         "system={'Darwin':'macos','Windows':'windows'}.get(platform.system(),",
         "platform.system().lower())\n",
-        "machine={'AMD64':'x86_64','arm64':'aarch64'}.get(platform.machine(),",
+        "machine={'AMD64':'x86_64'}.get(platform.machine(),",
         "platform.machine().lower())\n",
         "print(sys.implementation.name+'\\t'+platform.python_version()+'\\t'+system+'-'+machine)\n"
     );

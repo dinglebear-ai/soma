@@ -7,7 +7,7 @@
 #
 # Customize binary-name references in this file if you fork Soma.
 #
-# Triggers: release-please publishes a GitHub Release, or manual rerun for a tag.
+# Trigger: release-please publishes a GitHub Release.
 #
 # What this does:
 #   1. Builds release binaries for linux/amd64 and windows/amd64
@@ -20,30 +20,30 @@ name: Release
 on:
   release:
     types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing release tag to attach artifacts to
-        required: true
+
+permissions:
+  contents: write
+  id-token: write
 
 env:
   # CUSTOMIZE: Replace "soma" with your binary name.
   BINARY_NAME: soma
   CARGO_INCREMENTAL: "0"
   # Release builds route through kache (RUSTC_WRAPPER) and its compiler cache.
-  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  RELEASE_TAG: ${{ github.event.release.tag_name }}
 
 jobs:
   validate-release-tag:
     name: Validate release tag
-    runs-on: [self-hosted, unraid]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
       release_tag: ${{ steps.validate.outputs.release_tag }}
+      version: ${{ steps.validate.outputs.version }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -87,11 +87,12 @@ jobs:
           CARGO_TARGET_DIR="${RUNNER_TEMP}/soma-version-sync-target" \
             cargo xtask check-version-sync
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
   frontend-assets:
     name: Frontend Assets
     needs: validate-release-tag
-    runs-on: [self-hosted, unraid]
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -99,7 +100,7 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.validate-release-tag.outputs.release_tag }}
 
@@ -115,7 +116,7 @@ jobs:
           pnpm build
 
       - name: Upload web export
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: web-out
           path: apps/web/out/
@@ -125,7 +126,7 @@ jobs:
   # ── Build release binaries ────────────────────────────────────────────────────
   build:
     name: Build ${{ matrix.target }}
-    runs-on: [self-hosted, unraid]
+    runs-on: ubuntu-24.04
     needs: [validate-release-tag, frontend-assets]
     timeout-minutes: 60
     permissions:
@@ -144,12 +145,12 @@ jobs:
             ext: ".exe"
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.validate-release-tag.outputs.release_tag }}
 
       - name: Download web export
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: web-out
           path: apps/web/out
@@ -193,7 +194,7 @@ jobs:
           sudo apt-get install -y pkg-config libssl-dev
 
       - name: Cache Cargo
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             target
@@ -219,86 +220,39 @@ jobs:
             ${{ env.BINARY_NAME }}${{ matrix.ext }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ env.BINARY_NAME }}-${{ matrix.arch }}
           path: artifacts/
 
-  # ── Publish npm launcher package ────────────────────────────────────────────
   npm:
     name: Publish soma-rmcp to npm
     needs: [validate-release-tag, release]
-    runs-on: [self-hosted, unraid]
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      id-token: write
-    defaults:
-      run:
-        working-directory: packages/soma-rmcp
-
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ needs.validate-release-tag.outputs.release_tag }}
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "lts/*"
-          registry-url: "https://registry.npmjs.org"
-          package-manager-cache: false
-
-      - name: Verify tag matches package version
-        run: |
-          set -euo pipefail
-          package_version="$(node -p "require('./package.json').version")"
-          tag_version="${RELEASE_TAG#v}"
-          if [[ "${package_version}" != "${tag_version}" ]]; then
-            echo "package.json version ${package_version} does not match tag ${RELEASE_TAG}" >&2
-            exit 1
-          fi
-
-      - name: Check whether npm version already exists
-        id: published
-        run: |
-          set -euo pipefail
-          package_name="$(node -p "require('./package.json').name")"
-          package_version="$(node -p "require('./package.json').version")"
-          if npm view "${package_name}@${package_version}" version --json >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "${package_name}@${package_version} is already published; skipping."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Inspect package contents
-        if: steps.published.outputs.exists != 'true'
-        run: npm pack --dry-run
-
-      - name: Publish to npm
-        if: steps.published.outputs.exists != 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+    uses: dinglebear-ai/workflows/.github/workflows/npm-trusted-publish.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    with:
+      checkout-ref: ${{ needs.validate-release-tag.outputs.release_tag }}
+      expected-version: ${{ needs.validate-release-tag.outputs.version }}
+      working-directory: packages/soma-rmcp
+      cache-dependency-path: packages/soma-rmcp/package.json
+      install-command: "true"
+      verify-command: node scripts/sync-readme.js && npm run check
 
   # ── Upload GitHub Release assets ─────────────────────────────────────────────
   release:
     name: Upload GitHub Release assets
     needs: [validate-release-tag, build]
-    runs-on: [self-hosted, unraid]
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: write
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.validate-release-tag.outputs.release_tag }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: ${{ env.BINARY_NAME }}-*
           path: artifacts/

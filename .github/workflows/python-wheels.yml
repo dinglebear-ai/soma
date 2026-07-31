@@ -14,7 +14,7 @@ permissions:
 jobs:
   wheels:
     name: Build x86_64 native wheels
-    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@2650efa9e06ec76992d82022f15b7bfd276166a2
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
     with:
       checkout-ref: ${{ github.event.release.tag_name }}
       package-dir: packages/python

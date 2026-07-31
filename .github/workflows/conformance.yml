@@ -27,7 +27,7 @@ concurrency:
 jobs:
   conformance:
     name: MCP 2026 full matrix
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"
@@ -54,7 +54,7 @@ jobs:
 
       - name: Upload conformance results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: mcp-conformance-2026-07-28
           path: target/mcp-conformance/

@@ -761,6 +761,12 @@ fn validate_openapi(root: &Path, value: &Value) -> Result<Vec<String>> {
 fn render_schema_docs(root: &Path) -> Result<String> {
     let actions = action_entries(root)?;
     let mut lines = vec![
+        "---".to_owned(),
+        "title: \"MCP Schema Contract\"".to_owned(),
+        "created: 2026-05-14".to_owned(),
+        "updated: 2026-07-30".to_owned(),
+        "---".to_owned(),
+        "".to_owned(),
         "# MCP Schema Contract".to_owned(),
         "".to_owned(),
         "Generated from `crates/soma/domain/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.".to_owned(),

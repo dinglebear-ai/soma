@@ -20,7 +20,8 @@ jobs:
   changes:
     name: MSRV Changes
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
+    timeout-minutes: 10
     outputs:
       workflow: ${{ steps.classify.outputs.workflow }}
       rust: ${{ steps.classify.outputs.rust }}
@@ -55,43 +56,11 @@ jobs:
     name: Minimum Supported Rust Version
     needs: [changes]
     if: ${{ (needs.changes.outputs.rust == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.toml == 'true' || needs.changes.outputs.workflow == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: [self-hosted, unraid]
-    # Was 20; the workspace now includes a Tauri desktop app (GTK/webkit2gtk/
-    # wasmtime), which is a lot to compile from scratch under the 1.97.1
-    # toolchain's own compile-cache namespace the first time it builds post-refactor.
-    # Subsequent runs reuse that cache and should be much faster; raise
-    # again if 40 stops being enough headroom.
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust and kache
-        uses: ./.github/actions/setup-rust-kache
-        with:
-          toolchain: 1.97.1
-
-      # Cache only target/ — the cargo registry lives in the runner's isolated
-      # CARGO_HOME (outside the workspace), never the dev user's ~/.cargo.
-      - name: Cache Cargo
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target
-          key: ${{ github.repository }}-msrv-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ github.repository }}-msrv-
-
-      - name: cargo check (MSRV)
-        run: cargo check --all-targets --locked
-
-      # `--all-targets` overrides the per-target `test = false` in
-      # packages/python/Cargo.toml, so it would build a Rust test binary for
-      # the PyO3 extension and link `-lpython3.12`, which the runner image does
-      # not carry. `cargo check --all-targets` above still type-checks that
-      # crate at the MSRV; only the link step is skipped here.
-      - name: cargo test --no-run (MSRV)
-        run: >-
-          cargo test --no-run --all-targets --locked
-          --workspace --exclude soma-provider-python
+    uses: dinglebear-ai/workflows/.github/workflows/rust-msrv.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    with:
+      msrv: "1.97.1"
+      timeout-minutes: 40
+      command: cargo check --all-targets --locked && cargo test --no-run --all-targets --locked --workspace --exclude soma-provider-python
 
   msrv-gate:
     name: MSRV Gate
@@ -99,7 +68,7 @@ jobs:
     needs:
       - changes
       - msrv
-    runs-on: [self-hosted, unraid]
+    runs-on: [self-hosted, ci-pool-rust]
     timeout-minutes: 5
     steps:
       - name: Verify MSRV jobs passed or were intentionally skipped

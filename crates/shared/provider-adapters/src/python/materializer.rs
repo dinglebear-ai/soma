@@ -144,7 +144,7 @@ impl UvRunner for SystemUvRunner {
             "import platform,sys\n",
             "system={'Darwin':'macos','Windows':'windows'}.get(platform.system(),",
             "platform.system().lower())\n",
-            "machine={'AMD64':'x86_64','arm64':'aarch64'}.get(platform.machine(),",
+            "machine={'AMD64':'x86_64'}.get(platform.machine(),",
             "platform.machine().lower())\n",
             "print(sys.implementation.name+'\\t'+platform.python_version()+'\\t'+system+'-'+machine)\n"
         );

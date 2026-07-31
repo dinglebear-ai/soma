@@ -1,0 +1,25 @@
+name: Fleet Policy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Fleet Policy
+    uses: dinglebear-ai/workflows/.github/workflows/fleet-policy.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    with:
+      release-file-regex: '(^|/)(release|docker-publish|python-wheels)\.ya?ml$'
+
+  contract:
+    name: Fleet Contract
+    uses: dinglebear-ai/workflows/.github/workflows/fleet-contract.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    with:
+      profile: rust
+      implementation-ref: 542ea7b7e5ca2d4e21f3277bfcf158584fee90ec

@@ -1,3 +1,9 @@
+---
+title: "MCP Schema Contract"
+created: 2026-05-14
+updated: 2026-07-30
+---
+
 # MCP Schema Contract
 
 Generated from `crates/soma/domain/src/actions.rs` and checked against the schema, README, skill docs, help text, and scope routing.

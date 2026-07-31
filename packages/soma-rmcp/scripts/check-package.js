@@ -307,7 +307,6 @@ function supportedTargets(platform) {
     ["linux", "x64"],
     ["win32", "x64"],
     ["darwin", "x64"],
-    ["darwin", "arm64"],
   ];
   const targets = [];
   for (const [osName, arch] of tuples) {

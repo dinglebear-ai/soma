@@ -1,6 +1,6 @@
 # Soma
 
-Product-first RMCP runtime for provider-backed agent capabilities with CLI, REST, HTTP MCP, plugins, and derivative scaffold support.
+RMCP runtime for provider-backed agents with CLI, REST, HTTP MCP, plugins, and scaffold support.
 
 [![Docs](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml/badge.svg)](https://github.com/dinglebear-ai/soma/actions/workflows/docs.yml)
 [**API docs**](https://dinglebear-ai.github.io/soma/) — rustdoc for every

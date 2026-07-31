@@ -417,8 +417,7 @@ Already delivered:
 - maturin mixed package;
 - Python 3.11+ metadata;
 - abi3 extension and pure-Python fallback;
-- cross-platform wheel CI for Linux x86_64/aarch64, Windows x86_64, and macOS
-  x86_64/arm64;
+- cross-platform wheel CI for Linux, Windows, and macOS x86_64;
 - isolated wheel installation and contract verification.
 
 Remaining:
