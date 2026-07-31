@@ -324,6 +324,9 @@ pub struct HostCapabilities {
     pub browser: Option<BrowserCapability>,
     #[serde(default)]
     pub github: Option<GitHubCapability>,
+    /// Brokered services available to isolated provider runtimes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broker: Option<BrokerCapability>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -350,6 +353,33 @@ pub enum CapabilityGrant {
         allowed_repos: Vec<String>,
         read_only: bool,
     },
+    Broker {
+        secret_names: Vec<String>,
+        state_namespaces: Vec<String>,
+        allow_logging: bool,
+        allow_metrics: bool,
+        allow_progress: bool,
+    },
+}
+
+/// Fine-grained host services requested by a provider.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BrokerCapability {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub secret_names: Vec<String>,
+    #[serde(default)]
+    pub state_namespace: Option<String>,
+    #[serde(default)]
+    pub state_write: bool,
+    #[serde(default)]
+    pub logging: bool,
+    #[serde(default)]
+    pub metrics: bool,
+    #[serde(default)]
+    pub progress: bool,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]

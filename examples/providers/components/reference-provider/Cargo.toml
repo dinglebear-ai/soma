@@ -1,0 +1,15 @@
+[package]
+name = "soma-reference-component-provider"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+serde_json = "1"
+soma-provider-guest = { path = "../../../../crates/shared/provider-guest" }
+wit-bindgen = "0.57.1"
+
+[workspace]

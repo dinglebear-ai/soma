@@ -35,6 +35,10 @@ pub mod python_protocol;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
+#[cfg(feature = "wasm")]
+mod wasm_limits;
+#[cfg(feature = "wasm")]
+mod wasm_memory;
 
 #[cfg(feature = "openapi")]
 pub mod openapi;

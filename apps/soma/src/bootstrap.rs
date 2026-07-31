@@ -165,6 +165,17 @@ fn python_runner_selection(config: &Config) -> soma_application::PythonRunnerSel
                     max_pending_bytes: config.python.max_pending_bytes,
                     max_workers: config.python.max_workers,
                     max_candidate_starts: config.python.max_candidate_starts,
+                    execution_profile: match config.python.execution_profile {
+                        soma_config::PythonExecutionProfile::Disabled => {
+                            soma_application::PythonExecutionProfile::Disabled
+                        }
+                        soma_config::PythonExecutionProfile::Trusted => {
+                            soma_application::PythonExecutionProfile::Trusted
+                        }
+                        soma_config::PythonExecutionProfile::Brokered => {
+                            soma_application::PythonExecutionProfile::Brokered
+                        }
+                    },
                 },
             )
         }
@@ -172,7 +183,22 @@ fn python_runner_selection(config: &Config) -> soma_application::PythonRunnerSel
 }
 
 fn python_provider_runtime(config: &Config) -> Result<soma_application::PythonProviderRuntime> {
-    let runtime = soma_application::PythonProviderRuntime::new(python_runner_selection(config));
+    let grants = vec![
+        soma_application::CapabilityGrant::Network {
+            allowed_hosts: config.python.broker_allowed_http_hosts.clone(),
+        },
+        soma_application::CapabilityGrant::Broker {
+            secret_names: config.python.broker_secret_names.clone(),
+            state_namespaces: config.python.broker_state_namespaces.clone(),
+            allow_logging: config.python.broker_allow_logging,
+            allow_metrics: config.python.broker_allow_metrics,
+            allow_progress: config.python.broker_allow_progress,
+        },
+    ];
+    let runtime = soma_application::PythonProviderRuntime::new(python_runner_selection(config))
+        .with_capability_broker(soma_application::capabilities::CapabilityBroker::new(
+            grants,
+        ));
     let environment = &config.python.environment;
     if !environment.enabled {
         return Ok(runtime);

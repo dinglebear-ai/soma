@@ -2,6 +2,16 @@ use serde_json::Value;
 
 use crate::ProviderSurface;
 
+/// Authenticated, traceable context carried into an isolated provider runtime.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProviderInvocationContext {
+    pub request_id: String,
+    pub actor_id: Option<String>,
+    pub actor_scopes: Vec<String>,
+    pub traceparent: Option<String>,
+    pub tracestate: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ProviderCall {
     pub provider: String,
@@ -9,6 +19,7 @@ pub struct ProviderCall {
     pub params: Value,
     pub surface: ProviderSurface,
     pub snapshot_id: String,
+    pub context: ProviderInvocationContext,
 }
 
 impl ProviderCall {
@@ -19,6 +30,7 @@ impl ProviderCall {
             params: arguments,
             surface: ProviderSurface::Internal,
             snapshot_id: String::new(),
+            context: ProviderInvocationContext::default(),
         }
     }
 
@@ -34,5 +46,11 @@ impl ProviderCall {
 
     pub fn arguments(&self) -> &Value {
         &self.params
+    }
+
+    #[must_use]
+    pub fn with_context(mut self, context: ProviderInvocationContext) -> Self {
+        self.context = context;
+        self
     }
 }

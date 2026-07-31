@@ -25,6 +25,7 @@ members = [
   "crates/shared/openapi",
   "crates/shared/provider-adapters",
   "crates/shared/provider-core",
+  "crates/shared/provider-guest",
   "crates/shared/self-update",
   "crates/shared/tauri-shell",
   "crates/shared/traces",

@@ -659,6 +659,9 @@ fn python_call(action: &str) -> ProviderCall {
         destructive_confirmed: false,
         limits: ProviderRequestLimits::default(),
         snapshot_id: String::new(),
+        request_id: String::new(),
+        traceparent: None,
+        tracestate: None,
     }
 }
 

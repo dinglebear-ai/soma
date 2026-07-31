@@ -211,6 +211,39 @@ fn python_runner_rejects_unknown_mode_and_zero_limits() {
 
 #[test]
 #[serial]
+fn brokered_profile_requires_persistent_mode_and_parses_policy() {
+    {
+        let _profile = EnvVarGuard::set("SOMA_PYTHON_EXECUTION_PROFILE", "brokered");
+        assert!(
+            Config::load()
+                .unwrap_err()
+                .to_string()
+                .contains("requires SOMA_PYTHON_RUNNER_MODE=persistent")
+        );
+    }
+    let _mode = EnvVarGuard::set("SOMA_PYTHON_RUNNER_MODE", "persistent");
+    let _profile = EnvVarGuard::set("SOMA_PYTHON_EXECUTION_PROFILE", "brokered");
+    let _hosts = EnvVarGuard::set(
+        "SOMA_PYTHON_BROKER_ALLOWED_HTTP_HOSTS",
+        "api.example.com,cdn.example.com",
+    );
+    let _secrets = EnvVarGuard::set("SOMA_PYTHON_BROKER_SECRET_NAMES", "weather-key");
+    let _logging = EnvVarGuard::set("SOMA_PYTHON_BROKER_ALLOW_LOGGING", "true");
+    let config = Config::load().expect("valid brokered deployment policy");
+    assert_eq!(
+        config.python.execution_profile,
+        PythonExecutionProfile::Brokered
+    );
+    assert_eq!(
+        config.python.broker_allowed_http_hosts,
+        ["api.example.com", "cdn.example.com"]
+    );
+    assert_eq!(config.python.broker_secret_names, ["weather-key"]);
+    assert!(config.python.broker_allow_logging);
+}
+
+#[test]
+#[serial]
 fn python_environment_is_disabled_by_default() {
     let config = Config::load().expect("default configuration");
     assert!(!config.python.environment.enabled);

@@ -75,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Complete Python provider phases 8-10 with invocation-bound capability
+  brokering, fail-closed OS containment, a versioned WIT/WASI component runtime,
+  a reusable Rust guest SDK, shared Python/component conformance fixtures, and
+  honest scaffold/build/verify/compare/activate/rollback graduation tooling.
 - Add authorized CLI, MCP, and REST operator actions for Python environment
   inventory, bounded prune planning/application, repair, and immutable update
   activation.

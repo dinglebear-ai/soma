@@ -1204,6 +1204,9 @@ async fn dispatch_with_confirmation(
             destructive_confirmed,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
         })
         .await?;
     Ok(output.value)

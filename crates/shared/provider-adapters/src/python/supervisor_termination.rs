@@ -1,5 +1,38 @@
 use super::{PythonSupervisorError, Worker};
 
+pub(super) struct ProcessTreeStartupGuard {
+    pid: Option<u32>,
+    armed: bool,
+}
+
+impl ProcessTreeStartupGuard {
+    pub(super) fn new(pid: Option<u32>) -> Self {
+        Self { pid, armed: true }
+    }
+
+    pub(super) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ProcessTreeStartupGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            terminate_process_tree(self.pid);
+        }
+    }
+}
+
+impl Drop for Worker {
+    fn drop(&mut self) {
+        // `Child::kill_on_drop` only covers the direct child. The worker owns
+        // the whole process tree, including descendants created by provider
+        // code, so rollback and failed unpublished candidates must signal it.
+        terminate_process_tree(self.child_pid);
+        self.stderr_task.abort();
+    }
+}
+
 pub(super) async fn terminate_worker(worker: Option<Worker>) {
     let Some(mut worker) = worker else {
         return;
@@ -62,11 +95,46 @@ pub(super) fn terminate_process_tree(_pid: Option<u32>) -> bool {
     false
 }
 
+#[cfg(not(windows))]
 #[derive(Debug, Default)]
 pub(super) struct JobGuard;
 
+#[cfg(not(windows))]
 impl JobGuard {
-    pub(super) fn new(_pid: Option<u32>) -> Result<Self, PythonSupervisorError> {
+    pub(super) fn new(_child: &tokio::process::Child) -> Result<Self, PythonSupervisorError> {
         Ok(Self)
+    }
+}
+
+#[cfg(windows)]
+#[derive(Debug)]
+pub(super) struct JobGuard {
+    _job: win32job::Job,
+}
+
+#[cfg(windows)]
+impl JobGuard {
+    pub(super) fn new(child: &tokio::process::Child) -> Result<Self, PythonSupervisorError> {
+        let process = child.raw_handle().ok_or_else(|| {
+            PythonSupervisorError::new(
+                "python_worker_start_failed",
+                "Python worker process handle is unavailable",
+            )
+        })?;
+        let mut info = win32job::ExtendedLimitInfo::new();
+        info.limit_kill_on_job_close();
+        let job = win32job::Job::create_with_limit_info(&info).map_err(|_| {
+            PythonSupervisorError::new(
+                "python_worker_start_failed",
+                "Windows Job Object creation or configuration failed",
+            )
+        })?;
+        job.assign_process(process as isize).map_err(|_| {
+            PythonSupervisorError::new(
+                "python_worker_start_failed",
+                "Python worker could not be assigned to its Windows Job Object",
+            )
+        })?;
+        Ok(Self { _job: job })
     }
 }

@@ -138,6 +138,7 @@ async fn mcp_provider_infers_http_transport_from_url() -> anyhow::Result<()> {
             params: json!({"message": "hello over http"}),
             surface: soma_provider_core::ProviderSurface::Mcp,
             snapshot_id: "test-snapshot".to_owned(),
+            context: Default::default(),
         })
         .await?;
 

@@ -1,0 +1,18 @@
+[package]
+name = "soma-provider-guest"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+description = "Rust guest SDK for Soma provider components"
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wit-bindgen = "0.57.1"
+
+[lints]
+workspace = true

@@ -84,3 +84,93 @@ fn only_the_three_filesystem_variants_are_non_executing() {
         .is_non_executing()
     );
 }
+
+#[test]
+fn parses_all_graduation_commands_and_optional_inputs() {
+    assert_eq!(
+        parse_providers_command(&[
+            "graduate".to_owned(),
+            "--source".to_owned(),
+            "provider.py".to_owned(),
+            "--workspace".to_owned(),
+            "graduated".to_owned(),
+            "--fixtures".to_owned(),
+            "fixtures.json".to_owned(),
+        ])
+        .unwrap(),
+        Command::Providers(ProviderCommand::Graduate {
+            source: "provider.py".into(),
+            workspace: "graduated".into(),
+            fixtures: Some("fixtures.json".into()),
+        })
+    );
+    assert_eq!(
+        parse_providers_command(&[
+            "build-component".to_owned(),
+            "--workspace".to_owned(),
+            "graduated".to_owned(),
+        ])
+        .unwrap(),
+        Command::Providers(ProviderCommand::BuildComponent {
+            workspace: "graduated".into(),
+            component: None,
+        })
+    );
+    assert_eq!(
+        parse_providers_command(&[
+            "verify-component".to_owned(),
+            "--component".to_owned(),
+            "provider.wasm".to_owned(),
+        ])
+        .unwrap(),
+        Command::Providers(ProviderCommand::VerifyComponent {
+            component: "provider.wasm".into(),
+        })
+    );
+    assert_eq!(
+        parse_providers_command(&[
+            "compare".to_owned(),
+            "--component".to_owned(),
+            "provider.wasm".to_owned(),
+            "--fixtures".to_owned(),
+            "fixtures.json".to_owned(),
+        ])
+        .unwrap(),
+        Command::Providers(ProviderCommand::Compare {
+            component: "provider.wasm".into(),
+            fixtures: "fixtures.json".into(),
+        })
+    );
+    for action in ["activate", "rollback"] {
+        let command = parse_providers_command(&[
+            action.to_owned(),
+            "--workspace".to_owned(),
+            "graduated".to_owned(),
+        ])
+        .unwrap();
+        assert!(matches!(
+            command,
+            Command::Providers(ProviderCommand::Activate { .. })
+                | Command::Providers(ProviderCommand::Rollback { .. })
+        ));
+    }
+}
+
+#[test]
+fn graduation_commands_reject_duplicates_unknowns_and_missing_values() {
+    for args in [
+        vec!["graduate", "--source", "provider.py"],
+        vec![
+            "graduate",
+            "--source",
+            "provider.py",
+            "--source",
+            "other.py",
+        ],
+        vec!["build-component", "--workspace", "--component"],
+        vec!["activate", "--bogus", "workspace"],
+    ] {
+        let args = args.into_iter().map(str::to_owned).collect::<Vec<_>>();
+        assert!(parse_providers_command(&args).is_err(), "{args:?}");
+    }
+}

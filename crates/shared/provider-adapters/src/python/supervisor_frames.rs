@@ -1,8 +1,5 @@
 use serde::Serialize;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
-};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::{PythonSupervisorError, invalid_output, protocol_error};
 use crate::python_protocol::PYTHON_RUNNER_MAX_FRAME_BYTES;
@@ -18,12 +15,27 @@ pub(super) fn host_call_request_id(call: &crate::python_protocol::PythonRunnerHo
         | PythonRunnerHostCall::StatePut { request_id, .. }
         | PythonRunnerHostCall::Log { request_id, .. }
         | PythonRunnerHostCall::Metric { request_id, .. }
-        | PythonRunnerHostCall::Progress { request_id, .. } => *request_id,
+        | PythonRunnerHostCall::Progress { request_id, .. }
+        | PythonRunnerHostCall::Cancelled { request_id, .. } => *request_id,
     }
 }
 
-pub(super) async fn write_frame<T: Serialize>(
-    writer: &mut OwnedWriteHalf,
+pub(super) fn host_call_invocation_id(call: &crate::python_protocol::PythonRunnerHostCall) -> &str {
+    use crate::python_protocol::PythonRunnerHostCall;
+    match call {
+        PythonRunnerHostCall::Http { invocation_id, .. }
+        | PythonRunnerHostCall::Secret { invocation_id, .. }
+        | PythonRunnerHostCall::StateGet { invocation_id, .. }
+        | PythonRunnerHostCall::StatePut { invocation_id, .. }
+        | PythonRunnerHostCall::Log { invocation_id, .. }
+        | PythonRunnerHostCall::Metric { invocation_id, .. }
+        | PythonRunnerHostCall::Progress { invocation_id, .. }
+        | PythonRunnerHostCall::Cancelled { invocation_id, .. } => invocation_id,
+    }
+}
+
+pub(super) async fn write_frame<T: Serialize, W: AsyncWrite + Unpin + ?Sized>(
+    writer: &mut W,
     message: &T,
 ) -> Result<(), PythonSupervisorError> {
     let payload = serde_json::to_vec(message).map_err(|_| invalid_output())?;
@@ -41,8 +53,8 @@ pub(super) async fn write_frame<T: Serialize>(
     Ok(())
 }
 
-pub(super) async fn read_frame<T: serde::de::DeserializeOwned>(
-    reader: &mut OwnedReadHalf,
+pub(super) async fn read_frame<T: serde::de::DeserializeOwned, R: AsyncRead + Unpin + ?Sized>(
+    reader: &mut R,
 ) -> Result<T, PythonSupervisorError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header).await?;

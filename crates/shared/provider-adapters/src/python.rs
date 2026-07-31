@@ -43,7 +43,9 @@ use crate::{
 use supervisor::{PythonSupervisorConfig, PythonWorkerIdentity, PythonWorkerSupervisor};
 
 pub mod cache;
+mod containment;
 pub mod environment;
+pub mod host;
 mod interpreter;
 pub mod lifecycle;
 pub mod materializer;
@@ -155,7 +157,7 @@ impl PythonProvider {
                 .map_err(|error| ProviderError::execution(&catalog.provider.name, "", error))?,
         );
         let generation_id = format!("{}-{}", catalog.provider.name, &worker_group[..16]);
-        let supervisor = PythonWorkerSupervisor::new(
+        let supervisor = PythonWorkerSupervisor::new_with_capabilities(
             PythonWorkerIdentity {
                 path: path.clone(),
                 generation_id,
@@ -165,6 +167,7 @@ impl PythonProvider {
             },
             interpreter.clone(),
             config,
+            &catalog.capabilities,
         );
         Ok(Self {
             path,
@@ -279,13 +282,16 @@ impl Provider for PythonProvider {
 
         if let Some(supervisor) = &self.supervisor {
             let value = supervisor
-                .invoke(
+                .invoke_with_context(
                     &call.provider,
                     &call.action,
                     call.params.clone(),
-                    call.surface,
-                    &call.snapshot_id,
-                    Duration::from_millis(runtime.timeout_ms),
+                    supervisor::PythonInvocationOptions {
+                        surface: call.surface,
+                        snapshot_id: &call.snapshot_id,
+                        timeout: Duration::from_millis(runtime.timeout_ms),
+                        context: &call.context,
+                    },
                 )
                 .await
                 .map_err(|error| {

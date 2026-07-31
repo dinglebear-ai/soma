@@ -285,7 +285,7 @@ wheel in the selected interpreter because workers start with
 `python -I -m soma_provider.runner`; startup fails closed instead of silently
 falling back to one-shot.
 
-Persistent workers connect to an ephemeral loopback TCP listener and
+Trusted persistent workers connect to an ephemeral loopback TCP listener and
 authenticate with a per-launch token before using the length-prefixed JSON
 control protocol. The child process's stdin and stdout are redirected to the
 platform null device and are not used for control. Provider stdout is redirected
@@ -304,8 +304,11 @@ starts a clean worker without replay.
 
 Persistent mode deliberately rejects provider- or tool-level runtime
 environment declarations with `python_persistent_env_unsupported`. It does not
-forward actor scopes or trace context, and HTTP, secrets, state, logging,
-metrics, progress, and cooperative broker cancellation remain unavailable.
+merge per-tool process environments. Invocation actor and trace context are
+propagated to the worker. In `brokered` mode HTTP, secrets, state, logging,
+metrics, progress, and cooperative cancellation use invocation-bound host
+calls; provider declarations, deployment allowlists, actor scopes, and host
+availability must all permit the operation.
 Host cancellation is enforced at the process boundary and therefore also stops
 uninterruptible synchronous handlers and descendants.
 
@@ -335,6 +338,7 @@ The main controls are:
 | Variable | Default |
 |---|---:|
 | `SOMA_PYTHON_RUNNER_MODE` | `one-shot` |
+| `SOMA_PYTHON_EXECUTION_PROFILE` | `trusted` |
 | `SOMA_PYTHON_RUNNER_STARTUP_TIMEOUT_MS` | `10000` |
 | `SOMA_PYTHON_RUNNER_REQUEST_TIMEOUT_MS` | `10000` |
 | `SOMA_PYTHON_RUNNER_SHUTDOWN_GRACE_MS` | `2000` |
@@ -346,6 +350,40 @@ The main controls are:
 | `SOMA_PYTHON_RUNNER_MAX_WORKERS` | `32` |
 | `SOMA_PYTHON_RUNNER_MAX_CANDIDATE_STARTS` | `4` |
 
+Broker deployment policy is configured with
+`SOMA_PYTHON_BROKER_ALLOWED_HTTP_HOSTS`, `SOMA_PYTHON_BROKER_SECRET_NAMES`,
+`SOMA_PYTHON_BROKER_STATE_NAMESPACES`, and the boolean
+`SOMA_PYTHON_BROKER_ALLOW_LOGGING`, `_METRICS`, and `_PROGRESS` controls.
+Linux brokered mode additionally requires a delegated cgroup-v2 directory in
+`SOMA_PYTHON_BROKER_CGROUP_ROOT`; it fails closed if namespace, cgroup,
+seccomp, or resource-limit enforcement is unavailable.
+
+### Component providers and graduation
+
+Component-model `.wasm` files implement `soma:provider@1.0.0` from
+`wit/soma-provider/world.wit`. Soma detects them automatically and retains the
+legacy core-Wasm ABI as a fallback. Components run with fuel, epoch deadlines,
+bounded memory/tables/instances, a compiled-artifact cache, and explicit host
+imports.
+
+Use the honest graduation workflow:
+
+```text
+soma providers graduate --source provider.py --workspace graduated/provider --fixtures fixtures.json
+soma providers build-component --workspace graduated/provider
+# Or import a component built elsewhere:
+soma providers build-component --workspace graduated/provider --component provider.wasm
+soma providers verify-component --component provider.wasm
+soma providers compare --component provider.wasm --fixtures fixtures.json
+soma providers activate --workspace graduated/provider
+soma providers rollback --workspace graduated/provider
+```
+
+The scaffold does not translate Python business logic. It creates a reusable
+Rust-core boundary, buildable thin PyO3/WIT adapters, a versioned WIT copy, and
+a recorded-fixture corpus. The build verifies the exact component ABI, and
+comparison must prove behavioral parity before atomic activation.
+
 Immutable-environment controls map directly to the TOML example above:
 `SOMA_PYTHON_ENVIRONMENT_ENABLED`, `CACHE_ROOT`, `UV_PROGRAM`, `UV_VERSION`,
 `PYTHON_EXECUTABLE`, `RUNTIME_IMPLEMENTATION`, `RUNTIME_VERSION`,
@@ -353,10 +391,13 @@ Immutable-environment controls map directly to the TOML example above:
 `OFFLINE`, `UPDATE`, and `POLICY_VERSION`, all with the
 `SOMA_PYTHON_ENVIRONMENT_` prefix.
 
-Python providers are trusted executable code. Environment clearing and bounded
-sidecar I/O are safety controls, not an OS sandbox; imported code retains the
-filesystem, network, and process authority of the Soma service account. See
-[ADR 0013](./adr/0013-python-provider-authoring-boundary.md) for the authoring and
+Python providers using the default `trusted` profile are trusted executable
+code. Environment clearing and bounded sidecar I/O are safety controls, not an
+OS sandbox; imported code retains the filesystem, network, and process
+authority of the Soma service account. The `brokered` profile instead fails
+closed unless Soma can enforce its namespace, cgroup, seccomp, resource,
+filesystem, and no-ambient-network boundary. See [ADR
+0013](./adr/0013-python-provider-authoring-boundary.md) for the authoring and
 Python-to-WASM graduation boundary.
 
 ## MCP Providers

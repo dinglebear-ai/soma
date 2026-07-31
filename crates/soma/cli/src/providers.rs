@@ -16,6 +16,13 @@ use soma_application::providers::filesystem::{
 use crate::ProviderCommand;
 
 pub fn run_providers_command(command: ProviderCommand) -> Result<()> {
+    if let Some(result) = run_graduation_command(&command)? {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        if matches!(command, ProviderCommand::Compare { .. }) && result["ok"] != true {
+            anyhow::bail!("component behavior differs from recorded Python fixtures");
+        }
+        return Ok(());
+    }
     let json_output = matches!(
         command,
         ProviderCommand::List { json: true, .. }
@@ -41,6 +48,30 @@ pub fn run_providers_command(command: ProviderCommand) -> Result<()> {
     Ok(())
 }
 
+fn run_graduation_command(command: &ProviderCommand) -> Result<Option<Value>> {
+    use soma_application::graduation;
+    let result = match command {
+        ProviderCommand::Graduate {
+            source,
+            workspace,
+            fixtures,
+        } => graduation::graduate(source, workspace, fixtures.as_deref())?,
+        ProviderCommand::BuildComponent {
+            workspace,
+            component,
+        } => graduation::build_component(workspace, component.as_deref())?,
+        ProviderCommand::VerifyComponent { component } => graduation::verify_component(component)?,
+        ProviderCommand::Compare {
+            component,
+            fixtures,
+        } => graduation::compare(component, fixtures)?,
+        ProviderCommand::Activate { workspace } => graduation::activate(workspace)?,
+        ProviderCommand::Rollback { workspace } => graduation::rollback(workspace)?,
+        _ => return Ok(None),
+    };
+    Ok(Some(result))
+}
+
 #[cfg(test)]
 pub fn build_provider_report_json(command: &ProviderCommand) -> Result<Value> {
     Ok(provider_report_json(&inspect_for_command(command)?))
@@ -59,7 +90,15 @@ fn inspect_for_command(command: &ProviderCommand) -> Result<ProviderDirectoryIns
             .clone()
             .or_else(|| std::env::var_os("SOMA_PROVIDER_DIR").map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("providers")),
-        ProviderCommand::Validate | ProviderCommand::Inspect | ProviderCommand::Test { .. } => {
+        ProviderCommand::Validate
+        | ProviderCommand::Inspect
+        | ProviderCommand::Test { .. }
+        | ProviderCommand::Graduate { .. }
+        | ProviderCommand::BuildComponent { .. }
+        | ProviderCommand::VerifyComponent { .. }
+        | ProviderCommand::Compare { .. }
+        | ProviderCommand::Activate { .. }
+        | ProviderCommand::Rollback { .. } => {
             unreachable!("only non-executing ProviderCommand variants reach the filesystem CLI")
         }
     };

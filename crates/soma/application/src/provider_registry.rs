@@ -28,6 +28,9 @@ use crate::{
 mod dispatch_lease;
 mod enforcement;
 mod generations;
+#[path = "provider_registry_map.rs"]
+mod map;
+use map::provider_map;
 mod python_operations;
 mod refresh;
 mod reports;
@@ -243,6 +246,12 @@ pub struct ProviderCall {
     pub limits: ProviderRequestLimits,
     /// Registry snapshot id this call is bound to.
     pub snapshot_id: String,
+    /// Stable request identity propagated into isolated provider runtimes.
+    pub request_id: String,
+    /// Optional distributed trace parent propagated after authentication.
+    pub traceparent: Option<String>,
+    /// Optional distributed trace state propagated after authentication.
+    pub tracestate: Option<String>,
 }
 
 impl ProviderCall {
@@ -254,6 +263,14 @@ impl ProviderCall {
             params: self.params.clone(),
             surface: self.surface.core(),
             snapshot_id: self.snapshot_id.clone(),
+            context: soma_provider_core::ProviderInvocationContext {
+                request_id: self.request_id.clone(),
+                actor_id: (!self.principal.subject.is_empty())
+                    .then(|| self.principal.subject.clone()),
+                actor_scopes: self.principal.scopes.clone(),
+                traceparent: self.traceparent.clone(),
+                tracestate: self.tracestate.clone(),
+            },
         }
     }
 
@@ -940,22 +957,6 @@ impl ProviderRegistry {
     }
 }
 
-fn provider_map(
-    providers: Vec<Arc<dyn Provider>>,
-) -> Result<BTreeMap<String, Arc<dyn Provider>>, ProviderValidationError> {
-    let mut map = BTreeMap::new();
-    for provider in providers {
-        let name = provider.catalog().provider.name;
-        if map.insert(name.clone(), provider).is_some() {
-            return Err(ProviderValidationError::new(
-                "duplicate_provider_name",
-                format!("duplicate provider `{name}`"),
-            ));
-        }
-    }
-    Ok(map)
-}
-
 /// Wraps a product-neutral `soma_provider_core::Provider` (as implemented by
 /// every adapter in `soma-provider-adapters`) so it satisfies this crate's
 /// own `Provider` trait, which carries additional auth/scope fields
@@ -1063,6 +1064,9 @@ impl CoreProvider for CoreProviderAdapter {
                 destructive_confirmed: false,
                 limits: ProviderRequestLimits::default(),
                 snapshot_id: call.snapshot_id,
+                request_id: call.context.request_id,
+                traceparent: call.context.traceparent,
+                tracestate: call.context.tracestate,
             })
             .await
     }

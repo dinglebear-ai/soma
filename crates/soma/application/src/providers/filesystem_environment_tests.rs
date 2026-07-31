@@ -160,6 +160,9 @@ fn provider_call(provider: &str, action: &str, params: serde_json::Value) -> Pro
         destructive_confirmed: false,
         limits: ProviderRequestLimits::default(),
         snapshot_id: "prepared-environment-test".to_owned(),
+        request_id: String::new(),
+        traceparent: None,
+        tracestate: None,
     }
 }
 

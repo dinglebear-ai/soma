@@ -28,6 +28,9 @@ async fn wasm_provider_executes_hot_dropped_module() -> anyhow::Result<()> {
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
         })
         .await?;
 
@@ -55,6 +58,9 @@ async fn wasm_provider_receives_execution_envelope() -> anyhow::Result<()> {
             destructive_confirmed: false,
             limits: ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
         })
         .await?;
 

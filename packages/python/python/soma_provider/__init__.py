@@ -34,6 +34,8 @@ __all__ = [
     "Log",
     "MetadataError",
     "Metrics",
+    "Progress",
+    "Cancellation",
     "ProviderMetadata",
     "Request",
     "Secrets",
@@ -102,7 +104,7 @@ class ProviderMetadata(TypedDict, total=False):
     version: str
     enabled: bool
     env: list[dict[str, Any]]
-    capabilities: list[str]
+    capabilities: dict[str, Any]
     docs: dict[str, Any]
     plugin: dict[str, Any]
     ui: dict[str, Any]
@@ -174,6 +176,106 @@ class Metrics(Protocol):
 
     def duration(self, name: str, seconds: float, **labels: str) -> None: ...
 
+class Progress(Protocol):
+    async def update(
+        self, current: int, *, total: int | None = None, message: str | None = None
+    ) -> None: ...
+
+
+class Cancellation(Protocol):
+    async def is_cancelled(self) -> bool: ...
+
+
+_host_caller: Callable[[str, str, dict[str, Any]], Any] | None = None
+
+
+def _set_host_caller(
+    caller: Callable[[str, str, dict[str, Any]], Any] | None,
+) -> Callable[[str, str, dict[str, Any]], Any] | None:
+    global _host_caller
+    previous = _host_caller
+    _host_caller = caller
+    return previous
+
+
+class _BrokerCapability:
+    __slots__ = ("_invocation_id",)
+
+    def __init__(self, invocation_id: str) -> None:
+        self._invocation_id = invocation_id
+
+    def _call(self, method: str, **payload: Any) -> Any:
+        if _host_caller is None:
+            raise CapabilityUnavailableError(
+                f"Soma capability {method!r} is unavailable in the active Python runner"
+            )
+        return _host_caller(method, self._invocation_id, payload)
+
+
+class _BrokerHttp(_BrokerCapability):
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> Any:
+        return self._call(
+            "host.http",
+            request={
+                "method": method,
+                "url": url,
+                "headers": dict(headers or {}),
+                "body": None if body is None else body.decode("utf-8"),
+            },
+        )
+
+
+class _BrokerSecrets(_BrokerCapability):
+    async def get(self, name: str) -> str:
+        return str(self._call("host.secret", name=name))
+
+
+class _BrokerState(_BrokerCapability):
+    async def get(self, key: str) -> Any:
+        return self._call("host.state.get", key=key)
+
+    async def set(self, key: str, value: Any) -> None:
+        self._call("host.state.put", key=key, value=value)
+
+
+class _BrokerLog(_BrokerCapability):
+    def emit(self, level: str, message: str, **fields: Any) -> None:
+        self._call("host.log", level=level, message=message, fields=fields)
+
+
+class _BrokerMetrics(_BrokerCapability):
+    def increment(self, name: str, value: int = 1, **labels: str) -> None:
+        self._call(
+            "host.metric", name=name, value=value, attributes={"kind": "counter", **labels}
+        )
+
+    def duration(self, name: str, seconds: float, **labels: str) -> None:
+        self._call(
+            "host.metric",
+            name=name,
+            value=seconds,
+            attributes={"kind": "duration_seconds", **labels},
+        )
+
+
+class _BrokerProgress(_BrokerCapability):
+    async def update(
+        self, current: int, *, total: int | None = None, message: str | None = None
+    ) -> None:
+        self._call("host.progress", current=current, total=total, message=message)
+
+
+class _BrokerCancellation(_BrokerCapability):
+    async def is_cancelled(self) -> bool:
+        return bool(self._call("host.cancelled"))
+
 
 class _UnavailableCapability:
     __slots__ = ("_name",)
@@ -205,6 +307,8 @@ class Context:
     state: State
     log: Log
     metrics: Metrics
+    progress: Progress
+    cancellation: Cancellation
     cancelled: bool = False
 
     @classmethod
@@ -219,13 +323,19 @@ class Context:
             trace=_optional_mapping(payload.get("trace")),
             deadline_unix_ms=_optional_int(payload.get("deadline_unix_ms")),
         )
+        invocation_id = str(payload.get("invocation_id", payload["request_id"]))
+        brokered = _host_caller is not None
         return cls(
             request=request,
-            http=_UnavailableCapability("http"),
-            secrets=_UnavailableCapability("secrets"),
-            state=_UnavailableCapability("state"),
-            log=_UnavailableCapability("log"),
-            metrics=_UnavailableCapability("metrics"),
+            http=_BrokerHttp(invocation_id) if brokered else _UnavailableCapability("http"),
+            secrets=_BrokerSecrets(invocation_id) if brokered else _UnavailableCapability("secrets"),
+            state=_BrokerState(invocation_id) if brokered else _UnavailableCapability("state"),
+            log=_BrokerLog(invocation_id) if brokered else _UnavailableCapability("log"),
+            metrics=_BrokerMetrics(invocation_id) if brokered else _UnavailableCapability("metrics"),
+            progress=_BrokerProgress(invocation_id) if brokered else _UnavailableCapability("progress"),
+            cancellation=_BrokerCancellation(invocation_id)
+            if brokered
+            else _UnavailableCapability("cancellation"),
             cancelled=bool(payload.get("cancelled", False)),
         )
 

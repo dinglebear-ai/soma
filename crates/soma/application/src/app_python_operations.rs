@@ -22,6 +22,15 @@ impl SomaApplication {
             destructive_confirmed: context.destructive_confirmation.is_confirmed(),
             limits,
             snapshot_id: String::new(),
+            request_id: context.request_id.as_str().to_owned(),
+            traceparent: context
+                .trace
+                .as_ref()
+                .and_then(|trace| trace.traceparent.clone()),
+            tracestate: context
+                .trace
+                .as_ref()
+                .and_then(|trace| trace.tracestate.clone()),
         };
         let call = self.legacy_registry.authorize_operator_action(call)?;
         let action = SomaAction::from_rest(&request.action, &request.params)

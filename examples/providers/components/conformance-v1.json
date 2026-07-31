@@ -1,0 +1,38 @@
+[
+  {
+    "name": "unicode-object",
+    "input": {
+      "provider": "reference-conformance",
+      "action": "conformance_echo",
+      "arguments": {"value": {"message": "hello \u2603"}},
+      "surface": "internal",
+      "snapshot_id": "conformance-v1",
+      "context": {
+        "request_id": "fixture-1",
+        "actor_id": null,
+        "actor_scopes": [],
+        "traceparent": null,
+        "tracestate": null
+      }
+    },
+    "expected": {"ok": true, "echo": {"message": "hello \u2603"}}
+  },
+  {
+    "name": "null",
+    "input": {
+      "provider": "reference-conformance",
+      "action": "conformance_echo",
+      "arguments": {"value": null},
+      "surface": "internal",
+      "snapshot_id": "conformance-v1",
+      "context": {
+        "request_id": "fixture-2",
+        "actor_id": null,
+        "actor_scopes": [],
+        "traceparent": null,
+        "tracestate": null
+      }
+    },
+    "expected": {"ok": true, "echo": null}
+  }
+]

@@ -35,6 +35,28 @@ pub enum ProviderCommand {
         dir: Option<PathBuf>,
         json: bool,
     },
+    Graduate {
+        source: PathBuf,
+        workspace: PathBuf,
+        fixtures: Option<PathBuf>,
+    },
+    BuildComponent {
+        workspace: PathBuf,
+        component: Option<PathBuf>,
+    },
+    VerifyComponent {
+        component: PathBuf,
+    },
+    Compare {
+        component: PathBuf,
+        fixtures: PathBuf,
+    },
+    Activate {
+        workspace: PathBuf,
+    },
+    Rollback {
+        workspace: PathBuf,
+    },
 }
 
 impl ProviderCommand {
@@ -47,6 +69,12 @@ impl ProviderCommand {
             ProviderCommand::List { .. }
                 | ProviderCommand::Lint { .. }
                 | ProviderCommand::Status { .. }
+                | ProviderCommand::Graduate { .. }
+                | ProviderCommand::BuildComponent { .. }
+                | ProviderCommand::VerifyComponent { .. }
+                | ProviderCommand::Compare { .. }
+                | ProviderCommand::Activate { .. }
+                | ProviderCommand::Rollback { .. }
         )
     }
 }
@@ -83,7 +111,13 @@ pub(crate) async fn run_provider_management_command(
         }
         ProviderCommand::List { .. }
         | ProviderCommand::Lint { .. }
-        | ProviderCommand::Status { .. } => {
+        | ProviderCommand::Status { .. }
+        | ProviderCommand::Graduate { .. }
+        | ProviderCommand::BuildComponent { .. }
+        | ProviderCommand::VerifyComponent { .. }
+        | ProviderCommand::Compare { .. }
+        | ProviderCommand::Activate { .. }
+        | ProviderCommand::Rollback { .. } => {
             unreachable!("non-executing provider commands are handled before registry construction")
         }
     }
@@ -115,10 +149,99 @@ pub(crate) fn parse_providers_command(args: &[String]) -> Result<Command> {
                 _ => ProviderCommand::Status { dir, json },
             }))
         }
+        [action, rest @ ..]
+            if matches!(
+                action.as_str(),
+                "graduate"
+                    | "build-component"
+                    | "verify-component"
+                    | "compare"
+                    | "activate"
+                    | "rollback"
+            ) =>
+        {
+            Ok(Command::Providers(parse_graduation_command(action, rest)?))
+        }
         [] => Err(anyhow!(
-            "providers requires list, lint, status, validate, inspect, or test ACTION"
+            "providers requires list, lint, status, validate, inspect, test, graduate, \
+             build-component, verify-component, compare, activate, or rollback"
         )),
         [unexpected, ..] => Err(anyhow!("providers does not accept argument `{unexpected}`")),
+    }
+}
+
+fn parse_graduation_command(command: &str, args: &[String]) -> Result<ProviderCommand> {
+    let required = |flag: &str| -> Result<PathBuf> {
+        args.windows(2)
+            .find(|pair| pair[0] == flag)
+            .map(|pair| PathBuf::from(&pair[1]))
+            .ok_or_else(|| anyhow!("providers {command} {flag} requires a value"))
+    };
+    let expected = match command {
+        "graduate" => &["--source", "--workspace", "--fixtures"][..],
+        "build-component" => &["--workspace", "--component"][..],
+        "verify-component" => &["--component"][..],
+        "compare" => &["--component", "--fixtures"][..],
+        "activate" | "rollback" => &["--workspace"][..],
+        _ => unreachable!(),
+    };
+    let required_count = match command {
+        "graduate" => 2,
+        "build-component" => 1,
+        _ => expected.len(),
+    };
+    if !args.len().is_multiple_of(2)
+        || args.len() < required_count * 2
+        || args.len() > expected.len() * 2
+        || args
+            .chunks_exact(2)
+            .any(|pair| !expected.contains(&pair[0].as_str()) || pair[1].starts_with("--"))
+        || args
+            .chunks_exact(2)
+            .map(|pair| pair[0].as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != args.len() / 2
+    {
+        return Err(anyhow!(
+            "providers {command} expects {}",
+            expected
+                .iter()
+                .map(|flag| format!("{flag} PATH"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    match command {
+        "graduate" => Ok(ProviderCommand::Graduate {
+            source: required("--source")?,
+            workspace: required("--workspace")?,
+            fixtures: args
+                .windows(2)
+                .find(|pair| pair[0] == "--fixtures")
+                .map(|pair| PathBuf::from(&pair[1])),
+        }),
+        "build-component" => Ok(ProviderCommand::BuildComponent {
+            workspace: required("--workspace")?,
+            component: args
+                .windows(2)
+                .find(|pair| pair[0] == "--component")
+                .map(|pair| PathBuf::from(&pair[1])),
+        }),
+        "verify-component" => Ok(ProviderCommand::VerifyComponent {
+            component: required("--component")?,
+        }),
+        "compare" => Ok(ProviderCommand::Compare {
+            component: required("--component")?,
+            fixtures: required("--fixtures")?,
+        }),
+        "activate" => Ok(ProviderCommand::Activate {
+            workspace: required("--workspace")?,
+        }),
+        "rollback" => Ok(ProviderCommand::Rollback {
+            workspace: required("--workspace")?,
+        }),
+        _ => unreachable!(),
     }
 }
 

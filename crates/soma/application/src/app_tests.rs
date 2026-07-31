@@ -591,6 +591,9 @@ async fn generation_swap_keeps_in_flight_work_on_original_provider() {
                     destructive_confirmed: false,
                     limits: crate::ProviderRequestLimits::default(),
                     snapshot_id: String::new(),
+                    request_id: String::new(),
+                    traceparent: None,
+                    tracestate: None,
                 })
                 .await
         })
@@ -615,6 +618,9 @@ async fn generation_swap_keeps_in_flight_work_on_original_provider() {
             destructive_confirmed: false,
             limits: crate::ProviderRequestLimits::default(),
             snapshot_id: String::new(),
+            request_id: String::new(),
+            traceparent: None,
+            tracestate: None,
         })
         .await
         .unwrap();

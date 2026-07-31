@@ -1,0 +1,20 @@
+package soma:provider@1.0.0;
+
+/// Capability-mediated services supplied by the Soma host. Capabilities are
+/// separate imports so a component cannot smuggle an undeclared operation
+/// through a generic dispatch string.
+interface host {
+  http: func(request-json: string) -> result<string, string>;
+  secret: func(name: string) -> result<string, string>;
+  state-get: func(key: string) -> result<string, string>;
+  state-put: func(key: string, value-json: string) -> result<_, string>;
+  log: func(level: string, message: string, fields-json: string) -> result<_, string>;
+  metric: func(name: string, value: f64, attributes-json: string) -> result<_, string>;
+  progress: func(current: u64, total: option<u64>, message: option<string>) -> result<_, string>;
+}
+
+/// Stable component ABI for portable Soma providers.
+world provider {
+  import host;
+  export invoke: func(input-json: string) -> result<string, string>;
+}

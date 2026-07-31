@@ -427,6 +427,11 @@ pub enum PythonRunnerHostCall {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         message: Option<String>,
     },
+    #[serde(rename = "host.cancelled")]
+    Cancelled {
+        request_id: u64,
+        invocation_id: String,
+    },
 }
 
 /// Stable public error identifiers for Python setup and execution.

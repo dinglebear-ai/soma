@@ -18,6 +18,7 @@ mod app;
 pub mod capabilities;
 mod context;
 mod error;
+pub mod graduation;
 mod ports;
 pub mod provider_errors;
 pub mod provider_registry;
@@ -52,6 +53,7 @@ pub use providers::static_rust::StaticRustProvider;
 pub use service::{
     ElicitedNameOutcome, ScaffoldIntent, ScaffoldIntentValidationError, SomaService,
 };
+pub use soma_provider_adapters::python::host::PythonExecutionProfile;
 pub use soma_provider_adapters::python::supervisor::PythonSupervisorConfig;
 pub use soma_provider_adapters::python::{
     PythonInterpreter,
@@ -71,7 +73,7 @@ pub use types::{
     ResourceTemplateSpec, ScaffoldIntentRequest,
 };
 
-pub use soma_provider_core::{ProviderPrompt, ProviderResource};
+pub use soma_provider_core::{CapabilityGrant, ProviderPrompt, ProviderResource};
 
 /// Unified dispatch seam shared by every surface (MCP, REST, CLI).
 ///
@@ -180,10 +182,12 @@ pub async fn dynamic_provider_registry_from_dir_with_python_runtime(
     provider_dir: impl Into<std::path::PathBuf>,
     python_runtime: PythonProviderRuntime,
 ) -> anyhow::Result<ProviderRegistry> {
+    let (source, capability_broker) =
+        python_runtime.configure_source(FileProviderSource::new(provider_dir));
     ProviderRegistry::with_file_source_async(
         vec![std::sync::Arc::new(StaticRustProvider::new(service))],
-        crate::capabilities::CapabilityBroker::default_deny(),
-        python_runtime.configure_source(FileProviderSource::new(provider_dir)),
+        capability_broker,
+        source,
     )
     .await
     .map_err(|error| anyhow::anyhow!(error.to_string()))

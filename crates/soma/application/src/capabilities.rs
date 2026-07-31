@@ -1,8 +1,8 @@
 //! Capability brokering: the [`CapabilityBroker`] decides which host
 //! capabilities a provider dispatch may use, defaulting to deny.
 use soma_provider_core::{
-    BrowserCapability, CapabilityGrant, EnvCapability, FilesystemCapability, GitHubCapability,
-    HostCapabilities, NetworkCapability, TerminalCapability,
+    BrokerCapability, BrowserCapability, CapabilityGrant, EnvCapability, FilesystemCapability,
+    GitHubCapability, HostCapabilities, NetworkCapability, TerminalCapability,
 };
 
 use crate::provider_errors::ProviderError;
@@ -109,6 +109,30 @@ impl CapabilityBroker {
                 return Err(denied(provider, action, "github"));
             }
         }
+        if let Some(capability) = enabled_broker(requested) {
+            let granted = self.grants.iter().any(|grant| match grant {
+                CapabilityGrant::Broker {
+                    secret_names,
+                    state_namespaces,
+                    allow_logging,
+                    allow_metrics,
+                    allow_progress,
+                } => {
+                    all_items_allowed(&capability.secret_names, secret_names)
+                        && capability
+                            .state_namespace
+                            .as_ref()
+                            .is_none_or(|namespace| state_namespaces.contains(namespace))
+                        && (!capability.logging || *allow_logging)
+                        && (!capability.metrics || *allow_metrics)
+                        && (!capability.progress || *allow_progress)
+                }
+                _ => false,
+            });
+            if !granted {
+                return Err(denied(provider, action, "broker"));
+            }
+        }
         Ok(())
     }
 }
@@ -135,6 +159,13 @@ fn enabled_browser(requested: &HostCapabilities) -> Option<&BrowserCapability> {
 
 fn enabled_github(requested: &HostCapabilities) -> Option<&GitHubCapability> {
     requested.github.as_ref().filter(|cap| cap.enabled)
+}
+
+fn enabled_broker(requested: &HostCapabilities) -> Option<&BrokerCapability> {
+    requested
+        .broker
+        .as_ref()
+        .filter(|capability| capability.enabled)
 }
 
 fn all_items_allowed(requested: &[String], allowed: &[String]) -> bool {
@@ -173,4 +204,42 @@ fn denied(provider: &str, action: &str, capability: &str) -> ProviderError {
         format!("provider requested denied {capability} capability"),
         "Grant the specific host capability in policy or disable the provider action.",
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn broker_grants_intersect_every_requested_authority() {
+        let broker = CapabilityBroker::new(vec![CapabilityGrant::Broker {
+            secret_names: vec!["weather-key".to_owned()],
+            state_namespaces: vec!["weather".to_owned()],
+            allow_logging: true,
+            allow_metrics: false,
+            allow_progress: true,
+        }]);
+        let requested = HostCapabilities {
+            broker: Some(BrokerCapability {
+                enabled: true,
+                secret_names: vec!["weather-key".to_owned()],
+                state_namespace: Some("weather".to_owned()),
+                state_write: true,
+                logging: true,
+                metrics: false,
+                progress: true,
+            }),
+            ..HostCapabilities::default()
+        };
+        broker
+            .authorize("weather", "forecast", &requested)
+            .expect("matching provider and deployment authority is allowed");
+
+        let mut excessive = requested;
+        excessive.broker.as_mut().unwrap().metrics = true;
+        let error = broker
+            .authorize("weather", "forecast", &excessive)
+            .expect_err("an ungranted metric request must be denied");
+        assert_eq!(&*error.code, "capability_denied");
+    }
 }

@@ -59,6 +59,12 @@ pub const USAGE: &str = "Usage:
   soma providers list [--dir DIR] [--json]    List drop-in provider files (no execution)
   soma providers lint [--dir DIR] [--json]    Lint drop-in provider files (no execution)
   soma providers status [--dir DIR] [--json]  Summarize drop-in provider files (no execution)
+  soma providers graduate --source FILE --workspace DIR [--fixtures FILE]
+  soma providers build-component --workspace DIR [--component FILE]
+  soma providers verify-component --component FILE
+  soma providers compare --component FILE --fixtures FILE
+  soma providers activate --workspace DIR
+  soma providers rollback --workspace DIR
   soma package generate [--write|--check]  Refresh generated provider docs, skills, and plugin metadata
 
 Global options:

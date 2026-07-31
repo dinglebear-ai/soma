@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _runtime
-_FEATURES = ["describe", "invoke", "health", "drain", "shutdown"]
+_FEATURES = ["describe", "invoke", "cancel", "health", "drain", "shutdown", "host-calls"]
 _PROTOCOL = {"major": 1, "minor": 0}
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 
@@ -59,8 +59,13 @@ def decode_frame(frame: bytes) -> dict[str, Any]:
 class FramedChannel:
     def __init__(self, fd: int | None, address: str | None = None, token: str | None = None) -> None:
         if address is not None:
-            host, port = address.rsplit(":", 1)
-            connection = socket.create_connection((host, int(port)), timeout=10)
+            if address.startswith("unix:"):
+                connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                connection.settimeout(10)
+                connection.connect(address.removeprefix("unix:"))
+            else:
+                host, port = address.rsplit(":", 1)
+                connection = socket.create_connection((host, int(port)), timeout=10)
             connection.set_inheritable(False)
             connection.sendall((token or "").encode("ascii"))
             self._reader = connection.makefile("rb", buffering=0)
@@ -71,6 +76,8 @@ class FramedChannel:
             self._writer = sys.stdout.buffer
         else:
             os.set_inheritable(fd, False)
+            if token:
+                os.write(fd, token.encode("ascii"))
             self._reader = os.fdopen(os.dup(fd), "rb", buffering=0)
             self._writer = os.fdopen(fd, "wb", buffering=0)
 
@@ -113,6 +120,7 @@ class Worker:
         self.generation_id = ""
         self.module: Any = None
         self.catalog: dict[str, Any] | None = None
+        self.host_request_id = 1_000_000
 
     def hello(self) -> dict[str, Any]:
         return {
@@ -155,7 +163,10 @@ class Worker:
         if self.module is None:
             return _error(message.get("request_id"), "python_protocol_mismatch", "Python provider was not described")
         invocation = message.get("invocation", {})
+        invocation.setdefault("request_id", message.get("request_id", 0))
         action = invocation.get("action")
+        invocation_id = str(invocation.get("invocation_id", ""))
+        previous_host_caller = __import__("soma_provider")._set_host_caller(self.host_call)
         try:
             kind, tool = _runtime.resolve_tool(self.module, action)
             arguments = dict(invocation.get("arguments", {}))
@@ -170,7 +181,29 @@ class Worker:
             json.dumps(result, allow_nan=False)
         except Exception:
             return _error(message.get("request_id"), "python_worker_crashed", "Python provider invocation failed")
+        finally:
+            __import__("soma_provider")._set_host_caller(previous_host_caller)
         return {"type": "reply", "status": "ok", "request_id": message["request_id"], "result": result}
+
+    def host_call(self, method: str, invocation_id: str, payload: dict[str, Any]) -> Any:
+        request_id = self.host_request_id
+        self.host_request_id += 1
+        self.channel.write({
+            "type": "host_call",
+            "method": method,
+            "request_id": request_id,
+            "invocation_id": invocation_id,
+            **payload,
+        })
+        reply = self.channel.read()
+        if reply.get("type") != "host_reply" or reply.get("request_id") != request_id:
+            raise ProtocolError("unexpected host capability reply")
+        error = reply.get("error")
+        if error is not None:
+            raise __import__("soma_provider").CapabilityUnavailableError(
+                str(error.get("public_message", "host capability denied"))
+            )
+        return reply.get("result")
 
     async def serve(self) -> int:
         self.channel.write(self.hello())

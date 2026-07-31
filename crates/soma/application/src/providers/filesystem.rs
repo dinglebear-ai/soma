@@ -71,6 +71,7 @@ pub enum PythonRunnerSelection {
 pub struct PythonProviderRuntime {
     runner: PythonRunnerSelection,
     environment_preparer: Option<Arc<dyn PythonProviderEnvironmentPreparer>>,
+    capability_broker: crate::capabilities::CapabilityBroker,
 }
 
 impl PythonProviderRuntime {
@@ -79,7 +80,17 @@ impl PythonProviderRuntime {
         Self {
             runner,
             environment_preparer: None,
+            capability_broker: crate::capabilities::CapabilityBroker::default_deny(),
         }
+    }
+
+    /// Installs deployment policy used to intersect provider declarations.
+    pub fn with_capability_broker(
+        mut self,
+        capability_broker: crate::capabilities::CapabilityBroker,
+    ) -> Self {
+        self.capability_broker = capability_broker;
+        self
     }
 
     /// Installs immutable environment preparation before Python candidates load.
@@ -91,12 +102,15 @@ impl PythonProviderRuntime {
         self
     }
 
-    pub(crate) fn configure_source(self, mut source: FileProviderSource) -> FileProviderSource {
+    pub(crate) fn configure_source(
+        self,
+        mut source: FileProviderSource,
+    ) -> (FileProviderSource, crate::capabilities::CapabilityBroker) {
         source = source.with_python_runner(self.runner);
         if let Some(preparer) = self.environment_preparer {
             source = source.with_python_environment_preparer(preparer);
         }
-        source
+        (source, self.capability_broker)
     }
 }
 
@@ -106,6 +120,7 @@ impl fmt::Debug for PythonProviderRuntime {
             .debug_struct("PythonProviderRuntime")
             .field("runner", &self.runner)
             .field("environment_preparer", &self.environment_preparer.is_some())
+            .field("capability_broker", &self.capability_broker)
             .finish()
     }
 }
