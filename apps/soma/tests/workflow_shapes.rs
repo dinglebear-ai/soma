@@ -125,7 +125,7 @@ fn artifact_workflows_run_from_published_releases() {
     let npm = workflow_job_block(&release, "npm");
     assert!(
         npm.contains("needs: [validate-release-tag, release]")
-            && npm.contains("npm-trusted-publish.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0"),
+            && npm.contains("npm-trusted-publish.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec"),
         "npm publish must wait for artifacts and use the fleet source of truth"
     );
     assert!(
@@ -145,7 +145,7 @@ fn artifact_workflows_run_from_published_releases() {
         "the product-specific MCP Registry publication must remain in Soma"
     );
     assert!(
-        docker.contains("hosted-container-release.yml@d7bbe71ddc1157e32ed0bebf928fc07438ba58b0"),
+        docker.contains("hosted-container-release.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec"),
         "container publication must use the pinned fleet workflow"
     );
 }
