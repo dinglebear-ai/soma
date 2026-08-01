@@ -112,6 +112,8 @@ Deliverables:
 
 Exit: imported standalone Synapse matches the donor binary, CLI help, MCP schemas, REST OpenAPI, and test suite at the locked commit.
 
+Import execution record: the locked donor commit is merged without squashing under the temporary `crates/synapse/import` nested workspace. This boundary preserves all donor paths and package workflows unchanged while keeping the imported `synapse` and `xtask` packages outside Soma's root Cargo workspace. Root Just recipes verify, build, test, and produce the locked release binary using the donor release path. The donor cannot be published directly with `cargo package` because its existing `lab-auth` Git dependency has no crates.io version; changing that dependency belongs to a later product-native packaging slice, not the no-redesign import. The next slices split it into `crates/synapse/*` and `apps/synapse`; the temporary boundary is then removed.
+
 ### PR 4: canonical catalog and compatibility adapters
 
 Base: PR 3.

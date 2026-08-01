@@ -258,6 +258,22 @@ operation-result-contracts-check:
 operation-result-contracts-generate:
     python3 scripts/generate-operation-result-contracts.py generate
 
+# Verify the exact history-preserving Synapse donor import
+synapse-product-import-check:
+    python3 scripts/check-synapse-product-import.py
+
+# Build the imported standalone Synapse workspace without changing donor behavior
+synapse-product-import-build:
+    cargo build --manifest-path crates/synapse/import/Cargo.toml --workspace --all-features
+
+# Run the imported standalone Synapse workspace test suite
+synapse-product-import-test:
+    cargo test --manifest-path crates/synapse/import/Cargo.toml --workspace --all-features
+
+# Build the imported Synapse release binary using the donor release path
+synapse-product-import-release:
+    cargo build --manifest-path crates/synapse/import/Cargo.toml --release --locked --bin synapse
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check
