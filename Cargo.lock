@@ -5945,6 +5945,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "soma-ops"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
 name = "soma-palette"
 version = "0.4.1"
 dependencies = [

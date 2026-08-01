@@ -218,6 +218,14 @@ openapi-check:
 scaffold-contract-check:
     cargo xtask check-scaffold-intent-contract
 
+# Run the neutral operations contract suite with every feature enabled
+ops-check:
+    cargo test -p soma-ops --all-features
+
+# Prove soma-ops compiles from an unrelated standalone Cargo workspace
+ops-external-consumer-check:
+    cargo check --manifest-path crates/shared/operations/ops/tests/fixtures/external-consumer/Cargo.toml
+
 # Validate the pinned 59-operation Synapse compatibility fixture
 synapse-operation-contract-check:
     python3 scripts/generate-synapse-operation-fixture.py check

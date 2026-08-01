@@ -35,12 +35,12 @@ baselines:
     commit: 3d75d109cc3531d1b18c9d32c4059566651cd863
     observed: '2026-07-31'
   synapse:
-    repo: https://github.com/jmagar/synapse
+    repo: https://github.com/dinglebear-ai/synapse
     branch: main
-    commit: b92552900c1458aa03b370c80edc812884c77f31
+    commit: 8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f
     observed: '2026-07-31'
 counts:
-  filesInManifest: 117
+  filesInManifest: 124
   sharedCrates: 19
   adrs: 13
   capabilities: 13
@@ -165,6 +165,10 @@ files:
   bytes: 3113
   sha256: 69877013e405282493b1bb83a6e271ed3e711ff7db0e4525ee4b120cefee919b
   type: md
+- path: 02-crates/specs/soma-ops.md
+  bytes: 5411
+  sha256: 3bc83ce99d496e11a38102f0e1f714813fa8d0a729cbddd5217945628852a733
+  type: md
 - path: 02-crates/specs/soma-primitives.md
   bytes: 3470
   sha256: e477b7574cae79fc5682f64e654a3c0251c3f5d237a9f691ff85a7b884923a57
@@ -225,6 +229,14 @@ files:
   bytes: 3487
   sha256: 4b35ea3b500890cdfb3a05bc35bbe71ee39664a63371381beca8101423554af3
   type: md
+- path: 03-contracts/OPERATION-MODELS.md
+  bytes: 6574
+  sha256: 38aebf1d57cfaa33448f893d512810bdfb73806f51b923d68a00089476c82cdc
+  type: md
+- path: 03-contracts/OPERATION-SCHEMA.md
+  bytes: 6485
+  sha256: 2c0d5c4e8fe64ebeaf55f3f7efd9c21760785393bd496cabc8c7424257c5536e
+  type: md
 - path: 03-contracts/OPERATIONS-CONTRACT.md
   bytes: 4858
   sha256: 78859c99dbc54410d0cce55a75dc26566acd07561cdd463c4ae8a4efd46d649c
@@ -234,8 +246,8 @@ files:
   sha256: 4f6cc70190179574cde45da64ee7852d589b7089c3186f1b8a507ad8edf470a2
   type: md
 - path: 03-contracts/README.md
-  bytes: 2507
-  sha256: be8a91d6688da54efc92c1b989f7a63d33775b20c0e6b5dbd0ce44f5145f796d
+  bytes: 2692
+  sha256: d0ee00604a31508599c89c2af1048e9c8de3b7fe9a01f77e4bfb330ee26caebf
   type: md
 - path: 03-contracts/REDACTION-CONTRACT.md
   bytes: 1573
@@ -276,6 +288,10 @@ files:
 - path: 03-contracts/examples/synapse-operations.json
   bytes: 24280
   sha256: a6941ccaac18e6ebbb1e70e49eee28dda282123545f9dd307a7a5ece4df58900
+  type: json
+- path: 03-contracts/schemas/operation-contract.schema.json
+  bytes: 10052
+  sha256: 7aa2779772af0d14b3535187138becd2694303500fda20dcbd354870565c7413
   type: json
 - path: 03-contracts/schemas.json
   bytes: 39304
@@ -322,8 +338,8 @@ files:
   sha256: f6451f2b99dbc695ea0bb80bd70eb285d8846170d8024fe7afe47bae8605c272
   type: md
 - path: 05-migration/DONOR-CODE-DISPOSITION.md
-  bytes: 8225
-  sha256: 32630591d527d4979029d54a3b5de83f43c8b7770fcc8fb9619068e72eca96d1
+  bytes: 8333
+  sha256: 05b073491da100d724a39ee072a16ba3b617a52a21497351705301a888b581c5
   type: md
 - path: 05-migration/IMPLEMENTATION-ROADMAP.md
   bytes: 2945
@@ -333,9 +349,21 @@ files:
   bytes: 1429
   sha256: 07a134221e9fadd9d238a46ae88e783a6bcdecbf8ec58cd386a3701b7f83f769
   type: md
+- path: 05-migration/SYNAPSE-CODE-MAP.md
+  bytes: 7596
+  sha256: 4c2470154e5e509a83e909072141b9ef5f8b545a3095a06c3065964f87359ced
+  type: md
+- path: 05-migration/SYNAPSE-EXTRACTION-SPEC.md
+  bytes: 5990
+  sha256: 2cb7abb2d39afceba4f7f185d7d47d2dbd07173e8c44541b96b66d340de95955
+  type: md
 - path: 05-migration/SYNAPSE-EXTRACTION.md
-  bytes: 6450
-  sha256: 7296e86003a87d7de671b4c1979ed8e8519e2f7c1de63fcbf4be7b883940a97b
+  bytes: 6605
+  sha256: 421b03734b5aef3ea973eb990ac882995475a749fa1822b4f716f75921330c78
+  type: md
+- path: 05-migration/SYNAPSE-IMPLEMENTATION-PLAN.md
+  bytes: 18295
+  sha256: 2fc350e9d56ed5659847aa40103fd2b654f31bbae57109601974ad5e8e2e8ae2
   type: md
 - path: 05-migration/VERTICAL-SLICES.md
   bytes: 2297
@@ -354,8 +382,8 @@ files:
   sha256: 4da14fb5d5bc4f166cab32b8e4a77fd9c9c184614bbe32af05c078da86de46c1
   type: toml
 - path: 05-migration/donors.lock.toml
-  bytes: 570
-  sha256: cebc26a07686fcf17cb9dd50ede3a0019466fa778123b1d561d35f69365e3700
+  bytes: 577
+  sha256: f6a30b04c43c25f79b31cae3094a9ccfe2d7ba714ffa64cd62c3da22dc417e8a
   type: toml
 - path: 05-migration/status.yaml
   bytes: 701
@@ -478,8 +506,8 @@ files:
   sha256: 7683039a2b5f63310830d3e13d9f52c32a9b2ded2499d26c776722e1f7691baa
   type: md
 - path: 09-delivery/IMPLEMENTATION-TRACKER.md
-  bytes: 1544
-  sha256: a1c2583d20a8b0c6e618e08054e925363056f7783e7084d5a17bbfea0370f803
+  bytes: 2159
+  sha256: ba973c72ead0269ce6a22d9e44a9f01c5e79fa616b739a1ca39c3c1bf89468e6
   type: md
 - path: 09-delivery/OPEN-DECISIONS.md
   bytes: 1994

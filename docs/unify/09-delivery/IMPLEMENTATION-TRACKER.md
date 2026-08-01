@@ -1,7 +1,7 @@
 ---
 title: "Implementation Tracker"
 created: 2026-07-24
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # Implementation Tracker
@@ -57,8 +57,11 @@ No generic `in_progress`.
 | Stack | Position | Branch | Base | Isolated worktree | Capability | PR | Status |
 |---|---:|---|---|---|---|---|---|
 | product-family | 1 | `feat/product-family-architecture` | `main` | `~/workspace/soma/.worktrees/product-family-architecture` | O0 contracts and architecture | #257 | contracted |
+| product-family | 2 | `feat/operations-foundation` | `feat/product-family-architecture` | `~/workspace/soma/.worktrees/operations-foundation` | O2 operations contracts, models, schema, and plan | pending | external_consumer_verified |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
+
+Current operations-foundation evidence: extraction spec, code map, domain models, schema contract, Draft 2020-12 JSON Schema, twelve-PR implementation plan, current Synapse donor lock, 49 unit tests, 59-operation name compatibility, strict Clippy, warning-free rustdoc, external-consumer compile, architecture check, and xtask tests. Full semantic parity remains the next gate.
 
 ## Progress measurement
 

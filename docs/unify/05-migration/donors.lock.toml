@@ -1,5 +1,5 @@
 format_version = 1
-generated_at = "2026-07-31"
+generated_at = "2026-08-01"
 
 [soma]
 repository = "https://github.com/dinglebear-ai/soma"
@@ -14,7 +14,7 @@ repository = "https://github.com/dinglebear-ai/cortex"
 commit = "3d75d109cc3531d1b18c9d32c4059566651cd863"
 
 [synapse]
-repository = "https://github.com/jmagar/synapse"
-commit = "b92552900c1458aa03b370c80edc812884c77f31"
+repository = "https://github.com/dinglebear-ai/synapse"
+commit = "8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f"
 operation_source = "src/actions/operations.rs"
 operation_count = 59
