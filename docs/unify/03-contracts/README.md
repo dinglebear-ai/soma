@@ -66,4 +66,6 @@ Operations-specific normative documents are:
 - [`OPERATION-MODELS.md`](OPERATION-MODELS.md);
 - [`OPERATION-SCHEMA.md`](OPERATION-SCHEMA.md);
 - [`schemas/operation-contract.schema.json`](schemas/operation-contract.schema.json);
-- [`schemas/synapse-canonical-operations.schema.json`](schemas/synapse-canonical-operations.schema.json).
+- [`schemas/synapse-canonical-operations.schema.json`](schemas/synapse-canonical-operations.schema.json);
+- [`schemas/synapse-operation-parameters.schema.json`](schemas/synapse-operation-parameters.schema.json);
+- [`schemas/operation-diagnostic-projections.schema.json`](schemas/operation-diagnostic-projections.schema.json).

@@ -242,6 +242,14 @@ synapse-canonical-contract-check:
 synapse-canonical-contract-generate:
     python3 scripts/generate-synapse-canonical-classifications.py generate
 
+# Validate closed parameter schemas and diagnostic surface projections
+operation-surface-contracts-check:
+    python3 scripts/generate-operation-surface-contracts.py check
+
+# Regenerate parameter schemas and diagnostic projections
+operation-surface-contracts-generate:
+    python3 scripts/generate-operation-surface-contracts.py generate
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check
