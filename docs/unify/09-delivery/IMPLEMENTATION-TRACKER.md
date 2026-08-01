@@ -56,7 +56,7 @@ No generic `in_progress`.
 
 | Stack | Position | Branch | Base | Isolated worktree | Capability | PR | Status |
 |---|---:|---|---|---|---|---|---|
-| product-family | 1 | `feat/product-family-architecture` | `main` | `~/workspace/soma/.worktrees/product-family-architecture` | O0 contracts and architecture | pending | contracted |
+| product-family | 1 | `feat/product-family-architecture` | `main` | `~/workspace/soma/.worktrees/product-family-architecture` | O0 contracts and architecture | #257 | contracted |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
