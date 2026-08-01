@@ -1,6 +1,6 @@
 use rmcp::{
     ServiceExt,
-    model::{CallToolRequestParams, Meta},
+    model::{CallToolRequestParams, MetaObject},
     service::ServiceError,
 };
 use rmcp_traces::TraceTrust;
@@ -19,7 +19,7 @@ const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba
 
 #[test]
 fn valid_mcp_trace_metadata_becomes_application_trace_context() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
 
@@ -178,7 +178,7 @@ fn execution_errors_do_not_expose_raw_error_text() {
 
 #[test]
 fn trace_summary_for_logs_uses_untrusted_fail_soft_policy() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
     meta.set_baggage("a".repeat(9 * 1024));
@@ -201,7 +201,7 @@ fn trace_summary_for_logs_uses_untrusted_fail_soft_policy() {
 
 #[test]
 fn valid_traceparent_survives_invalid_optional_trace_metadata() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("invalid tracestate");
     meta.set_baggage("a".repeat(9 * 1024));
@@ -236,7 +236,7 @@ async fn call_tool_logs_safe_trace_summary_from_request_meta() {
     });
     let mut client = ().serve(client_transport).await.expect("client should handshake");
 
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
     meta.set_baggage(
@@ -307,7 +307,7 @@ async fn call_tool_auth_failure_logs_without_trace_fields() {
     });
     let mut client = ().serve(client_transport).await.expect("client should handshake");
 
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
     meta.set_baggage("email=alice@example.com,sessionId=s123");
@@ -367,7 +367,7 @@ async fn call_tool_response_page_rejection_logs_without_trace_or_request_fields(
     });
     let mut client = ().serve(client_transport).await.expect("client should handshake");
 
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
     meta.set_baggage("email=alice@example.com,sessionId=s123");
