@@ -24,6 +24,7 @@ members = [
   "crates/shared/observability",
   "crates/shared/openapi",
   "crates/shared/operations/fleet",
+  "crates/shared/operations/infra",
   "crates/shared/operations/ops",
   "crates/shared/provider-adapters",
   "crates/shared/provider-core",
@@ -135,6 +136,7 @@ soma-mcp-server = { path = "crates/shared/mcp/server" }
 soma-observability = { path = "crates/shared/observability" }
 soma-openapi = { path = "crates/shared/openapi", default-features = false }
 soma-fleet = { path = "crates/shared/operations/fleet" }
+soma-infra = { path = "crates/shared/operations/infra" }
 soma-ops = { path = "crates/shared/operations/ops", default-features = false }
 soma-provider-adapters = { path = "crates/shared/provider-adapters" }
 soma-provider-core = { path = "crates/shared/provider-core", default-features = false }

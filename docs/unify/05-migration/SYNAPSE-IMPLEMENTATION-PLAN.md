@@ -182,6 +182,8 @@ For each slice:
 
 Exit: standalone Synapse delegates every migrated read to `soma-infra`, and embedded Soma can execute the same read through an operations port without importing Synapse.
 
+Implementation record: the first `soma-infra` slice now defines neutral read-only host, Docker, Compose, and filesystem contracts. Host and Compose reads execute through `soma-fleet` with discrete argv and bounded output. The optional Bollard adapter is local-only, bound to one host topology revision, and maps generated SDK models into stable neutral types. Linux filesystem stat, preview, and SHA-256 hashing reuse the donor's `openat2` confinement with explicit roots, `BENEATH`, `NO_SYMLINKS`, `NO_MAGICLINKS`, preview limits, and hash ceilings. Mutations, streaming logs/stats, process/log/ZFS reads, remote Docker composition, and Synapse cutover remain outside this PR.
+
 ### PR 7: mutation framework and infrastructure mutations
 
 Base: PR 6.
