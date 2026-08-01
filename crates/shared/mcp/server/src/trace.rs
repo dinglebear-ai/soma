@@ -6,7 +6,7 @@
 //! own field names, propagation policy, and downstream plumbing) is a product
 //! adapter concern and stays out of this crate.
 
-use rmcp::model::Meta;
+use rmcp::model::MetaObject;
 
 pub use rmcp_traces::{TraceSummary, TraceTrust};
 
@@ -15,7 +15,7 @@ pub use rmcp_traces::{TraceSummary, TraceTrust};
 /// This is a thin wrapper so MCP server implementations get discoverable,
 /// documented trace extraction from `soma-mcp-server` without adding a direct
 /// `rmcp-traces` dependency themselves.
-pub fn trace_summary_from_meta(meta: &Meta, trust: TraceTrust) -> TraceSummary {
+pub fn trace_summary_from_meta(meta: &MetaObject, trust: TraceTrust) -> TraceSummary {
     TraceSummary::from_meta(meta, trust)
 }
 
@@ -35,7 +35,7 @@ pub struct TraceMetaExtraction {
 }
 
 /// Parse request `_meta` once and derive both safe summary and gated raw fields.
-pub fn extract_trace_meta(meta: &Meta, trust: TraceTrust) -> TraceMetaExtraction {
+pub fn extract_trace_meta(meta: &MetaObject, trust: TraceTrust) -> TraceMetaExtraction {
     let summary = trace_summary_from_meta(meta, trust);
     let raw_fields = raw_trace_fields_from_summary(meta, &summary);
     TraceMetaExtraction {
@@ -47,11 +47,14 @@ pub fn extract_trace_meta(meta: &Meta, trust: TraceTrust) -> TraceMetaExtraction
 /// Recover raw `traceparent`/`tracestate` values from `_meta`, gated on the
 /// bounded [`TraceSummary`] confirming a validated trace id. Returns `None`
 /// when no valid trace id was extracted (absent, malformed, or over budget).
-pub fn raw_trace_fields_from_meta(meta: &Meta, trust: TraceTrust) -> Option<RawTraceFields> {
+pub fn raw_trace_fields_from_meta(meta: &MetaObject, trust: TraceTrust) -> Option<RawTraceFields> {
     extract_trace_meta(meta, trust).raw_fields
 }
 
-fn raw_trace_fields_from_summary(meta: &Meta, summary: &TraceSummary) -> Option<RawTraceFields> {
+fn raw_trace_fields_from_summary(
+    meta: &MetaObject,
+    summary: &TraceSummary,
+) -> Option<RawTraceFields> {
     summary.trace_id_prefix()?;
     Some(RawTraceFields {
         traceparent: meta.get_traceparent().map(ToOwned::to_owned),

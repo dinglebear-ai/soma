@@ -1,4 +1,4 @@
-use rmcp::model::Meta;
+use rmcp::model::MetaObject;
 use rmcp_traces::{TraceLimits, TraceSummary, TraceTrust};
 use serde_json::json;
 
@@ -6,7 +6,7 @@ const VALID_TRACEPARENT: &str = "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba
 
 #[test]
 fn summary_summarizes_valid_trace_metadata_without_raw_values() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
     meta.set_baggage("region=us-east-1,accessToken=super-secret-token");
@@ -26,7 +26,7 @@ fn summary_summarizes_valid_trace_metadata_without_raw_values() {
 
 #[test]
 fn summary_preserves_valid_traceparent_when_optional_metadata_is_invalid() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_baggage("a=1,b=2,c=3");
     let limits = TraceLimits {
@@ -50,7 +50,7 @@ fn summary_preserves_valid_traceparent_when_optional_metadata_is_invalid() {
 
 #[test]
 fn summary_collects_multiple_safe_invalid_reasons() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate("vendor=value");
     meta.set_baggage("a=1,b=2,c=3");
@@ -82,7 +82,7 @@ fn summary_collects_multiple_safe_invalid_reasons() {
 
 #[test]
 fn summary_requires_traceparent_before_accepting_tracestate() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_tracestate("vendor=value");
     meta.set_baggage("sessionId=s123,region=us-east-1");
 
@@ -104,7 +104,7 @@ fn summary_requires_traceparent_before_accepting_tracestate() {
 
 #[test]
 fn summary_reports_invalid_optional_metadata_without_traceparent() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.insert("tracestate".to_owned(), json!(123));
     meta.set_baggage("a=1,b=2,c=3");
     let limits = TraceLimits {
@@ -145,7 +145,7 @@ fn summary_rejects_malformed_tracestate_safely() {
             "tracestate format was invalid",
         ),
     ] {
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.set_traceparent(VALID_TRACEPARENT);
         meta.set_tracestate(tracestate);
 
@@ -156,7 +156,7 @@ fn summary_rejects_malformed_tracestate_safely() {
         assert!(!format!("{summary:?}").contains(tracestate));
     }
 
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_tracestate(
         (0..33)
@@ -175,7 +175,7 @@ fn summary_rejects_malformed_tracestate_safely() {
 
 #[test]
 fn summary_rejects_malformed_baggage_and_counts_bad_members_toward_limit() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_baggage("token");
 
@@ -188,7 +188,7 @@ fn summary_rejects_malformed_baggage_and_counts_bad_members_toward_limit() {
     assert_eq!(summary.baggage_member_count(), 0);
     assert_eq!(summary.sensitive_baggage_member_count(), 0);
 
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_baggage("ok=1,token");
     let limits = TraceLimits {
@@ -206,13 +206,13 @@ fn summary_rejects_malformed_baggage_and_counts_bad_members_toward_limit() {
 
 #[test]
 fn absent_or_non_string_trace_metadata_is_fail_soft_for_summaries() {
-    let meta = Meta::new();
+    let meta = MetaObject::new();
     assert_eq!(
         TraceSummary::from_meta(&meta, TraceTrust::Untrusted).invalid_count(),
         0
     );
 
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.insert("traceparent".to_owned(), json!(123));
 
     let summary = TraceSummary::from_meta(&meta, TraceTrust::Untrusted);
@@ -222,7 +222,7 @@ fn absent_or_non_string_trace_metadata_is_fail_soft_for_summaries() {
 
 #[test]
 fn trace_flags_accept_reserved_bits_and_keep_sampled_bit() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent("00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-03");
 
     let summary = TraceSummary::from_meta(&meta, TraceTrust::Untrusted);
@@ -234,7 +234,7 @@ fn trace_flags_accept_reserved_bits_and_keep_sampled_bit() {
 
 #[test]
 fn summary_never_contains_raw_baggage_values() {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     meta.set_traceparent(VALID_TRACEPARENT);
     meta.set_baggage(
         "email=alice@example.com,accessToken=super-secret-token,x-api-key=abc123,sessionId=s123",
