@@ -63,7 +63,7 @@ No generic `in_progress`.
 | product-family | 5 | `feat/operations-schema-diagnostics` | `feat/operations-canonical-classification` | `~/workspace/soma/.worktrees/operations-schema-diagnostics` | O2 versioned schema identities and stable diagnostic vocabulary | #264 | parity_verifying |
 | product-family | 6 | `feat/operations-surface-contracts` | `feat/operations-schema-diagnostics` | `~/workspace/soma/.worktrees/operations-surface-contracts` | O2 closed parameter schemas and diagnostic surface projections | #265 | parity_verifying |
 | product-family | 7 | `feat/operations-result-schemas` | `feat/operations-surface-contracts` | `~/workspace/soma/.worktrees/operations-result-schemas` | O2 closed canonical result payload schemas | #266 | parity_verifying |
-| product-family | 8 | `feat/synapse-product-import` | `feat/operations-result-schemas` | `~/workspace/soma/.worktrees/synapse-product-import` | History-preserving standalone Synapse donor import | pending | parity_verifying |
+| product-family | 8 | `feat/synapse-product-import` | `feat/operations-result-schemas` | `~/workspace/soma/.worktrees/synapse-product-import` | History-preserving standalone Synapse donor import | #268 | parity_verifying |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
