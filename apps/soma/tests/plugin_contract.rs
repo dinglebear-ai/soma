@@ -21,6 +21,77 @@ fn repo_path(path: &str) -> std::path::PathBuf {
         .join(path)
 }
 
+fn docker_stages(dockerfile: &str) -> Vec<&str> {
+    let mut starts = dockerfile
+        .match_indices("FROM ")
+        .filter_map(|(index, _)| {
+            (index == 0 || dockerfile.as_bytes()[index - 1] == b'\n').then_some(index)
+        })
+        .collect::<Vec<_>>();
+    starts.push(dockerfile.len());
+    starts
+        .windows(2)
+        .map(|window| &dockerfile[window[0]..window[1]])
+        .collect()
+}
+
+#[test]
+fn docker_stage_parser_accepts_digest_pinned_images() {
+    let dockerfile = "FROM node:26-bookworm-slim AS web\nRUN true\nFROM rust@sha256:builder AS builder\nRUN true\nFROM debian:bookworm-slim@sha256:runtime\nRUN true\n";
+    let stages = docker_stages(dockerfile);
+    assert_eq!(stages.len(), 3);
+    assert!(stages[1].lines().next().unwrap().ends_with(" AS builder"));
+    assert!(stages[2].starts_with("FROM debian:bookworm-slim@sha256:runtime"));
+}
+
+#[test]
+fn production_container_supports_persistent_python_provider_hot_reload() {
+    let compose = read("docker-compose.prod.yml");
+    assert!(compose.contains("SOMA_HOME: /data"));
+    assert!(compose.contains("SOMA_PROVIDER_DIR: /data/providers"));
+    assert!(compose.contains("${HOME}/.soma:/data"));
+    assert!(
+        compose.contains("read_only: true"),
+        "hot reload must use the data mount rather than weakening the root filesystem"
+    );
+
+    let dockerfile = read("config/Dockerfile");
+    let stages = docker_stages(&dockerfile);
+    let builder = stages
+        .iter()
+        .copied()
+        .find(|stage| {
+            stage
+                .lines()
+                .next()
+                .is_some_and(|line| line.split_whitespace().last() == Some("builder"))
+        })
+        .expect("Dockerfile should contain a named builder stage");
+    assert!(
+        builder.contains("libseccomp-dev"),
+        "builder image must link the Python containment backend"
+    );
+    let runtime = stages
+        .last()
+        .expect("Dockerfile should contain a runtime stage");
+    let runtime_packages = runtime
+        .split_once("rm -rf /var/lib/apt/lists/*")
+        .expect("runtime package installation should clean apt metadata")
+        .0;
+    assert!(
+        runtime_packages.contains("libseccomp2"),
+        "runtime image must ship the shared library used by Python containment"
+    );
+    assert!(
+        runtime_packages.contains("python3"),
+        "runtime image must ship the ambient interpreter used by .py providers"
+    );
+    assert!(
+        dockerfile.contains("COPY wit/ wit/"),
+        "builder image must include the embedded provider WIT world"
+    );
+}
+
 #[test]
 fn plugin_manifests_exist_for_all_supported_hosts() {
     for path in [

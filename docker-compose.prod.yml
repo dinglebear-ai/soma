@@ -41,6 +41,8 @@ services:
       - path: .env
         required: false
     environment:
+      SOMA_HOME: /data
+      SOMA_PROVIDER_DIR: /data/providers
       SOMA_MCP_HOST: 0.0.0.0
       SOMA_NOAUTH: "true"
     ports:
