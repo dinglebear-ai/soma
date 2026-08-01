@@ -37,7 +37,7 @@
         "cli",
         "server-runtime"
       ],
-      "node_package": "soma-rmcp",
+      "node_package": "@dinglebear/soma-mcp",
       "provider_dir_env": "SOMA_PROVIDER_DIR",
       "repository": "https://github.com/dinglebear-ai/soma",
       "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
@@ -58,7 +58,9 @@
     },
     "io.modelcontextprotocol.registry/publisher-provided": {
       "distribution": {
-        "ociImage": "ghcr.io/dinglebear-ai/soma:0.8.0"
+        "ociImage": "ghcr.io/dinglebear-ai/soma:0.8.0",
+        "npm": "@dinglebear/soma-mcp@0.8.0",
+        "nodePackage": "@dinglebear/soma-mcp"
       },
       "documentation": {
         "configuration": "docs/CONFIG.md",
@@ -145,6 +147,62 @@
       ],
       "registryType": "oci",
       "runtimeHint": "docker",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@dinglebear/soma-mcp",
+      "version": "0.8.0",
+      "runtimeHint": "npx",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "default": "/data",
+          "description": "Runtime data directory inside the Soma container.",
+          "format": "filepath",
+          "isRequired": false,
+          "isSecret": false,
+          "name": "SOMA_HOME",
+          "placeholder": "/data"
+        },
+        {
+          "default": "/data/providers",
+          "description": "Directory scanned for drop-in provider manifests and modules.",
+          "format": "filepath",
+          "isRequired": false,
+          "isSecret": false,
+          "name": "SOMA_PROVIDER_DIR",
+          "placeholder": "/data/providers"
+        },
+        {
+          "description": "Optional deployed platform API or upstream API base URL used by the SomaClient compatibility layer. Leave unset for local provider/runtime mode.",
+          "isRequired": false,
+          "isSecret": false,
+          "name": "SOMA_API_URL",
+          "placeholder": "https://api.example.com"
+        },
+        {
+          "description": "Optional bearer token or upstream API key for provider-backed calls that use SomaClient. Keep secret.",
+          "isRequired": false,
+          "isSecret": true,
+          "name": "SOMA_API_KEY"
+        },
+        {
+          "default": "info",
+          "description": "Rust tracing filter for local CLI and stdio MCP logs.",
+          "isRequired": false,
+          "isSecret": false,
+          "name": "RUST_LOG"
+        }
+      ],
       "transport": {
         "type": "stdio"
       }

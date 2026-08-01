@@ -24,7 +24,7 @@ metadata for the registry contract. Scaffolding is the path for creating a new
 distributable repo with the same locked-in runtime.
 
 **30-second path:** install the `soma` binary -> `soma status` ->
-`npx -y soma-rmcp mcp` from an MCP client -> call the `soma` MCP tool through
+`npx -y @dinglebear/soma-mcp mcp` from an MCP client -> call the `soma` MCP tool through
 `tools/call` with `{"action":"status"}`.
 
 **Status:** production RMCP runtime. Write-capable provider actions are
@@ -68,7 +68,7 @@ shipped `soma` command is the source of truth for product behavior.
 | Repository | `dinglebear-ai/soma` (formerly `rmcp-template`, then `rtemplate-mcp` — both still redirect) | `dinglebear-ai/r<service>`, or the bare product name; older servers still carry `<service>-rmcp` names behind redirects |
 | Rust crate/package | `soma` | service-specific crate names |
 | Canonical binary | `soma` | usually `r<service>` or the product name |
-| npm package | `soma-rmcp` | `<service>-rmcp` |
+| npm package | `@dinglebear/soma-mcp` | `<service>-rmcp` |
 | MCP tool | `soma` | usually `<service>` |
 | Env prefix | `SOMA_*` | generated service prefix |
 
@@ -111,7 +111,7 @@ a launcher for the Rust binary; install `soma` first or set `SOMA_BIN` to its
 absolute path.
 
 ```bash
-npx -y soma-rmcp mcp
+npx -y @dinglebear/soma-mcp mcp
 ```
 
 Use Cargo while developing the repo:
@@ -122,7 +122,7 @@ cargo run --bin soma -- serve
 ```
 
 Release builds publish GitHub Release binaries, Docker/OCI metadata, the
-`soma-rmcp` npm launcher, MCP registry metadata, and plugin package files from
+`@dinglebear/soma-mcp` npm launcher, MCP registry metadata, and plugin package files from
 the same release component.
 
 ## Product Profiles
