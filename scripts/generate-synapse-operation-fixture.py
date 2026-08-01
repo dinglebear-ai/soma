@@ -15,7 +15,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FIXTURE = ROOT / "docs/unify/03-contracts/examples/synapse-operations.json"
 SOURCE_PATH = "src/actions/operations.rs"
+DONOR_REPOSITORY = "https://github.com/dinglebear-ai/synapse"
 EXPECTED_COUNT = 59
+FORMAT_VERSION = 2
 
 OPERATION_RE = re.compile(
     r'^\s*operation!\("(?P<name>[^"]+)",\s*'
@@ -47,6 +49,18 @@ SCOUT_CANONICAL = {
     "scout.logs.auth": "logs.auth",
 }
 
+SCOPE_VALUES = {
+    None: None,
+    "READ_SCOPE": "synapse:read",
+    "WRITE_SCOPE": "synapse:write",
+}
+
+ACCESS_VALUES = {
+    None: "public",
+    "READ_SCOPE": "read",
+    "WRITE_SCOPE": "write",
+}
+
 
 def run_git(repo: Path, *args: str) -> str:
     completed = subprocess.run(
@@ -56,6 +70,20 @@ def run_git(repo: Path, *args: str) -> str:
         text=True,
     )
     return completed.stdout
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def semantic_digest(operations: list[dict[str, Any]]) -> str:
+    encoded = json.dumps(
+        operations,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return sha256_text(encoded)
 
 
 def strings(value: str | None) -> list[str]:
@@ -87,13 +115,10 @@ def parse_source(source: str) -> list[dict[str, Any]]:
         match = OPERATION_RE.match(line)
         if match is None:
             raise ValueError(f"unparsed operation macro at line {number}: {line}")
+
         scope_name = match.group("scope_name")
-        access = {
-            None: "public",
-            "READ_SCOPE": "read",
-            "WRITE_SCOPE": "write",
-        }[scope_name]
         legacy_name = match.group("name")
+        normalized_line = line.strip()
         operations.append(
             {
                 "legacy_name": legacy_name,
@@ -101,14 +126,17 @@ def parse_source(source: str) -> list[dict[str, Any]]:
                 "legacy_tool": match.group("tool").lower(),
                 "legacy_action": match.group("action"),
                 "legacy_subaction": match.group("sub"),
-                "legacy_access": access,
+                "legacy_access": ACCESS_VALUES[scope_name],
+                "legacy_scope": SCOPE_VALUES[scope_name],
                 "legacy_destructive": match.group("destructive") == "true",
                 "legacy_transport": (
                     "rest" if match.group("transport") == "Rest" else "mcp_only"
                 ),
                 "required_params": strings(match.group("required")),
                 "required_any": alternatives(match.group("required_any")),
+                "source_path": SOURCE_PATH,
                 "source_line": number,
+                "source_macro_sha256": sha256_text(normalized_line),
             }
         )
     return operations
@@ -119,21 +147,36 @@ def build_fixture(repo: Path, ref: str) -> dict[str, Any]:
     source = run_git(repo, "show", f"{ref}:{SOURCE_PATH}")
     operations = parse_source(source)
     fixture = {
-        "format_version": 1,
+        "format_version": FORMAT_VERSION,
         "donor": {
-            "repository": "https://github.com/jmagar/synapse",
+            "repository": DONOR_REPOSITORY,
             "commit": commit,
             "source_path": SOURCE_PATH,
-            "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+            "source_sha256": sha256_text(source),
         },
         "operation_count": len(operations),
+        "semantic_sha256": semantic_digest(operations),
         "operations": operations,
     }
     validate_fixture(fixture)
     return fixture
 
 
+def validate_string_list(value: Any, label: str, *, allow_empty: bool = True) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"{label} must be an array")
+    if not allow_empty and not value:
+        raise ValueError(f"{label} must not be empty")
+    if any(not isinstance(item, str) or not item for item in value):
+        raise ValueError(f"{label} must contain non-empty strings")
+    if len(set(value)) != len(value):
+        raise ValueError(f"{label} contains duplicates")
+
+
 def validate_fixture(fixture: dict[str, Any]) -> None:
+    if fixture.get("format_version") != FORMAT_VERSION:
+        raise ValueError(f"format_version must be {FORMAT_VERSION}")
+
     operations = fixture.get("operations")
     if not isinstance(operations, list):
         raise ValueError("operations must be an array")
@@ -141,6 +184,8 @@ def validate_fixture(fixture: dict[str, Any]) -> None:
         raise ValueError("operation_count does not match operations length")
     if len(operations) != EXPECTED_COUNT:
         raise ValueError(f"expected {EXPECTED_COUNT} operations, found {len(operations)}")
+    if fixture.get("semantic_sha256") != semantic_digest(operations):
+        raise ValueError("semantic_sha256 does not match operation semantics")
 
     legacy = [item.get("legacy_name") for item in operations]
     canonical = [item.get("canonical_name") for item in operations]
@@ -149,19 +194,81 @@ def validate_fixture(fixture: dict[str, Any]) -> None:
     if len(set(canonical)) != len(canonical):
         raise ValueError("canonical operation names are not unique")
 
+    source_lines: list[int] = []
+    shapes: set[tuple[str, str, str | None]] = set()
     for item in operations:
-        expected = canonical_name(str(item.get("legacy_name")))
+        name = str(item.get("legacy_name"))
+        expected = canonical_name(name)
         if item.get("canonical_name") != expected:
             raise ValueError(
-                f"canonical mapping drift for {item.get('legacy_name')}: "
-                f"expected {expected}, found {item.get('canonical_name')}"
+                f"canonical mapping drift for {name}: expected {expected}, "
+                f"found {item.get('canonical_name')}"
             )
-        if item.get("legacy_access") not in {"public", "read", "write"}:
-            raise ValueError(f"invalid legacy_access for {item.get('legacy_name')}")
+
+        tool = item.get("legacy_tool")
+        action = item.get("legacy_action")
+        subaction = item.get("legacy_subaction")
+        if tool not in {"flux", "scout", "both"}:
+            raise ValueError(f"invalid legacy_tool for {name}")
+        if not isinstance(action, str) or not action:
+            raise ValueError(f"invalid legacy_action for {name}")
+        if subaction is not None and (not isinstance(subaction, str) or not subaction):
+            raise ValueError(f"invalid legacy_subaction for {name}")
+        shape = (str(tool), action, subaction)
+        if shape in shapes:
+            raise ValueError(f"duplicate legacy operation shape for {name}: {shape}")
+        shapes.add(shape)
+
+        access = item.get("legacy_access")
+        scope = item.get("legacy_scope")
+        expected_scope = {
+            "public": None,
+            "read": "synapse:read",
+            "write": "synapse:write",
+        }.get(access)
+        if access not in {"public", "read", "write"} or scope != expected_scope:
+            raise ValueError(f"invalid access/scope binding for {name}")
+        if item.get("legacy_destructive") and access != "write":
+            raise ValueError(f"destructive operation {name} must require write access")
         if item.get("legacy_transport") not in {"rest", "mcp_only"}:
-            raise ValueError(f"invalid transport for {item.get('legacy_name')}")
+            raise ValueError(f"invalid transport for {name}")
+
+        required = item.get("required_params")
+        validate_string_list(required, f"required_params for {name}")
+        required_any = item.get("required_any")
+        if not isinstance(required_any, list):
+            raise ValueError(f"required_any for {name} must be an array")
+        normalized_groups: set[tuple[str, ...]] = set()
+        for index, group in enumerate(required_any):
+            validate_string_list(
+                group,
+                f"required_any[{index}] for {name}",
+                allow_empty=False,
+            )
+            normalized = tuple(group)
+            if normalized in normalized_groups:
+                raise ValueError(f"duplicate required_any group for {name}")
+            normalized_groups.add(normalized)
+
+        if item.get("source_path") != SOURCE_PATH:
+            raise ValueError(f"invalid source_path for {name}")
+        source_line = item.get("source_line")
+        if not isinstance(source_line, int) or source_line <= 0:
+            raise ValueError(f"invalid source_line for {name}")
+        source_lines.append(source_line)
+        if not re.fullmatch(
+            r"[0-9a-f]{64}", str(item.get("source_macro_sha256", ""))
+        ):
+            raise ValueError(f"invalid source macro digest for {name}")
+
+    if source_lines != sorted(source_lines) or len(set(source_lines)) != len(source_lines):
+        raise ValueError("source lines must be unique and ordered")
 
     donor = fixture.get("donor", {})
+    if donor.get("repository") != DONOR_REPOSITORY:
+        raise ValueError("donor repository is not canonical")
+    if donor.get("source_path") != SOURCE_PATH:
+        raise ValueError("donor source_path is invalid")
     if not re.fullmatch(r"[0-9a-f]{40}", str(donor.get("commit", ""))):
         raise ValueError("donor commit must be a full lowercase SHA")
     if not re.fullmatch(r"[0-9a-f]{64}", str(donor.get("source_sha256", ""))):
@@ -190,7 +297,10 @@ def main() -> int:
                 json.dumps(fixture, indent=2, ensure_ascii=True) + "\n",
                 encoding="utf-8",
             )
-            print(f"wrote {args.fixture} with {fixture['operation_count']} operations")
+            print(
+                f"wrote {args.fixture} with {fixture['operation_count']} operations "
+                f"({fixture['semantic_sha256'][:12]})"
+            )
             return 0
 
         committed = load_fixture(args.fixture)
@@ -201,7 +311,10 @@ def main() -> int:
                 raise ValueError(
                     "committed Synapse operation fixture differs from the pinned donor source"
                 )
-        print(f"Synapse operation fixture is valid ({EXPECTED_COUNT} operations)")
+        print(
+            f"Synapse operation fixture is valid ({EXPECTED_COUNT} operations, "
+            f"{committed['semantic_sha256'][:12]})"
+        )
         return 0
     except (OSError, subprocess.CalledProcessError, ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)

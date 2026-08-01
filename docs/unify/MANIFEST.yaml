@@ -166,8 +166,8 @@ files:
   sha256: 69877013e405282493b1bb83a6e271ed3e711ff7db0e4525ee4b120cefee919b
   type: md
 - path: 02-crates/specs/soma-ops.md
-  bytes: 5411
-  sha256: 3bc83ce99d496e11a38102f0e1f714813fa8d0a729cbddd5217945628852a733
+  bytes: 5921
+  sha256: 3a168c27098a65eae7d8cd2122ff0d62aa84e17a68b39e1466a243177af76796
   type: md
 - path: 02-crates/specs/soma-primitives.md
   bytes: 3470
@@ -286,8 +286,8 @@ files:
   sha256: 899871968b203fca05373b6ed69ee57da94b090b3784736efafdfbcadb7e668e
   type: json
 - path: 03-contracts/examples/synapse-operations.json
-  bytes: 24280
-  sha256: a6941ccaac18e6ebbb1e70e49eee28dda282123545f9dd307a7a5ece4df58900
+  bytes: 35302
+  sha256: 48913daa1a0196d975c8f7049849a8f7e185096a04793dfa528b45d6403e1497
   type: json
 - path: 03-contracts/schemas/operation-contract.schema.json
   bytes: 10052
@@ -362,8 +362,8 @@ files:
   sha256: 421b03734b5aef3ea973eb990ac882995475a749fa1822b4f716f75921330c78
   type: md
 - path: 05-migration/SYNAPSE-IMPLEMENTATION-PLAN.md
-  bytes: 18295
-  sha256: 2fc350e9d56ed5659847aa40103fd2b654f31bbae57109601974ad5e8e2e8ae2
+  bytes: 18326
+  sha256: 987efdb96f93987e6071440cc49d04a0b241651f13bcfe73d53025fea709bd83
   type: md
 - path: 05-migration/VERTICAL-SLICES.md
   bytes: 2297
@@ -506,8 +506,8 @@ files:
   sha256: 7683039a2b5f63310830d3e13d9f52c32a9b2ded2499d26c776722e1f7691baa
   type: md
 - path: 09-delivery/IMPLEMENTATION-TRACKER.md
-  bytes: 2159
-  sha256: ba973c72ead0269ce6a22d9e44a9f01c5e79fa616b739a1ca39c3c1bf89468e6
+  bytes: 2691
+  sha256: 66029bb1a100faca045c08c1295c6f610b103d672a0af1d8c9b815d71a72e158
   type: md
 - path: 09-delivery/OPEN-DECISIONS.md
   bytes: 1994

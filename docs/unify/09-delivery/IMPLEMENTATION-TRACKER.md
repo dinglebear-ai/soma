@@ -57,11 +57,12 @@ No generic `in_progress`.
 | Stack | Position | Branch | Base | Isolated worktree | Capability | PR | Status |
 |---|---:|---|---|---|---|---|---|
 | product-family | 1 | `feat/product-family-architecture` | `main` | `~/workspace/soma/.worktrees/product-family-architecture` | O0 contracts and architecture | #257 | contracted |
-| product-family | 2 | `feat/operations-foundation` | `feat/product-family-architecture` | `~/workspace/soma/.worktrees/operations-foundation` | O2 operations contracts, models, schema, and plan | pending | external_consumer_verified |
+| product-family | 2 | `feat/operations-foundation` | `feat/product-family-architecture` | `~/workspace/soma/.worktrees/operations-foundation` | O2 operations contracts, models, schema, and plan | #260 | external_consumer_verified |
+| product-family | 3 | `feat/operations-semantic-parity` | `feat/operations-foundation` | `~/workspace/soma/.worktrees/operations-semantic-parity` | O2 donor legacy semantic fixture and parity test | pending | parity_verifying |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
-Current operations-foundation evidence: extraction spec, code map, domain models, schema contract, Draft 2020-12 JSON Schema, twelve-PR implementation plan, current Synapse donor lock, 49 unit tests, 59-operation name compatibility, strict Clippy, warning-free rustdoc, external-consumer compile, architecture check, and xtask tests. Full semantic parity remains the next gate.
+Current operations-foundation evidence: extraction spec, code map, domain models, schema contract, Draft 2020-12 JSON Schema, twelve-PR implementation plan, current Synapse donor lock, 49 unit tests, strict Clippy, warning-free rustdoc, external-consumer compile, architecture check, and xtask tests. The next slice now locks all donor-provided legacy semantics for 59 operations with exact scopes, dispatch shapes, parameters, transport/destructive metadata, source provenance, and a deterministic digest. Canonical target, risk, reversibility, retry, idempotency, request/result schema, planning, progress, cancellation, diagnostic, and verification decisions remain the next gate.
 
 ## Progress measurement
 

@@ -80,10 +80,14 @@ The initial public boundary includes:
 `tests/synapse_compatibility.rs` consumes the pinned generated fixture at `docs/unify/03-contracts/examples/synapse-operations.json` and proves:
 
 - all 59 donor operations are represented;
-- legacy and canonical names are unique;
-- every canonical name satisfies the neutral `OperationName` contract.
+- legacy and canonical names and dispatch shapes are unique;
+- every canonical name satisfies the neutral `OperationName` contract;
+- Flux/Scout ownership, action/subaction, scope, destructive classification, transport, required fields, and alternative parameter groups are preserved;
+- donor source path, ordered source lines, source hash, and per-macro hashes are valid;
+- the exact donor commit and semantic-distribution counts are locked;
+- a deterministic SHA-256 digest detects any semantic fixture edit.
 
-Later extraction PRs expand this test from name compatibility to full specification parity.
+Later extraction PRs add canonical risk, target, request/result schema, planning, progress, cancellation, diagnostic, and verification decisions beyond the donor's legacy metadata.
 
 ## Standalone consumer fixture
 
@@ -107,8 +111,8 @@ The crate has no workspace path dependencies.
 
 ## Verification
 
-- 45 unit tests
-- one 59-operation Synapse compatibility integration test
+- 49 unit tests
+- one digest-bound 59-operation Synapse semantic compatibility integration test
 - default-feature and all-feature test builds
 - unrelated external Cargo consumer compile
 - clippy with warnings denied

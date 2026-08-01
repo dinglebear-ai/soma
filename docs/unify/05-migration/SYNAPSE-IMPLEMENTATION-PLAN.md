@@ -20,7 +20,7 @@ The result is one implementation of operation semantics consumed by standalone S
 - Synapse donor reviewed: `dinglebear-ai/synapse@8f1bb2ef`.
 - Donor surface: 59 operations.
 - Protocol baseline: rmcp 3.1.0.
-- Current foundation: `soma-ops` passes 49 unit tests plus the 59-name compatibility test.
+- Current foundation: `soma-ops` passes 49 unit tests plus a digest-bound 59-operation donor semantic compatibility test.
 
 Before source movement, update `donors.lock.toml` to the full donor commit and regenerate a digest-bound semantic fixture.
 

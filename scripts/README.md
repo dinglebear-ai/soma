@@ -57,7 +57,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `check-stale-claims.py` | Python | `cargo xtask check-stale-claims`, CI | Fails when known stale hardcoded Soma claims reappear. |
 | `check-readme-guide.py` | Python | `python3 scripts/check-readme-guide.py README.md` | Audits RMCP READMEs against `docs/RMCP_README_GUIDE.md` structural invariants before fleet alignment. |
 | `check-scaffold-intent-contract.py` | Python wrapper | `cargo xtask check-scaffold-intent-contract`, `just scaffold-contract-check`, CI | Delegates to xtask to validate the scaffold intent JSON schema and checked-in examples without third-party packages. |
-| `generate-synapse-operation-fixture.py` | Python contract tool | `just synapse-operation-contract-check`, `just synapse-operation-contract-generate` | Generates the pinned 59-operation Synapse compatibility fixture from a donor Git ref and validates count, unique names, canonical mappings, scopes, transports, commit identity, and source hash. |
+| `generate-synapse-operation-fixture.py` | Python contract tool | `just synapse-operation-contract-check`, `just synapse-operation-contract-generate` | Generates the pinned 59-operation Synapse semantic fixture and validates names, dispatch shapes, exact scopes, destructive/transport metadata, parameter groups, source provenance, donor identity, and the deterministic semantic digest. |
 | `generate-unify-manifest.py` | Python package tool | `just unify-manifest-check`, `just unify-manifest-generate` | Generates and validates `docs/unify/MANIFEST.yaml` plus `CHECKSUMS.sha256` from the pinned donor lock and current package files. Requires PyYAML. |
 | `check-coupled-files.sh` | Bash wrapper | `cargo xtask check-coupled-files`, `just coupled-files-check`, CI | Delegates to xtask to warn when files that usually change together drift, such as script edits without `scripts/README.md` updates. |
 | `refresh-docs.sh` | Bash wrapper | `cargo xtask refresh-docs`, `just refresh-docs*` | Delegates to xtask to refresh ignored protocol, SDK, Claude Code, and mcporter references under `docs/references/`. |
@@ -469,10 +469,14 @@ just synapse-operation-contract-generate /home/jmagar/workspace/synapse origin/m
 ```
 
 `generate` reads `src/actions/operations.rs` from the requested Synapse Git ref,
-records the full commit and source SHA-256, preserves all legacy compatibility
-metadata, and writes `docs/unify/03-contracts/examples/synapse-operations.json`.
-`check` validates the committed fixture without requiring a donor clone; passing
-`--donor-repo` additionally proves byte-for-byte parity with a live donor ref.
+records the canonical repository, full commit, source SHA-256, ordered source
+lines, and per-macro hashes, preserves the complete legacy dispatch contract,
+and writes `docs/unify/03-contracts/examples/synapse-operations.json`. The
+fixture carries a deterministic semantic SHA-256 over all operation records.
+`check` validates structure, distributions, access/scope binding, parameter
+groups, provenance, and the semantic digest without requiring a donor clone;
+passing `--donor-repo` additionally proves byte-for-byte parity with a live
+donor ref.
 
 ### `generate-unify-manifest.py`
 
