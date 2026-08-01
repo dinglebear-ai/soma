@@ -12,7 +12,7 @@ import dataclasses
 import json
 import types
 import typing
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, ParamSpec, Protocol, TypeVar, TypedDict, overload
 
@@ -42,6 +42,7 @@ __all__ = [
     "ComponentizeReport",
     "Context",
     "Http",
+    "HttpResponse",
     "Log",
     "MetadataError",
     "Metrics",
@@ -158,6 +159,13 @@ class Request:
     deadline_unix_ms: int | None = None
 
 
+class HttpResponse(TypedDict, total=False):
+    status: int
+    body: str
+    body_base64: str
+    body_bytes: bytes
+
+
 class Http(Protocol):
     async def request(
         self,
@@ -166,7 +174,7 @@ class Http(Protocol):
         *,
         headers: Mapping[str, str] | None = None,
         body: bytes | None = None,
-    ) -> Any:
+    ) -> HttpResponse:
         pass
 
 
@@ -234,9 +242,12 @@ class _BrokerCapability:
         return _host_caller(method, self._invocation_id, payload)
 
     async def _call_async(self, method: str, **payload: Any) -> Any:
-        # The private framed channel is intentionally blocking. Move it off
-        # the provider event loop so async providers remain responsive while
-        # DNS, HTTP, and host policy work is in flight.
+        # Persistent native workers offload the blocking framed channel. The
+        # component adapter marks its in-process WIT caller as direct because
+        # componentized Python has no thread authority and host imports are
+        # synchronous by construction.
+        if _host_caller is not None and getattr(_host_caller, "__soma_direct__", False):
+            return self._call(method, **payload)
         return await asyncio.to_thread(self._call, method, **payload)
 
 
@@ -248,7 +259,7 @@ class _BrokerHttp(_BrokerCapability):
         *,
         headers: Mapping[str, str] | None = None,
         body: bytes | None = None,
-    ) -> Any:
+    ) -> HttpResponse:
         result = await self._call_async(
             "host.http",
             request={
@@ -377,6 +388,69 @@ class Context:
             cancelled=bool(payload.get("cancelled", False)),
         )
 
+    async def http_json(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        body: Any = None,
+    ) -> Any:
+        """Call the brokered HTTP capability with a JSON request/response body."""
+
+        encoded = None
+        request_headers = dict(headers or {})
+        if body is not None:
+            encoded = json.dumps(body, allow_nan=False, separators=(",", ":")).encode("utf-8")
+            request_headers.setdefault("content-type", "application/json")
+        response = await self.http.request(
+            method, url, headers=request_headers, body=encoded
+        )
+        payload = response.get("body_bytes")
+        if not isinstance(payload, (bytes, bytearray)):
+            text = response.get("body")
+            if not isinstance(text, str):
+                raise SomaProviderError("brokered HTTP response has no JSON body")
+            payload = text.encode("utf-8")
+        try:
+            return json.loads(payload)
+        except (TypeError, ValueError, UnicodeDecodeError) as error:
+            raise SomaProviderError(f"brokered HTTP response is not valid JSON: {error}") from error
+
+    async def secret(self, name: str) -> str:
+        """Read one declared secret through the host broker."""
+
+        return await self.secrets.get(name)
+
+    async def state_get(self, key: str, default: Any = None) -> Any:
+        """Read one namespaced state value and normalize missing nulls."""
+
+        value = await self.state.get(key)
+        return default if value is None else value
+
+    async def state_set(self, key: str, value: Any) -> None:
+        """Persist one JSON-compatible namespaced state value."""
+
+        await self.state.set(key, _normalize_json(value, "state value"))
+
+    async def info(self, message: str, **fields: Any) -> None:
+        """Emit a structured informational provider log."""
+
+        await self.log.emit("info", message, **fields)
+
+    async def report_progress(
+        self, current: int, *, total: int | None = None, message: str | None = None
+    ) -> None:
+        """Report bounded progress through the invocation-owned channel."""
+
+        await self.progress.update(current, total=total, message=message)
+
+    async def check_cancelled(self) -> None:
+        """Raise ``asyncio.CancelledError`` when the host cancelled the call."""
+
+        if self.cancelled or await self.cancellation.is_cancelled():
+            raise asyncio.CancelledError
+
 
 def _optional_mapping(value: Any) -> Mapping[str, Any] | None:
     if value is None:
@@ -428,6 +502,7 @@ _ANNOTATED_SCHEMA_KEYS = frozenset(
         "default",
         "deprecated",
         "description",
+        "discriminator",
         "examples",
         "exclusiveMaximum",
         "exclusiveMinimum",
@@ -490,6 +565,10 @@ def json_schema(annotation: Any) -> dict[str, Any]:
                         "unsupported Annotated JSON Schema metadata: "
                         + ", ".join(unsupported)
                     )
+                if "discriminator" in overlay:
+                    overlay["discriminator"] = _validate_discriminator(
+                        overlay["discriminator"]
+                    )
                 schema.update(
                     typing.cast(
                         dict[str, Any],
@@ -514,12 +593,18 @@ def json_schema(annotation: Any) -> dict[str, Any]:
     if union_type is not None:
         union_origins.append(union_type)
     if origin in union_origins:
-        return {"anyOf": [json_schema(item) for item in args]}
+        return _canonical_union_schema([json_schema(item) for item in args])
     if origin is typing.Literal:
         values = typing.cast(list[Any], _normalize_json(list(args), "Literal values"))
         return {"enum": values}
-    if origin in (list, set, frozenset):
-        return {"type": "array", "items": json_schema(args[0]) if args else {}}
+    if origin in (list, set, frozenset, Sequence, typing.Sequence):
+        schema: dict[str, Any] = {
+            "type": "array",
+            "items": json_schema(args[0]) if args else {},
+        }
+        if origin in (set, frozenset):
+            schema["uniqueItems"] = True
+        return schema
     if origin is tuple:
         if len(args) == 2 and args[1] is Ellipsis:
             return {"type": "array", "items": json_schema(args[0])}
@@ -531,7 +616,7 @@ def json_schema(annotation: Any) -> dict[str, Any]:
                 "maxItems": len(args),
             }
         return {"type": "array", "items": {}}
-    if origin is dict:
+    if origin in (dict, Mapping, typing.Mapping):
         values = json_schema(args[1]) if len(args) == 2 else True
         return {"type": "object", "additionalProperties": values}
 
@@ -545,6 +630,54 @@ def json_schema(annotation: Any) -> dict[str, Any]:
         type(None): "null",
     }.get(annotation)
     return {"type": schema_type} if schema_type else {}
+
+
+def _canonical_union_schema(variants: list[dict[str, Any]]) -> dict[str, Any]:
+    flattened: list[dict[str, Any]] = []
+    for variant in variants:
+        nested = variant.get("anyOf") if isinstance(variant, dict) else None
+        if isinstance(nested, list) and set(variant) == {"anyOf"}:
+            flattened.extend(item for item in nested if isinstance(item, dict))
+        else:
+            flattened.append(variant)
+
+    unique: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for variant in flattened:
+        key = json.dumps(variant, sort_keys=True, separators=(",", ":"))
+        if key not in seen:
+            seen.add(key)
+            unique.append(variant)
+
+    simple_types: list[str] = []
+    for variant in unique:
+        value = variant.get("type")
+        if not isinstance(value, str) or set(variant) != {"type"}:
+            break
+        simple_types.append(value)
+    else:
+        ordered = sorted(set(simple_types), key=lambda item: (item == "null", item))
+        return {"type": ordered[0] if len(ordered) == 1 else ordered}
+
+    return unique[0] if len(unique) == 1 else {"anyOf": unique}
+
+
+def _validate_discriminator(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise MetadataError("Annotated discriminator must be an object")
+    discriminator = dict(value)
+    if set(discriminator) - {"propertyName", "mapping"}:
+        raise MetadataError("Annotated discriminator supports propertyName and mapping only")
+    property_name = discriminator.get("propertyName")
+    if not isinstance(property_name, str) or not property_name:
+        raise MetadataError("Annotated discriminator propertyName must be a non-empty string")
+    mapping = discriminator.get("mapping")
+    if mapping is not None and (
+        not isinstance(mapping, Mapping)
+        or any(not isinstance(key, str) or not isinstance(item, str) for key, item in mapping.items())
+    ):
+        raise MetadataError("Annotated discriminator mapping must contain string keys and values")
+    return typing.cast(dict[str, Any], _normalize_json(discriminator, "Annotated discriminator"))
 
 
 def _type_hints(annotation: Any) -> dict[str, Any]:

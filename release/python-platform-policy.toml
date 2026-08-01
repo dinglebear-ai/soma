@@ -1,0 +1,34 @@
+schema_version = 1
+componentize_py_version = "0.25.0"
+wasmtime_version = "46.0.2"
+python_requires = ">=3.11"
+trusted_publishing = true
+require_sha256 = true
+require_provenance = true
+require_sbom = true
+allow_source_distributions = false
+allow_git_dependencies = false
+allow_url_dependencies = false
+allow_local_path_dependencies = false
+
+[componentize]
+build_timeout_seconds = 120
+verify_timeout_seconds = 600
+min_invocation_timeout_ms = 30000
+min_fuel = 10000000
+min_memory_bytes = 67108864
+min_table_elements = 10000
+min_instances = 64
+
+[wasmtime_cache]
+file_count_soft_limit = 256
+files_total_size_soft_limit = 2147483648
+
+[performance]
+sdk_import_ms = 500
+catalog_cold_ms = 2000
+catalog_warm_average_ms = 25
+invocation_warm_average_ms = 25
+reload_average_ms = 100
+soak_iterations = 2000
+soak_memory_bytes = 16777216

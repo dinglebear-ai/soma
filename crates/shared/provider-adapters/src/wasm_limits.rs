@@ -21,6 +21,12 @@ impl WasmRuntimeLimits {
     const MAX_TABLE_ELEMENTS: usize = 100_000;
     const MAX_INSTANCES: usize = 64;
 
+    const COMPONENTIZE_MIN_TIMEOUT_MS: u64 = 30_000;
+    const COMPONENTIZE_MIN_FUEL: u64 = 10_000_000;
+    const COMPONENTIZE_MIN_MEMORY_BYTES: usize = 64 * 1024 * 1024;
+    const COMPONENTIZE_MIN_TABLE_ELEMENTS: usize = 10_000;
+    const COMPONENTIZE_MIN_INSTANCES: usize = 64;
+
     pub(super) fn from_tool(tool: &ProviderTool) -> Self {
         let meta = tool.meta.get("wasm");
         Self {
@@ -70,5 +76,20 @@ impl WasmRuntimeLimits {
                 .unwrap_or(16)
                 .min(Self::MAX_INSTANCES),
         }
+    }
+
+    pub(super) fn with_componentize_minimums(mut self, componentize: bool) -> Self {
+        if componentize {
+            self.timeout_ms = self.timeout_ms.max(Self::COMPONENTIZE_MIN_TIMEOUT_MS);
+            self.fuel = self.fuel.max(Self::COMPONENTIZE_MIN_FUEL);
+            self.max_memory_bytes = self
+                .max_memory_bytes
+                .max(Self::COMPONENTIZE_MIN_MEMORY_BYTES);
+            self.max_table_elements = self
+                .max_table_elements
+                .max(Self::COMPONENTIZE_MIN_TABLE_ELEMENTS);
+            self.max_instances = self.max_instances.max(Self::COMPONENTIZE_MIN_INSTANCES);
+        }
+        self
     }
 }

@@ -46,8 +46,8 @@ tempfile = { version = "3", optional = true }
 
 # ai-sdk / python / sidecar / wasm
 tokio = { version = "1", features = ["io-util", "net", "process", "rt", "sync", "time"], optional = true }
-wasmtime = { version = "46.0.1", default-features = false, features = ["anyhow", "component-model", "cranelift", "runtime", "std"], optional = true }
-wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"], optional = true }
+wasmtime = { version = "46.0.2", default-features = false, features = ["anyhow", "cache", "component-model", "cranelift", "runtime", "std"], optional = true }
+wasmtime-wasi = { version = "46.0.2", default-features = false, features = ["p2"], optional = true }
 
 # codemode bridge
 soma-codemode = { workspace = true, optional = true }

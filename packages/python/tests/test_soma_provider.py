@@ -1,10 +1,17 @@
+import asyncio
+import base64
 import inspect
 import subprocess
 import sys
 import textwrap
 import unittest
 from dataclasses import dataclass
-from typing import Annotated, Literal, NotRequired, TypedDict
+from collections.abc import Mapping, Sequence
+from typing import Annotated, Literal, NotRequired, TypedDict, get_origin
+from unittest.mock import patch
+
+import soma_provider
+import soma_provider._runtime as provider_runtime
 
 from soma_provider import (
     CapabilityUnavailableError,
@@ -28,6 +35,30 @@ class SchemaProfile(TypedDict):
 class SchemaJob:
     name: str
     retries: int = 0
+
+
+class CatPayload(TypedDict):
+    kind: Literal["cat"]
+    meows: int
+
+
+class DogPayload(TypedDict):
+    kind: Literal["dog"]
+    barks: int
+
+
+PetPayload = Annotated[
+    CatPayload | DogPayload,
+    {"discriminator": {"propertyName": "kind"}},
+]
+
+
+class GeneratedModelTests(unittest.TestCase):
+    def test_generated_models_preserve_schema_maps_and_composition(self):
+        from soma_provider.models import JsonSchema, McpPrimitiveOverlay, McpToolOverlay
+
+        self.assertIs(get_origin(JsonSchema), dict)
+        self.assertIs(McpToolOverlay, McpPrimitiveOverlay)
 
 
 class NativeFallbackTests(unittest.TestCase):
@@ -178,7 +209,27 @@ class SchemaTests(unittest.TestCase):
         )
         self.assertEqual(
             json_schema(str | None),
+            {"type": ["string", "null"]},
+        )
+        self.assertEqual(
+            provider_runtime.annotation_schema(str | None),
             {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        )
+        self.assertEqual(
+            provider_runtime.annotation_schema(str | None),
+            {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        )
+        self.assertEqual(
+            json_schema(Sequence[int]),
+            {"type": "array", "items": {"type": "integer"}},
+        )
+        self.assertEqual(
+            json_schema(Mapping[str, int]),
+            {"type": "object", "additionalProperties": {"type": "integer"}},
+        )
+        self.assertEqual(
+            json_schema(set[str]),
+            {"type": "array", "items": {"type": "string"}, "uniqueItems": True},
         )
 
     def test_annotated_typed_dict_dataclass_and_literal_schemas(self):
@@ -217,9 +268,61 @@ class SchemaTests(unittest.TestCase):
             {"type": "object", "additionalProperties": {"type": "integer"}},
         )
 
+    def test_discriminated_union_and_output_schema_inference(self):
+        self.assertEqual(
+            json_schema(PetPayload),
+            {
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "properties": {
+                            "kind": {"enum": ["cat"]},
+                            "meows": {"type": "integer"},
+                        },
+                        "additionalProperties": False,
+                        "required": ["kind", "meows"],
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "kind": {"enum": ["dog"]},
+                            "barks": {"type": "integer"},
+                        },
+                        "additionalProperties": False,
+                        "required": ["barks", "kind"],
+                    },
+                ],
+                "discriminator": {"propertyName": "kind"},
+            },
+        )
+
+        def create_job(name: str) -> SchemaJob:
+            return SchemaJob(name=name)
+
+        self.assertEqual(
+            provider_runtime.tool_output_schema(create_job, "python"),
+            json_schema(SchemaJob),
+        )
+
     def test_annotated_rejects_unknown_schema_keywords(self):
         with self.assertRaisesRegex(MetadataError, "unsupported Annotated"):
             json_schema(Annotated[str, {"unknownConstraint": 1}])
+        with self.assertRaisesRegex(MetadataError, "discriminator propertyName"):
+            json_schema(Annotated[CatPayload | DogPayload, {"discriminator": {}}])
+
+    def test_sync_python_call_does_not_create_an_event_loop(self):
+        def echo(value: int) -> dict[str, int]:
+            return {"value": value}
+
+        with patch.object(
+            provider_runtime.asyncio,
+            "run",
+            side_effect=AssertionError("sync tool created an event loop"),
+        ):
+            self.assertEqual(
+                provider_runtime.call_python_sync(echo, {"value": 7}, {}),
+                {"value": 7},
+            )
 
     def test_context_has_no_public_schema(self):
         with self.assertRaisesRegex(MetadataError, "runner-injected"):
@@ -252,6 +355,90 @@ class ContextTests(unittest.TestCase):
             context.http.request
         with self.assertRaises(AttributeError):
             context.cancelled = True
+
+
+class ContextConvenienceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_typed_context_conveniences_use_the_broker(self):
+        calls = []
+        cancelled = False
+
+        def caller(method, invocation_id, payload):
+            calls.append((method, invocation_id, payload))
+            if method == "host.http":
+                return {
+                    "status": 200,
+                    "body_base64": base64.b64encode(b'{"ok":true}').decode("ascii"),
+                }
+            if method == "host.secret":
+                return "secret-value"
+            if method == "host.state.get":
+                return None
+            if method == "host.cancelled":
+                return cancelled
+            return None
+
+        previous = soma_provider._set_host_caller(caller)
+        try:
+            context = Context._from_payload(
+                {
+                    "request_id": "request-9",
+                    "invocation_id": "invocation-9",
+                    "provider": "typed-tools",
+                    "action": "run",
+                    "surface": "mcp",
+                    "snapshot_id": "snapshot-9",
+                }
+            )
+            self.assertEqual(
+                await context.http_json(
+                    "POST", "https://example.com/v1", body={"value": 1}
+                ),
+                {"ok": True},
+            )
+            self.assertEqual(await context.secret("billing-key"), "secret-value")
+            self.assertEqual(await context.state_get("missing", 42), 42)
+            await context.state_set("value", {"count": 1})
+            await context.info("ready", worker="one")
+            await context.report_progress(1, total=2, message="half")
+            await context.check_cancelled()
+        finally:
+            soma_provider._set_host_caller(previous)
+
+        methods = [method for method, _, _ in calls]
+        self.assertEqual(
+            methods,
+            [
+                "host.http",
+                "host.secret",
+                "host.state.get",
+                "host.state.put",
+                "host.log",
+                "host.progress",
+                "host.cancelled",
+            ],
+        )
+        self.assertEqual(calls[0][1], "invocation-9")
+        self.assertEqual(calls[0][2]["request"]["headers"]["content-type"], "application/json")
+
+    async def test_check_cancelled_raises(self):
+        def caller(method, _invocation_id, _payload):
+            return method == "host.cancelled"
+
+        previous = soma_provider._set_host_caller(caller)
+        try:
+            context = Context._from_payload(
+                {
+                    "request_id": "request-cancel",
+                    "provider": "typed-tools",
+                    "action": "run",
+                    "surface": "mcp",
+                    "snapshot_id": "snapshot-cancel",
+                }
+            )
+            with self.assertRaises(asyncio.CancelledError):
+                await context.check_cancelled()
+        finally:
+            soma_provider._set_host_caller(previous)
 
 
 if __name__ == "__main__":

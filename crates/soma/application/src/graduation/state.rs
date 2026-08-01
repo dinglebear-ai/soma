@@ -4,7 +4,7 @@ fn state_path(workspace: &Path) -> PathBuf {
     workspace.join("graduation.json")
 }
 
-pub(super) fn read_state(workspace: &Path) -> anyhow::Result<GraduationState> {
+pub(crate) fn read_state(workspace: &Path) -> anyhow::Result<GraduationState> {
     let state: GraduationState = serde_json::from_slice(&fs::read(state_path(workspace))?)?;
     if state.schema_version != STATE_SCHEMA_VERSION {
         anyhow::bail!(
@@ -16,7 +16,7 @@ pub(super) fn read_state(workspace: &Path) -> anyhow::Result<GraduationState> {
     Ok(state)
 }
 
-pub(super) fn validate_state_paths(
+pub(crate) fn validate_state_paths(
     workspace: &Path,
     provider_root: &Path,
     state: &GraduationState,

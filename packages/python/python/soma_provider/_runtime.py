@@ -241,58 +241,20 @@ def llamaindex_schema(tool):
 def annotation_schema(annotation):
     if annotation is inspect._empty:
         return {}
-    if isinstance(annotation, str):
-        simple = {
-            "str": "string",
-            "int": "integer",
-            "float": "number",
-            "bool": "boolean",
-            "dict": "object",
-            "list": "array",
-        }.get(annotation)
-        return {"type": simple} if simple else {}
-
     try:
-        origin = typing.get_origin(annotation)
-        args = typing.get_args(annotation)
+        schema = soma_provider.json_schema(annotation)
     except AttributeError as error:
         if "UnionType" not in str(error) or hasattr(types, "UnionType"):
             raise
         origin = getattr(annotation, "__origin__", None)
         args = getattr(annotation, "__args__", ())
-    union_origins = [typing.Union]
-    union_type = getattr(types, "UnionType", None)
-    if union_type is not None:
-        union_origins.append(union_type)
-    if origin in union_origins:
-        includes_none = any(item is type(None) for item in args)
-        non_none = [item for item in args if item is not type(None)]
-        if len(non_none) == 1:
-            schema = annotation_schema(non_none[0])
-            if includes_none:
-                return {"anyOf": [schema, {"type": "null"}]}
-            return schema
-        variants = [annotation_schema(item) for item in non_none]
-        variants = [variant for variant in variants if variant]
-        if includes_none:
-            variants.append({"type": "null"})
-        return {"anyOf": variants} if variants else {}
-    if origin in (list, tuple, set, frozenset):
-        item_schema = annotation_schema(args[0]) if args else {}
-        return {"type": "array", "items": item_schema}
-    if origin is dict:
-        return {"type": "object", "additionalProperties": True}
-
-    mapping = {
-        str: "string",
-        int: "integer",
-        float: "number",
-        bool: "boolean",
-        dict: "object",
-        list: "array",
-    }
-    schema_type = mapping.get(annotation)
-    return {"type": schema_type} if schema_type else {}
+        if origin is not typing.Union:
+            return {}
+        return {"anyOf": [annotation_schema(item) for item in args]}
+    schema_types = schema.get("type") if isinstance(schema, dict) else None
+    if isinstance(schema_types, list) and set(schema) == {"type"}:
+        return {"anyOf": [{"type": item} for item in schema_types]}
+    return schema
 
 
 def validate_python_signature(tool):
@@ -310,7 +272,7 @@ def validate_python_signature(tool):
 def function_schema(tool):
     hints = {}
     try:
-        hints = typing.get_type_hints(tool)
+        hints = typing.get_type_hints(tool, include_extras=True)
     except Exception as error:
         if "UnionType" in str(error) and not hasattr(types, "UnionType"):
             hints = {}
@@ -372,6 +334,25 @@ def tool_description(tool, kind):
     return getattr(tool, "description", None) or inspect.getdoc(tool) or "Python provider tool."
 
 
+def tool_output_schema(tool, kind):
+    if kind != "python":
+        return None
+    spec = soma_tool_spec(tool)
+    if "output_schema" in spec:
+        return spec["output_schema"]
+    signature = validate_python_signature(tool)
+    hints = {}
+    try:
+        hints = typing.get_type_hints(tool, include_extras=True)
+    except Exception as error:
+        name = getattr(tool, "__name__", "<unknown>")
+        raise RuntimeError(
+            f"Python tool {name!r} return annotation resolution failed: {error}"
+        ) from error
+    annotation = hints.get("return", signature.return_annotation)
+    return annotation_schema(annotation) or None
+
+
 def tool_schema(tool, kind):
     if kind == "python":
         spec = soma_tool_spec(tool)
@@ -419,6 +400,9 @@ def catalog(path, module=None):
             "cli": {"enabled": True, "command": name},
             "meta": {"python": {"adapter": kind}},
         }
+        output_schema = tool_output_schema(tool, kind)
+        if output_schema is not None:
+            tool_spec["output_schema"] = output_schema
         if kind == "python":
             decorator_spec = soma_tool_spec(tool)
             for key in SOMA_TOOL_FIELDS:
@@ -496,7 +480,7 @@ def python_call_arguments(tool, params, payload):
     arguments = dict(params)
     hints = {}
     try:
-        hints = typing.get_type_hints(tool)
+        hints = typing.get_type_hints(tool, include_extras=True)
     except Exception:
         # Invocation only needs to recognize Context. Preserve explicit-schema
         # compatibility when unrelated forward annotations are unresolved.
@@ -510,6 +494,15 @@ def python_call_arguments(tool, params, payload):
                 )
             arguments[name] = soma_provider.Context._from_payload(payload)
     return arguments
+
+
+def call_python_sync(tool, params, payload):
+    if not callable(tool):
+        raise RuntimeError("Python tool is not callable")
+    value = tool(**python_call_arguments(tool, params, payload))
+    if inspect.isawaitable(value):
+        return asyncio.run(value)
+    return value
 
 
 async def call_python(tool, params, payload):
