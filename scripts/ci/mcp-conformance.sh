@@ -6,9 +6,11 @@ RMCP_TAG="${RMCP_TAG:-rmcp-v${RMCP_VERSION}}"
 RMCP_COMMIT="${RMCP_COMMIT:-1f9358eddca42d3a510c70ae6446dd6548c7c856}"
 CONF_VERSION="${MCP_CONFORMANCE_VERSION:-0.2.0-alpha.9}"
 SPEC_VERSION="${MCP_SPEC_VERSION:-2026-07-28}"
-PORT="${MCP_CONFORMANCE_PORT:-18002}"
+PORT="${MCP_CONFORMANCE_PORT:-}"
+PORT_LOCK=""
 OUT="${MCP_CONFORMANCE_OUTPUT_DIR:-target/mcp-conformance}"
 ROOT="$(git rev-parse --show-toplevel)"
+UPSTREAM_TARGET="${MCP_CONFORMANCE_UPSTREAM_TARGET_DIR:-$ROOT/target/mcp-conformance-upstream}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/soma-mcp-conf.XXXXXX")"
 PID=""
 cleanup() {
@@ -16,21 +18,51 @@ cleanup() {
     kill "$PID" 2>/dev/null || true
     wait "$PID" 2>/dev/null || true
   fi
+  if [[ -n "$PORT_LOCK" ]]; then
+    rmdir "$PORT_LOCK" 2>/dev/null || true
+  fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
 
-for cmd in git npm cargo curl; do
+for cmd in git npm cargo curl ss; do
   command -v "$cmd" >/dev/null || { echo "missing $cmd" >&2; exit 1; }
 done
 grep -Fq "rmcp = { version = \"=${RMCP_VERSION}\"" "$ROOT/Cargo.toml" || {
   echo "Cargo.toml must pin rmcp to =${RMCP_VERSION}" >&2
   exit 1
 }
-if ss -tlnH 2>/dev/null | grep -q ":${PORT} "; then
-  echo "port ${PORT} is in use" >&2
-  exit 1
-fi
+reserve_port() {
+  local start candidate candidate_lock offset
+  if [[ -n "$PORT" ]]; then
+    start="$PORT"
+  else
+    start=$((20000 + ($$ % 30000)))
+  fi
+  for offset in $(seq 0 999); do
+    if [[ -n "${MCP_CONFORMANCE_PORT:-}" ]]; then
+      candidate="$start"
+    else
+      candidate=$((20000 + ((start - 20000 + offset) % 30000)))
+    fi
+    candidate_lock="${TMPDIR:-/tmp}/soma-mcp-conformance-port-${candidate}.lock"
+    if mkdir "$candidate_lock" 2>/dev/null; then
+      if ! ss -tlnH 2>/dev/null | grep -q ":${candidate} "; then
+        PORT="$candidate"
+        PORT_LOCK="$candidate_lock"
+        return 0
+      fi
+      rmdir "$candidate_lock" 2>/dev/null || true
+    fi
+    if [[ -n "${MCP_CONFORMANCE_PORT:-}" ]]; then
+      break
+    fi
+  done
+  echo "unable to reserve a free conformance port${MCP_CONFORMANCE_PORT:+: ${MCP_CONFORMANCE_PORT}}" >&2
+  return 1
+}
+reserve_port
+echo "Reserved conformance port ${PORT}"
 mkdir -p "$ROOT/$OUT"
 
 git clone --quiet --depth 1 --branch "$RMCP_TAG" \
@@ -43,7 +75,8 @@ ACTUAL="$(git -C "$WORK/rust-sdk" rev-parse HEAD)"
 npm install --prefix "$WORK/js" --ignore-scripts --no-audit --no-fund \
   "@modelcontextprotocol/conformance@${CONF_VERSION}"
 CONF="$WORK/js/node_modules/.bin/conformance"
-RUSTFLAGS="" cargo build --manifest-path "$WORK/rust-sdk/Cargo.toml" -p mcp-conformance
+CARGO_TARGET_DIR="$UPSTREAM_TARGET" RUSTFLAGS="" \
+  cargo build --manifest-path "$WORK/rust-sdk/Cargo.toml" -p mcp-conformance
 RUSTFLAGS="" cargo build --bin soma --locked
 
 SOMA_MCP_HOST=127.0.0.1 SOMA_MCP_PORT="$PORT" SOMA_MCP_NO_AUTH=true \
@@ -81,7 +114,7 @@ for SCENARIO in "${TASKS[@]}"; do
     -o "$ROOT/$OUT/server-extensions"
 done
 
-CLIENT="$WORK/rust-sdk/target/debug/conformance-client"
+CLIENT="$UPSTREAM_TARGET/debug/conformance-client"
 "$CONF" client --command "$CLIENT" --suite all --spec-version "$SPEC_VERSION" \
   -o "$ROOT/$OUT/client-dated"
 "$CONF" client --command "$CLIENT" --suite extensions \

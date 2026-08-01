@@ -37,6 +37,26 @@ fn conformance_defaults_match_the_workspace_rmcp_pin() {
     );
 }
 
+#[test]
+fn conformance_script_reserves_parallel_safe_ports() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let script = std::fs::read_to_string(root.join("scripts/ci/mcp-conformance.sh"))
+        .expect("conformance script");
+    assert!(
+        script.contains("PORT=\"${MCP_CONFORMANCE_PORT:-}\""),
+        "the default port must be dynamically allocated"
+    );
+    assert!(
+        !script.contains("MCP_CONFORMANCE_PORT:-18002"),
+        "parallel jobs must not share a fixed default port"
+    );
+    assert!(script.contains("soma-mcp-conformance-port-${candidate}.lock"));
+    assert!(script.contains("mkdir \"$candidate_lock\""));
+    assert!(script.contains("rmdir \"$PORT_LOCK\""));
+    assert!(script.contains("MCP_CONFORMANCE_UPSTREAM_TARGET_DIR"));
+    assert!(script.contains("CLIENT=\"$UPSTREAM_TARGET/debug/conformance-client\""));
+}
+
 /// Minimal valid crates.io payload; these tests only care about the releases
 /// argument, which `build_monitor_report` parses second.
 const VALID_CRATE_JSON: &str = r#"{
