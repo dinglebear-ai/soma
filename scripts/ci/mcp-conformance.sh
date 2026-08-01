@@ -25,7 +25,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for cmd in git npm cargo curl ss; do
+for cmd in git npm cargo curl; do
   command -v "$cmd" >/dev/null || { echo "missing $cmd" >&2; exit 1; }
 done
 grep -Fq "rmcp = { version = \"=${RMCP_VERSION}\"" "$ROOT/Cargo.toml" || {
@@ -47,7 +47,7 @@ reserve_port() {
     fi
     candidate_lock="${TMPDIR:-/tmp}/soma-mcp-conformance-port-${candidate}.lock"
     if mkdir "$candidate_lock" 2>/dev/null; then
-      if ! ss -tlnH 2>/dev/null | grep -q ":${candidate} "; then
+      if ! (exec 3<>"/dev/tcp/127.0.0.1/${candidate}") 2>/dev/null; then
         PORT="$candidate"
         PORT_LOCK="$candidate_lock"
         return 0
