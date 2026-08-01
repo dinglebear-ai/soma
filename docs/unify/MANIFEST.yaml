@@ -40,7 +40,7 @@ baselines:
     commit: 8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f
     observed: '2026-07-31'
 counts:
-  filesInManifest: 124
+  filesInManifest: 125
   sharedCrates: 19
   adrs: 13
   capabilities: 13
@@ -166,8 +166,8 @@ files:
   sha256: 69877013e405282493b1bb83a6e271ed3e711ff7db0e4525ee4b120cefee919b
   type: md
 - path: 02-crates/specs/soma-ops.md
-  bytes: 5921
-  sha256: 3a168c27098a65eae7d8cd2122ff0d62aa84e17a68b39e1466a243177af76796
+  bytes: 6257
+  sha256: 3de330306a6e0d0f4e5fdee7978220e87fb04064c4aaa4f17a8e97d8ea491c17
   type: md
 - path: 02-crates/specs/soma-primitives.md
   bytes: 3470
@@ -234,8 +234,8 @@ files:
   sha256: 38aebf1d57cfaa33448f893d512810bdfb73806f51b923d68a00089476c82cdc
   type: md
 - path: 03-contracts/OPERATION-SCHEMA.md
-  bytes: 6485
-  sha256: 2c0d5c4e8fe64ebeaf55f3f7efd9c21760785393bd496cabc8c7424257c5536e
+  bytes: 6642
+  sha256: 16f96b19db9ced931f3db4261038442d368b3ecc69b643eeb2b1b059e18f7189
   type: md
 - path: 03-contracts/OPERATIONS-CONTRACT.md
   bytes: 4858
@@ -285,13 +285,17 @@ files:
   bytes: 336
   sha256: 899871968b203fca05373b6ed69ee57da94b090b3784736efafdfbcadb7e668e
   type: json
+- path: 03-contracts/examples/synapse-canonical-operations.json
+  bytes: 38323
+  sha256: 0bd577d4a598398cb050b1e9d2b06315093acfc80e886c12891ffd67f4329e52
+  type: json
 - path: 03-contracts/examples/synapse-operations.json
   bytes: 35302
   sha256: 48913daa1a0196d975c8f7049849a8f7e185096a04793dfa528b45d6403e1497
   type: json
 - path: 03-contracts/schemas/operation-contract.schema.json
-  bytes: 10052
-  sha256: 7aa2779772af0d14b3535187138becd2694303500fda20dcbd354870565c7413
+  bytes: 10426
+  sha256: 6cad1daf71f338d1f083271dec5bbce59597be85027fbadd321a260eee5822b7
   type: json
 - path: 03-contracts/schemas.json
   bytes: 39304
@@ -506,8 +510,8 @@ files:
   sha256: 7683039a2b5f63310830d3e13d9f52c32a9b2ded2499d26c776722e1f7691baa
   type: md
 - path: 09-delivery/IMPLEMENTATION-TRACKER.md
-  bytes: 2688
-  sha256: 4e6ea15015f9ee653241b926355516b2722af7c786c72b645c7b6e8eff27b3ea
+  bytes: 3092
+  sha256: 83be640bbc5dc1dd9264df69a0053849bb2ddcc8e52db2c3442a3fad2903e289
   type: md
 - path: 09-delivery/OPEN-DECISIONS.md
   bytes: 1994

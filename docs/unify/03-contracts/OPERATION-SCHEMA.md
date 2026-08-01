@@ -63,7 +63,7 @@ Compatibility adapters may accept aliases, but normalization MUST produce exactl
 
 Every operation MUST provide a minimal valid request, a representative full request when optional behavior exists, each required alternative group, invalid unknown and conflicting fields, invalid target identity, deadline and budget failures, authorization failures for mutations, stale plan or topology cases, representative success and backend failure, and verification outcomes when supported.
 
-Fixtures assert normalized requests, target resolution, plans, fingerprints, diagnostics, results, verification, events, and legacy projections. Snapshot-only testing is insufficient for security and state-machine behavior.
+Fixtures assert normalized requests, target resolution, plans, fingerprints, diagnostics, results, verification, events, and legacy projections. The canonical classification fixture MUST deserialize directly into the shared `OperationSpec` model and remain digest-bound to the legacy semantic fixture. Snapshot-only testing is insufficient for security and state-machine behavior.
 
 ## State machine
 

@@ -234,6 +234,14 @@ synapse-operation-contract-check:
 synapse-operation-contract-generate donor_repo="/home/jmagar/workspace/synapse" donor_ref="origin/main":
     python3 scripts/generate-synapse-operation-fixture.py generate --donor-repo "{{ donor_repo }}" --ref "{{ donor_ref }}"
 
+# Validate the canonical 59-operation target and safety classifications
+synapse-canonical-contract-check:
+    python3 scripts/generate-synapse-canonical-classifications.py check
+
+# Regenerate canonical classifications from the pinned legacy semantic fixture
+synapse-canonical-contract-generate:
+    python3 scripts/generate-synapse-canonical-classifications.py generate
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check

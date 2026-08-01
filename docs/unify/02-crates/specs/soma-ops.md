@@ -1,7 +1,7 @@
 ---
 title: "soma-ops"
 created: 2026-07-31
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # soma-ops
@@ -87,7 +87,7 @@ The initial public boundary includes:
 - the exact donor commit and semantic-distribution counts are locked;
 - a deterministic SHA-256 digest detects any semantic fixture edit.
 
-Later extraction PRs add canonical risk, target, request/result schema, planning, progress, cancellation, diagnostic, and verification decisions beyond the donor's legacy metadata.
+`tests/synapse_canonical_classification.rs` consumes `synapse-canonical-operations.json`, deserializes every entry directly into `OperationSpec`, and proves complete canonical target, access, risk, reversibility, planning, progress, cancellation, verification, fanout, retry, idempotency, evidence, requirement, and parameter-group coverage. Request/result schemas and stable diagnostics remain the next contract slice.
 
 ## Standalone consumer fixture
 
@@ -112,7 +112,8 @@ The crate has no workspace path dependencies.
 ## Verification
 
 - 49 unit tests
-- one digest-bound 59-operation Synapse semantic compatibility integration test
+- one digest-bound 59-operation Synapse legacy semantic compatibility integration test
+- one digest-bound 59-operation canonical `OperationSpec` classification integration test
 - default-feature and all-feature test builds
 - unrelated external Cargo consumer compile
 - clippy with warnings denied

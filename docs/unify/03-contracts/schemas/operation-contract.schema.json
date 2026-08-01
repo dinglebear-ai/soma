@@ -75,27 +75,44 @@
       "pattern": "^[A-Za-z0-9._:/#-]+$"
     },
     "targetKind": {
-      "enum": [
-        "host",
-        "docker_engine",
-        "container",
-        "compose_project",
-        "filesystem_path",
-        "process",
-        "log_source",
-        "zfs_pool",
-        "zfs_dataset",
-        "zfs_snapshot",
-        "incus_server",
-        "incus_instance",
-        "extension"
+      "oneOf": [
+        {
+          "enum": [
+            "host",
+            "docker_daemon",
+            "container",
+            "compose_project",
+            "incus_server",
+            "incus_instance",
+            "image",
+            "network",
+            "storage_pool",
+            "storage_volume",
+            "file",
+            "process",
+            "log_source",
+            "zfs_pool",
+            "zfs_dataset",
+            "zfs_snapshot"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["custom"],
+          "properties": {
+            "custom": {
+              "$ref": "#/$defs/operationName"
+            }
+          }
+        }
       ]
     },
     "support": {
       "enum": [
-        "required",
-        "supported",
-        "not_supported"
+        "unsupported",
+        "optional",
+        "required"
       ]
     },
     "donor": {
@@ -234,8 +251,7 @@
           "enum": [
             "never",
             "safe",
-            "safe_with_idempotency",
-            "caller_decides"
+            "conditional"
           ]
         },
         "idempotency": {

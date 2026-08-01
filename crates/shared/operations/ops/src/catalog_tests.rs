@@ -38,6 +38,7 @@ fn risky_mutations_require_planning() {
         CapabilitySupport::Optional,
         CapabilitySupport::Optional,
         CapabilitySupport::Required,
+        CapabilitySupport::Unsupported,
     );
     assert!(spec.validate().is_ok());
 }

@@ -1,0 +1,1670 @@
+{
+  "format_version": 1,
+  "legacy_semantic_sha256": "74c9ed1e345a0c67ca7878a25c7aa73a89f36298c1ca6071a5343cf48dd4c4a1",
+  "operation_count": 59,
+  "operations": [
+    {
+      "name": "product.help",
+      "schema_version": 1,
+      "target_kind": {
+        "custom": "product.surface"
+      },
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration"
+      ],
+      "requirements": [
+        "product.help"
+      ]
+    },
+    {
+      "name": "docker.info",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.df",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "metrics",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.images",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.networks",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.volumes",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.pull",
+      "schema_version": 1,
+      "target_kind": "image",
+      "access": "mutation",
+      "risk": "safe",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "host",
+          "image"
+        ]
+      },
+      "required_any": [],
+      "planning": "optional",
+      "progress": "required",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": true,
+      "evidence": [
+        "artifact",
+        "logs",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.build",
+      "schema_version": 1,
+      "target_kind": "image",
+      "access": "mutation",
+      "risk": "privileged",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "context",
+          "host",
+          "tag"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "required",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "artifact",
+        "logs",
+        "runtime_state"
+      ],
+      "requirements": [
+        "filesystem.read",
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.rmi",
+      "schema_version": 1,
+      "target_kind": "image",
+      "access": "mutation",
+      "risk": "destructive",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "force",
+          "host",
+          "image"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "conditional",
+      "idempotent": true,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "docker.prune",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "mutation",
+      "risk": "destructive",
+      "reversibility": "irreversible",
+      "required": {
+        "fields": [
+          "force",
+          "host",
+          "prune_target"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.list",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.inspect",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.logs",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "logs"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.stats",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "metrics",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.top",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.search",
+      "schema_version": 1,
+      "target_kind": "docker_daemon",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "query"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.start",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "disruptive",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": true,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.stop",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "disruptive",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": true,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.restart",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "disruptive",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.pause",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "disruptive",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": true,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.resume",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "disruptive",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": true,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.pull",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "safe",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "optional",
+      "progress": "required",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": true,
+      "evidence": [
+        "artifact",
+        "logs",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.recreate",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "destructive",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "container.exec",
+      "schema_version": 1,
+      "target_kind": "container",
+      "access": "mutation",
+      "risk": "privileged",
+      "reversibility": "irreversible",
+      "required": {
+        "fields": [
+          "command",
+          "container_id",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "artifact",
+        "logs"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "host.status",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.info",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.uptime",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.resources",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "metrics",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.services",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.network",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.mounts",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.ports",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "host.doctor",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.host"
+      ]
+    },
+    {
+      "name": "compose.list",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.status",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.up",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "mutation",
+      "risk": "disruptive",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "conditional",
+      "idempotent": true,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.down",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "mutation",
+      "risk": "destructive",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "conditional",
+      "idempotent": true,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.restart",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "mutation",
+      "risk": "disruptive",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.recreate",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "mutation",
+      "risk": "destructive",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "diff",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.logs",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.build",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "mutation",
+      "risk": "privileged",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "required",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "artifact",
+        "logs",
+        "runtime_state"
+      ],
+      "requirements": [
+        "filesystem.read",
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.pull",
+      "schema_version": 1,
+      "target_kind": "compose_project",
+      "access": "mutation",
+      "risk": "safe",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "host",
+          "project"
+        ]
+      },
+      "required_any": [],
+      "planning": "optional",
+      "progress": "required",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": true,
+      "evidence": [
+        "artifact",
+        "logs",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "compose.refresh",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.docker"
+      ]
+    },
+    {
+      "name": "fleet.nodes",
+      "schema_version": 1,
+      "target_kind": {
+        "custom": "fleet.inventory"
+      },
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": []
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "fleet.repository"
+      ]
+    },
+    {
+      "name": "files.read",
+      "schema_version": 1,
+      "target_kind": "file",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host",
+          "path"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "artifact"
+      ],
+      "requirements": [
+        "filesystem.read"
+      ]
+    },
+    {
+      "name": "files.find",
+      "schema_version": 1,
+      "target_kind": "file",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host",
+          "path",
+          "pattern"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "artifact"
+      ],
+      "requirements": [
+        "filesystem.read"
+      ]
+    },
+    {
+      "name": "processes.list",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "runtime_state"
+      ],
+      "requirements": [
+        "process.read"
+      ]
+    },
+    {
+      "name": "filesystem.usage",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "metrics",
+        "runtime_state"
+      ],
+      "requirements": [
+        "filesystem.read"
+      ]
+    },
+    {
+      "name": "files.compare",
+      "schema_version": 1,
+      "target_kind": "file",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "source_host",
+          "source_path"
+        ]
+      },
+      "required_any": [
+        {
+          "fields": [
+            "content"
+          ]
+        },
+        {
+          "fields": [
+            "target_host",
+            "target_path"
+          ]
+        }
+      ],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "diff"
+      ],
+      "requirements": [
+        "filesystem.read"
+      ]
+    },
+    {
+      "name": "host.exec",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "mutation",
+      "risk": "privileged",
+      "reversibility": "irreversible",
+      "required": {
+        "fields": [
+          "command",
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "artifact",
+        "logs"
+      ],
+      "requirements": [
+        "process.exec"
+      ]
+    },
+    {
+      "name": "host.exec_many",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "mutation",
+      "risk": "privileged",
+      "reversibility": "irreversible",
+      "required": {
+        "fields": [
+          "command",
+          "targets"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "required",
+      "retry": "never",
+      "idempotent": false,
+      "evidence": [
+        "artifact",
+        "logs"
+      ],
+      "requirements": [
+        "fleet.fanout",
+        "process.exec"
+      ]
+    },
+    {
+      "name": "files.transfer",
+      "schema_version": 1,
+      "target_kind": "file",
+      "access": "mutation",
+      "risk": "destructive",
+      "reversibility": "conditional",
+      "required": {
+        "fields": [
+          "dest_host",
+          "dest_path",
+          "source_host",
+          "source_path"
+        ]
+      },
+      "required_any": [],
+      "planning": "required",
+      "progress": "required",
+      "cancellation": "optional",
+      "verification": "required",
+      "fanout": "unsupported",
+      "retry": "conditional",
+      "idempotent": false,
+      "evidence": [
+        "artifact",
+        "diff"
+      ],
+      "requirements": [
+        "filesystem.read",
+        "filesystem.write",
+        "fleet.transfer"
+      ]
+    },
+    {
+      "name": "zfs.pools",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.zfs"
+      ]
+    },
+    {
+      "name": "zfs.datasets",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.zfs"
+      ]
+    },
+    {
+      "name": "zfs.snapshots",
+      "schema_version": 1,
+      "target_kind": "host",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "unsupported",
+      "cancellation": "unsupported",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "configuration",
+        "runtime_state"
+      ],
+      "requirements": [
+        "runtime.zfs"
+      ]
+    },
+    {
+      "name": "logs.syslog",
+      "schema_version": 1,
+      "target_kind": "log_source",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "logs"
+      ],
+      "requirements": [
+        "logs.read"
+      ]
+    },
+    {
+      "name": "logs.journal",
+      "schema_version": 1,
+      "target_kind": "log_source",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "logs"
+      ],
+      "requirements": [
+        "logs.read"
+      ]
+    },
+    {
+      "name": "logs.kernel",
+      "schema_version": 1,
+      "target_kind": "log_source",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "logs"
+      ],
+      "requirements": [
+        "logs.read"
+      ]
+    },
+    {
+      "name": "logs.auth",
+      "schema_version": 1,
+      "target_kind": "log_source",
+      "access": "read",
+      "risk": "safe",
+      "reversibility": "reversible",
+      "required": {
+        "fields": [
+          "host"
+        ]
+      },
+      "required_any": [],
+      "planning": "unsupported",
+      "progress": "optional",
+      "cancellation": "optional",
+      "verification": "unsupported",
+      "fanout": "unsupported",
+      "retry": "safe",
+      "idempotent": false,
+      "evidence": [
+        "logs"
+      ],
+      "requirements": [
+        "logs.read"
+      ]
+    }
+  ],
+  "classification_sha256": "2f70a7654d7e2e0eb58655f74d7f325e2791fc71c921443c850df484646f6583"
+}

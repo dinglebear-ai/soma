@@ -109,6 +109,7 @@ pub struct OperationSpec {
     progress: CapabilitySupport,
     cancellation: CapabilitySupport,
     verification: CapabilitySupport,
+    fanout: CapabilitySupport,
     retry: RetryClass,
     idempotent: bool,
     evidence: BTreeSet<EvidenceKind>,
@@ -132,6 +133,7 @@ impl OperationSpec {
             progress: CapabilitySupport::Unsupported,
             cancellation: CapabilitySupport::Unsupported,
             verification: CapabilitySupport::Unsupported,
+            fanout: CapabilitySupport::Unsupported,
             retry: RetryClass::Never,
             idempotent: false,
             evidence: BTreeSet::new(),
@@ -168,7 +170,7 @@ impl OperationSpec {
         self
     }
 
-    /// Sets lifecycle capability support.
+    /// Sets lifecycle and fanout capability support.
     #[must_use]
     pub fn with_lifecycle(
         mut self,
@@ -176,11 +178,13 @@ impl OperationSpec {
         progress: CapabilitySupport,
         cancellation: CapabilitySupport,
         verification: CapabilitySupport,
+        fanout: CapabilitySupport,
     ) -> Self {
         self.planning = planning;
         self.progress = progress;
         self.cancellation = cancellation;
         self.verification = verification;
+        self.fanout = fanout;
         self
     }
 
@@ -314,6 +318,12 @@ impl OperationSpec {
     #[must_use]
     pub const fn verification(&self) -> CapabilitySupport {
         self.verification
+    }
+
+    /// Returns fanout support.
+    #[must_use]
+    pub const fn fanout(&self) -> CapabilitySupport {
+        self.fanout
     }
 
     /// Returns retry classification.

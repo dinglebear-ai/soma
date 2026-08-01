@@ -58,6 +58,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `check-readme-guide.py` | Python | `python3 scripts/check-readme-guide.py README.md` | Audits RMCP READMEs against `docs/RMCP_README_GUIDE.md` structural invariants before fleet alignment. |
 | `check-scaffold-intent-contract.py` | Python wrapper | `cargo xtask check-scaffold-intent-contract`, `just scaffold-contract-check`, CI | Delegates to xtask to validate the scaffold intent JSON schema and checked-in examples without third-party packages. |
 | `generate-synapse-operation-fixture.py` | Python contract tool | `just synapse-operation-contract-check`, `just synapse-operation-contract-generate` | Generates the pinned 59-operation Synapse semantic fixture and validates names, dispatch shapes, exact scopes, destructive/transport metadata, parameter groups, source provenance, donor identity, and the deterministic semantic digest. |
+| `generate-synapse-canonical-classifications.py` | Python contract tool | `just synapse-canonical-contract-check`, `just synapse-canonical-contract-generate` | Generates and validates the digest-bound canonical `OperationSpec` registry, including explicit mutation safety decisions, target kinds, lifecycle support, retry/idempotency, evidence, and backend capability requirements. |
 | `generate-unify-manifest.py` | Python package tool | `just unify-manifest-check`, `just unify-manifest-generate` | Generates and validates `docs/unify/MANIFEST.yaml` plus `CHECKSUMS.sha256` from the pinned donor lock and current package files. Requires PyYAML. |
 | `check-coupled-files.sh` | Bash wrapper | `cargo xtask check-coupled-files`, `just coupled-files-check`, CI | Delegates to xtask to warn when files that usually change together drift, such as script edits without `scripts/README.md` updates. |
 | `refresh-docs.sh` | Bash wrapper | `cargo xtask refresh-docs`, `just refresh-docs*` | Delegates to xtask to refresh ignored protocol, SDK, Claude Code, and mcporter references under `docs/references/`. |
@@ -477,6 +478,21 @@ fixture carries a deterministic semantic SHA-256 over all operation records.
 groups, provenance, and the semantic digest without requiring a donor clone;
 passing `--donor-repo` additionally proves byte-for-byte parity with a live
 donor ref.
+
+### `generate-synapse-canonical-classifications.py`
+
+```bash
+just synapse-canonical-contract-check
+just synapse-canonical-contract-generate
+```
+
+Consumes the pinned legacy semantic fixture and generates
+`docs/unify/03-contracts/examples/synapse-canonical-operations.json`. All 21
+mutations have explicit safety and lifecycle decisions; read-only operations use
+bounded domain rules. Check mode proves complete 59-operation coverage, exact
+parameter parity, risk/planning and retry/idempotency invariants, evidence and
+capability requirements, and a deterministic classification SHA-256. The Rust
+integration test deserializes every generated entry directly into `OperationSpec`.
 
 ### `generate-unify-manifest.py`
 
