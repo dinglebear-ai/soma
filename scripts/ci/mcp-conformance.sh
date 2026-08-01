@@ -8,19 +8,25 @@ CONF_VERSION="${MCP_CONFORMANCE_VERSION:-0.2.0-alpha.9}"
 SPEC_VERSION="${MCP_SPEC_VERSION:-2026-07-28}"
 PORT="${MCP_CONFORMANCE_PORT:-}"
 PORT_LOCK=""
-OUT="${MCP_CONFORMANCE_OUTPUT_DIR:-target/mcp-conformance}"
 ROOT="$(git rev-parse --show-toplevel)"
-UPSTREAM_TARGET="${MCP_CONFORMANCE_UPSTREAM_TARGET_DIR:-$ROOT/target/mcp-conformance-upstream}"
+RUN_KEY="${RMCP_COMMIT:0:12}-$$"
+OUT="${MCP_CONFORMANCE_OUTPUT_DIR:-target/mcp-conformance/run-${RUN_KEY}}"
+if [[ "$OUT" = /* ]]; then
+  OUTPUT_DIR="$OUT"
+else
+  OUTPUT_DIR="$ROOT/$OUT"
+fi
+UPSTREAM_TARGET="${MCP_CONFORMANCE_UPSTREAM_TARGET_DIR:-$ROOT/target/mcp-conformance-upstream/$RMCP_COMMIT}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/soma-mcp-conf.XXXXXX")"
 PID=""
+# shellcheck source=scripts/ci/mcp-conformance-port.sh
+source "$ROOT/scripts/ci/mcp-conformance-port.sh"
 cleanup() {
   if [[ -n "$PID" ]]; then
     kill "$PID" 2>/dev/null || true
     wait "$PID" 2>/dev/null || true
   fi
-  if [[ -n "$PORT_LOCK" ]]; then
-    rmdir "$PORT_LOCK" 2>/dev/null || true
-  fi
+  release_conformance_port
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -32,38 +38,7 @@ grep -Fq "rmcp = { version = \"=${RMCP_VERSION}\"" "$ROOT/Cargo.toml" || {
   echo "Cargo.toml must pin rmcp to =${RMCP_VERSION}" >&2
   exit 1
 }
-reserve_port() {
-  local start candidate candidate_lock offset
-  if [[ -n "$PORT" ]]; then
-    start="$PORT"
-  else
-    start=$((20000 + ($$ % 30000)))
-  fi
-  for offset in $(seq 0 999); do
-    if [[ -n "${MCP_CONFORMANCE_PORT:-}" ]]; then
-      candidate="$start"
-    else
-      candidate=$((20000 + ((start - 20000 + offset) % 30000)))
-    fi
-    candidate_lock="${TMPDIR:-/tmp}/soma-mcp-conformance-port-${candidate}.lock"
-    if mkdir "$candidate_lock" 2>/dev/null; then
-      if ! (exec 3<>"/dev/tcp/127.0.0.1/${candidate}") 2>/dev/null; then
-        PORT="$candidate"
-        PORT_LOCK="$candidate_lock"
-        return 0
-      fi
-      rmdir "$candidate_lock" 2>/dev/null || true
-    fi
-    if [[ -n "${MCP_CONFORMANCE_PORT:-}" ]]; then
-      break
-    fi
-  done
-  echo "unable to reserve a free conformance port${MCP_CONFORMANCE_PORT:+: ${MCP_CONFORMANCE_PORT}}" >&2
-  return 1
-}
-reserve_port
-echo "Reserved conformance port ${PORT}"
-mkdir -p "$ROOT/$OUT"
+mkdir -p "$OUTPUT_DIR"
 
 git clone --quiet --depth 1 --branch "$RMCP_TAG" \
   https://github.com/modelcontextprotocol/rust-sdk.git "$WORK/rust-sdk"
@@ -80,28 +55,52 @@ CARGO_TARGET_DIR="$UPSTREAM_TARGET" RUSTFLAGS="" \
   cargo build --manifest-path "$WORK/rust-sdk/Cargo.toml" -p mcp-conformance
 RUSTFLAGS="" cargo build --bin soma --locked
 
-SOMA_MCP_HOST=127.0.0.1 SOMA_MCP_PORT="$PORT" SOMA_MCP_NO_AUTH=true \
-SOMA_MCP_CONFORMANCE_FIXTURES=true \
-  "$ROOT/target/debug/soma" serve >"$ROOT/$OUT/soma-server.log" 2>&1 &
-PID="$!"
-READY=false
-for _ in $(seq 1 50); do
-  if curl -fs "http://127.0.0.1:${PORT}/health" >/dev/null; then
-    READY=true
-    break
-  fi
-  sleep 0.2
-done
-if [[ "$READY" != true ]] || ! kill -0 "$PID" 2>/dev/null; then
+start_soma() {
+  local attempt ready
+  for attempt in $(seq 1 5); do
+    PORT="${MCP_CONFORMANCE_PORT:-}"
+    reserve_conformance_port
+    echo "Reserved conformance port ${PORT} (attempt ${attempt})"
+    SOMA_MCP_HOST=127.0.0.1 SOMA_MCP_PORT="$PORT" SOMA_MCP_NO_AUTH=true \
+    SOMA_MCP_CONFORMANCE_FIXTURES=true \
+      "$ROOT/target/debug/soma" serve >"$OUTPUT_DIR/soma-server.log" 2>&1 &
+    PID="$!"
+    ready=false
+    for _ in $(seq 1 50); do
+      if curl -fs "http://127.0.0.1:${PORT}/health" >/dev/null \
+        && kill -0 "$PID" 2>/dev/null; then
+        sleep 0.1
+        if kill -0 "$PID" 2>/dev/null; then
+          ready=true
+          break
+        fi
+      fi
+      if ! kill -0 "$PID" 2>/dev/null; then
+        break
+      fi
+      sleep 0.2
+    done
+    if [[ "$ready" == true ]]; then
+      return 0
+    fi
+    kill "$PID" 2>/dev/null || true
+    wait "$PID" 2>/dev/null || true
+    PID=""
+    release_conformance_port
+    if [[ -n "${MCP_CONFORMANCE_PORT:-}" ]]; then
+      break
+    fi
+  done
   echo "Soma conformance server did not become ready" >&2
-  tail -100 "$ROOT/$OUT/soma-server.log" >&2 || true
-  exit 1
-fi
+  tail -100 "$OUTPUT_DIR/soma-server.log" >&2 || true
+  return 1
+}
+start_soma
 
 URL="http://127.0.0.1:${PORT}/mcp"
 "$CONF" server --url "$URL" --suite all --spec-version "$SPEC_VERSION" \
   --expected-failures "$ROOT/conformance-baseline.yml" \
-  -o "$ROOT/$OUT/server-dated"
+  -o "$OUTPUT_DIR/server-dated"
 
 TASKS=(
   tasks-lifecycle tasks-capability-negotiation tasks-wire-fields
@@ -112,13 +111,13 @@ TASKS=(
 for SCENARIO in "${TASKS[@]}"; do
   "$CONF" server --url "$URL" --scenario "$SCENARIO" \
     --expected-failures "$ROOT/conformance/expected-failures-extensions.yaml" \
-    -o "$ROOT/$OUT/server-extensions"
+    -o "$OUTPUT_DIR/server-extensions"
 done
 
 CLIENT="$UPSTREAM_TARGET/debug/conformance-client"
 "$CONF" client --command "$CLIENT" --suite all --spec-version "$SPEC_VERSION" \
-  -o "$ROOT/$OUT/client-dated"
+  -o "$OUTPUT_DIR/client-dated"
 "$CONF" client --command "$CLIENT" --suite extensions \
   --expected-failures "$ROOT/conformance/expected-failures-extensions.yaml" \
-  -o "$ROOT/$OUT/client-extensions"
-echo "MCP conformance matrix written to $ROOT/$OUT"
+  -o "$OUTPUT_DIR/client-extensions"
+echo "MCP conformance matrix written to $OUTPUT_DIR"
