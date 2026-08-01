@@ -104,6 +104,69 @@ fn component_network_rejects_non_public_addresses() {
 }
 
 #[test]
+fn persistent_wasmtime_cache_is_bounded() {
+    let cache = wasmtime_cache_config();
+    assert_eq!(
+        cache.file_count_soft_limit(),
+        WASMTIME_CACHE_FILE_COUNT_SOFT_LIMIT
+    );
+    assert_eq!(
+        cache.files_total_size_soft_limit(),
+        WASMTIME_CACHE_BYTES_SOFT_LIMIT
+    );
+    assert_eq!(cache.file_count_limit_percent_if_deleting(), 75);
+    assert_eq!(cache.files_total_size_limit_percent_if_deleting(), 75);
+}
+
+#[test]
+fn componentize_marker_is_valid_idempotent_and_selects_extended_compile_time() {
+    let mut component = wat::parse_str("(component)").expect("valid empty component");
+    assert!(!is_componentize_artifact(&component));
+    assert_eq!(
+        artifact_compile_timeout(&component),
+        Duration::from_secs(DEFAULT_ARTIFACT_COMPILE_TIMEOUT_SECS)
+    );
+
+    mark_componentize_artifact(&mut component).expect("componentize marker");
+    let marked_len = component.len();
+    mark_componentize_artifact(&mut component).expect("idempotent componentize marker");
+
+    assert_eq!(component.len(), marked_len);
+    assert!(is_componentize_artifact(&component));
+    assert_eq!(
+        artifact_compile_timeout(&component),
+        Duration::from_secs(COMPONENTIZE_ARTIFACT_COMPILE_TIMEOUT_SECS)
+    );
+    WasmRuntime::new()
+        .expect("runtime")
+        .artifact(&component, Instant::now() + Duration::from_secs(5))
+        .expect("marked component remains valid");
+}
+
+#[test]
+fn verification_limits_match_the_component_conformance_envelope() {
+    assert_eq!(VERIFY_MAX_MEMORY_BYTES, 64 * 1024 * 1024);
+    assert_eq!(VERIFY_MAX_TABLE_ELEMENTS, 10_000);
+    assert_eq!(VERIFY_MAX_INSTANCES, 16);
+
+    let componentize = WasmRuntimeLimits {
+        timeout_ms: 1_000,
+        max_input_bytes: 0,
+        max_output_bytes: 0,
+        fuel: 100_000,
+        max_memory_bytes: VERIFY_MAX_MEMORY_BYTES,
+        max_table_elements: VERIFY_MAX_TABLE_ELEMENTS,
+        max_instances: VERIFY_MAX_INSTANCES,
+    }
+    .with_componentize_minimums(true);
+    assert_eq!(componentize.timeout_ms, 30_000);
+    assert_eq!(componentize.fuel, 10_000_000);
+    assert_eq!(componentize.max_memory_bytes, 64 * 1024 * 1024);
+    assert_eq!(componentize.max_table_elements, 10_000);
+    assert_eq!(componentize.max_instances, 64);
+}
+
+#[test]
 fn verification_rejects_a_component_without_the_soma_provider_world() {
     let component = wat::parse_str("(component)").expect("valid empty component");
     let runtime = WasmRuntime::new().expect("runtime");

@@ -35,6 +35,7 @@ env:
 jobs:
   validate-release-tag:
     name: Validate release tag
+    if: startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -245,6 +246,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -258,11 +261,42 @@ jobs:
           path: artifacts/
           merge-multiple: true
 
-      - name: Generate SHA256SUMS
+      - name: Download matching soma-provider wheelhouse
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
-          cd artifacts
-          sha256sum ./* > SHA256SUMS
-          cat SHA256SUMS
+          set -euo pipefail
+          python_version="$(python3 -c 'import tomllib; print(tomllib.load(open("packages/python/pyproject.toml", "rb"))["project"]["version"])')"
+          gh release download "soma-provider-v${python_version}" \
+            --pattern '*.whl' \
+            --dir artifacts \
+            --repo "${GITHUB_REPOSITORY}"
+          compgen -G 'artifacts/*.whl' >/dev/null
+
+      - name: Generate SHA256SUMS and CycloneDX SBOM
+        run: |
+          set -euo pipefail
+          python3 scripts/generate-release-sbom.py \
+            --directory artifacts \
+            --output artifacts/soma-release.cdx.json
+          (cd artifacts && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | sort | xargs sha256sum) > artifacts/SHA256SUMS
+          cat artifacts/SHA256SUMS
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@e3fe62ef559997059fe8380e7d2b4c909e2d65f4
+        with:
+          subject-path: |
+            artifacts/*.tar.gz
+            artifacts/*.whl
+
+      - name: Attest release SBOM
+        uses: actions/attest-sbom@5729fe4dc697fb7538e4e94fd44d040aac1367b2
+        with:
+          subject-path: |
+            artifacts/*.tar.gz
+            artifacts/*.whl
+          sbom-path: artifacts/soma-release.cdx.json
 
       - name: Upload assets to existing GitHub Release
         env:

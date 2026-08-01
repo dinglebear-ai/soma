@@ -55,6 +55,11 @@ pub enum ProviderCommand {
     GraduationStatus {
         workspace: PathBuf,
     },
+    Componentize {
+        operation: String,
+        workspace: PathBuf,
+        wheelhouse: Option<PathBuf>,
+    },
     Activate {
         workspace: PathBuf,
         confirmed: bool,
@@ -172,6 +177,20 @@ pub(crate) async fn run_provider_management_command(
             )
             .await
         }
+        ProviderCommand::Componentize {
+            operation,
+            workspace,
+            wheelhouse,
+        } => {
+            componentize_action(
+                application,
+                operation,
+                workspace,
+                wheelhouse.as_ref(),
+                destructive_confirmed,
+            )
+            .await
+        }
         ProviderCommand::GraduationStatus { workspace } => application
             .execute_action(
                 ExecuteActionRequest {
@@ -213,6 +232,37 @@ pub(crate) async fn run_provider_management_command(
             unreachable!("non-executing provider commands are handled before registry construction")
         }
     }
+}
+
+async fn componentize_action(
+    application: &SomaApplication,
+    operation: &str,
+    workspace: &std::path::Path,
+    wheelhouse: Option<&std::path::PathBuf>,
+    confirmed: bool,
+) -> Result<Value> {
+    let mut params = json!({
+        "operation": operation,
+        "workspace": workspace,
+        "confirm": confirmed,
+    });
+    if let Some(wheelhouse) = wheelhouse {
+        params
+            .as_object_mut()
+            .expect("object")
+            .insert("wheelhouse".to_owned(), json!(wheelhouse));
+    }
+    application
+        .execute_action(
+            ExecuteActionRequest {
+                action: "python_graduation_apply".to_owned(),
+                params,
+            },
+            cli_execution_context(confirmed),
+        )
+        .await
+        .map(|response| response.into_surface_value())
+        .map_err(anyhow::Error::from)
 }
 
 async fn graduation_action(
@@ -286,6 +336,10 @@ pub(crate) fn parse_providers_command(args: &[String]) -> Result<Command> {
                     | "verify-component"
                     | "compare"
                     | "graduation-status"
+                    | "componentize-scan"
+                    | "componentize-bindings"
+                    | "componentize-build"
+                    | "componentize-validate"
                     | "activate"
                     | "rollback"
             ) =>
@@ -294,7 +348,8 @@ pub(crate) fn parse_providers_command(args: &[String]) -> Result<Command> {
         }
         [] => Err(anyhow!(
             "providers requires list, lint, status, validate, inspect, test, graduate, \
-             build-component, verify-component, compare, graduation-status, activate, or rollback"
+             build-component, verify-component, compare, componentize-scan, componentize-bindings, \
+             componentize-build, componentize-validate, graduation-status, activate, or rollback"
         )),
         [unexpected, ..] => Err(anyhow!("providers does not accept argument `{unexpected}`")),
     }
@@ -313,12 +368,16 @@ fn parse_graduation_command(command: &str, args: &[String]) -> Result<ProviderCo
         "verify-component" => &["--component"][..],
         "compare" => &["--workspace", "--component", "--fixtures"][..],
         "graduation-status" => &["--workspace"][..],
+        "componentize-scan" => &["--workspace", "--wheelhouse"][..],
+        "componentize-bindings" | "componentize-build" | "componentize-validate" => {
+            &["--workspace"][..]
+        }
         "activate" | "rollback" => &["--workspace", "--confirm"][..],
         _ => unreachable!(),
     };
     let required_count = match command {
         "graduate" | "compare" => 2,
-        "build-component" => 1,
+        "build-component" | "componentize-scan" => 1,
         _ => expected.len(),
     };
     if !args.len().is_multiple_of(2)
@@ -372,6 +431,17 @@ fn parse_graduation_command(command: &str, args: &[String]) -> Result<ProviderCo
         }),
         "graduation-status" => Ok(ProviderCommand::GraduationStatus {
             workspace: required("--workspace")?,
+        }),
+        "componentize-scan"
+        | "componentize-bindings"
+        | "componentize-build"
+        | "componentize-validate" => Ok(ProviderCommand::Componentize {
+            operation: command.to_owned(),
+            workspace: required("--workspace")?,
+            wheelhouse: args
+                .windows(2)
+                .find(|pair| pair[0] == "--wheelhouse")
+                .map(|pair| PathBuf::from(&pair[1])),
         }),
         "activate" => Ok(ProviderCommand::Activate {
             workspace: required("--workspace")?,

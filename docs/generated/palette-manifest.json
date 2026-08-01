@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "provider_fingerprint": "sha256:fe9b38c1d7761d636e3e275069cfa6bd7b555f245c52b7a44d0ec5cf4a80a795",
+  "provider_fingerprint": "sha256:163c3ab395674215b7a35b2ab7eaeb6092c562bf484daaf8f881d54cf6f90aec",
   "commands": [
     "echo",
     "elicit_name",

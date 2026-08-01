@@ -16,6 +16,7 @@ Generated from script header comments.
 | `scripts/check-openapi.py` | Thin wrapper. Canonical implementation: cargo xtask check-openapi. |
 | `scripts/check-plugin-hook-contract.py` | Thin wrapper. Canonical implementation: cargo xtask check-plugin-hook-contract. |
 | `scripts/check-plugin-stdio-smoke.sh` | Thin wrapper. Canonical implementation: cargo xtask check-plugin-stdio-smoke. |
+| `scripts/check-python-platform-policy.py` | Validate the Python platform release, dependency, and runtime policy. |
 | `scripts/check-readme-guide.py` | Audit RMCP README files against the structural guide invariants. |
 | `scripts/check-runtime-current.sh` | Thin wrapper. Canonical implementation: cargo xtask check-runtime-current. |
 | `scripts/check-scaffold-intent-contract.py` | Thin wrapper. Canonical implementation: cargo xtask check-scaffold-intent-contract. |
@@ -26,10 +27,13 @@ Generated from script header comments.
 | `scripts/conformance_report.py` | Summarize official MCP conformance checks.json files. |
 | `scripts/generate-cli.sh` | Thin wrapper. Canonical implementation: cargo xtask generate-cli. |
 | `scripts/generate-docs.py` | Generate volatile docs and metadata from canonical Soma specs. |
+| `scripts/generate-release-sbom.py` | Generate a deterministic CycloneDX 1.6 SBOM for release artifacts. |
+| `scripts/generate_python_models.py` | Render dependency-free Python provider models and editor stubs. |
 | `scripts/install.sh` | CUSTOMIZE: add a header comment describing this script. |
 | `scripts/kache-gate-selftest.sh` | Proves scripts/kache-gate.sh actually rejects a degraded build, and that its |
 | `scripts/kache-gate.sh` | kache-gate.sh -- fail the build when the compiler cache silently degrades. |
 | `scripts/pre-release-check.sh` | Thin wrapper. Canonical implementation: cargo xtask pre-release-check. |
+| `scripts/python-platform-gates.py` | Enforce cold, warm, reload, mixed-provider, and soak budgets. |
 | `scripts/readme_related_servers.py` | CUSTOMIZE: add a header comment describing this script. |
 | `scripts/refresh-docs.sh` | Thin wrapper. Canonical implementation: cargo xtask refresh-docs. |
 | `scripts/repair.sh` | Thin wrapper. Canonical implementation: cargo xtask repair. |

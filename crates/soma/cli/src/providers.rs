@@ -66,6 +66,7 @@ fn inspect_for_command(command: &ProviderCommand) -> Result<ProviderDirectoryIns
         | ProviderCommand::BuildComponent { .. }
         | ProviderCommand::VerifyComponent { .. }
         | ProviderCommand::Compare { .. }
+        | ProviderCommand::Componentize { .. }
         | ProviderCommand::GraduationStatus { .. }
         | ProviderCommand::Activate { .. }
         | ProviderCommand::Rollback { .. } => {

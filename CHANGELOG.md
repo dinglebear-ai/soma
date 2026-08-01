@@ -75,6 +75,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0]
+
+
+- Complete Python provider Phase 11 with authenticated wheel-to-import mapping,
+  generated WIT bindings, a networkless resource-bounded componentize-py build,
+  exact Soma Wasmtime validation, and CLI/MCP/REST/web operator actions.
+- Complete Phase 12 release hardening with PyPI trusted publishing, matching
+  wheelhouse integration, deterministic checksums, CycloneDX SBOMs, GitHub
+  provenance/SBOM attestations, machine-checked dependency policy, performance
+  budgets, and a scheduled cold-cache componentization soak.
+- Complete Phase 13 SDK typing with discriminated unions, inferred output schemas,
+  canonical Rust-schema-generated catalog models, typed JSON Schema maps, public
+  stubs, and typed broker-backed Context conveniences.
 - Complete Python provider phases 8-10 with invocation-bound capability
   brokering, fail-closed OS containment, a versioned WIT/WASI component runtime,
   a reusable Rust guest SDK, shared Python/component conformance fixtures, and

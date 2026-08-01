@@ -16,6 +16,7 @@
 #![warn(missing_docs)]
 mod app;
 pub mod capabilities;
+pub(crate) mod componentize;
 mod context;
 mod error;
 pub mod graduation;

@@ -1,4 +1,4 @@
-use super::{PYTHON_BRIDGE, PYTHON_SDK, python_bridge_program};
+use super::{PYTHON_BRIDGE, PYTHON_COMPONENTIZE, PYTHON_SDK, python_bridge_program};
 
 #[test]
 fn embedded_bridge_contains_versioned_catalog_and_call_modes() {
@@ -15,9 +15,13 @@ fn embedded_bridge_contains_versioned_catalog_and_call_modes() {
 #[test]
 fn composed_bridge_registers_the_embedded_authoring_sdk() {
     assert!(PYTHON_SDK.contains("def tool("));
+    assert!(PYTHON_COMPONENTIZE.contains("def scan_componentize_compatibility("));
     let program = python_bridge_program();
     assert!(program.contains("ModuleType(\"soma_provider\")"));
+    assert!(program.contains("ModuleType(\"soma_provider._componentize\")"));
+    assert!(program.contains("_soma_provider.__path__ = []"));
     assert!(program.contains("_soma_sys.modules[\"soma_provider\"]"));
+    assert!(program.contains("_soma_sys.modules[\"soma_provider._componentize\"]"));
     assert!(program.contains("__soma_tool__"));
     assert!(program.contains(PYTHON_BRIDGE));
 }

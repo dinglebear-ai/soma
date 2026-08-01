@@ -20,6 +20,8 @@ use crate::{
     ScaffoldIntentRequest, SomaService,
 };
 
+#[path = "app_python_componentize.rs"]
+mod python_componentize;
 #[path = "app_python_graduation.rs"]
 mod python_graduation;
 #[path = "app_python_operations.rs"]

@@ -5,6 +5,7 @@ use super::*;
 pub struct PreparedComponentArtifact {
     runtime: Arc<WasmRuntime>,
     artifact: Arc<WasmArtifact>,
+    componentize: bool,
 }
 
 /// Validate and invoke a component artifact directly without network access.
@@ -23,18 +24,25 @@ pub fn invoke_authorized_component_artifact(
             "synchronous component conformance does not permit network host calls".to_owned(),
         );
     }
-    let limits = conformance_limits();
+    let artifact_bytes = read_artifact(path)?;
+    let componentize = is_componentize_artifact(&artifact_bytes);
+    let limits = conformance_limits(componentize);
     let bytes = conformance_input(input, limits)?;
     let runtime = shared_wasm_runtime()?;
-    let output = runtime.run(
-        path,
+    let artifact = runtime.artifact(
+        &artifact_bytes,
+        Instant::now() + artifact_compile_timeout(&artifact_bytes),
+    )?;
+    let deadline = Instant::now() + Duration::from_millis(limits.timeout_ms);
+    let output = runtime.run_artifact(
+        artifact,
         WasmInvocation {
             input: &bytes,
             limits,
             capabilities,
             context,
             resolved_hosts: BTreeMap::new(),
-            deadline: Instant::now() + Duration::from_secs(5),
+            deadline,
         },
     )?;
     serde_json::from_slice(&output).map_err(|error| error.to_string())
@@ -48,12 +56,17 @@ pub async fn invoke_component_artifact_async(
     capabilities: &soma_provider_core::HostCapabilities,
     context: &soma_provider_core::ProviderInvocationContext,
 ) -> Result<Value, String> {
-    invoke_component_artifact_before_async(
-        path,
+    let bytes = read_artifact(path)?;
+    let componentize = is_componentize_artifact(&bytes);
+    let prepared =
+        prepare_component_artifact_before(path, Instant::now() + artifact_compile_timeout(&bytes))?;
+    let limits = conformance_limits(componentize);
+    invoke_prepared_component_artifact_before_async(
+        &prepared,
         input,
         capabilities,
         context,
-        Instant::now() + Duration::from_secs(5),
+        Instant::now() + Duration::from_millis(limits.timeout_ms),
     )
     .await
 }
@@ -83,12 +96,17 @@ pub fn prepare_component_artifact_before(
     deadline: Instant,
 ) -> Result<PreparedComponentArtifact, String> {
     let bytes = read_artifact(path)?;
+    let componentize = is_componentize_artifact(&bytes);
     let runtime = shared_wasm_runtime()?;
     let artifact = runtime.artifact(&bytes, deadline)?;
     if !matches!(artifact.as_ref(), WasmArtifact::Component(_)) {
         return Err("artifact is core Wasm, not a component".to_owned());
     }
-    Ok(PreparedComponentArtifact { runtime, artifact })
+    Ok(PreparedComponentArtifact {
+        runtime,
+        artifact,
+        componentize,
+    })
 }
 
 /// Invoke an already-compiled component under one absolute operation deadline.
@@ -99,7 +117,7 @@ pub async fn invoke_prepared_component_artifact_before_async(
     context: &soma_provider_core::ProviderInvocationContext,
     deadline: Instant,
 ) -> Result<Value, String> {
-    let limits = conformance_limits();
+    let limits = conformance_limits(prepared.componentize);
     let bytes = conformance_input(input, limits)?;
     let resolved_hosts = resolve_component_hosts(capabilities, deadline).await?;
     let runtime = prepared.runtime.clone();
@@ -146,10 +164,10 @@ pub fn verify_component_artifact_before(
     let prepared = prepare_component_artifact_before(path, deadline)?;
     prepared
         .runtime
-        .verify_prepared_component(&prepared.artifact, deadline)
+        .verify_prepared_component(&prepared.artifact, prepared.componentize, deadline)
 }
 
-fn conformance_limits() -> WasmRuntimeLimits {
+fn conformance_limits(componentize: bool) -> WasmRuntimeLimits {
     WasmRuntimeLimits {
         timeout_ms: 5_000,
         max_input_bytes: 64 * 1024,
@@ -159,6 +177,7 @@ fn conformance_limits() -> WasmRuntimeLimits {
         max_table_elements: 10_000,
         max_instances: 16,
     }
+    .with_componentize_minimums(componentize)
 }
 
 fn conformance_input(input: &Value, limits: WasmRuntimeLimits) -> Result<Vec<u8>, String> {

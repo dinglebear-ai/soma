@@ -110,7 +110,7 @@ impl SomaApplication {
                 let workspace = self.managed_graduation_path(&workspace, true)?;
                 let provider_root = self.managed_provider_root()?;
                 tokio::task::spawn_blocking(move || {
-                    crate::graduation::status(&workspace, &provider_root)
+                    super::python_componentize::graduation_status(&workspace, &provider_root)
                 })
                 .await
                 .map_err(|error| ApplicationError::legacy("graduation status task", error))?
@@ -122,6 +122,7 @@ impl SomaApplication {
                 source,
                 component,
                 fixtures,
+                wheelhouse,
             } => {
                 let workspace =
                     self.managed_graduation_path(&workspace, operation != "graduate")?;
@@ -132,6 +133,9 @@ impl SomaApplication {
                     .map(|path| self.managed_graduation_path(&path, true))
                     .transpose()?;
                 let fixtures = fixtures
+                    .map(|path| self.managed_graduation_path(&path, true))
+                    .transpose()?;
+                let wheelhouse = wheelhouse
                     .map(|path| self.managed_graduation_path(&path, true))
                     .transpose()?;
                 let provider_root = self.managed_provider_root()?;
@@ -404,42 +408,20 @@ impl SomaApplication {
                     .await
                     .map_err(|error| ApplicationError::legacy("graduation operation", error))?
                 } else {
-                    let operation_for_task = operation.clone();
-                    let workspace_for_task = workspace.clone();
-                    let provider_root_for_task = provider_root.clone();
-                    tokio::task::spawn_blocking(move || match operation_for_task.as_str() {
-                        "graduate" => crate::graduation::graduate(
-                            source
-                                .as_deref()
-                                .ok_or_else(|| anyhow::anyhow!("graduate requires source"))?,
-                            &workspace_for_task,
-                            fixtures.as_deref(),
-                            catalog.expect("graduate catalog prepared"),
-                            &provider_root_for_task,
-                        ),
-                        "build-component" => crate::graduation::build_component(
-                            &workspace_for_task,
-                            component.as_deref(),
-                            &provider_root_for_task,
-                        ),
-                        "verify-component" => {
-                            crate::graduation::verify_component(component.as_deref().ok_or_else(
-                                || anyhow::anyhow!("verify-component requires component"),
-                            )?)
-                        }
-                        "activate" => crate::graduation::activate(
-                            &workspace_for_task,
-                            &provider_root_for_task,
-                        ),
-                        "rollback" => crate::graduation::rollback(
-                            &workspace_for_task,
-                            &provider_root_for_task,
-                        ),
-                        _ => anyhow::bail!("unknown graduation operation"),
-                    })
-                    .await
-                    .map_err(|error| ApplicationError::legacy("graduation task", error))?
-                    .map_err(|error| ApplicationError::legacy("graduation operation", error))?
+                    let operation_task = super::python_componentize::GraduationOperation {
+                        operation: operation.clone(),
+                        workspace: workspace.clone(),
+                        source,
+                        component,
+                        fixtures,
+                        wheelhouse,
+                        catalog,
+                        provider_root: provider_root.clone(),
+                    };
+                    tokio::task::spawn_blocking(move || operation_task.run())
+                        .await
+                        .map_err(|error| ApplicationError::legacy("graduation task", error))?
+                        .map_err(|error| ApplicationError::legacy("graduation operation", error))?
                 };
                 if refresh {
                     let refreshed = self

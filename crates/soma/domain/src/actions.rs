@@ -746,6 +746,8 @@ pub enum SomaAction {
         component: Option<String>,
         /// Optional fixture corpus path.
         fixtures: Option<String>,
+        /// Optional directory containing authenticated pure-Python wheels.
+        wheelhouse: Option<String>,
     },
     /// Show the action reference.
     Help,
@@ -861,6 +863,7 @@ impl SomaAction {
                 source: optional_string_param(params, "source")?,
                 component: optional_string_param(params, "component")?,
                 fixtures: optional_string_param(params, "fixtures")?,
+                wheelhouse: optional_string_param(params, "wheelhouse")?,
             }),
             "help" => Ok(Self::Help),
             "elicit_name" => Ok(Self::ElicitName),

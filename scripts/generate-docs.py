@@ -10,6 +10,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from generate_python_models import generated_files as generated_python_files
 from readme_related_servers import replace_related_servers_section
 
 
@@ -1107,6 +1108,8 @@ GENERATED_FILES = {
     CLAUDE: render_claude,
     SKILL: render_skill,
 }
+for generated_path, generated_content in generated_python_files().items():
+    GENERATED_FILES[generated_path] = lambda content=generated_content: content
 
 
 def main() -> int:
