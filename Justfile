@@ -250,6 +250,14 @@ operation-surface-contracts-check:
 operation-surface-contracts-generate:
     python3 scripts/generate-operation-surface-contracts.py generate
 
+# Validate all 59 canonical result payload schemas
+operation-result-contracts-check:
+    python3 scripts/generate-operation-result-contracts.py check
+
+# Regenerate all canonical result payload schemas
+operation-result-contracts-generate:
+    python3 scripts/generate-operation-result-contracts.py generate
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check

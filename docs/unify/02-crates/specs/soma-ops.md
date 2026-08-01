@@ -91,7 +91,9 @@ The initial public boundary includes:
 
 `tests/synapse_canonical_classification.rs` consumes `synapse-canonical-operations.json`, deserializes every entry directly into `OperationSpec`, and proves complete canonical target, access, risk, reversibility, planning, progress, cancellation, verification, fanout, retry, idempotency, evidence, requirement, parameter-group, versioned schema-identity, and stable diagnostic-code coverage.
 
-`tests/synapse_surface_contracts.rs` locks all 59 closed canonical parameter schemas and proves that the 33 diagnostic projections exactly cover the operation registry across CLI exit, HTTP, MCP, event severity, retry, and terminal behavior. Concrete result payload schemas remain later work.
+`tests/synapse_surface_contracts.rs` locks all 59 closed canonical parameter schemas and proves that the 33 diagnostic projections exactly cover the operation registry across CLI exit, HTTP, MCP, event severity, retry, and terminal behavior.
+
+`tests/synapse_result_contracts.rs` locks all 59 closed canonical result payload schemas, their per-operation `SchemaId` bindings, and the normalized output-family registry. Legacy response envelopes remain product-owned projectors.
 
 ## Standalone consumer fixture
 
@@ -119,6 +121,7 @@ The crate has no workspace path dependencies.
 - one digest-bound 59-operation Synapse legacy semantic compatibility integration test
 - one digest-bound 59-operation canonical `OperationSpec` classification integration test
 - two digest-bound surface-contract integration tests for 59 parameter schemas and 33 diagnostic projections
+- one digest-bound 59-operation canonical result-schema integration test
 - default-feature and all-feature test builds
 - unrelated external Cargo consumer compile
 - clippy with warnings denied

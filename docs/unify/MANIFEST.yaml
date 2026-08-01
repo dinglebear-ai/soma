@@ -40,7 +40,7 @@ baselines:
     commit: 8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f
     observed: '2026-07-31'
 counts:
-  filesInManifest: 130
+  filesInManifest: 132
   sharedCrates: 19
   adrs: 13
   capabilities: 13
@@ -166,8 +166,8 @@ files:
   sha256: 69877013e405282493b1bb83a6e271ed3e711ff7db0e4525ee4b120cefee919b
   type: md
 - path: 02-crates/specs/soma-ops.md
-  bytes: 6756
-  sha256: 09d190d8cc13787d9460b0b942119697cf800620ff6e7eece778a963c847d2f6
+  bytes: 7012
+  sha256: c6cefa4654c6053457171f598589bace3ce772b64c43962cb564427ef7944370
   type: md
 - path: 02-crates/specs/soma-primitives.md
   bytes: 3470
@@ -234,8 +234,8 @@ files:
   sha256: 1577b5a2e1db067fed65d21565d7c0dffa74fc84b2498b409098551c2d16a005
   type: md
 - path: 03-contracts/OPERATION-SCHEMA.md
-  bytes: 7199
-  sha256: 3371eeba6ca4df8b233854693e8b39528b1ffb31b660ef8ff6c5f0a6bf35f536
+  bytes: 7397
+  sha256: 5fd1ff076313feb034bff5befdaf79585b7fece860de9552812ad246304338a9
   type: md
 - path: 03-contracts/OPERATIONS-CONTRACT.md
   bytes: 4858
@@ -246,8 +246,8 @@ files:
   sha256: 4f6cc70190179574cde45da64ee7852d589b7089c3186f1b8a507ad8edf470a2
   type: md
 - path: 03-contracts/README.md
-  bytes: 3018
-  sha256: 2699cb10ce8ef14e8360dd1d61779e43a042614f75fe9852b982ab175c835f00
+  bytes: 3118
+  sha256: b886f6986e16ac05fff1d1866b002ac2591147bdf693df8026c671026523b8cc
   type: md
 - path: 03-contracts/REDACTION-CONTRACT.md
   bytes: 1573
@@ -297,6 +297,10 @@ files:
   bytes: 52748
   sha256: 16b6d4f4630d678e831250f4482634cb3b647093014b2993910336503366cd64
   type: json
+- path: 03-contracts/examples/synapse-operation-results.json
+  bytes: 93651
+  sha256: 4ff9773d60e135057989a911fda69b1d47e33c969fb896f2257ce42510eba7fe
+  type: json
 - path: 03-contracts/examples/synapse-operations.json
   bytes: 35302
   sha256: 48913daa1a0196d975c8f7049849a8f7e185096a04793dfa528b45d6403e1497
@@ -316,6 +320,10 @@ files:
 - path: 03-contracts/schemas/synapse-operation-parameters.schema.json
   bytes: 1284
   sha256: dda2c315417b09014c77134f93f8c2dd705231a88ce18354c179e7ac8f46466c
+  type: json
+- path: 03-contracts/schemas/synapse-operation-results.schema.json
+  bytes: 1314
+  sha256: 755e9cf70aef7b2e9d96d9cad787b6d6c5963dae8b01b95422a522f8af7f4117
   type: json
 - path: 03-contracts/schemas.json
   bytes: 39304
@@ -530,8 +538,8 @@ files:
   sha256: 7683039a2b5f63310830d3e13d9f52c32a9b2ded2499d26c776722e1f7691baa
   type: md
 - path: 09-delivery/IMPLEMENTATION-TRACKER.md
-  bytes: 3980
-  sha256: bd90a4ba48218139871fca37aee0f3a71ecd02dad8c9bbac53f6bf14e34232f2
+  bytes: 4347
+  sha256: 2b06bc8ea8ff8cf67b051379f85c9e6b95b8f84c606ca13be9a8dc142e0acadc
   type: md
 - path: 09-delivery/OPEN-DECISIONS.md
   bytes: 1994
