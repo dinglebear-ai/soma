@@ -52,7 +52,9 @@ services:
       # only to host loopback and put an authenticating proxy in front.
       SOMA_NOAUTH: "true"
     ports:
-      - "127.0.0.1:${SOMA_MCP_HOST_PORT:-40060}:40060/tcp"
+      # Override SOMA_MCP_PUBLISH_HOST in the project .env for a trusted
+      # Tailscale bind; loopback remains the safe default.
+      - "${SOMA_MCP_PUBLISH_HOST:-127.0.0.1}:${SOMA_MCP_HOST_PORT:-40060}:40060/tcp"
     volumes:
       - ${HOME}/.soma:/data
       - ${HOME}/.soma/providers:/data/providers:ro

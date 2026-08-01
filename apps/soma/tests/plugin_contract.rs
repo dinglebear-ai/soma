@@ -68,7 +68,10 @@ fn production_container_supports_persistent_python_provider_hot_reload() {
     assert!(compose.contains("SOMA_PYTHON_RUNNER_MODE: persistent"));
     assert!(compose.contains("SOMA_PYTHON_EXECUTION_PROFILE: trusted"));
     assert!(compose.contains("SOMA_NOAUTH: \"true\""));
-    assert!(compose.contains("127.0.0.1:${SOMA_MCP_HOST_PORT:-40060}:40060/tcp"));
+    assert!(
+        compose
+            .contains("${SOMA_MCP_PUBLISH_HOST:-127.0.0.1}:${SOMA_MCP_HOST_PORT:-40060}:40060/tcp")
+    );
     assert!(!compose.contains("- \"${SOMA_MCP_HOST_PORT:-40060}:40060/tcp\""));
     assert!(compose.contains("${HOME}/.soma:/data"));
     assert!(compose.contains("${HOME}/.soma/providers:/data/providers:ro"));
