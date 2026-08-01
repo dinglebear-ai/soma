@@ -47,7 +47,7 @@
   ],
   "license": "MIT",
   "mcpName": "ai.dinglebear/soma",
-  "name": "@dinglebear/soma-mcp",
+  "name": "@dinglebear/soma",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dinglebear-ai/soma.git",

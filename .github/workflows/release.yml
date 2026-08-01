@@ -12,7 +12,7 @@
 # What this does:
 #   1. Builds release binaries for linux/amd64 and windows/amd64
 #   2. Uploads versioned archives and checksums to the existing GitHub Release
-#   3. Publishes the @dinglebear/soma-mcp npm launcher package
+#   3. Publishes the @dinglebear/soma npm launcher package
 # =============================================================================
 
 name: Release
@@ -227,7 +227,7 @@ jobs:
           path: artifacts/
 
   npm:
-    name: Publish @dinglebear/soma-mcp to npm
+    name: Publish @dinglebear/soma to npm
     needs: [validate-release-tag, release]
     uses: dinglebear-ai/workflows/.github/workflows/npm-trusted-publish.yml@a5937b60b317abed7e757737d95ad003fac2bfb0
     with:

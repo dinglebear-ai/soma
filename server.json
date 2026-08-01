@@ -37,7 +37,7 @@
         "cli",
         "server-runtime"
       ],
-      "node_package": "@dinglebear/soma-mcp",
+      "node_package": "@dinglebear/soma",
       "provider_dir_env": "SOMA_PROVIDER_DIR",
       "repository": "https://github.com/dinglebear-ai/soma",
       "security_policy": "https://github.com/dinglebear-ai/soma/security/policy",
@@ -59,8 +59,8 @@
     "io.modelcontextprotocol.registry/publisher-provided": {
       "distribution": {
         "ociImage": "ghcr.io/dinglebear-ai/soma:0.8.0",
-        "npm": "@dinglebear/soma-mcp@0.8.0",
-        "nodePackage": "@dinglebear/soma-mcp"
+        "npm": "@dinglebear/soma@0.8.0",
+        "nodePackage": "@dinglebear/soma"
       },
       "documentation": {
         "configuration": "docs/CONFIG.md",
@@ -154,7 +154,7 @@
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
-      "identifier": "@dinglebear/soma-mcp",
+      "identifier": "@dinglebear/soma",
       "version": "0.8.0",
       "runtimeHint": "npx",
       "packageArguments": [
