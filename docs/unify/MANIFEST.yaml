@@ -1,246 +1,261 @@
 apiVersion: soma.dev/v1
 kind: DocumentationPackageManifest
 metadata:
-  name: soma-context-v1-documentation-package
-  version: 0.1.2-proposed
-  generatedAt: '2026-07-22'
+  name: soma-product-family-documentation-package
+  version: 0.2.0-proposed
+  generatedAt: '2026-07-31'
   status: proposed
 scope:
   includes:
+  - multi-distribution product family
+  - Labby gateway platform
   - Axon knowledge pipeline
-  - Cortex observations
-  - GraphRAG
-  - memory
-  - existing Soma surface integration
+  - Cortex observations and evidence graph
+  - Synapse operations plane
+  - Soma integrated context and product composition
   excludes:
   - Agent Package Manager
-  - agent Incus deployment
+  - agent worker deployment
   - custom Incus image construction
-  - autonomous implementation/deployment
+  - autonomous implementation or deployment in context v1
 baselines:
   soma:
     repo: https://github.com/dinglebear-ai/soma
     branch: main
-    commit: 0418156
-    observed: '2026-07-21'
+    commit: 00a3336dab84a1ae847fc814d3af917f46c90b47
+    observed: '2026-07-31'
   axon:
     repo: https://github.com/dinglebear-ai/axon
     branch: main
-    commit: 1ab47e4
-    observed: '2026-07-21'
+    commit: 346238ac31a89f0fd4bddca36f0628a11b8edd98
+    observed: '2026-07-31'
   cortex:
     repo: https://github.com/dinglebear-ai/cortex
     branch: main
-    commit: 9633fc3
-    observed: '2026-07-21'
+    commit: 3d75d109cc3531d1b18c9d32c4059566651cd863
+    observed: '2026-07-31'
+  synapse:
+    repo: https://github.com/jmagar/synapse
+    branch: main
+    commit: b92552900c1458aa03b370c80edc812884c77f31
+    observed: '2026-07-31'
 counts:
-  filesInManifest: 110
-  sharedCrates: 16
-  adrs: 11
+  filesInManifest: 117
+  sharedCrates: 19
+  adrs: 13
   capabilities: 13
   schemaDefinitions: 35
 entrypoints:
 - START-HERE.md
 - README.md
 - MASTER-SPEC.md
-- PACKAGE-LAYOUT.md
+- 01-architecture/TARGET-ARCHITECTURE.md
 - 02-crates/CATALOG.md
 - 03-contracts/README.md
 - 05-migration/IMPLEMENTATION-ROADMAP.md
+- 05-migration/SYNAPSE-EXTRACTION.md
 - 06-testing/NORTH-STAR-LABBY-OAUTH.md
 - VALIDATION-REPORT.md
 files:
 - path: 00-charter/GLOSSARY.md
-  bytes: 1646
-  sha256: 0e6bcd644b0a82e4d0ab0db29d326b33232b64533b95b8a4fbbe2d353b250bb5
+  bytes: 1713
+  sha256: 8a5963a2af1bee97c4d4c31b77e146fff11ec191c1e5dfb317b0b605a0a0c15d
   type: md
 - path: 00-charter/NON-GOALS.md
-  bytes: 1274
-  sha256: 41d20c6b9c111822226b192e96e8c97d472735ad3042d473ddf839bda2750b3b
+  bytes: 1542
+  sha256: df7565d1f9a2c009f420e0677eec130fde964c4e68d08e545f4414f16bd44184
   type: md
 - path: 00-charter/PRODUCT-OUTCOME.md
-  bytes: 962
-  sha256: 7af578efa62d9c820992f00772ea4811b7349a10ead97852c691bd7ba2ed24de
+  bytes: 2135
+  sha256: fe017d4a595ce9c82bd382a468adb1eb654380e60c3a58b2e148bcc1ff9f97b6
   type: md
 - path: 00-charter/SOURCE-BASELINE.md
-  bytes: 1234
-  sha256: 14d682ee9623722ac6d3b060bf5620b275da08a8ade43985289a6e058589c168
+  bytes: 1599
+  sha256: 5fb41ccad458d98941fdecf1bf8b9f339c4eab2d62cc3bdadd869c1ea3988c21
   type: md
 - path: 00-charter/V1-SCOPE.md
-  bytes: 2386
-  sha256: a9042dfa31498681a7a09f43fa40d6fc446d89e82880100aaa4753f462520693
+  bytes: 2660
+  sha256: c2b7f9b0543f73f9be4a44c1fe63bca71d8ccf86466a343d7df4cfb8d7760bde
   type: md
 - path: 01-architecture/CONTEXT-BROKER.md
-  bytes: 1421
-  sha256: 87b6b3c83d5805bf843fa19bca84ed7faa8460add9b2399c56c60c2d4590d137
+  bytes: 1494
+  sha256: c7ced4136b7bbfedcb6826db49196a64046786b6e7bf6915605931998d14cea1
   type: md
 - path: 01-architecture/DATA-FLOW.md
-  bytes: 1279
-  sha256: 670d69c9e3eeaa1d6193cb5073e6bfc88458a322ec828b30a7d355b0e83518c2
+  bytes: 1347
+  sha256: 280ec9a02f81f8706e62031f592331ae7f8a60522551c609c48c411e27282d15
   type: md
 - path: 01-architecture/DEPENDENCY-LAYERS.md
-  bytes: 1228
-  sha256: 62434968eb8a11907e77e989623bd406efbc3856c63d8f48a0708a9692d496e6
+  bytes: 2378
+  sha256: 875e8df080faee9f5a93c2c862b1aeefc75e9a7c3c17cbe33fa3f0066e6f01ba
   type: md
 - path: 01-architecture/GRAPHRAG.md
-  bytes: 1684
-  sha256: ffe562213d7677799f6c7561f2d3bcaec76bbf7c8c9816655b9c0d0d95e76686
+  bytes: 1764
+  sha256: 74e1b48a25e4f3719291f4ccd83c2f1735b44dc47acd5bd2215e4d9f51edbb9c
   type: md
 - path: 01-architecture/REPOSITORY-LAYOUT.md
-  bytes: 1839
-  sha256: 03d8fac6c0206235760ee2432b37f08d23c7ee2023d31db33f2106b8ca6f0397
+  bytes: 3001
+  sha256: c556beb5ca65600c357a3c32597091e7cc7b47222a3f5ffc84f9c75a5851a4b2
   type: md
 - path: 01-architecture/SECURITY-BOUNDARIES.md
-  bytes: 1207
-  sha256: 0560a257ad66ae96c05ea803c8f9f51a960b9ff7ce105ece1cc4a602c5c7a2ad
+  bytes: 1285
+  sha256: 72d89243210d89410829046d4e3b664d74e3d63074d6a6fc2188d99bfbc73a74
   type: md
 - path: 01-architecture/STORAGE-ARCHITECTURE.md
-  bytes: 1623
-  sha256: 1143e007d16068d81e88e25ebcde715b98f992d06fb204c95242de6ba34ecdd7
+  bytes: 1702
+  sha256: 24320d80e19165e73f8fb55bab59e8f3bc158d1d1dcf87fcec2e495e286e1887
   type: md
 - path: 01-architecture/TARGET-ARCHITECTURE.md
-  bytes: 1564
-  sha256: 9db2060de31c0e6f961f607d290bb5af4e0ec3c674eb37f86cf147b341ef48f5
+  bytes: 3269
+  sha256: dfea7637971d0dd1c6e3672afe9e399750740c015d8bca77a712883a180c0ba5
   type: md
 - path: 02-crates/CATALOG.md
-  bytes: 4802
-  sha256: 94444eae912b620a144637506b52803f5e48b1c4fdda26d8a00b5f8ab8e9b42a
+  bytes: 5847
+  sha256: 5d4e34dae701c5045dce3a0d335b8b9fa234df45285136bbb513c672a80bb2f8
   type: md
 - path: 02-crates/DEPENDENCY-GRAPH.md
-  bytes: 3897
-  sha256: 7417e27ba8bfcd27c8b74c666a395a408f6c9d6288c2631b1d18ed55fb215960
+  bytes: 4790
+  sha256: 8714591ca22d10001dade3251fa730695f53650c20663717357304ebf478a5c0
   type: md
 - path: 02-crates/EXISTING-SOMA-FOUNDATION.md
-  bytes: 1296
-  sha256: 340fceac9084ac15d0be92e4cc0af1d2d8342239d46b937681df6ac2155bc3d6
+  bytes: 1379
+  sha256: da70083feba7fa1e2571c8246e8395a8fc755a9683777cbae6240118403c4c36
   type: md
 - path: 02-crates/PUBLICATION-RULES.md
-  bytes: 2028
-  sha256: bcecf04555f6b362db2e3b895be625cf537fd7c40760e33c4d93c596d5a66844
+  bytes: 2117
+  sha256: 4eb47721399f8a9e0e1d4d83df8ba34d73edb72662f61ad4a55d49531c080505
   type: md
 - path: 02-crates/crates.yaml
-  bytes: 9734
-  sha256: b9c52168c7738f4ed0f0b6174a15b5fab886c8b4bc7403bd918901ffc1b3a1aa
+  bytes: 12002
+  sha256: 86269131b4f082798c688d3d21bd6e8c12370b28dd9e0bde3436f376438624dd
   type: yaml
 - path: 02-crates/specs/soma-collectors.md
-  bytes: 3441
-  sha256: e1ad4f5250826e9f4641faed7899caeae1342bce73fb6a9fda980e48bb7aa200
+  bytes: 3517
+  sha256: fba1c65abfa1359e2c8b4f3657a1d2a0504bc50ff022898ada264556f4e68fbe
   type: md
 - path: 02-crates/specs/soma-crawl.md
-  bytes: 3120
-  sha256: bfef51644d7c96f8ca1fb296cf55f8c65c7378ae0aea4078c0e7213c6c14cecc
+  bytes: 3191
+  sha256: c84049d26600b70e4bf8540cdce1a96b4f6d4818f2062e1ce58cc9368ebdf7e2
   type: md
 - path: 02-crates/specs/soma-graph.md
-  bytes: 3382
-  sha256: b675fafc80d6094e4bb1b06ed6ae5075eaa7aa8d85e873c9660a9beb32a8f7ba
+  bytes: 3453
+  sha256: 4d2e96e353baaf01c56441b42372f3b88e79f94166fe0c0be27bc17ae2a793ec
   type: md
 - path: 02-crates/specs/soma-ingest.md
-  bytes: 3075
-  sha256: bb7d616d3c2760e5cbeb6c571c5fc916e3bd032e29569a543dc8b9b458b33c14
+  bytes: 3147
+  sha256: 7ce58cefb83b4d707c7a72305063ae88ad319cd13501e3efc8e397d93463e5e7
   type: md
 - path: 02-crates/specs/soma-jobs.md
-  bytes: 3056
-  sha256: df7b5a96ce0ec73bfa95e5a3caa7f1a731270bce7924e782e6f24274d07cd22d
+  bytes: 3126
+  sha256: deca51c7e457617cd6f755e578d43e44b3886e6f2d14c2486a26613e184f6ed8
   type: md
 - path: 02-crates/specs/soma-ledger.md
-  bytes: 2963
-  sha256: 7e572ae71543ad4883fb0857747852f1b8843c8093f06145611ceb1c319eba30
+  bytes: 3035
+  sha256: 927fc5a8c73a06734bf4106f8321934c1be97bbed494eedfb46212e8616dc4a5
   type: md
 - path: 02-crates/specs/soma-llm.md
-  bytes: 3092
-  sha256: c5190e51d80a4545a50cb55d9e12f47a445497394f2731383938851c3add7bf4
+  bytes: 3161
+  sha256: 69df451bb822878260cb3fc725f1cdb01337e6e3903d9d01ab1447e2ea2dbc7c
   type: md
 - path: 02-crates/specs/soma-memory.md
-  bytes: 3032
-  sha256: f896fa30f6ba3b7dee5057c147acf02f1957c3ec400ac34d5f5b5d9e4ff9137b
+  bytes: 3104
+  sha256: 506d18dda190e919d635d523b52d825b792a51be31fe446e5b4f26944d99ebe9
   type: md
 - path: 02-crates/specs/soma-observations.md
-  bytes: 3035
-  sha256: 3a579aef153ac33cc82ca093edef62de892251e31f34a98aee211e1f2e56770b
+  bytes: 3113
+  sha256: 69877013e405282493b1bb83a6e271ed3e711ff7db0e4525ee4b120cefee919b
   type: md
 - path: 02-crates/specs/soma-primitives.md
-  bytes: 3394
-  sha256: 9dac7f9cd279abfa505818209780af74c9ccf2fde2521fbc87eed74c9c8b0a1b
+  bytes: 3470
+  sha256: e477b7574cae79fc5682f64e654a3c0251c3f5d237a9f691ff85a7b884923a57
   type: md
 - path: 02-crates/specs/soma-process.md
-  bytes: 2997
-  sha256: 8b3071eff5578c2d39d5ac7e67a8edd0ad5497010235beb98fbab45829c766ee
+  bytes: 3070
+  sha256: 2349657e80ae3b4a1cb5947fdd231c6a6fbc09d7e3534b32047565b850bd4b57
   type: md
 - path: 02-crates/specs/soma-rag.md
-  bytes: 3722
-  sha256: fc95445bc99d3d022df8f91c8de3463bfa63753cf65110a186f2b55744ae0d11
+  bytes: 3791
+  sha256: 0613d6afb7aff949df3b8baf989638680e5abb86a37fa84d7d37706dc8565b78
   type: md
 - path: 02-crates/specs/soma-route.md
-  bytes: 2763
-  sha256: 8d362a5b122878e894f94e3c80587a437c0a13cee3f2c3925ffe0d862514bf2c
+  bytes: 2834
+  sha256: f796c131fde802b81eb831f1a7bb0f0d836e5c3c3ac9eafae88fe07bce827850
   type: md
 - path: 02-crates/specs/soma-sanitize.md
-  bytes: 2979
-  sha256: 50e845c053d4e3c0ce0b96a822b64972ccbd390215b2fbb45237cc34ee75af76
+  bytes: 3053
+  sha256: 47e8b621ce80ed3e88a85cf5af8b6735376a5a51ffde537856bf6ff14f1d4793
   type: md
 - path: 02-crates/specs/soma-sources.md
-  bytes: 3257
-  sha256: ec10395a3851360e827c9c700bccfc031612fac186694ae4708ed4723ffe9c39
+  bytes: 3330
+  sha256: 0bbd5c66914ae42aea25b2eb55ee891374a2adb8695cb41a53273c860be1f9b1
   type: md
 - path: 02-crates/specs/soma-transcript.md
-  bytes: 3159
-  sha256: 4024dfc8de738f148bb60fd585e3ef80770029b06e367d967e5357a034315524
+  bytes: 3235
+  sha256: e7b16ddd50fc7f7e7d6f3c38f45a064dc65ca8c706cff975a79a88912c8c1645
   type: md
 - path: 03-contracts/CITATION-CONTRACT.md
-  bytes: 2325
-  sha256: c9d32129bffed111e877b64e42a0e3f9cce11f8de3326a23df7939ab9a6fe162
+  bytes: 2416
+  sha256: 610874e8cf11dcdb4de975d83d3353558802a5ac2b9b817da89bf856ca64c941
   type: md
 - path: 03-contracts/CONTEXT-QUERY-CONTRACT.md
-  bytes: 3306
-  sha256: aaefd94cda2a7a608c8bbb90acac70a4f46bb5a4402cbef6fe58d7eeb09c57a0
+  bytes: 3387
+  sha256: bb1907e3ed274b09d81d651e1683a01dbf0ae968f97703250e50346ad015a66b
   type: md
 - path: 03-contracts/DATABASE-CONTRACT.md
-  bytes: 2058
-  sha256: f9e1559711a9c8fa98540971dfe64b52dda8151e931203ede957df287737af12
+  bytes: 2144
+  sha256: 5e452fc80983aa13b00dd449b18148347829bcbef485509c85a40875a109b3df
   type: md
 - path: 03-contracts/ERROR-CONTRACT.md
-  bytes: 1411
-  sha256: d6a959176273120382a9fc580e8f644bd27f4eb671ba7175a486fd7fd66b240c
+  bytes: 1499
+  sha256: 0e662d8dbd8196323ead754eb100a67cacf8187aa27f38af38095aa079808ecb
   type: md
 - path: 03-contracts/EVENT-CONTRACT.md
-  bytes: 1210
-  sha256: 8f526b1945a2f3b848697153c9e61448acec3eed5d542733d9b2466645981e93
+  bytes: 1296
+  sha256: 5c73d9c56c3439c64814cd8bc397c49256e021a1a5865e3050f87a4527f6a2cb
   type: md
 - path: 03-contracts/GRAPH-CONTRACT.md
-  bytes: 4091
-  sha256: 3bb5ea8c5312f7c35159a0a6fa24d6327ce11f92137f95ea78c7ad85f2470efc
+  bytes: 4173
+  sha256: 70dcd925c0bc35d1da0cd459b53fca24f43dd369a441f72f1249e650a2efb797
   type: md
 - path: 03-contracts/OBSERVATION-CONTRACT.md
-  bytes: 3930
-  sha256: 888770866d01390167bb47bdbbfb7ba628bbba10ab8047ccc862a75c5f2fdbae
+  bytes: 4009
+  sha256: 9e553372ecad61d610c82a3db79e6535797aa131b71170718df3f0cec11d9d4b
+  type: md
+- path: 03-contracts/OPERATION-EVENT-CONTRACT.md
+  bytes: 3487
+  sha256: 4b35ea3b500890cdfb3a05bc35bbe71ee39664a63371381beca8101423554af3
+  type: md
+- path: 03-contracts/OPERATIONS-CONTRACT.md
+  bytes: 4858
+  sha256: 78859c99dbc54410d0cce55a75dc26566acd07561cdd463c4ae8a4efd46d649c
   type: md
 - path: 03-contracts/RAG-CONTRACT.md
-  bytes: 4079
-  sha256: 8e503564b1c0a03e2c825c8e8dfaf487fb73da920b16d925fad75844f9280c66
+  bytes: 4150
+  sha256: 4f6cc70190179574cde45da64ee7852d589b7089c3186f1b8a507ad8edf470a2
   type: md
 - path: 03-contracts/README.md
-  bytes: 2159
-  sha256: 48e14f673764527307c941d0dfe16adb22be59d084c643d86b7fcaab02c305f2
+  bytes: 2507
+  sha256: be8a91d6688da54efc92c1b989f7a63d33775b20c0e6b5dbd0ce44f5145f796d
   type: md
 - path: 03-contracts/REDACTION-CONTRACT.md
-  bytes: 1479
-  sha256: 60477a676cd403de134208013dfdaf23dae516db3eea032df3ad696f521a5cdf
+  bytes: 1573
+  sha256: 3eb993ce7e4c0bc18a36acfc983e7579a120daa14e647a0649f1d7c7443b0e1c
   type: md
 - path: 03-contracts/RETENTION-CONTRACT.md
-  bytes: 1493
-  sha256: 649a63ecf8305f0288ea631285df7dab68c42bc5d8c1a9d2de380e56b6056239
+  bytes: 1595
+  sha256: c818744c14af3fbd4ee519b972c3427b0ffcd0e74f5c66626ab582aee4457e44
   type: md
 - path: 03-contracts/SOURCE-CONTRACT.md
-  bytes: 4197
-  sha256: b6ff099dd32bc1cfe00ceb7c6ab9fb86cabcee8a8d5b32f5d9343108b81dc81e
+  bytes: 4280
+  sha256: 6510868f381cf7fe80d31ea9fd8245b6788c61eda85fec2bc389ccf00cdd594c
   type: md
 - path: 03-contracts/STATE-MACHINES.md
-  bytes: 1564
-  sha256: 15aee026970455f116346a606e6bf01e2a362baf7e9f973df8576fa518c507df
+  bytes: 1642
+  sha256: 3e0629306ae15096d761cc4fb6628dae14e48780169094446d1f624bb7d575d9
   type: md
 - path: 03-contracts/VECTOR-PAYLOAD-CONTRACT.md
-  bytes: 2028
-  sha256: 5590c58620c8b1af5e7ecbb8167eecebeebcf61804bceebedef4d79587d38e7c
+  bytes: 2125
+  sha256: b2fc0880478a5124b5f9a9bed66f7ceea5378cac27b22721d97ccac6a76c7737
   type: md
 - path: 03-contracts/examples/context-query.json
   bytes: 713
@@ -258,65 +273,73 @@ files:
   bytes: 336
   sha256: 899871968b203fca05373b6ed69ee57da94b090b3784736efafdfbcadb7e668e
   type: json
+- path: 03-contracts/examples/synapse-operations.json
+  bytes: 24280
+  sha256: a6941ccaac18e6ebbb1e70e49eee28dda282123545f9dd307a7a5ece4df58900
+  type: json
 - path: 03-contracts/schemas.json
   bytes: 39304
   sha256: 649f2b406385272ffe4dac494e33433a503fdf06d522c5f8ca478b7f81d6c951
   type: json
 - path: 04-product/APPLICATION-USE-CASES.md
-  bytes: 3079
-  sha256: 4923e7eaa40bf96a64ff2aa57bcc50dcbefe4ed334c0cd8b66f56ca5df7441af
+  bytes: 3178
+  sha256: 57067b6ff4379951d94dc53b0419503584a23175af330b833ba8d781e70c3605
   type: md
 - path: 04-product/AUTHORIZATION.md
-  bytes: 1425
-  sha256: 80276c6413ac0c8d9509126391da04d24d778dd2f59e7fc0640774259ce3b243
+  bytes: 1524
+  sha256: 70ac4c1baae6c6e277246fb9237f7cb162a82d9762e65c92e769ac7b6f1c4643
   type: md
 - path: 04-product/CONFIGURATION.md
-  bytes: 1756
-  sha256: 4f976666596f050c693be77631deff2617a2b600cc8ccd575d6f03c406762501
+  bytes: 1845
+  sha256: c3a83f71b7e78a704cd85f4ac6673701260f891b03313ed59a51d88f5cabed10
   type: md
 - path: 04-product/JOBS-AND-PROGRESS.md
-  bytes: 1524
-  sha256: 312891ad3b88f96f702249789853ec2adfb11df1368d107f85198dc874bc08f0
+  bytes: 1617
+  sha256: f5ebbede4e9468ce96bc8ea8982afeea2e1b672f3158fccb05fbb75c5fd2e7b0
   type: md
 - path: 04-product/SURFACE-INTEGRATION.md
-  bytes: 2090
-  sha256: 8986ca0610aedcc33892a2c7dae4f631d19d5845e898d373edf797ce7b7968ac
+  bytes: 2177
+  sha256: 60a7821c03df0fa8d83e44fb950b25aa3a29eb16d18da3fc3b40fa881b50e0e0
   type: md
 - path: 04-product/WEB-SURFACE.md
-  bytes: 2956
-  sha256: 6e337d5e1b2fadf5a4e6b2b83b06f7698d78417f3673decdf599dee2c7486b13
+  bytes: 3041
+  sha256: 32f5ce578979c5a2d78aeec4bc1544d24998cc44a7267d52e8b6b5b66b9fcc15
   type: md
 - path: 05-migration/AXON-EXTRACTION.md
-  bytes: 2246
-  sha256: c288fba2f98b4de8f7f75c9a7193db2a7da70e245462634f23ba57dbf641dec9
+  bytes: 2328
+  sha256: 696e0bf2c5e44ffde075d993506effda0fffe3125adb53b8100be8eccb87f04e
   type: md
 - path: 05-migration/CORTEX-EXTRACTION.md
-  bytes: 2148
-  sha256: 67fc4adb938028c26db92f649a3b4b9808208691c442473c872bb783884a086c
+  bytes: 2232
+  sha256: d8ca18bbc3d0e6f487ca8bdddf213613dbd8b980c4f4b24837831cc6d48f3d13
   type: md
 - path: 05-migration/CUTOVER-PLAN.md
-  bytes: 1409
-  sha256: 399f2c4e16e444673ec4b454292b8f35b33d7e5069d897ec7de5a1d65df05b3d
+  bytes: 1488
+  sha256: 60e19ff7ca51cfb5acdb9f1121539cdd13382179bfd97b0c9868a8da74810b5f
   type: md
 - path: 05-migration/DATA-MIGRATION.md
-  bytes: 2138
-  sha256: 4ed3b6a99299508bb6345c7fe1b61736d4e48a5dcd7b574f8ad3125e0327b29f
+  bytes: 2217
+  sha256: f6451f2b99dbc695ea0bb80bd70eb285d8846170d8024fe7afe47bae8605c272
   type: md
 - path: 05-migration/DONOR-CODE-DISPOSITION.md
-  bytes: 5411
-  sha256: 83fb0718562740f03658b2150f3f1eba124e4bc3b871e1a9d828b241215f4ec8
+  bytes: 8225
+  sha256: 32630591d527d4979029d54a3b5de83f43c8b7770fcc8fb9619068e72eca96d1
   type: md
 - path: 05-migration/IMPLEMENTATION-ROADMAP.md
-  bytes: 1843
-  sha256: 3dfbf10407f72e63ae0eff9864c11dd3de0d8ee98e56601c6774bf675bb3b06f
+  bytes: 2945
+  sha256: a9f0034de2383d1686ab338e58c5e7805b61e093be184c2ad787db444a351d50
   type: md
 - path: 05-migration/PARITY-PLAN.md
-  bytes: 1353
-  sha256: f3c544a9cfa78493f424b7cdccb18c39dad1f3389fa4436dc059d2371ce65a7a
+  bytes: 1429
+  sha256: 07a134221e9fadd9d238a46ae88e783a6bcdecbf8ec58cd386a3701b7f83f769
+  type: md
+- path: 05-migration/SYNAPSE-EXTRACTION.md
+  bytes: 6450
+  sha256: 7296e86003a87d7de671b4c1979ed8e8519e2f7c1de63fcbf4be7b883940a97b
   type: md
 - path: 05-migration/VERTICAL-SLICES.md
-  bytes: 2219
-  sha256: 2bb0907831832129615ce523b058373a1540d0ce9c8754b28098046f015bfcd3
+  bytes: 2297
+  sha256: fcd36eda521dfdbf154bed742c8ce0f69d5229b0edf0489df960f0ce692f715b
   type: md
 - path: 05-migration/capability-matrix.yaml
   bytes: 4231
@@ -327,166 +350,178 @@ files:
   sha256: 063d6b3eb6bfbe945809cba46e7a7fb0933888e1495051f0dff3aa1f6ddf4a0b
   type: yaml
 - path: 05-migration/donors.lock.example.toml
-  bytes: 484
-  sha256: 98914b4a2ca98cbb5f39fa5d64d06b341f2afe81b28a159439c552f355cea668
+  bytes: 667
+  sha256: 4da14fb5d5bc4f166cab32b8e4a77fd9c9c184614bbe32af05c078da86de46c1
+  type: toml
+- path: 05-migration/donors.lock.toml
+  bytes: 570
+  sha256: cebc26a07686fcf17cb9dd50ede3a0019466fa778123b1d561d35f69365e3700
   type: toml
 - path: 05-migration/status.yaml
   bytes: 701
   sha256: 7cbdcfe250542dc0b62ddfd09210bf0b5183fd89c2bc49c6e4ac6a71d53f2137
   type: yaml
 - path: 06-testing/CONTRACT-TESTS.md
-  bytes: 1707
-  sha256: 89aba413cfbed6da16a211e40494a70f8ce2536db880dd5737db5c9fa21399cf
+  bytes: 1792
+  sha256: 54cb67ebc15883600492d27bd2306ee5d6cd7c4071039b2e3023b4ad75ad8118
   type: md
 - path: 06-testing/E2E-SCENARIOS.md
-  bytes: 2569
-  sha256: 80d9a96d100f16c402eeec222c0c44ada5bbe4e7307e6e426d46bb63ee713309
+  bytes: 2655
+  sha256: e9f7603452063d6ea0e4af2400af80ae90d85ccab6852c8945078db1eaf746bc
   type: md
 - path: 06-testing/GRAPHRAG-EVALUATION.md
-  bytes: 2277
-  sha256: 5f048966a6fa97bf5366977cc5e2b4936d3fec2bb675b1e0b49b5901685c11a5
+  bytes: 2360
+  sha256: 3b3ab51f1520c53e660188a854a4ec817b1ce119d66c75724bcb042c0dfc38c0
   type: md
 - path: 06-testing/NORTH-STAR-LABBY-OAUTH.md
-  bytes: 3218
-  sha256: f498e7f4162f13c95b5a8f5fbe10e444da74e5ea5227999b04a422b391ab90af
+  bytes: 3327
+  sha256: 927dac78f972d3bb7828dfb2008a31b664e6f5ab441e54542482dc7ec05266e9
   type: md
 - path: 06-testing/PERFORMANCE-AND-SCALE.md
-  bytes: 1738
-  sha256: a5eb661eea138e87b50f32bfe80620c09164d24527ca23b888fb8a7d1ac3b831
+  bytes: 1823
+  sha256: 36483a0a9c27440fd05b493291ea95f39ed041ae1c5f51c579baba11db2f9f64
   type: md
 - path: 06-testing/SECURITY-TESTING.md
-  bytes: 1639
-  sha256: 4f12f4586081e1926d14c6cfd3e3884372910b979d69fddf8c6fdc8e5832887b
+  bytes: 1716
+  sha256: d5631e43b53cd3128cc5b4529118c527ce31b8c5961927670878fd448e7e2149
   type: md
 - path: 06-testing/TEST-STRATEGY.md
-  bytes: 2414
-  sha256: 44bfc1ade88d81a24608d3cda9f8cab5c314bc72c3effeca13bc309968b723aa
+  bytes: 2486
+  sha256: d74ae6632ddd2b2388e3b8e8138a4b2f46e186eadf221a703e7b12886e7f5378
   type: md
 - path: 07-operations/BACKUP-RESTORE.md
-  bytes: 1539
-  sha256: b0312bf497844b4d4f749e598cd22a9a6e6da4765957bb148288a5f0361ceb44
+  bytes: 1616
+  sha256: ae1261eacc3b6abfa3c1f2a0fbd3347ad124f9362b58ebf3c170666fa1089ff7
   type: md
 - path: 07-operations/HEALTH-AND-RECOVERY.md
-  bytes: 1991
-  sha256: 8371f4c9b5cebe3a9943354ca9a916de7c560d5e011052df543feea9ab212b00
+  bytes: 2069
+  sha256: cde53a474b406c7f26ec9801b8d5d53f7abf7e7fe623505f39c089a2b0015b94
   type: md
 - path: 07-operations/OBSERVABILITY.md
-  bytes: 1511
-  sha256: d2f605717542b93466b740085dd5bc3f5f2026b0fa5882a637a4afd2974cf0b7
+  bytes: 1597
+  sha256: bcb21d7148de980a2857e6a012fd8ebde4e8d92542e23bb5bfb16f723263c7ee
   type: md
 - path: 07-operations/RETENTION-AND-REINDEX.md
-  bytes: 1342
-  sha256: 6b102bf75da1722fb07dfb6921250d27ab84e10b6b875ad172683601140751c6
+  bytes: 1433
+  sha256: a184de32f17d12ee208795ad826596c7b3c90fb74759589d66a3bbd70befe3b8
   type: md
 - path: 07-operations/RUNTIME-TOPOLOGY.md
-  bytes: 1888
-  sha256: a5f4a2f91493fface3c7e665652b1534f6dfe85bde7665a3e27e7200f9783a09
+  bytes: 1963
+  sha256: a3eb72339450d5abf29dcbee1b7c90aba08feb71b37702dba1305142887f114c
   type: md
 - path: 07-operations/UPGRADE-AND-MIGRATIONS.md
-  bytes: 1297
-  sha256: 8144b7e1de844fa331f777a7273832a347c4ae811545735958dfe47596db0782
+  bytes: 1388
+  sha256: 6cae21ad744c1f98740017e941c6330b82f19abf058e6f1d7101040a56963d8f
   type: md
 - path: 08-adr/0001-v1-scope.md
-  bytes: 1126
-  sha256: 718258ca1254e40eaf92a6b811e0d0dd07cdbb8157d41508e570e49f7ae48400
+  bytes: 1244
+  sha256: ec894d27beb09227656ebf63d7fec75436e360187651eed18418466de30e41ca
   type: md
 - path: 08-adr/0002-multiple-ingestion-protocols.md
-  bytes: 1015
-  sha256: 4bf5b11463a261a0683ffa62e239c3d11d17a2ea46dbfefea6bf960078ac5d46
+  bytes: 1139
+  sha256: 302a84479040ee09e0692339d7e5deb3b4612a19a964db82cfb27f3112b0d571
   type: md
 - path: 08-adr/0003-storage-authority.md
-  bytes: 1148
-  sha256: 1fd9a7c067e11eb552e73b16301e84283c3975673b69522bbdca2e9c25356f05
+  bytes: 1299
+  sha256: f0001430760421e8bbfdc3416a9071369ce106228c0d3469bdb2f9bb974aa636
   type: md
 - path: 08-adr/0004-selective-observation-vectorization.md
-  bytes: 878
-  sha256: d4a3c4405c70708e547a956d072d980edac283dae9c5235c22d05e2c22653935
+  bytes: 1007
+  sha256: e797cba797be8cc57e5a658a3c2ea3cb812c51c9f74c6fd34a47a27f1ba3bb55
   type: md
 - path: 08-adr/0005-coarse-shared-crates.md
-  bytes: 1131
-  sha256: 161c91656f4cf5fdf09b88bc8592044fd17075a394088563bc9bba2b505df748
+  bytes: 1267
+  sha256: a177717862e3f8d355116bff816f6d71aa3e2a68ebec57b64cd409e689d54350
   type: md
 - path: 08-adr/0006-contract-machinery.md
-  bytes: 972
-  sha256: 8688ff3a3a329e0f383256260cabf8ac15058a4394a84c12bfd2cad4c366e85e
+  bytes: 1088
+  sha256: dd8ad9629374b182c69f5a83162623f771cadd39a7c4eb2a140330273a57d4fa
   type: md
 - path: 08-adr/0007-context-broker-product-layer.md
-  bytes: 947
-  sha256: 83c0ac9574dbce531643010152c1149f7a59dca0b86321e0d62e44c89e1ded9a
+  bytes: 1073
+  sha256: 4ca4d7fb18f9ba1e148d329acd1c7196eb897db8b4e83969fb84f3891b41d513
   type: md
 - path: 08-adr/0008-graph-sqlite.md
-  bytes: 1049
-  sha256: fc5fa020a68eb967b43c5d48680684406fd80d3d2fda8055829785052f469c35
+  bytes: 1178
+  sha256: 57925eeee9bc1b4134ca27effe2381dd23ab4d6bc0798fc22f6c7cfdfb995172
   type: md
 - path: 08-adr/0009-ai-session-model.md
-  bytes: 911
-  sha256: 70639c4694d44e9ae64322401aef9878885de26fd559a51306cde64274f640ea
+  bytes: 1032
+  sha256: 8c256bd665b779bedefaeff0b0e83b87971598139f4aa88bbc3172d6597bd693
   type: md
 - path: 08-adr/0010-existing-soma-surfaces.md
-  bytes: 958
-  sha256: f269fb4d1e358dc8ba10b3fbf9ff170706c9908172ee3bd0be4530a45aaa93f0
+  bytes: 1105
+  sha256: 13107a79e3916ec22019284495f4c4a29eaa3fb96360ced7be45d9ca5549bf84
   type: md
 - path: 08-adr/0011-semantic-outbox.md
-  bytes: 912
-  sha256: 5c67032247ad9ddce2890df4fcec8c22ae97902271235baaeb6302edb71ef2ed
+  bytes: 1016
+  sha256: a1d24ba617d98f4cdcfe9fa5e5cca3b765effaacb6e7efa356f8b21d6b881fff
+  type: md
+- path: 08-adr/0012-multi-distribution-monorepo.md
+  bytes: 3943
+  sha256: 9240063a2c69b5b7eceb909ba6adc9b9977ac7373d40968cd9f459a71a9bdbaa
+  type: md
+- path: 08-adr/0013-operations-plane.md
+  bytes: 3779
+  sha256: 842cb59ef8f3e66e71310c7aba91a2d404d8d789f73da2c5c53d29b4ea81873d
   type: md
 - path: 08-adr/README.md
-  bytes: 1389
-  sha256: 6fcd5e28e6357d24d30bb69356b371826ee998c97465bc68ab20ac29e8225894
+  bytes: 1690
+  sha256: e6bbf8edee67418cb6964d49083a700a290fc26b8757bf5083e585181e6bac01
   type: md
 - path: 09-delivery/DEFINITION-OF-DONE.md
-  bytes: 1748
-  sha256: 68fbe2731f04db70d9b6e09f679088ef5d4b9aa34d8485eb43836a6a5f08e2db
+  bytes: 1825
+  sha256: 1fd505bd34429a3db0eb975309c450318928130050f4b57b0878964533e511cc
   type: md
 - path: 09-delivery/DEFINITION-OF-READY.md
-  bytes: 1104
-  sha256: 76e7e1b88e6add00bea564cca3fcbb650c1f9428752c9b9df2c403111e29a4db
+  bytes: 1182
+  sha256: 7683039a2b5f63310830d3e13d9f52c32a9b2ded2499d26c776722e1f7691baa
   type: md
 - path: 09-delivery/IMPLEMENTATION-TRACKER.md
-  bytes: 990
-  sha256: 4b6165976ac647913113fcbbe7001c50b638f08feb1e4ebd4f193664b38107d0
+  bytes: 1547
+  sha256: 68b688532c82e4782a4264d3b08e56cbb133a35855564b7767363e77653e4e07
   type: md
 - path: 09-delivery/OPEN-DECISIONS.md
-  bytes: 1921
-  sha256: f588facc4befbff47f060ecef68ecfbce4317ae6978c18284916d336c7bb7519
+  bytes: 1994
+  sha256: c8c7290f4a5309d85d80a14df6d517bf656e73cf367fce36f59d5f90e99e0b73
   type: md
 - path: 09-delivery/OWNERSHIP.md
-  bytes: 1379
-  sha256: 336e1f6e1827ff5b09a3be4b646db21c2f48ce8378f30061cd5ee997d5bbc4e1
+  bytes: 1468
+  sha256: b7fda5bb5fa14001abf06f7cbcc56c28a0da94c16e4fa54cfffd39dbaf569950
   type: md
 - path: 09-delivery/PR-TRAIN.md
-  bytes: 1179
-  sha256: 6c2373b10476f0beeeea2a1587edfbb94d71d0caa225cd15733f74ab0b3a47c5
+  bytes: 1905
+  sha256: e61b0625e137e0cbeb70a8be6859a8a86d06e509b6c6e5b2db23f141f43443f6
   type: md
 - path: 09-delivery/RISK-REGISTER.md
-  bytes: 2959
-  sha256: 55f2429cccdc31db0ee143d02dfbce025b92f9ab1b0209da937509b9bd9c2941
+  bytes: 3031
+  sha256: c711b6d188ddc2ba40450444141f780342ccdb1a3b9d75a8f2b5b836ef8bc83b
   type: md
 - path: 09-delivery/risk-register.yaml
   bytes: 3926
   sha256: 4ba032b93d702e93c9d45bcb7a875185dc9aa7e32e5e132cbc6be5a407ec1db9
   type: yaml
 - path: CHANGELOG.md
-  bytes: 1313
-  sha256: 19e51690e776de6f4ccbc3043034b232285f0847475c7cb7182706f4b3105482
+  bytes: 1381
+  sha256: 9c6dfdf7267423de1532c8c21c87adccea1e2d018b82d8991273367fe1f921b0
   type: md
 - path: MASTER-SPEC.md
-  bytes: 8145
-  sha256: 0c8e39b1e0ff456b07f42a65747ca76663b9ede10e237996c0cf3f954d911454
+  bytes: 8738
+  sha256: 9853bd9f21d7f9c228b2b278f914e3ed9f7800360b960eec751c1c245dd541aa
   type: md
 - path: PACKAGE-LAYOUT.md
-  bytes: 6078
-  sha256: 9a03afaa3409a916a6ece634a4409790fc77aa993915674ab0878145429ad077
+  bytes: 6165
+  sha256: 8b935136898acba869ab1de604ebf58dc75443c89af1db8d4fc6a11d92b7555f
   type: md
 - path: README.md
-  bytes: 4952
-  sha256: 3591cd4fac6eac480ea44250c2849c098dde9e9fd018b32d8bde9ccca5a1a18e
+  bytes: 5416
+  sha256: 9eb6d14e49127a3248d4ece7d324e27879ea3f788929118a837936a4a16ce018
   type: md
 - path: START-HERE.md
-  bytes: 12285
-  sha256: 7647f2d25ce99ac8aececeb30c3927018049ce961a07074d7cdaa9dc757c5e36
+  bytes: 13016
+  sha256: a0d2558fe697e0737f84490d275f0f53d260c7f69bd6dee8ff44da54b77f83cc
   type: md
 - path: VALIDATION-REPORT.md
-  bytes: 2949
-  sha256: 0f39a3192ce1f880c0bc374586544b709a501269a0dff8de7747f99de6df371d
+  bytes: 4900
+  sha256: b2f6ac1a797a069461ae51e0646c33e0c438daa0484f1f077b7b548c70733dae
   type: md

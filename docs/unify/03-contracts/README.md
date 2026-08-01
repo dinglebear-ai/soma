@@ -1,6 +1,6 @@
-# Context Layer Contract Suite
+# Product Contract Suite
 
-This directory is normative for cross-crate and product integration behavior.
+This directory is normative for cross-crate, cross-product, and integrated Soma behavior. It covers the context plane and the operations plane.
 
 ## Contract hierarchy
 
@@ -55,4 +55,8 @@ cargo xtask context-contracts donor-parity --check
 - redaction and bounded metadata;
 - retention and deletion;
 - database ownership;
-- vector payloads and reindexing.
+- vector payloads and reindexing;
+- operation requests, plans, safety, progress, results, and verification;
+- operation lifecycle events and Cortex projection.
+
+Operations-specific normative documents are [`OPERATIONS-CONTRACT.md`](OPERATIONS-CONTRACT.md) and [`OPERATION-EVENT-CONTRACT.md`](OPERATION-EVENT-CONTRACT.md).

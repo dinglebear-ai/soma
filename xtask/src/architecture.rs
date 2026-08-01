@@ -149,6 +149,20 @@ fn check_direct_edges(graph: &Graph, exceptions: &[ArchitectureException]) -> Ve
                 graph.edge_label(edge)
             ));
         }
+        if let (Some(from_product), Some(to_product)) = (from.product, to.product)
+            && from_product != to_product
+        {
+            failures.push(format!(
+                "{} product package {} ({}) depends on {} product package {} ({}); products may share neutral crates or stable remote contracts, not import one another's internals\n  edge: {}",
+                from_product.as_str(),
+                from.name,
+                from.rel_path,
+                to_product.as_str(),
+                to.name,
+                to.rel_path,
+                graph.edge_label(edge)
+            ));
+        }
         failures.extend(check_layer_edge(graph, edge, from, to));
     }
     failures.extend(check_mixed_application_and_engine_edges(graph, exceptions));
@@ -237,7 +251,7 @@ fn check_mixed_application_and_engine_edges(
                 ))
             .then(|| {
                 format!(
-                    "{} ({}) depends on both product application ports and concrete shared engines; move that bridge to apps/soma, crates/soma/integrations, or crates/soma/runtime",
+                    "{} ({}) depends on both product application ports and concrete shared engines; move that bridge to apps/<product>, crates/<product>/integrations, or crates/<product>/runtime",
                     package.name, package.rel_path
                 )
             })

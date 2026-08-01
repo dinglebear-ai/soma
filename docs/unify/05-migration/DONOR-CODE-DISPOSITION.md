@@ -63,10 +63,34 @@ This document prevents accidental one-for-one copying.
 | src/logging/*; src/observability* | Existing Soma observability and traces | Do not create a competing stack. |
 
 
-## Existing Soma foundation
+## Synapse
+
+| Donor area | Target | Disposition |
+|---|---|---|
+| src/actions/operations.rs | soma-ops | Extract operation identity, target, safety, parameter, planning/progress/verification capabilities, and event metadata. Product scopes remain in Synapse. |
+| src/actions.rs; src/actions/flux.rs; src/actions/scout.rs | soma-infra plus Synapse application | Move typed domain requests into the engine; preserve Flux/Scout JSON parsing as compatibility adapters. |
+| src/actions/dispatch.rs | Synapse application initially | Preserve legacy action dispatch while delegating behavior to typed shared engines. |
+| src/flux_service.rs; src/flux_service/* | soma-infra | Docker, container, Compose, and host operation semantics. |
+| src/scout_service.rs; src/scout_service/* | soma-infra | File, process, log, ZFS, exec, fanout-command, and transfer semantics. |
+| src/docker_client/*; src/docker.rs; src/compose.rs | soma-infra | Docker traits, Bollard adapter, client cache, Compose discovery, and validation. |
+| src/host_config.rs | soma-fleet plus Synapse application | Extract explicit host models and repository traits; retain environment/file/SSH precedence as product policy. |
+| src/ssh/*; src/fanout.rs | soma-fleet | OpenSSH pool, forwarding, known-host behavior, transfer, fanout, deadlines, shutdown, and security fixtures. |
+| src/runtime_budget.rs | soma-ops; soma-fleet | Generic deadline contract in ops; transport enforcement in fleet. |
+| src/secure_path.rs | soma-infra | Keep descriptor-confined path policy beside file operations. |
+| src/elicitation_gate.rs | soma-ops plus product adapters | Extract opaque authorization-evidence contract; keep MCP/CLI prompting and product confirmation implementations outside shared crates. |
+| src/cache.rs | private owner | Do not publish a generic cache crate until a second independent consumer proves the boundary. |
+| src/app.rs; src/config.rs; src/scaffold.rs; src/activity.rs | Synapse product crates | Preserve standalone composition, configuration, setup, doctor, counters, and compatibility facade. |
+| src/mcp/*; src/token_limit.rs | Synapse MCP | Preserve Flux/Scout tools, resources, prompts, schemas, elicitation, output bounds, and transports. |
+| src/cli/*; src/formatters/*; src/color_policy.rs | Synapse CLI | Preserve command grammar, JSON/human output, confirmation, setup, doctor, and watch behavior. |
+| src/api.rs; src/server*; src/web.rs | Synapse API/web | Preserve REST compatibility, auth, health, readiness, status, and lightweight standalone web surface. |
+| src/main.rs | apps/synapse | Process composition, mode dispatch, signals, startup, and shutdown only. |
+
+
+## Existing neutral and Soma foundation
 
 The following are consumed as-is and extended only through their intended contracts:
 
+- the neutral Incus REST client under `crates/shared/incus-client`;
 - auth and OAuth;
 - gateway;
 - provider catalog;

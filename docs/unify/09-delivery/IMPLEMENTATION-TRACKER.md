@@ -1,7 +1,7 @@
 ---
 title: "Implementation Tracker"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Implementation Tracker
@@ -51,6 +51,14 @@ blocked
 ```
 
 No generic `in_progress`.
+
+## Active stacked PR trains
+
+| Stack | Position | Branch | Base | Isolated worktree | Capability | PR | Status |
+|---|---:|---|---|---|---|---|---|
+| product-family | 1 | `feat/product-family-architecture` | `main` | `~/workspace/soma/.worktrees/product-family-architecture` | O0 contracts and architecture | pending | contracted |
+
+Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
 ## Progress measurement
 

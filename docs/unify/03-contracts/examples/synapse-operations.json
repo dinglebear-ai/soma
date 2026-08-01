@@ -1,0 +1,910 @@
+{
+  "format_version": 1,
+  "donor": {
+    "repository": "https://github.com/jmagar/synapse",
+    "commit": "b92552900c1458aa03b370c80edc812884c77f31",
+    "source_path": "src/actions/operations.rs",
+    "source_sha256": "f89fa4f5fdb7089adeaea74512775e27641e7e081a0e6ce9057583daf77b3a62"
+  },
+  "operation_count": 59,
+  "operations": [
+    {
+      "legacy_name": "help",
+      "canonical_name": "product.help",
+      "legacy_tool": "both",
+      "legacy_action": "help",
+      "legacy_subaction": null,
+      "legacy_access": "public",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 69
+    },
+    {
+      "legacy_name": "flux.docker.info",
+      "canonical_name": "docker.info",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "info",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 70
+    },
+    {
+      "legacy_name": "flux.docker.df",
+      "canonical_name": "docker.df",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "df",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 71
+    },
+    {
+      "legacy_name": "flux.docker.images",
+      "canonical_name": "docker.images",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "images",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 72
+    },
+    {
+      "legacy_name": "flux.docker.networks",
+      "canonical_name": "docker.networks",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "networks",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 73
+    },
+    {
+      "legacy_name": "flux.docker.volumes",
+      "canonical_name": "docker.volumes",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "volumes",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 74
+    },
+    {
+      "legacy_name": "flux.docker.pull",
+      "canonical_name": "docker.pull",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "pull",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [
+        "host",
+        "image"
+      ],
+      "required_any": [],
+      "source_line": 75
+    },
+    {
+      "legacy_name": "flux.docker.build",
+      "canonical_name": "docker.build",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "build",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "rest",
+      "required_params": [
+        "host",
+        "context",
+        "tag"
+      ],
+      "required_any": [],
+      "source_line": 76
+    },
+    {
+      "legacy_name": "flux.docker.rmi",
+      "canonical_name": "docker.rmi",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "rmi",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "rest",
+      "required_params": [
+        "host",
+        "image",
+        "force"
+      ],
+      "required_any": [],
+      "source_line": 77
+    },
+    {
+      "legacy_name": "flux.docker.prune",
+      "canonical_name": "docker.prune",
+      "legacy_tool": "flux",
+      "legacy_action": "docker",
+      "legacy_subaction": "prune",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "rest",
+      "required_params": [
+        "host",
+        "prune_target",
+        "force"
+      ],
+      "required_any": [],
+      "source_line": 78
+    },
+    {
+      "legacy_name": "flux.container.list",
+      "canonical_name": "container.list",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "list",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 79
+    },
+    {
+      "legacy_name": "flux.container.inspect",
+      "canonical_name": "container.inspect",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "inspect",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 80
+    },
+    {
+      "legacy_name": "flux.container.logs",
+      "canonical_name": "container.logs",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "logs",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 81
+    },
+    {
+      "legacy_name": "flux.container.stats",
+      "canonical_name": "container.stats",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "stats",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 82
+    },
+    {
+      "legacy_name": "flux.container.top",
+      "canonical_name": "container.top",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "top",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 83
+    },
+    {
+      "legacy_name": "flux.container.search",
+      "canonical_name": "container.search",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "search",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "query"
+      ],
+      "required_any": [],
+      "source_line": 84
+    },
+    {
+      "legacy_name": "flux.container.start",
+      "canonical_name": "container.start",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "start",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 85
+    },
+    {
+      "legacy_name": "flux.container.stop",
+      "canonical_name": "container.stop",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "stop",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 86
+    },
+    {
+      "legacy_name": "flux.container.restart",
+      "canonical_name": "container.restart",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "restart",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 87
+    },
+    {
+      "legacy_name": "flux.container.pause",
+      "canonical_name": "container.pause",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "pause",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 88
+    },
+    {
+      "legacy_name": "flux.container.resume",
+      "canonical_name": "container.resume",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "resume",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 89
+    },
+    {
+      "legacy_name": "flux.container.pull",
+      "canonical_name": "container.pull",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "pull",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 90
+    },
+    {
+      "legacy_name": "flux.container.recreate",
+      "canonical_name": "container.recreate",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "recreate",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id"
+      ],
+      "required_any": [],
+      "source_line": 91
+    },
+    {
+      "legacy_name": "flux.container.exec",
+      "canonical_name": "container.exec",
+      "legacy_tool": "flux",
+      "legacy_action": "container",
+      "legacy_subaction": "exec",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "container_id",
+        "command"
+      ],
+      "required_any": [],
+      "source_line": 92
+    },
+    {
+      "legacy_name": "flux.host.status",
+      "canonical_name": "host.status",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "status",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 93
+    },
+    {
+      "legacy_name": "flux.host.info",
+      "canonical_name": "host.info",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "info",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 94
+    },
+    {
+      "legacy_name": "flux.host.uptime",
+      "canonical_name": "host.uptime",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "uptime",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 95
+    },
+    {
+      "legacy_name": "flux.host.resources",
+      "canonical_name": "host.resources",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "resources",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 96
+    },
+    {
+      "legacy_name": "flux.host.services",
+      "canonical_name": "host.services",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "services",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 97
+    },
+    {
+      "legacy_name": "flux.host.network",
+      "canonical_name": "host.network",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "network",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 98
+    },
+    {
+      "legacy_name": "flux.host.mounts",
+      "canonical_name": "host.mounts",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "mounts",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 99
+    },
+    {
+      "legacy_name": "flux.host.ports",
+      "canonical_name": "host.ports",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "ports",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 100
+    },
+    {
+      "legacy_name": "flux.host.doctor",
+      "canonical_name": "host.doctor",
+      "legacy_tool": "flux",
+      "legacy_action": "host",
+      "legacy_subaction": "doctor",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 101
+    },
+    {
+      "legacy_name": "flux.compose.list",
+      "canonical_name": "compose.list",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "list",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 102
+    },
+    {
+      "legacy_name": "flux.compose.status",
+      "canonical_name": "compose.status",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "status",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 103
+    },
+    {
+      "legacy_name": "flux.compose.up",
+      "canonical_name": "compose.up",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "up",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 104
+    },
+    {
+      "legacy_name": "flux.compose.down",
+      "canonical_name": "compose.down",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "down",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 105
+    },
+    {
+      "legacy_name": "flux.compose.restart",
+      "canonical_name": "compose.restart",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "restart",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 106
+    },
+    {
+      "legacy_name": "flux.compose.recreate",
+      "canonical_name": "compose.recreate",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "recreate",
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 107
+    },
+    {
+      "legacy_name": "flux.compose.logs",
+      "canonical_name": "compose.logs",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "logs",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 108
+    },
+    {
+      "legacy_name": "flux.compose.build",
+      "canonical_name": "compose.build",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "build",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 109
+    },
+    {
+      "legacy_name": "flux.compose.pull",
+      "canonical_name": "compose.pull",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "pull",
+      "legacy_access": "write",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "project"
+      ],
+      "required_any": [],
+      "source_line": 110
+    },
+    {
+      "legacy_name": "flux.compose.refresh",
+      "canonical_name": "compose.refresh",
+      "legacy_tool": "flux",
+      "legacy_action": "compose",
+      "legacy_subaction": "refresh",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 111
+    },
+    {
+      "legacy_name": "scout.nodes",
+      "canonical_name": "fleet.nodes",
+      "legacy_tool": "scout",
+      "legacy_action": "nodes",
+      "legacy_subaction": null,
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [],
+      "required_any": [],
+      "source_line": 112
+    },
+    {
+      "legacy_name": "scout.peek",
+      "canonical_name": "files.read",
+      "legacy_tool": "scout",
+      "legacy_action": "peek",
+      "legacy_subaction": null,
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "rest",
+      "required_params": [
+        "host",
+        "path"
+      ],
+      "required_any": [],
+      "source_line": 113
+    },
+    {
+      "legacy_name": "scout.find",
+      "canonical_name": "files.find",
+      "legacy_tool": "scout",
+      "legacy_action": "find",
+      "legacy_subaction": null,
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host",
+        "path",
+        "pattern"
+      ],
+      "required_any": [],
+      "source_line": 114
+    },
+    {
+      "legacy_name": "scout.ps",
+      "canonical_name": "processes.list",
+      "legacy_tool": "scout",
+      "legacy_action": "ps",
+      "legacy_subaction": null,
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 115
+    },
+    {
+      "legacy_name": "scout.df",
+      "canonical_name": "filesystem.usage",
+      "legacy_tool": "scout",
+      "legacy_action": "df",
+      "legacy_subaction": null,
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 116
+    },
+    {
+      "legacy_name": "scout.delta",
+      "canonical_name": "files.compare",
+      "legacy_tool": "scout",
+      "legacy_action": "delta",
+      "legacy_subaction": null,
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "source_host",
+        "source_path"
+      ],
+      "required_any": [
+        [
+          "content"
+        ],
+        [
+          "target_host",
+          "target_path"
+        ]
+      ],
+      "source_line": 117
+    },
+    {
+      "legacy_name": "scout.exec",
+      "canonical_name": "host.exec",
+      "legacy_tool": "scout",
+      "legacy_action": "exec",
+      "legacy_subaction": null,
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "rest",
+      "required_params": [
+        "host",
+        "command"
+      ],
+      "required_any": [],
+      "source_line": 118
+    },
+    {
+      "legacy_name": "scout.emit",
+      "canonical_name": "host.exec_many",
+      "legacy_tool": "scout",
+      "legacy_action": "emit",
+      "legacy_subaction": null,
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "targets",
+        "command"
+      ],
+      "required_any": [],
+      "source_line": 119
+    },
+    {
+      "legacy_name": "scout.beam",
+      "canonical_name": "files.transfer",
+      "legacy_tool": "scout",
+      "legacy_action": "beam",
+      "legacy_subaction": null,
+      "legacy_access": "write",
+      "legacy_destructive": true,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "source_host",
+        "source_path",
+        "dest_host",
+        "dest_path"
+      ],
+      "required_any": [],
+      "source_line": 120
+    },
+    {
+      "legacy_name": "scout.zfs.pools",
+      "canonical_name": "zfs.pools",
+      "legacy_tool": "scout",
+      "legacy_action": "zfs",
+      "legacy_subaction": "pools",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 121
+    },
+    {
+      "legacy_name": "scout.zfs.datasets",
+      "canonical_name": "zfs.datasets",
+      "legacy_tool": "scout",
+      "legacy_action": "zfs",
+      "legacy_subaction": "datasets",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 122
+    },
+    {
+      "legacy_name": "scout.zfs.snapshots",
+      "canonical_name": "zfs.snapshots",
+      "legacy_tool": "scout",
+      "legacy_action": "zfs",
+      "legacy_subaction": "snapshots",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 123
+    },
+    {
+      "legacy_name": "scout.logs.syslog",
+      "canonical_name": "logs.syslog",
+      "legacy_tool": "scout",
+      "legacy_action": "logs",
+      "legacy_subaction": "syslog",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 124
+    },
+    {
+      "legacy_name": "scout.logs.journal",
+      "canonical_name": "logs.journal",
+      "legacy_tool": "scout",
+      "legacy_action": "logs",
+      "legacy_subaction": "journal",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 125
+    },
+    {
+      "legacy_name": "scout.logs.dmesg",
+      "canonical_name": "logs.kernel",
+      "legacy_tool": "scout",
+      "legacy_action": "logs",
+      "legacy_subaction": "dmesg",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 126
+    },
+    {
+      "legacy_name": "scout.logs.auth",
+      "canonical_name": "logs.auth",
+      "legacy_tool": "scout",
+      "legacy_action": "logs",
+      "legacy_subaction": "auth",
+      "legacy_access": "read",
+      "legacy_destructive": false,
+      "legacy_transport": "mcp_only",
+      "required_params": [
+        "host"
+      ],
+      "required_any": [],
+      "source_line": 127
+    }
+  ]
+}

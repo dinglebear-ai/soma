@@ -218,6 +218,22 @@ openapi-check:
 scaffold-contract-check:
     cargo xtask check-scaffold-intent-contract
 
+# Validate the pinned 59-operation Synapse compatibility fixture
+synapse-operation-contract-check:
+    python3 scripts/generate-synapse-operation-fixture.py check
+
+# Regenerate the fixture from a local Synapse clone
+synapse-operation-contract-generate donor_repo="/home/jmagar/workspace/synapse" donor_ref="origin/main":
+    python3 scripts/generate-synapse-operation-fixture.py generate --donor-repo "{{ donor_repo }}" --ref "{{ donor_ref }}"
+
+# Validate the docs/unify package manifest and checksums
+unify-manifest-check:
+    python3 scripts/generate-unify-manifest.py check
+
+# Regenerate the docs/unify package manifest and checksums
+unify-manifest-generate:
+    python3 scripts/generate-unify-manifest.py generate
+
 # Check static contracts from docs/PATTERNS.md
 patterns-check:
     cargo xtask patterns

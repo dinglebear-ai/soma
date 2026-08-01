@@ -1,25 +1,20 @@
-# Replace every placeholder with the full 40-character commit before implementation.
 format_version = 1
 generated_at = "2026-07-31"
 
 [soma]
 repository = "https://github.com/dinglebear-ai/soma"
-short_commit = "0418156"
-commit = "<resolve-full-sha>"
+commit = "00a3336dab84a1ae847fc814d3af917f46c90b47"
 
 [axon]
 repository = "https://github.com/dinglebear-ai/axon"
-short_commit = "1ab47e4"
-commit = "<resolve-full-sha>"
+commit = "346238ac31a89f0fd4bddca36f0628a11b8edd98"
 
 [cortex]
 repository = "https://github.com/dinglebear-ai/cortex"
-short_commit = "9633fc3"
-commit = "<resolve-full-sha>"
+commit = "3d75d109cc3531d1b18c9d32c4059566651cd863"
 
 [synapse]
 repository = "https://github.com/jmagar/synapse"
-short_commit = "b925529"
-commit = "<resolve-full-sha>"
+commit = "b92552900c1458aa03b370c80edc812884c77f31"
 operation_source = "src/actions/operations.rs"
 operation_count = 59
