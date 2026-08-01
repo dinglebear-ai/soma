@@ -165,22 +165,22 @@
       ],
       "environmentVariables": [
         {
-          "default": "/data",
-          "description": "Runtime data directory inside the Soma container.",
+          "default": "~/.soma",
+          "description": "Host data directory used by the local Soma CLI and stdio MCP runtime.",
           "format": "filepath",
           "isRequired": false,
           "isSecret": false,
           "name": "SOMA_HOME",
-          "placeholder": "/data"
+          "placeholder": "~/.soma"
         },
         {
-          "default": "/data/providers",
-          "description": "Directory scanned for drop-in provider manifests and modules.",
+          "default": "./providers",
+          "description": "Host directory scanned for drop-in provider manifests and modules.",
           "format": "filepath",
           "isRequired": false,
           "isSecret": false,
           "name": "SOMA_PROVIDER_DIR",
-          "placeholder": "/data/providers"
+          "placeholder": "./providers"
         },
         {
           "description": "Optional deployed platform API or upstream API base URL used by the SomaClient compatibility layer. Leave unset for local provider/runtime mode.",

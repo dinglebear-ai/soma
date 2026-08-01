@@ -38,7 +38,7 @@ Return a compact proof that the Python sidecar executed the provider.
 - Requires admin: `false`
 - Required args: `none`
 - Optional args: `message: string, repeat: integer`
-- Output: `unspecified`
+- Output: `object`
 - MCP: `soma(action="python_runtime_check")`
 - CLI: `soma python_runtime_check`
 - REST: `POST /v1/tools/python_runtime_check`

@@ -19,7 +19,7 @@
       "category": "infrastructure",
       "metadata": {
         "mcpServer": "server.json",
-        "nodePackage": "soma-rmcp",
+        "nodePackage": "@dinglebear/soma",
         "ociImage": "ghcr.io/dinglebear-ai/soma",
         "binary": "soma"
       }
