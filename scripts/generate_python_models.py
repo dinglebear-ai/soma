@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Render dependency-free Python provider models and editor stubs."""
 
 from __future__ import annotations
@@ -87,7 +88,7 @@ def render_models() -> str:
         "",
         "from __future__ import annotations",
         "",
-        "from typing import Any, Literal, Never, NotRequired, Required, TypedDict",
+        "from typing import __GENERATED_IMPORTS__",
         "",
         "__all__ = [",
         *[f'    "{name}",' for name in names],
@@ -117,6 +118,10 @@ def render_models() -> str:
         else:
             lines.append(f"{name} = {type_expr(schema)}")
             lines.append("")
+    typing_imports = ["Any", "Literal", "NotRequired", "Required", "TypedDict"]
+    if any("Never" in line for line in lines):
+        typing_imports.insert(2, "Never")
+    lines[4] = f"from typing import {', '.join(typing_imports)}"
     return chr(10).join(lines).rstrip() + chr(10)
 
 

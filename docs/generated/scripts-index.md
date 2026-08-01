@@ -28,7 +28,7 @@ Generated from script header comments.
 | `scripts/generate-cli.sh` | Thin wrapper. Canonical implementation: cargo xtask generate-cli. |
 | `scripts/generate-docs.py` | Generate volatile docs and metadata from canonical Soma specs. |
 | `scripts/generate-release-sbom.py` | Generate a deterministic CycloneDX 1.6 SBOM for release artifacts. |
-| `scripts/generate_python_models.py` | CUSTOMIZE: add a header comment describing this script. |
+| `scripts/generate_python_models.py` | Render dependency-free Python provider models and editor stubs. |
 | `scripts/install.sh` | CUSTOMIZE: add a header comment describing this script. |
 | `scripts/kache-gate-selftest.sh` | Proves scripts/kache-gate.sh actually rejects a degraded build, and that its |
 | `scripts/kache-gate.sh` | kache-gate.sh -- fail the build when the compiler cache silently degrades. |

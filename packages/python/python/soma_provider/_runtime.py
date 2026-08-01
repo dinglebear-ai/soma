@@ -501,7 +501,10 @@ def call_python_sync(tool, params, payload):
         raise RuntimeError("Python tool is not callable")
     value = tool(**python_call_arguments(tool, params, payload))
     if inspect.isawaitable(value):
-        return asyncio.run(value)
+        close = getattr(value, "close", None)
+        if callable(close):
+            close()
+        raise RuntimeError("synchronous Python tools must not return awaitables")
     return value
 
 

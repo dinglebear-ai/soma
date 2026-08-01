@@ -10,13 +10,13 @@ from collections.abc import Mapping, Sequence
 from typing import Annotated, Literal, NotRequired, TypedDict, get_origin
 from unittest.mock import patch
 
-import soma_provider
 import soma_provider._runtime as provider_runtime
 
 from soma_provider import (
     CapabilityUnavailableError,
     Context,
     MetadataError,
+    _set_host_caller,
     __version__,
     json_schema,
     native_available,
@@ -216,10 +216,6 @@ class SchemaTests(unittest.TestCase):
             {"anyOf": [{"type": "string"}, {"type": "null"}]},
         )
         self.assertEqual(
-            provider_runtime.annotation_schema(str | None),
-            {"anyOf": [{"type": "string"}, {"type": "null"}]},
-        )
-        self.assertEqual(
             json_schema(Sequence[int]),
             {"type": "array", "items": {"type": "integer"}},
         )
@@ -324,6 +320,21 @@ class SchemaTests(unittest.TestCase):
                 {"value": 7},
             )
 
+    def test_sync_python_call_rejects_awaitable_results(self):
+        async def deferred() -> int:
+            return 7
+
+        def returns_awaitable():
+            return deferred()
+
+        with patch.object(
+            provider_runtime.asyncio,
+            "run",
+            side_effect=AssertionError("sync tool created an event loop"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "must not return awaitables"):
+                provider_runtime.call_python_sync(returns_awaitable, {}, {})
+
     def test_context_has_no_public_schema(self):
         with self.assertRaisesRegex(MetadataError, "runner-injected"):
             json_schema(Context)
@@ -377,7 +388,7 @@ class ContextConvenienceTests(unittest.IsolatedAsyncioTestCase):
                 return cancelled
             return None
 
-        previous = soma_provider._set_host_caller(caller)
+        previous = _set_host_caller(caller)
         try:
             context = Context._from_payload(
                 {
@@ -402,7 +413,7 @@ class ContextConvenienceTests(unittest.IsolatedAsyncioTestCase):
             await context.report_progress(1, total=2, message="half")
             await context.check_cancelled()
         finally:
-            soma_provider._set_host_caller(previous)
+            _set_host_caller(previous)
 
         methods = [method for method, _, _ in calls]
         self.assertEqual(
@@ -424,7 +435,7 @@ class ContextConvenienceTests(unittest.IsolatedAsyncioTestCase):
         def caller(method, _invocation_id, _payload):
             return method == "host.cancelled"
 
-        previous = soma_provider._set_host_caller(caller)
+        previous = _set_host_caller(caller)
         try:
             context = Context._from_payload(
                 {
@@ -438,7 +449,7 @@ class ContextConvenienceTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await context.check_cancelled()
         finally:
-            soma_provider._set_host_caller(previous)
+            _set_host_caller(previous)
 
 
 if __name__ == "__main__":

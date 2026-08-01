@@ -396,7 +396,8 @@ fn wasmtime_cache_config() -> CacheConfig {
 }
 
 fn wasmtime_cache() -> Result<Cache, String> {
-    Cache::new(wasmtime_cache_config()).map_err(|error| error.to_string())
+    Cache::new(wasmtime_cache_config())
+        .map_err(|error| format!("failed to initialize Wasmtime cache: {error}"))
 }
 
 impl WasmRuntime {
