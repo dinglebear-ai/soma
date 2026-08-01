@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "provider_fingerprint": "sha256:d03591436900d3f90d6d4fb3b3907a2651db65e85aa18efb9fd3b0b9275b35b4",
+  "provider_fingerprint": "sha256:4ba13290865e08cbe765f46d6b350e792b7a4a9b92b58d508665fdb5b76177f9",
   "provider_execution_abi": {
     "schema_version": 1,
     "request_fields": [
@@ -124,7 +124,9 @@
               }
             }
           },
-          "output_schema": null,
+          "output_schema": {
+            "type": "object"
+          },
           "scope": null,
           "destructive": false,
           "requires_admin": false,
@@ -810,7 +812,7 @@
         },
         {
           "name": "python_graduation_apply",
-          "description": "Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace.",
+          "description": "Scaffold, componentize, build, verify, compare, activate, or roll back a Python graduation workspace.",
           "input_schema": {
             "type": "object",
             "additionalProperties": false,
@@ -836,6 +838,10 @@
               "fixtures": {
                 "type": "string",
                 "description": "Conformance fixture path used by graduate and compare."
+              },
+              "wheelhouse": {
+                "type": "string",
+                "description": "Directory containing authenticated pure-Python dependency wheels for componentize-py."
               },
               "confirm": {
                 "type": "boolean",
@@ -864,13 +870,13 @@
           "cli_aliases": [],
           "cli_flags": [],
           "cli_default_output": null,
-          "cli_usage": "soma python_graduation_apply --json '{\"operation\":\"compare\",\"workspace\":\"/absolute/path\",\"component\":\"/absolute/candidate.wasm\",\"fixtures\":\"/absolute/fixtures.json\",\"confirm\":true}'",
+          "cli_usage": "soma python_graduation_apply --json '{\"operation\":\"compare\",\"workspace\":\"/absolute/path\",\"fixtures\":\"/absolute/fixtures.json\",\"confirm\":true}'",
           "rest": true,
           "rest_route": "POST /v1/python/graduation/apply",
           "examples": [],
           "meta": {
             "returns": "PythonGraduationReport",
-            "cli_usage": "soma python_graduation_apply --json '{\"operation\":\"compare\",\"workspace\":\"/absolute/path\",\"component\":\"/absolute/candidate.wasm\",\"fixtures\":\"/absolute/fixtures.json\",\"confirm\":true}'",
+            "cli_usage": "soma python_graduation_apply --json '{\"operation\":\"compare\",\"workspace\":\"/absolute/path\",\"fixtures\":\"/absolute/fixtures.json\",\"confirm\":true}'",
             "scaffold_fallback": null
           }
         },
