@@ -72,7 +72,8 @@ ACTUAL="$(git -C "$WORK/rust-sdk" rev-parse HEAD)"
   echo "rmcp tag commit is $ACTUAL, expected $RMCP_COMMIT" >&2
   exit 1
 }
-npm install --prefix "$WORK/js" --ignore-scripts --no-audit --no-fund \
+npm_config_cache="$WORK/npm-cache" npm install --prefix "$WORK/js" \
+  --ignore-scripts --no-audit --no-fund \
   "@modelcontextprotocol/conformance@${CONF_VERSION}"
 CONF="$WORK/js/node_modules/.bin/conformance"
 CARGO_TARGET_DIR="$UPSTREAM_TARGET" RUSTFLAGS="" \

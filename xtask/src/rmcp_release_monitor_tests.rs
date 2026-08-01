@@ -55,6 +55,7 @@ fn conformance_script_reserves_parallel_safe_ports() {
     assert!(script.contains("rmdir \"$PORT_LOCK\""));
     assert!(script.contains("/dev/tcp/127.0.0.1/${candidate}"));
     assert!(!script.contains("command -v ss"));
+    assert!(script.contains("npm_config_cache=\"$WORK/npm-cache\" npm install"));
     assert!(script.contains("MCP_CONFORMANCE_UPSTREAM_TARGET_DIR"));
     assert!(script.contains("CLIENT=\"$UPSTREAM_TARGET/debug/conformance-client\""));
 }
