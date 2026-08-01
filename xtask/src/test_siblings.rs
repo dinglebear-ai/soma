@@ -159,6 +159,7 @@ const CHECKED_SRC_ROOTS: &[&str] = &[
     "crates/soma/mcp/src",
     "crates/soma/palette/src",
     "crates/soma/web/src",
+    "crates/synapse/application/src",
 ];
 
 /// Source trees deliberately *not* checked, each with the reason.

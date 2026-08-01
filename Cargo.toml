@@ -42,6 +42,7 @@ members = [
   "crates/soma/runtime",
   "crates/soma/test-support",
   "crates/soma/web",
+  "crates/synapse/application",
   "packages/python",
   "xtask",
 ]
@@ -150,6 +151,9 @@ soma-palette = { path = "crates/soma/palette" }
 soma-runtime = { path = "crates/soma/runtime", default-features = false }
 soma-test-support = { path = "crates/soma/test-support" }
 soma-web = { path = "crates/soma/web" }
+
+# Synapse product crates
+synapse-application = { path = "crates/synapse/application" }
 
 # ── profiles ─────────────────────────────────────────────────────────────────
 # release-fast: release-grade binary (optimized, stripped) but with cheap LTO and

@@ -40,7 +40,7 @@ baselines:
     commit: 8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f
     observed: '2026-07-31'
 counts:
-  filesInManifest: 132
+  filesInManifest: 133
   sharedCrates: 19
   adrs: 13
   capabilities: 13
@@ -196,6 +196,10 @@ files:
 - path: 02-crates/specs/soma-transcript.md
   bytes: 3235
   sha256: e7b16ddd50fc7f7e7d6f3c38f45a064dc65ca8c706cff975a79a88912c8c1645
+  type: md
+- path: 02-crates/specs/synapse-application.md
+  bytes: 2757
+  sha256: b849b6607e8e27be752dc7bac166c883096441d0c880cde338cfb62a4cf0cb74
   type: md
 - path: 03-contracts/CITATION-CONTRACT.md
   bytes: 2416
@@ -394,8 +398,8 @@ files:
   sha256: 421b03734b5aef3ea973eb990ac882995475a749fa1822b4f716f75921330c78
   type: md
 - path: 05-migration/SYNAPSE-IMPLEMENTATION-PLAN.md
-  bytes: 19086
-  sha256: a43726658f32bafb3c496b8ec74761ca68cf767010e90df1195648b585a9a09c
+  bytes: 19740
+  sha256: 9c4dcff0538c8355c14f545a9d3a07d1d0614363bdbf4d7fd5d84befe6933f7f
   type: md
 - path: 05-migration/VERTICAL-SLICES.md
   bytes: 2297
@@ -538,8 +542,8 @@ files:
   sha256: 7683039a2b5f63310830d3e13d9f52c32a9b2ded2499d26c776722e1f7691baa
   type: md
 - path: 09-delivery/IMPLEMENTATION-TRACKER.md
-  bytes: 4757
-  sha256: 21d624baea1321aacd327e91261ac124e6d9817d93220097e8880c281b85c3a6
+  bytes: 5425
+  sha256: 474c963e60ac701661b443337ee3af73a5f286f2fad01eac2178392a3efd9764
   type: md
 - path: 09-delivery/OPEN-DECISIONS.md
   bytes: 1994

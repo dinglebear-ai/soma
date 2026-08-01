@@ -6301,6 +6301,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "synapse-application"
+version = "0.6.2"
+dependencies = [
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "soma-ops",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

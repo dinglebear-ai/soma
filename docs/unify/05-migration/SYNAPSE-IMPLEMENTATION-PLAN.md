@@ -131,6 +131,8 @@ Deliverables:
 
 Exit: all current surfaces are derived from or validated against the registry, and changing one required field in a surface fixture makes CI fail.
 
+Implementation record: `synapse-application` is now a native product-application crate that depends only on `soma-ops` and checked-in generated contracts. It loads and cross-validates the 59 canonical specifications, 59 legacy bindings, parameter and result schemas, and 33 diagnostic projections. Flux and Scout requests normalize into closed canonical parameters; canonical results validate before deterministic JSON or Markdown projection; diagnostic projection is rejected unless the operation declares the code. The generated Flux/Scout input schemas are derived from the same registry. The imported donor workspace remains unchanged and unlinked.
+
 ### PR 5: fleet foundation
 
 Base: PR 4.

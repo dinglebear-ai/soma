@@ -274,6 +274,10 @@ synapse-product-import-test:
 synapse-product-import-release:
     cargo build --manifest-path crates/synapse/import/Cargo.toml --release --locked --bin synapse
 
+# Validate native Synapse catalog and compatibility adapters
+synapse-compat-check:
+    cargo test -p synapse-application --all-features
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check
