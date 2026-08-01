@@ -9,6 +9,57 @@ fn exact_version_strips_cargo_requirement_comparators() {
     assert!(semver::Version::parse(super::exact_version("=3.0.0-beta.2")).is_ok());
 }
 
+#[test]
+fn conformance_defaults_match_the_workspace_rmcp_pin() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let requirement = super::detect_current_rmcp_version(&root).expect("workspace rmcp pin");
+    let version = super::exact_version(&requirement);
+    let baseline: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join("conformance/upstream-baseline.json"))
+            .expect("conformance baseline"),
+    )
+    .expect("valid conformance baseline JSON");
+    let commit = baseline["rmcp"]["commit"]
+        .as_str()
+        .expect("baseline rmcp commit");
+    assert_eq!(baseline["rmcp"]["crate_version"], version);
+    assert_eq!(baseline["rmcp"]["release_tag"], format!("rmcp-v{version}"));
+
+    let script = std::fs::read_to_string(root.join("scripts/ci/mcp-conformance.sh"))
+        .expect("conformance script");
+    assert!(
+        script.contains(&format!("RMCP_VERSION=\"${{RMCP_VERSION:-{version}}}\"")),
+        "conformance script version must match workspace pin {version}"
+    );
+    assert!(
+        script.contains(&format!("RMCP_COMMIT=\"${{RMCP_COMMIT:-{commit}}}\"")),
+        "conformance script commit must match upstream baseline {commit}"
+    );
+}
+
+#[test]
+fn conformance_script_reserves_parallel_safe_ports() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let script = std::fs::read_to_string(root.join("scripts/ci/mcp-conformance.sh"))
+        .expect("conformance script");
+    assert!(
+        script.contains("PORT=\"${MCP_CONFORMANCE_PORT:-}\""),
+        "the default port must be dynamically allocated"
+    );
+    assert!(
+        !script.contains("MCP_CONFORMANCE_PORT:-18002"),
+        "parallel jobs must not share a fixed default port"
+    );
+    assert!(script.contains("soma-mcp-conformance-port-${candidate}.lock"));
+    assert!(script.contains("mkdir \"$candidate_lock\""));
+    assert!(script.contains("rmdir \"$PORT_LOCK\""));
+    assert!(script.contains("/dev/tcp/127.0.0.1/${candidate}"));
+    assert!(!script.contains("command -v ss"));
+    assert!(script.contains("npm_config_cache=\"$WORK/npm-cache\" npm install"));
+    assert!(script.contains("MCP_CONFORMANCE_UPSTREAM_TARGET_DIR"));
+    assert!(script.contains("CLIENT=\"$UPSTREAM_TARGET/debug/conformance-client\""));
+}
+
 /// Minimal valid crates.io payload; these tests only care about the releases
 /// argument, which `build_monitor_report` parses second.
 const VALID_CRATE_JSON: &str = r#"{

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use ::http::{HeaderMap, HeaderValue};
-use rmcp::model::Meta;
+use rmcp::model::MetaObject;
 
 use crate::trace_context::{
     parse_traceparent_value, validate_baggage_value, validate_tracestate_value,
@@ -29,7 +29,7 @@ impl Default for HttpTracePolicy {
 }
 
 pub struct HttpTraceExtraction {
-    pub meta: Meta,
+    pub meta: MetaObject,
     pub summary: TraceSummary,
 }
 
@@ -47,7 +47,7 @@ impl fmt::Debug for HttpTraceExtraction {
 }
 
 pub fn extract_http_trace(headers: &HeaderMap, policy: HttpTracePolicy) -> HttpTraceExtraction {
-    let mut meta = Meta::new();
+    let mut meta = MetaObject::new();
     let traceparent_value = match single_header_value(headers, TRACEPARENT_KEY) {
         Ok(Some(value)) => value,
         Ok(None) => {

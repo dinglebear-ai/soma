@@ -1,0 +1,56 @@
+name: Python platform soak
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-platform-soak
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    name: Full performance and componentize soak
+    runs-on: ci-pool-python
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14
+        with:
+          install_args: python uv
+          cache: true
+
+      - name: Install locked Python SDK
+        run: uv sync --project packages/python --frozen
+
+      - name: Install exact componentize-py
+        run: uv tool install --force componentize-py==0.25.0
+
+      - name: Run full policy, performance, and soak gates
+        run: |
+          python3 scripts/check-python-platform-policy.py
+          python3 scripts/python-platform-gates.py --full
+
+      - name: Run cold and restarted-warm componentize-py integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="${RUNNER_TEMP}/soma-wasmtime-cache"
+          rm -rf "${cache}"
+          for phase in cold restarted-warm; do
+            echo "Running ${phase} componentize verification"
+            XDG_CACHE_HOME="${cache}" \
+            SOMA_COMPONENTIZE_E2E=1 \
+            SOMA_COMPONENTIZE_PY_PROGRAM="$(uv tool dir --bin)/componentize-py" \
+              cargo test -p soma-application \
+                exact_componentize_build_validates_under_soma_wasmtime \
+                -- --nocapture
+          done

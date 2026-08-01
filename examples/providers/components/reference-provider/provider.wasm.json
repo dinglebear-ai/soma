@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "provider": {
+    "name": "reference-conformance",
+    "kind": "wasm"
+  },
+  "tools": [
+    {
+      "name": "conformance_echo",
+      "description": "Echo a JSON value through the reference Soma component.",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {}
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "limits": {
+        "timeout_ms": 5000,
+        "max_input_bytes": 65536,
+        "max_response_bytes": 262144
+      },
+      "cli": {
+        "enabled": true,
+        "command": "conformance-echo"
+      }
+    }
+  ]
+}

@@ -40,6 +40,8 @@ cargo xtask check-schema-docs --check
 | `python_worker_reset` | `soma:write` | `write` | Clear one persistent Python worker crash-loop quarantine. |
 | `python_generation_status` | `soma:read` | `cheap` | Inspect the active Python provider generation and bounded rollback history. |
 | `python_generation_rollback` | `soma:write` | `write` | Atomically reactivate a retained Python provider generation. |
+| `python_graduation_status` | `soma:read` | `cheap` | Inspect digest-bound Python graduation, conformance, activation, and rollback state. |
+| `python_graduation_apply` | `soma:write` | `write` | Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace. |
 | `elicit_name` | `soma:read` | `cheap` | Ask the MCP client to collect a name, then return a personalised greeting. |
 | `scaffold_intent` | `soma:read` | `moderate` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
 | `help` | public | `cheap` | Show the action reference. |

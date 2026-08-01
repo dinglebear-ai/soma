@@ -8,7 +8,7 @@ updated: 2026-07-30
 
 ## Status
 
-Implemented against `rmcp = 3.0.0-beta.2`.
+Implemented against `rmcp = 3.1.0`.
 
 The requested draft URL currently identifies the integrated protocol revision as
 `2026-07-28`. Soma therefore negotiates and tests that exact revision rather than

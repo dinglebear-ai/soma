@@ -72,7 +72,7 @@ async fn remote_stdio_mcp_provider_action_posts_to_server_api() -> anyhow::Resul
     service.cancel().await?;
     handle.abort();
 
-    assert_eq!(result.structured_content.unwrap()["ok"], true);
+    assert_eq!(result.structured_content.unwrap()["output"]["ok"], true);
     let observed = observed.lock().expect("observed requests should lock");
     assert_eq!(observed.len(), 1);
     assert_eq!(observed[0].path, "/v1/tools/weather_current");

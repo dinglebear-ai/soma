@@ -27,6 +27,18 @@ Use for Soma built-in Rust actions, scaffold intent collection, MCP elicitation 
 | `greet` | yes | yes | yes | `greet` | `POST /v1/greet` | Return a greeting. |
 | `echo` | yes | yes | yes | `echo` | `POST /v1/echo` | Echo a message back unchanged. |
 | `status` | yes | yes | yes | `status` | `GET /v1/status` | Return server status and configuration info. |
+| `python_environment_status` | yes | yes | yes | `python_environment_status` | `GET /v1/python/environments` | Inspect immutable Python environment cache state without executing provider code. |
+| `python_environment_prune_plan` | yes | yes | yes | `python_environment_prune_plan` | `POST /v1/python/environments/prune-plan` | Plan a bounded prune of stale non-ready Python environment cache entries. |
+| `python_environment_prune` | yes | yes | yes | `python_environment_prune` | `POST /v1/python/environments/prune` | Apply a bounded prune of stale non-ready Python environment cache entries. |
+| `python_environment_repair` | yes | yes | yes | `python_environment_repair` | `POST /v1/python/environments/repair` | Repair the immutable environment for one managed Python provider. |
+| `python_environment_update` | yes | yes | yes | `python_environment_update` | `POST /v1/python/environments/update` | Resolve, prepare, validate, and atomically activate an immutable update for one managed Python provider. |
+| `python_worker_status` | yes | yes | yes | `python_worker_status` | `GET /v1/python/workers` | Inspect persistent Python worker health, quarantine, restart counts, and bounded redacted logs. |
+| `python_worker_cancel` | yes | yes | yes | `python_worker_cancel` | `POST /v1/python/workers/cancel` | Cancel one active persistent Python invocation by terminating its process tree. |
+| `python_worker_reset` | yes | yes | yes | `python_worker_reset` | `POST /v1/python/workers/reset` | Clear one persistent Python worker crash-loop quarantine. |
+| `python_generation_status` | yes | yes | yes | `python_generation_status` | `GET /v1/python/generations` | Inspect the active Python provider generation and bounded rollback history. |
+| `python_generation_rollback` | yes | yes | yes | `python_generation_rollback` | `POST /v1/python/generations/rollback` | Atomically reactivate a retained Python provider generation. |
+| `python_graduation_status` | yes | yes | yes | `python_graduation_status` | `POST /v1/python/graduation/status` | Inspect digest-bound Python graduation, conformance, activation, and rollback state. |
+| `python_graduation_apply` | yes | yes | yes | `python_graduation_apply` | `POST /v1/python/graduation/apply` | Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace. |
 | `elicit_name` | yes | no | no | `N/A` | `N/A` | Ask the MCP client to collect a name, then return a personalised greeting. |
 | `scaffold_intent` | yes | no | no | `N/A` | `N/A` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
 | `help` | yes | yes | yes | `help` | `GET /v1/help` | Show the action reference. |
@@ -79,6 +91,186 @@ Return server status and configuration info.
 - MCP: `soma(action="status")`
 - CLI: `soma status`
 - REST: `GET /v1/status`
+
+### `python_environment_status`
+
+Inspect immutable Python environment cache state without executing provider code.
+
+- Scope: `soma:write`
+- Cost: `cheap`
+- Destructive: `false`
+- Requires admin: `true`
+- Required args: `none`
+- Optional args: `none`
+- Output: `PythonEnvironmentStatus`
+- MCP: `soma(action="python_environment_status")`
+- CLI: `soma python_environment_status`
+- REST: `GET /v1/python/environments`
+
+### `python_environment_prune_plan`
+
+Plan a bounded prune of stale non-ready Python environment cache entries.
+
+- Scope: `soma:write`
+- Cost: `moderate`
+- Destructive: `false`
+- Requires admin: `true`
+- Required args: `stale_before_unix_seconds: integer`
+- Optional args: `max_entries: integer`
+- Output: `PythonEnvironmentPrunePlan`
+- MCP: `soma(action="python_environment_prune_plan")`
+- CLI: `soma python_environment_prune_plan --json '{"stale_before_unix_seconds": 0}'`
+- REST: `POST /v1/python/environments/prune-plan`
+
+### `python_environment_prune`
+
+Apply a bounded prune of stale non-ready Python environment cache entries.
+
+- Scope: `soma:write`
+- Cost: `write`
+- Destructive: `true`
+- Requires admin: `false`
+- Required args: `stale_before_unix_seconds: integer, confirm: boolean`
+- Optional args: `max_entries: integer`
+- Output: `PythonEnvironmentPruneReport`
+- MCP: `soma(action="python_environment_prune")`
+- CLI: `soma python_environment_prune --json '{"stale_before_unix_seconds": 0, "confirm": true}'`
+- REST: `POST /v1/python/environments/prune`
+
+### `python_environment_repair`
+
+Repair the immutable environment for one managed Python provider.
+
+- Scope: `soma:write`
+- Cost: `write`
+- Destructive: `true`
+- Requires admin: `false`
+- Required args: `provider_path: string, confirm: boolean`
+- Optional args: `none`
+- Output: `PythonEnvironmentRepairReport`
+- MCP: `soma(action="python_environment_repair")`
+- CLI: `soma python_environment_repair --json '{"provider_path": "example.py", "confirm": true}'`
+- REST: `POST /v1/python/environments/repair`
+
+### `python_environment_update`
+
+Resolve, prepare, validate, and atomically activate an immutable update for one managed Python provider.
+
+- Scope: `soma:write`
+- Cost: `write`
+- Destructive: `true`
+- Requires admin: `false`
+- Required args: `provider_path: string, confirm: boolean`
+- Optional args: `none`
+- Output: `PythonEnvironmentUpdateReport`
+- MCP: `soma(action="python_environment_update")`
+- CLI: `soma python_environment_update --json '{"provider_path": "example.py", "confirm": true}'`
+- REST: `POST /v1/python/environments/update`
+
+### `python_worker_status`
+
+Inspect persistent Python worker health, quarantine, restart counts, and bounded redacted logs.
+
+- Scope: `soma:write`
+- Cost: `cheap`
+- Destructive: `false`
+- Requires admin: `true`
+- Required args: `none`
+- Optional args: `none`
+- Output: `PythonWorkerStatus`
+- MCP: `soma(action="python_worker_status")`
+- CLI: `soma python_worker_status`
+- REST: `GET /v1/python/workers`
+
+### `python_worker_cancel`
+
+Cancel one active persistent Python invocation by terminating its process tree.
+
+- Scope: `soma:write`
+- Cost: `write`
+- Destructive: `true`
+- Requires admin: `false`
+- Required args: `provider: string, confirm: boolean`
+- Optional args: `none`
+- Output: `PythonWorkerCancellation`
+- MCP: `soma(action="python_worker_cancel")`
+- CLI: `soma python_worker_cancel --json '{"provider": "example", "confirm": true}'`
+- REST: `POST /v1/python/workers/cancel`
+
+### `python_worker_reset`
+
+Clear one persistent Python worker crash-loop quarantine.
+
+- Scope: `soma:write`
+- Cost: `write`
+- Destructive: `true`
+- Requires admin: `false`
+- Required args: `provider: string, confirm: boolean`
+- Optional args: `none`
+- Output: `PythonWorkerReset`
+- MCP: `soma(action="python_worker_reset")`
+- CLI: `soma python_worker_reset --json '{"provider": "example", "confirm": true}'`
+- REST: `POST /v1/python/workers/reset`
+
+### `python_generation_status`
+
+Inspect the active Python provider generation and bounded rollback history.
+
+- Scope: `soma:read`
+- Cost: `cheap`
+- Destructive: `false`
+- Requires admin: `false`
+- Required args: `none`
+- Optional args: `none`
+- Output: `PythonGenerationStatus`
+- MCP: `soma(action="python_generation_status")`
+- CLI: `soma python_generation_status`
+- REST: `GET /v1/python/generations`
+
+### `python_generation_rollback`
+
+Atomically reactivate a retained Python provider generation.
+
+- Scope: `soma:write`
+- Cost: `write`
+- Destructive: `true`
+- Requires admin: `false`
+- Required args: `generation_id: integer, confirm: boolean`
+- Optional args: `none`
+- Output: `PythonGenerationRollback`
+- MCP: `soma(action="python_generation_rollback")`
+- CLI: `soma python_generation_rollback --json '{"generation_id": 1, "confirm": true}'`
+- REST: `POST /v1/python/generations/rollback`
+
+### `python_graduation_status`
+
+Inspect digest-bound Python graduation, conformance, activation, and rollback state.
+
+- Scope: `soma:read`
+- Cost: `cheap`
+- Destructive: `false`
+- Requires admin: `true`
+- Required args: `workspace: string`
+- Optional args: `none`
+- Output: `PythonGraduationStatus`
+- MCP: `soma(action="python_graduation_status")`
+- CLI: `soma python_graduation_status --json '{"workspace":"/absolute/path"}'`
+- REST: `POST /v1/python/graduation/status`
+
+### `python_graduation_apply`
+
+Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace.
+
+- Scope: `soma:write`
+- Cost: `write`
+- Destructive: `true`
+- Requires admin: `true`
+- Required args: `operation: string, workspace: string, confirm: boolean`
+- Optional args: `source: string, component: string, fixtures: string`
+- Output: `PythonGraduationReport`
+- MCP: `soma(action="python_graduation_apply")`
+- CLI: `soma python_graduation_apply --json '{"operation":"compare","workspace":"/absolute/path","component":"/absolute/candidate.wasm","fixtures":"/absolute/fixtures.json","confirm":true}'`
+- REST: `POST /v1/python/graduation/apply`
 
 ### `elicit_name`
 

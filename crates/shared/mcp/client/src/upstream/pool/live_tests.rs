@@ -108,7 +108,7 @@ async fn stdio_live_discovery_and_call_routes_echo() {
 #[derive(Clone, Copy)]
 enum DiscoveryFixtureMode {
     MethodNotFound,
-    Misclassified,
+    CompleteDiscovery,
 }
 
 #[derive(Clone)]
@@ -150,7 +150,7 @@ async fn lifecycle_fixture_handler(
                     "error": {"code": -32601, "message": "server/discover method not found"}
                 }))
                 .into_response(),
-                DiscoveryFixtureMode::Misclassified => Json(serde_json::json!({
+                DiscoveryFixtureMode::CompleteDiscovery => Json(serde_json::json!({
                     "jsonrpc": "2.0",
                     "id": id,
                     "result": {
@@ -260,11 +260,11 @@ async fn http_upstream_reconnects_with_initialize_after_method_not_found() {
 }
 
 #[tokio::test]
-async fn http_upstream_reconnects_when_discovery_result_is_misclassified() {
-    let fixture = run_lifecycle_fallback_fixture(DiscoveryFixtureMode::Misclassified).await;
+async fn http_upstream_accepts_complete_discovery_without_legacy_initialize() {
+    let fixture = run_lifecycle_fallback_fixture(DiscoveryFixtureMode::CompleteDiscovery).await;
 
     assert_eq!(fixture.discover_requests.load(Ordering::SeqCst), 1);
-    assert_eq!(fixture.initialize_requests.load(Ordering::SeqCst), 1);
+    assert_eq!(fixture.initialize_requests.load(Ordering::SeqCst), 0);
     assert_eq!(fixture.list_tools_requests.load(Ordering::SeqCst), 1);
 }
 

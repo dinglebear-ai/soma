@@ -1,7 +1,7 @@
 ---
 title: "Python Provider Platform Plan"
 created: 2026-07-29
-updated: 2026-07-30
+updated: 2026-07-31
 doc_type: "spec"
 status: "active"
 owner: "soma"
@@ -18,7 +18,7 @@ upstream_refs:
   - "crates/shared/provider-adapters/src/python_protocol.rs"
   - "crates/shared/provider-adapters/src/python/"
   - "packages/python/"
-last_reviewed: "2026-07-30"
+last_reviewed: "2026-07-31"
 ---
 
 # Python Provider Platform Plan
@@ -48,8 +48,9 @@ path must use it and its failure behavior must be verified.
 
 ## Verified Snapshot
 
-Last reconciled on **2026-07-30** against the Phase 5–7 implementation branch
-stacked on the production-environment work in PR #249.
+Last reconciled on **2026-07-30** against the Phase 8–10 implementation in
+PR #253, stacked on the merged Phase 5–7 runtime and production-environment
+work.
 
 The immutable-environment stack was merged by `749bc026` and ends at
 `4993e57e`; the supervised persistent runner was merged by `47bb3131`:
@@ -89,10 +90,10 @@ Post-environment-merge CI repairs `f9860585` and `12fc929b` are also on
 | Dependencies | PEP 723 is parsed without executing provider code. |
 | Environments | The adapter library can plan, materialize, verify, inventory, prune, repair, update, and activate content-addressed `uv` environments. Production startup installs that lifecycle when the complete, disabled-by-default `[python.environment]` configuration is enabled. |
 | Execution | One-shot remains the default; `SOMA_PYTHON_RUNNER_MODE=persistent` activates supervised workers. |
-| Persistent protocol | Negotiated framing, describe/invoke/health/drain/shutdown, supervision, async candidate preflight, and prepared-interpreter authoring-path parity are active in persistent mode. Active cancel frames and brokered `host.*` calls remain protocol-only. |
-| Context capabilities | Request identity is injected; HTTP, secrets, state, logging, metrics, progress, and cancellation are not live broker services. |
-| Isolation | Out of process with filtered environment and bounded I/O, but not OS-sandboxed. |
-| Wasm graduation | Contract boundary exists; WIT components and graduation tooling do not. |
+| Persistent protocol | Negotiated framing, describe/invoke/cancel/health/drain/shutdown, supervision, candidate preflight, and invocation-bound host calls are active in persistent mode. |
+| Context capabilities | Request and actor identity, trace context, HTTP, secrets, namespaced state, logging, metrics, progress, and cancellation are live broker services subject to intersected authority. |
+| Isolation | Trusted mode is out of process with filtered environment and bounded I/O. Brokered Linux mode adds namespaces, cgroups, seccomp, rlimits, a read-only filesystem view, and no ambient network; unavailable enforcement fails closed. |
+| Wasm graduation | A versioned component ABI, constrained WASI host, reusable guest SDK, shared conformance fixtures, and honest scaffold/build/verify/compare/activate/rollback tooling are active. |
 
 ## Product Outcome
 
@@ -154,10 +155,9 @@ does not claim automatic translation of arbitrary Python into Rust or Wasm.
 - stable states and errors
 - Rust/Python codecs and shared fixtures
 
-Persistent mode negotiates and implements `describe`, `invoke`, `health`,
-`drain`, and `shutdown`. `cancel` and brokered `host.*` messages remain
-contract-only and are not advertised by the active worker. The one-shot bridge
-remains the default migration and rollback path.
+Persistent mode negotiates and implements `describe`, `invoke`, `cancel`,
+`health`, `drain`, `shutdown`, and invocation-bound broker host calls. The
+one-shot bridge remains the default migration and rollback path.
 
 ### Immutable environment lifecycle
 
@@ -187,11 +187,12 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 5. PEP 723 and `uv` lifecycle | Complete | Planning, production immutable activation, and authorized operator status/prune/repair/update surfaces are implemented. |
 | 6. Persistent supervised runner | Complete, opt-in | Installed-wheel supervised workers cover all authoring paths with cancellation, bounded redacted logs, status, quarantine, and reset controls. |
 | 7. Generation-aware reload | Complete | Candidate preflight, debounced/coalesced atomic activation, bounded retained history, retirement, status, and rollback are implemented. |
-| 8. Capability broker and containment | Planned | Context services are live under explicit execution profiles. |
-| 9. WIT/WASI components | Planned | Versioned component ABI and reference provider exist. |
-| 10. Graduation tooling | Planned | Scaffold, compare, promote, and rollback manual rewrites. |
-| 11. `componentize-py` | Experimental | Narrow compatibility-scanned Python component path. |
-| 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
+| 8. Capability broker and containment | Complete | Invocation-bound broker services and fail-closed Linux containment merged in PR #253. |
+| 9. WIT/WASI components | Complete | Versioned component runtime, guest SDK, host limits, and conformance fixtures merged in PR #253. |
+| 10. Graduation tooling | Complete | Scaffold/build/verify/compare/activate/rollback workflow merged in PR #253. |
+| 11. `componentize-py` | Implementation complete, pending merge | Verified wheel mapping, WIT bindings, isolated builds, persistent compiler caching, exact Wasmtime validation, and operator surfaces are implemented in PR #256. |
+| 12. Release and operations | Implementation complete, pending merge | Trusted publication, wheelhouse integration, checksums, SBOM/provenance attestations, bounded cache policy, performance budgets, and soak CI are implemented in PR #256. |
+| 13. SDK completeness | Implementation complete, pending merge | Discriminators, inferred output schemas, canonical generated models, public stubs, and typed Context conveniences are implemented in PR #256. |
 
 The earlier session-local implementation plan numbered the `uv` lifecycle as
 Phase 4 and the persistent runner as Phase 5. This canonical plan separates
@@ -287,14 +288,15 @@ Implementation notes:
   retention, and exposes it through the authorized worker-status action.
 - One invocation is active per worker. Concurrent work receives
   `python_provider_busy` without queueing.
-- The active feature set does not require cooperative `cancel`: cancellation
-  terminates the Unix worker process group or uses Windows `taskkill /T /F`,
-  then the supervisor restarts cleanly on later work.
-- Provider/tool runtime environment declarations are rejected in persistent
-  mode. Phase-8 broker capabilities, actor scopes, and trace propagation are
-  intentionally unavailable.
-- Unix workers own a process group. Windows uses best-effort process-tree
-  termination; stronger Job Object containment remains part of Phase 8.
+- Cancellation first exposes a cooperative flag over the broker and also
+  terminates the contained worker process tree, so uninterruptible synchronous
+  code cannot survive the deadline.
+- Provider/tool runtime environment declarations remain rejected in persistent
+  mode. Actor scopes and trace context are invocation-bound and propagated to
+  the broker without becoming ambient process environment.
+- Trusted Unix workers own a process group. Brokered Linux workers use the full
+  containment boundary described in Phase 8; Windows uses kill-on-close Job
+  Objects and fails closed when the requested profile cannot be enforced.
 
 ## Phase 7: Generation-Aware Reload
 
@@ -336,6 +338,8 @@ rollback actions are shared across CLI, MCP, and REST.
 
 ## Phase 8: Capability Broker and Containment
 
+Status: implemented; pending merge and CI verification.
+
 Make the existing protocol and unavailable Context handles real:
 
 - `ctx.http`
@@ -364,7 +368,21 @@ Security gates include secret redaction, HTTP redirect/DNS escape protection,
 confused-deputy protection, state isolation, audit events, and a threat model for
 source, dependencies, protocol, cache, broker, and Wasm.
 
+Delivered in Phase 8:
+
+- live `Context` services over invocation-bound host calls;
+- deployment allowlists intersected with declarations and actor scopes;
+- `disabled`, `trusted`, and fail-closed `brokered` profiles;
+- Linux namespaces, cgroup v2, seccomp, rlimits, read-only filesystem view,
+  private network namespace, and authenticated Unix control channel;
+- kill-on-close Windows Job Objects, with brokered mode unavailable when the
+  platform cannot enforce the complete boundary;
+- bounded redacted audit events and the dedicated
+  [threat model](../security/python-provider-threat-model.md).
+
 ## Phase 9: WIT/WASI Component Runtime
+
+Status: implemented; pending merge and CI verification.
 
 Scope:
 
@@ -378,7 +396,19 @@ Scope:
 - shared Python/component conformance fixtures;
 - at least one reference component provider.
 
+The versioned WIT package is `wit/soma-provider/world.wit`. Wasmtime detects
+components before falling back to the legacy core ABI, caches compiled
+artifacts, applies memory/table/instance/fuel limits, and uses a live epoch
+ticker so deadlines interrupt execution rather than only timing out the
+waiting task. `soma-provider-guest` supplies the reusable Rust core and
+explicit HTTP, secret, state, log, metric, and progress capability helpers.
+The reference Python and Rust component implementations share
+`examples/providers/components/conformance-v1.json`.
+
 ## Phase 10: Graduation Tooling
+
+**Complete.** Merged in PR #253 after the full local and GitHub verification
+matrix passed.
 
 Planned commands:
 
@@ -396,80 +426,117 @@ fixtures, compare old/new behavior, and atomically promote or roll back. It must
 clearly mark manual business-logic work and never claim arbitrary Python was
 translated automatically.
 
+All six commands are available under `soma providers`. `graduate` copies the
+source and optional recorded fixtures into an isolated workspace and emits a
+manual-rewrite core plus buildable thin PyO3 and WIT adapters.
+`build-component` builds or imports, verifies, and content-addresses a candidate;
+`verify-component` enforces the component ABI. `compare` accepts only
+side-effect-free providers and non-destructive actions owned by the graduated
+provider; filesystem, network, environment, terminal, browser, GitHub, secret,
+and state-write authority all fail closed before dual-run. It snapshots the
+fixture corpus once, executes live Python, feeds one retained prepared component
+the exact same host-owned execution envelope under one absolute deadline,
+checks the recorded result against the live result, and persists a source,
+catalog, fixture, and artifact digest-bound attestation only after the complete
+surface response passes the caller's byte limit.
+`activate`/`rollback` revalidate the live provider identity, update durable
+state atomically, and retain the previous artifact.
+
 ## Phase 11: Experimental `componentize-py`
 
-Only after the stable component host exists:
+**Implementation complete in PR #256; pending merge.** The dependency-free SDK
+exposes a non-executing compatibility scanner that parses provider source with
+the Python AST, maps external imports to authenticated pure-Python wheels, rejects
+native extensions and unsupported ambient-authority assumptions, and emits a
+digest-bound report. Wheel scanning and extraction reject unsafe, duplicate,
+encrypted, oversized, over-expanded, unauthenticated, and path-escaping entries.
 
-- scan imports and dependency wheels;
-- reject unsupported native extensions;
-- check process/thread/socket/filesystem assumptions;
-- generate Python WIT bindings;
-- build in isolation;
-- validate under Soma's exact Wasmtime host;
-- return actionable incompatibility reports.
+The active operator path is `soma providers componentize-scan`,
+`componentize-bindings`, `componentize-build`, and `componentize-validate`.
+Those operations are carried by the shared Soma action contract, so the same
+reports and artifact state are available through CLI, MCP, REST, and generated web
+action surfaces. Bindings are generated from `wit/soma-provider/world.wit` with
+exactly pinned `componentize-py==0.25.0`. Builds run in a Linux bubblewrap
+namespace with no network, a cleared environment, read-only toolchain roots,
+bounded files, CPU, tasks, virtual address space, and wall time. Components retain
+real WASI Preview 2 imports for clocks and randomness; Soma supplies them through a
+default-deny WASI context rather than baking trapping stubs into the guest. Generated
+artifacts are content-addressed and validated by Soma's production Wasmtime engine
+against `soma:provider@1.0.0` before they enter the existing graduation candidate
+path. Componentized artifacts carry a deterministic custom-section marker that
+selects a bounded 600-second compilation window without widening the ordinary
+30-second Wasm-provider deadline. Validation also seeds Wasmtime's
+content-addressed persistent compiler cache, bounded to 256 files and a 2 GiB
+soft ceiling, for subsequent process restarts. Preflight and invocation keep the
+ordinary 64 MiB and 10,000-table-element defaults, while the componentize marker
+selects the existing bounded ceilings of 30 seconds, 10,000,000 fuel, and 64
+instances instead of widening the ordinary 5-second, 1,000,000-fuel, and
+16-instance Wasm-provider defaults.
 
-This phase must not block the stable Rust/component graduation path.
+This remains an explicitly experimental, opt-in route. It does not bypass,
+replace, or weaken stable manual Rust/component graduation.
 
 ## Phase 12: Release and Operations
 
-Already delivered:
+**Implementation complete in PR #256; pending merge.** The Python SDK remains a
+Python 3.11+ maturin mixed package with abi3 wheels and a dependency-free fallback.
+The independent `soma-provider-v*` release path now builds and verifies the wheel
+matrix, uses PyPI trusted publishing, produces deterministic SHA-256 checksums and
+a CycloneDX SBOM, creates GitHub provenance and SBOM attestations, and attaches the
+wheelhouse and evidence to the release. Main Soma releases consume the matching
+provider wheelhouse and attest the combined binary and wheel artifact set.
 
-- maturin mixed package;
-- Python 3.11+ metadata;
-- abi3 extension and pure-Python fallback;
-- cross-platform wheel CI for Linux, Windows, and macOS x86_64;
-- isolated wheel installation and contract verification.
+`release/python-platform-policy.toml` is the machine-checked release policy. It
+pins componentize-py and Wasmtime compatibility, requires trusted publication,
+checksums, provenance, and SBOMs, and rejects source distributions plus Git, URL,
+and local-path dependencies. Existing environment repair, immutable activation,
+generation rollback, source backup/restore, worker status, and quarantine actions
+remain available through CLI, API, MCP, and web contracts, with regression tests
+covering interrupted transactions and failed-cache restoration.
 
-Remaining:
+Cold import, catalog, invocation, reload, and memory-soak budgets are enforced by
+`scripts/python-platform-gates.py`. A scheduled and manually dispatchable soak
+workflow runs the full budgets plus the real isolated componentize-py-to-Soma
+Wasmtime integration test on the Python runner pool.
 
-- `soma-provider` publish/version policy;
-- matching wheelhouse integration with Soma releases;
-- checksums, signatures, attestations, SBOM, and provenance;
-- dependency and Wasmtime security-update policy;
-- upgrade/rollback and cache backup/restore tests;
-- CLI/API/MCP/web status for environments, workers, generations, and quarantine;
-- cold/warm/reload performance budgets;
-- cache-churn, crash-loop, high-volume log, and mixed-provider soak tests.
+## Phase 13: SDK Completeness
 
-## Cross-Cutting SDK Backlog
+**Implementation complete in PR #256; pending merge.** Dependency-free schema
+inference covers dataclasses, required and optional `TypedDict` keys,
+`Annotated` descriptions and allowlisted constraints, discriminators, literals,
+fixed and variadic tuples, typed mappings, unions, and nullable forms. Unsupported
+metadata fails closed. Tool return annotations now produce output schemas unless
+an explicit schema overrides them.
 
-These can land independently without delaying the runner:
+Python catalog models are generated from the canonical Rust provider-manifest
+schema and checked for drift by `cargo xtask check-docs`. Arbitrary JSON Schema
+objects remain typed as maps and schema composition references retain their
+canonical model type. The package publishes `py.typed`, generated `.pyi` files
+for the public SDK and componentize report, and typed conveniences for the
+broker-backed Context services.
 
-- complete dataclass and `TypedDict` schema handling;
-- `Annotated` descriptions and constraints;
-- complete union/nullable handling;
-- stronger output-schema inference;
-- generated Python catalog models from canonical Rust schemas;
-- richer stubs;
-- broker-backed Context implementations.
+## Python Platform Policy
 
-## Open Policy Decisions
+The versioned policy in `release/python-platform-policy.toml` is authoritative
+for publication, dependency-source, runtime-version, supply-chain, and performance
+requirements. Current defaults require registry-locked artifacts, disallow source,
+Git, URL, and local-path dependencies, and require trusted publishing, checksums,
+provenance, and SBOM evidence. Any relaxation or migration requires an explicit
+policy-version change, updated gates, and corresponding verification evidence.
 
-- permitted package indexes
-- interpreter download policy
-- source distribution policy
-- Git, URL, and local-path dependency policy
-- license, hash, and provenance requirements
-- cache quotas and retention
-- offline update behavior
-- SDK wheel selection by platform
-- policy-version migrations
+## Delivered Order and Next Work
 
-Defaults should favor reproducibility, offline restart, and fail-closed handling
-of unsupported dependency sources.
+Phases 8–10 delivered the capability broker, enforced containment, WIT component
+runtime, shared conformance path, isolated offline component builds, and
+digest-bound graduation comparison, activation, and rollback. PR #256 completes
+the planned Phase 11 experimental componentization path, Phase 12 release and
+operations gates, and Phase 13 SDK typing surface. After merge, follow-on work is
+normal maintenance: policy-version migrations, new schema constructs, expanded
+platform wheels, and performance-budget changes must land with their generated
+surfaces and verification evidence.
 
-## Recommended Delivery Order
-
-1. Add logging, progress, and brokered cancellation capability calls.
-2. Add brokered HTTP, secrets, and state.
-3. Add explicit execution profiles and enforced containment.
-4. Implement the WIT component ABI and shared conformance fixtures.
-5. Add graduation comparison, activation, and rollback tooling.
-6. Evaluate the experimental `componentize-py` path.
-7. Finish release provenance, performance budgets, and soak gates.
-
-The persistent runner and generation boundary are load-bearing. Do not bypass
-them to begin component or graduation work.
+The persistent runner, generation boundary, and stable graduation path remain
+load-bearing. Experimental componentization must not bypass them.
 
 ## Verification Baseline
 

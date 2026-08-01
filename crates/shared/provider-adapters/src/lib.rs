@@ -17,6 +17,11 @@
 pub mod error;
 pub mod manifest_file;
 
+#[cfg(any(feature = "python", feature = "wasm"))]
+mod broker_state;
+#[cfg(any(feature = "python", feature = "wasm"))]
+mod secret_name;
+
 #[cfg(feature = "sidecar")]
 pub mod sidecar;
 
@@ -35,6 +40,17 @@ pub mod python_protocol;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
+
+/// Configure the process-shared durable provider state file before any
+/// Python or component provider is constructed.
+#[cfg(any(feature = "python", feature = "wasm"))]
+pub fn configure_provider_state_path(path: std::path::PathBuf) -> Result<(), String> {
+    broker_state::configure(path)
+}
+#[cfg(feature = "wasm")]
+mod wasm_limits;
+#[cfg(feature = "wasm")]
+mod wasm_memory;
 
 #[cfg(feature = "openapi")]
 pub mod openapi;

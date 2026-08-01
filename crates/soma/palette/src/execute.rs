@@ -56,6 +56,7 @@ pub async fn execute_launcher(
         Ok(response) => ExecuteOutcome::Ok(LauncherExecuteResponse {
             output: response.output,
             request_id: response.request_id,
+            progress: response.progress,
         }),
         Err(error) => ExecuteOutcome::Failed(error),
     }

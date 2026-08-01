@@ -10,7 +10,10 @@ use sha2::{Digest, Sha256};
 use soma_domain::provider_validation::{validate_manifest_schema, validate_provider_manifest};
 use soma_provider_adapters::{
     manifest_file,
-    python::{PythonInterpreter, PythonProvider, supervisor::PythonSupervisorConfig},
+    python::{
+        PythonInterpreter, PythonProvider, describe_persistent_catalog,
+        host::PythonExecutionProfile, supervisor::PythonSupervisorConfig,
+    },
 };
 use soma_provider_core::{ProviderCatalog, ProviderKind};
 
@@ -71,6 +74,7 @@ pub enum PythonRunnerSelection {
 pub struct PythonProviderRuntime {
     runner: PythonRunnerSelection,
     environment_preparer: Option<Arc<dyn PythonProviderEnvironmentPreparer>>,
+    capability_broker: crate::capabilities::CapabilityBroker,
 }
 
 impl PythonProviderRuntime {
@@ -79,7 +83,17 @@ impl PythonProviderRuntime {
         Self {
             runner,
             environment_preparer: None,
+            capability_broker: crate::capabilities::CapabilityBroker::default_deny(),
         }
+    }
+
+    /// Installs deployment policy used to intersect provider declarations.
+    pub fn with_capability_broker(
+        mut self,
+        capability_broker: crate::capabilities::CapabilityBroker,
+    ) -> Self {
+        self.capability_broker = capability_broker;
+        self
     }
 
     /// Installs immutable environment preparation before Python candidates load.
@@ -91,12 +105,15 @@ impl PythonProviderRuntime {
         self
     }
 
-    pub(crate) fn configure_source(self, mut source: FileProviderSource) -> FileProviderSource {
+    pub(crate) fn configure_source(
+        self,
+        mut source: FileProviderSource,
+    ) -> (FileProviderSource, crate::capabilities::CapabilityBroker) {
         source = source.with_python_runner(self.runner);
         if let Some(preparer) = self.environment_preparer {
             source = source.with_python_environment_preparer(preparer);
         }
-        source
+        (source, self.capability_broker)
     }
 }
 
@@ -106,6 +123,7 @@ impl fmt::Debug for PythonProviderRuntime {
             .debug_struct("PythonProviderRuntime")
             .field("runner", &self.runner)
             .field("environment_preparer", &self.environment_preparer.is_some())
+            .field("capability_broker", &self.capability_broker)
             .finish()
     }
 }
@@ -407,6 +425,17 @@ impl FileProviderSource {
             .then(|| immutable_python_generation(&self.root))
             .transpose()?;
         for path in paths {
+            if is_python_provider_source(&path)
+                && matches!(
+                    self.python_runner,
+                    PythonRunnerSelection::Persistent(PythonSupervisorConfig {
+                        execution_profile: PythonExecutionProfile::Disabled,
+                        ..
+                    })
+                )
+            {
+                continue;
+            }
             let interpreter = self.python_interpreter_with_environments(&path, selections)?;
             let immutable = immutable_generation
                 .as_ref()
@@ -416,7 +445,8 @@ impl FileProviderSource {
             let execution_path = immutable
                 .as_ref()
                 .map_or_else(|| path.clone(), |source| source.path.clone());
-            let catalog = load_catalog_with_interpreter(&execution_path, &interpreter)?;
+            let mut catalog = load_catalog_with_interpreter(&execution_path, &interpreter)?;
+            catalog.provider.source = Some(path.display().to_string());
             if catalog.provider.enabled == Some(false) {
                 continue;
             }
@@ -476,6 +506,17 @@ impl FileProviderSource {
             .as_ref()
             .map(|generation| python_worker_generation_digest(&generation.digest, selections));
         for path in paths {
+            if is_python_provider_source(&path)
+                && matches!(
+                    self.python_runner,
+                    PythonRunnerSelection::Persistent(PythonSupervisorConfig {
+                        execution_profile: PythonExecutionProfile::Disabled,
+                        ..
+                    })
+                )
+            {
+                continue;
+            }
             let interpreter_source = self.clone();
             let interpreter_path = path.clone();
             let interpreter_selections = selections.clone();
@@ -513,16 +554,40 @@ impl FileProviderSource {
             let execution_path = immutable
                 .as_ref()
                 .map_or_else(|| path.clone(), |source| source.path.clone());
-            let catalog_path = execution_path.clone();
-            let catalog_interpreter = interpreter.clone();
-            let catalog = tokio::task::spawn_blocking(move || {
-                load_catalog_with_interpreter(&catalog_path, &catalog_interpreter)
-            })
-            .await
-            .map_err(|error| FileProviderLoadError {
-                path: path.clone(),
-                message: format!("Python catalog task failed: {error}"),
-            })??;
+            let mut catalog = if is_python_provider_source(&execution_path)
+                && matches!(
+                    self.python_runner,
+                    PythonRunnerSelection::Persistent(PythonSupervisorConfig {
+                        execution_profile: PythonExecutionProfile::Brokered,
+                        ..
+                    })
+                ) {
+                let PythonRunnerSelection::Persistent(config) = &self.python_runner else {
+                    unreachable!("brokered execution is persistent")
+                };
+                describe_persistent_catalog(
+                    execution_path.clone(),
+                    interpreter.clone(),
+                    config.clone(),
+                )
+                .await
+                .map_err(|error| FileProviderLoadError {
+                    path: execution_path.clone(),
+                    message: error.to_string(),
+                })?
+            } else {
+                let catalog_path = execution_path.clone();
+                let catalog_interpreter = interpreter.clone();
+                tokio::task::spawn_blocking(move || {
+                    load_catalog_with_interpreter(&catalog_path, &catalog_interpreter)
+                })
+                .await
+                .map_err(|error| FileProviderLoadError {
+                    path: path.clone(),
+                    message: format!("Python catalog task failed: {error}"),
+                })??
+            };
+            catalog.provider.source = Some(path.display().to_string());
             if catalog.provider.enabled == Some(false) {
                 continue;
             }

@@ -14,7 +14,8 @@ permissions:
 jobs:
   wheels:
     name: Build x86_64 native wheels
-    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@542ea7b7e5ca2d4e21f3277bfcf158584fee90ec
+    if: startsWith(github.event.release.tag_name, 'soma-provider-v')
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@364993bc854c4feb82cb26917e741fd6465cd47a
     with:
       checkout-ref: ${{ github.event.release.tag_name }}
       package-dir: packages/python
@@ -23,3 +24,67 @@ jobs:
         python -I
         {project}/packages/python/tests/verify_installed.py
       artifact-name: soma-provider-wheels
+
+  publish:
+    name: Attest and publish soma-provider
+    if: startsWith(github.event.release.tag_name, 'soma-provider-v')
+    needs: wheels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: pypi
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Download wheelhouse
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          name: soma-provider-wheels
+          path: dist
+
+      - name: Validate tag and wheelhouse
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("packages/python/pyproject.toml", "rb"))["project"]["version"])')"
+          test "${GITHUB_REF_NAME}" = "soma-provider-v${version}"
+          compgen -G 'dist/*.whl' >/dev/null
+
+      - name: Generate checksums and CycloneDX SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p supply-chain
+          python3 scripts/generate-release-sbom.py --directory dist --output supply-chain/soma-provider.cdx.json
+          (cd dist && sha256sum ./*.whl) > supply-chain/SHA256SUMS
+
+      - name: Attest wheel provenance
+        uses: actions/attest-build-provenance@e3fe62ef559997059fe8380e7d2b4c909e2d65f4
+        with:
+          subject-path: dist/*.whl
+
+      - name: Attest wheel SBOM
+        uses: actions/attest-sbom@5729fe4dc697fb7538e4e94fd44d040aac1367b2
+        with:
+          subject-path: dist/*.whl
+          sbom-path: supply-chain/soma-provider.cdx.json
+
+      - name: Attach wheelhouse and supply-chain evidence
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "${GITHUB_REF_NAME}" dist/*.whl supply-chain/* --clobber --repo "${GITHUB_REPOSITORY}"
+
+      - name: Publish to PyPI with trusted publishing
+        uses: pypa/gh-action-pypi-publish@c1b34028248d0c9f7d90fe29fef2122e2276ff6f
+        with:
+          packages-dir: dist
+          attestations: true

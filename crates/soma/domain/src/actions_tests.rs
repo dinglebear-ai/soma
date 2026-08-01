@@ -20,6 +20,8 @@ fn action_metadata_is_the_action_source_of_truth() {
             "python_worker_reset",
             "python_generation_status",
             "python_generation_rollback",
+            "python_graduation_status",
+            "python_graduation_apply",
             "elicit_name",
             "scaffold_intent",
             "help"
@@ -39,6 +41,8 @@ fn action_metadata_is_the_action_source_of_truth() {
         "python_worker_reset",
         "python_generation_status",
         "python_generation_rollback",
+        "python_graduation_status",
+        "python_graduation_apply",
         "help",
     ];
     assert_eq!(rest_action_names(), cross_surface);

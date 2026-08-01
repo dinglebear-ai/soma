@@ -67,7 +67,11 @@ pub(crate) fn generate_docs() -> Result<()> {
 
 pub(crate) fn check_docs() -> Result<()> {
     run_cmd("python3", &["scripts/generate-docs.py", "--check"])
-        .context("generated docs are stale; run `cargo xtask generate-docs`")
+        .context("generated docs are stale; run `cargo xtask generate-docs`")?;
+    run_cmd("python3", &["scripts/check-python-platform-policy.py"])
+        .context("Python platform policy check failed")?;
+    run_cmd("python3", &["scripts/python-platform-gates.py"])
+        .context("Python platform performance gate failed")
 }
 
 pub(crate) fn check_stale_claims() -> Result<()> {
@@ -328,7 +332,14 @@ pub(crate) fn ci() -> Result<()> {
     println!("==> [2/15] cargo xtask check-architecture");
     architecture::check(std::path::Path::new(".")).context("architecture check failed")?;
 
-    println!("==> [3/15] cargo clippy");
+    println!("==> [3/15] minimal feature check + cargo clippy");
+    run_cargo(&[
+        "check",
+        "-p",
+        "soma-provider-adapters",
+        "--no-default-features",
+    ])
+    .context("soma-provider-adapters minimal feature check failed")?;
     run_cargo(&["clippy", "--all-targets", "--", "-D", "warnings"]).context("clippy failed")?;
 
     println!("==> [4/15] cargo doc --workspace --no-deps --all-features (-D warnings)");

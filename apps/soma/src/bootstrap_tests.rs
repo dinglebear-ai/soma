@@ -133,14 +133,17 @@ async fn local_cli_composition_builds_the_application_catalog() {
 #[cfg(feature = "cli")]
 #[test]
 fn python_runtime_composition_preserves_disabled_default_and_persistent_selection() {
-    let default_runtime = super::python_provider_runtime(&soma_config::Config::default()).unwrap();
+    let default_runtime =
+        super::python_provider_runtime(&soma_config::Config::default(), std::path::Path::new("."))
+            .unwrap();
     let default_debug = format!("{default_runtime:?}");
     assert!(default_debug.contains("OneShot"));
     assert!(default_debug.contains("environment_preparer: false"));
 
     let mut config = soma_config::Config::default();
     config.python.mode = soma_config::PythonRunnerMode::Persistent;
-    let persistent_runtime = super::python_provider_runtime(&config).unwrap();
+    let persistent_runtime =
+        super::python_provider_runtime(&config, std::path::Path::new(".")).unwrap();
     let persistent_debug = format!("{persistent_runtime:?}");
     assert!(persistent_debug.contains("Persistent"));
     assert!(persistent_debug.contains("environment_preparer: false"));

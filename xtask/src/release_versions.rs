@@ -9,10 +9,16 @@ use std::process::Command;
 mod identifiers;
 #[path = "release_versions_manifest.rs"]
 mod manifest;
+#[path = "release_versions_python.rs"]
+mod python_versions;
 
 use identifiers::{
     read_npm_identifier_version, read_oci_identifier_version, replace_npm_identifier_version,
     replace_oci_identifier_version,
+};
+use python_versions::{
+    read_pyproject_version, read_python_assignment_version, replace_pyproject_version,
+    replace_python_assignment_version,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +69,7 @@ struct VersionFile {
     path: String,
     package: Option<String>,
     json_pointer: Option<String>,
+    variable: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +82,8 @@ enum VersionKind {
     JsonNoVersion,
     OciIdentifierVersion,
     NpmIdentifierVersion,
+    PyProject,
+    PythonAssignment,
 }
 
 pub fn check(
@@ -228,6 +237,12 @@ fn set_component_version(root: &Path, component: &Component, next: &str) -> Resu
             VersionKind::NpmIdentifierVersion => {
                 replace_npm_identifier_version(&content, file.json_pointer.as_deref(), next)?
             }
+            VersionKind::PyProject => {
+                replace_pyproject_version(&content, file.package.as_deref(), next)?
+            }
+            VersionKind::PythonAssignment => {
+                replace_python_assignment_version(&content, file.variable.as_deref(), next)?
+            }
             VersionKind::JsonNoVersion => content.clone(),
         };
         if updated != content {
@@ -333,6 +348,10 @@ fn read_version(root: &Path, file: &VersionFile) -> Result<String> {
         VersionKind::NpmIdentifierVersion => {
             read_npm_identifier_version(&content, file.json_pointer.as_deref())
         }
+        VersionKind::PyProject => read_pyproject_version(&content, file.package.as_deref()),
+        VersionKind::PythonAssignment => {
+            read_python_assignment_version(&content, file.variable.as_deref())
+        }
         VersionKind::ChangelogHeading | VersionKind::JsonNoVersion => {
             bail!("{:?} is not a canonical version source", file.kind)
         }
@@ -374,6 +393,14 @@ fn check_component_parity(
             ),
             VersionKind::NpmIdentifierVersion => check_version(
                 read_npm_identifier_version(&content, file.json_pointer.as_deref()),
+                expected,
+            ),
+            VersionKind::PyProject => check_version(
+                read_pyproject_version(&content, file.package.as_deref()),
+                expected,
+            ),
+            VersionKind::PythonAssignment => check_version(
+                read_python_assignment_version(&content, file.variable.as_deref()),
                 expected,
             ),
             VersionKind::JsonNoVersion => check_json_no_version(&content),

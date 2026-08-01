@@ -58,6 +58,16 @@ const REST_SCHEMAS: &[(&str, Option<&str>, &str)] = &[
         Some("PythonGenerationRollbackRequest"),
         "PythonOperatorResponse",
     ),
+    (
+        "python_graduation_status",
+        Some("PythonGraduationStatusRequest"),
+        "PythonOperatorResponse",
+    ),
+    (
+        "python_graduation_apply",
+        Some("PythonGraduationApplyRequest"),
+        "PythonOperatorResponse",
+    ),
     ("help", None, "HelpResponse"),
 ];
 
@@ -437,7 +447,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
     );
     paths.insert(
         "/v1/tools/{action}".to_owned(),
-        json!({"post":{"tags":["provider-tools"],"summary":"Run a provider tool","description":"Generic REST route for dropped provider tools. Tools with custom REST overlays may also expose dedicated direct routes.","operationId":"runProviderTool","security":[{"BearerAuth":[]},{}],"parameters":[{"name":"action","in":"path","required":true,"description":"Provider tool action name","schema":{"type":"string"}}],"requestBody":{"required":false,"content":{"application/json":{"schema":{"type":"object","additionalProperties":true}}}},"responses":{"200":{"description":"Provider tool response","content":{"application/json":{"schema":{"type":"object","additionalProperties":true}}}},"400":{"$ref":"#/components/responses/BadRequest"},"401":{"$ref":"#/components/responses/Unauthorized"},"403":{"$ref":"#/components/responses/Forbidden"},"404":{"description":"Unknown action or surface not exposed","content":{"application/json":{"schema":schema_ref("ErrorResponse")}}},"500":{"$ref":"#/components/responses/InternalError"}}}}),
+        json!({"post":{"tags":["provider-tools"],"summary":"Run a provider tool","description":"Generic REST route for dropped provider tools. Tools with custom REST overlays may also expose dedicated direct routes.","operationId":"runProviderTool","security":[{"BearerAuth":[]},{}],"parameters":[{"name":"action","in":"path","required":true,"description":"Provider tool action name","schema":{"type":"string"}}],"requestBody":{"required":false,"content":{"application/json":{"schema":{"type":"object","additionalProperties":true}}}},"responses":{"200":{"description":"Provider tool response envelope","content":{"application/json":{"schema":success_envelope(json!({"type":"object","additionalProperties":true}))}}},"400":{"$ref":"#/components/responses/BadRequest"},"401":{"$ref":"#/components/responses/Unauthorized"},"403":{"$ref":"#/components/responses/Forbidden"},"404":{"description":"Unknown action or surface not exposed","content":{"application/json":{"schema":schema_ref("ErrorResponse")}}},"500":{"$ref":"#/components/responses/InternalError"}}}}),
     );
 
     for action in &rest_actions {
@@ -460,7 +470,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
             "operationId": format!("{method}{}", title_no_underscore(&action.name)),
             "security": [{"BearerAuth":[]},{}],
             "responses": {
-                "200": {"description": format!("{} result", action.name), "content": {"application/json": {"schema": schema_ref(response_schema)}}},
+                "200": {"description": format!("{} result envelope", action.name), "content": {"application/json": {"schema": success_envelope(schema_ref(response_schema))}}},
                 "400": {"$ref":"#/components/responses/BadRequest"},
                 "401": {"$ref":"#/components/responses/Unauthorized"},
                 "403": {"$ref":"#/components/responses/Forbidden"},
@@ -618,7 +628,10 @@ fn openapi_schemas(action_names: Vec<String>) -> Value {
         "PythonProviderMutationRequest":{"type":"object","additionalProperties":false,"required":["provider_path","confirm"],"properties":{"provider_path":{"type":"string","minLength":1,"maxLength":4096},"confirm":{"type":"boolean","const":true}}},
         "PythonWorkerMutationRequest":{"type":"object","additionalProperties":false,"required":["provider","confirm"],"properties":{"provider":{"type":"string","minLength":1,"maxLength":256},"confirm":{"type":"boolean","const":true}}},
         "PythonGenerationRollbackRequest":{"type":"object","additionalProperties":false,"required":["generation_id","confirm"],"properties":{"generation_id":{"type":"integer","minimum":1},"confirm":{"type":"boolean","const":true}}},
+        "PythonGraduationStatusRequest":{"type":"object","additionalProperties":false,"required":["workspace"],"properties":{"workspace":{"type":"string","minLength":1,"maxLength":4096}}},
+        "PythonGraduationApplyRequest":{"type":"object","additionalProperties":false,"required":["operation","workspace","confirm"],"properties":{"operation":{"type":"string","enum":["graduate","build-component","verify-component","compare","activate","rollback"]},"workspace":{"type":"string","minLength":1,"maxLength":4096},"source":{"type":"string","minLength":1,"maxLength":4096},"component":{"type":"string","minLength":1,"maxLength":4096},"fixtures":{"type":"string","minLength":1,"maxLength":4096},"confirm":{"type":"boolean","const":true}}},
         "PythonOperatorResponse":{"type":"object","additionalProperties":true,"description":"Action-specific Python environment, worker, or generation result."},
+        "ProviderProgressEvent":{"type":"object","additionalProperties":false,"required":["current"],"properties":{"current":{"type":"integer","minimum":0},"total":{"type":["integer","null"],"minimum":0},"message":{"type":["string","null"],"maxLength":1024}}},
         "HealthResponse":{"type":"object","required":["status"],"properties":{"status":{"type":"string","const":"ok"}},"additionalProperties":false},
         "CapabilitiesResponse":{"type":"object","required":["server","version","preferred_rest_style","supported_routes","routes"],"properties":{"server":{"type":"string"},"version":{"type":"string"},"preferred_rest_style":{"type":"string","const":"direct_routes"},"supported_routes":{"type":"array","items":{"type":"string"}},"routes":{"type":"array","items":schema_ref("RestRoute")}},"additionalProperties":false},
         "RestRoute":{"type":"object","required":["method","path","auth","description"],"properties":{"method":{"type":"string"},"path":{"type":"string"},"action":{"type":["string","null"]},"auth":{"type":"string"},"description":{"type":"string"}},"additionalProperties":false},
@@ -1500,6 +1513,23 @@ fn schema_ref(name: &str) -> Value {
     json!({"$ref": format!("#/components/schemas/{name}")})
 }
 
+fn success_envelope(output: Value) -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["output", "request_id", "progress"],
+        "properties": {
+            "output": output,
+            "request_id": {"type": "string", "minLength": 1},
+            "progress": {
+                "type": "array",
+                "maxItems": 256,
+                "items": schema_ref("ProviderProgressEvent")
+            }
+        }
+    })
+}
+
 fn param_example(action: &str) -> Value {
     match action {
         "greet" => json!({"name":"Alice"}),
@@ -1517,6 +1547,16 @@ fn param_example(action: &str) -> Value {
             json!({"provider": "example", "confirm": true})
         }
         "python_generation_rollback" => json!({"generation_id": 1, "confirm": true}),
+        "python_graduation_status" => {
+            json!({"workspace": "/srv/soma/graduations/example"})
+        }
+        "python_graduation_apply" => json!({
+            "operation": "compare",
+            "workspace": "/srv/soma/graduations/example",
+            "component": "/srv/soma/graduations/example/artifacts/candidate.wasm",
+            "fixtures": "/srv/soma/graduations/example/fixtures/conformance-v1.json",
+            "confirm": true
+        }),
         _ => json!({}),
     }
 }

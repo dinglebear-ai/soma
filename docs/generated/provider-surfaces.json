@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "provider_fingerprint": "sha256:1d2417045a14e47fc38ed92cba9774b47b56043482692cdb69f4a1538684bf02",
+  "provider_fingerprint": "sha256:d03591436900d3f90d6d4fb3b3907a2651db65e85aa18efb9fd3b0b9275b35b4",
   "provider_execution_abi": {
     "schema_version": 1,
     "request_fields": [
@@ -766,6 +766,115 @@
           }
         },
         {
+          "name": "python_graduation_status",
+          "description": "Inspect digest-bound Python graduation, conformance, activation, and rollback state.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "workspace": {
+                "type": "string",
+                "description": "Absolute graduation workspace path.",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "workspace"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonGraduationStatus.",
+            "additionalProperties": true
+          },
+          "scope": "soma:read",
+          "destructive": false,
+          "requires_admin": true,
+          "cost": "cheap",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_graduation_status",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_graduation_status --json '{\"workspace\":\"/absolute/path\"}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/graduation/status",
+          "examples": [],
+          "meta": {
+            "returns": "PythonGraduationStatus",
+            "cli_usage": "soma python_graduation_status --json '{\"workspace\":\"/absolute/path\"}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
+          "name": "python_graduation_apply",
+          "description": "Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace.",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "operation": {
+                "type": "string",
+                "description": "Graduation operation to perform.",
+                "minLength": 1
+              },
+              "workspace": {
+                "type": "string",
+                "description": "Absolute graduation workspace path.",
+                "minLength": 1
+              },
+              "source": {
+                "type": "string",
+                "description": "Python source path required by the graduate operation."
+              },
+              "component": {
+                "type": "string",
+                "description": "Component path used by build, verify, and compare."
+              },
+              "fixtures": {
+                "type": "string",
+                "description": "Conformance fixture path used by graduate and compare."
+              },
+              "confirm": {
+                "type": "boolean",
+                "description": "Must be true to mutate graduation or live provider state."
+              }
+            },
+            "required": [
+              "operation",
+              "workspace",
+              "confirm"
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "Structured result for PythonGraduationReport.",
+            "additionalProperties": true
+          },
+          "scope": "soma:write",
+          "destructive": true,
+          "requires_admin": true,
+          "cost": "write",
+          "env": [],
+          "mcp": true,
+          "cli": true,
+          "cli_command": "python_graduation_apply",
+          "cli_aliases": [],
+          "cli_flags": [],
+          "cli_default_output": null,
+          "cli_usage": "soma python_graduation_apply --json '{\"operation\":\"compare\",\"workspace\":\"/absolute/path\",\"component\":\"/absolute/candidate.wasm\",\"fixtures\":\"/absolute/fixtures.json\",\"confirm\":true}'",
+          "rest": true,
+          "rest_route": "POST /v1/python/graduation/apply",
+          "examples": [],
+          "meta": {
+            "returns": "PythonGraduationReport",
+            "cli_usage": "soma python_graduation_apply --json '{\"operation\":\"compare\",\"workspace\":\"/absolute/path\",\"component\":\"/absolute/candidate.wasm\",\"fixtures\":\"/absolute/fixtures.json\",\"confirm\":true}'",
+            "scaffold_fallback": null
+          }
+        },
+        {
           "name": "elicit_name",
           "description": "Ask the MCP client to collect a name, then return a personalised greeting.",
           "input_schema": {
@@ -992,6 +1101,8 @@
       "python_environment_update",
       "python_generation_rollback",
       "python_generation_status",
+      "python_graduation_apply",
+      "python_graduation_status",
       "python_runtime_check",
       "python_worker_cancel",
       "python_worker_reset",
@@ -1011,6 +1122,8 @@
       "python_environment_update",
       "python_generation_rollback",
       "python_generation_status",
+      "python_graduation_apply",
+      "python_graduation_status",
       "python_runtime_check",
       "python_worker_cancel",
       "python_worker_reset",
@@ -1029,6 +1142,8 @@
       "python_environment_update",
       "python_generation_rollback",
       "python_generation_status",
+      "python_graduation_apply",
+      "python_graduation_status",
       "python_runtime_check",
       "python_worker_cancel",
       "python_worker_reset",
@@ -1049,6 +1164,8 @@
       "POST /v1/python/environments/repair",
       "POST /v1/python/environments/update",
       "POST /v1/python/generations/rollback",
+      "POST /v1/python/graduation/apply",
+      "POST /v1/python/graduation/status",
       "POST /v1/python/workers/cancel",
       "POST /v1/python/workers/reset",
       "POST /v1/tools/python_runtime_check"

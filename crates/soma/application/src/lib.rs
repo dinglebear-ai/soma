@@ -16,8 +16,10 @@
 #![warn(missing_docs)]
 mod app;
 pub mod capabilities;
+pub(crate) mod componentize;
 mod context;
 mod error;
+pub mod graduation;
 mod ports;
 pub mod provider_errors;
 pub mod provider_registry;
@@ -52,6 +54,7 @@ pub use providers::static_rust::StaticRustProvider;
 pub use service::{
     ElicitedNameOutcome, ScaffoldIntent, ScaffoldIntentValidationError, SomaService,
 };
+pub use soma_provider_adapters::python::host::PythonExecutionProfile;
 pub use soma_provider_adapters::python::supervisor::PythonSupervisorConfig;
 pub use soma_provider_adapters::python::{
     PythonInterpreter,
@@ -71,7 +74,12 @@ pub use types::{
     ResourceTemplateSpec, ScaffoldIntentRequest,
 };
 
-pub use soma_provider_core::{ProviderPrompt, ProviderResource};
+/// Configure the durable state path shared by Python and component providers.
+pub fn configure_provider_state_path(path: std::path::PathBuf) -> Result<(), String> {
+    soma_provider_adapters::configure_provider_state_path(path)
+}
+
+pub use soma_provider_core::{CapabilityGrant, ProviderPrompt, ProviderResource};
 
 /// Unified dispatch seam shared by every surface (MCP, REST, CLI).
 ///
@@ -180,10 +188,12 @@ pub async fn dynamic_provider_registry_from_dir_with_python_runtime(
     provider_dir: impl Into<std::path::PathBuf>,
     python_runtime: PythonProviderRuntime,
 ) -> anyhow::Result<ProviderRegistry> {
+    let (source, capability_broker) =
+        python_runtime.configure_source(FileProviderSource::new(provider_dir));
     ProviderRegistry::with_file_source_async(
         vec![std::sync::Arc::new(StaticRustProvider::new(service))],
-        crate::capabilities::CapabilityBroker::default_deny(),
-        python_runtime.configure_source(FileProviderSource::new(provider_dir)),
+        capability_broker,
+        source,
     )
     .await
     .map_err(|error| anyhow::anyhow!(error.to_string()))
@@ -251,7 +261,9 @@ pub async fn execute_service_action(
         | SomaAction::PythonWorkerCancel { .. }
         | SomaAction::PythonWorkerReset { .. }
         | SomaAction::PythonGenerationStatus
-        | SomaAction::PythonGenerationRollback { .. } => Err(anyhow::anyhow!(
+        | SomaAction::PythonGenerationRollback { .. }
+        | SomaAction::PythonGraduationStatus { .. }
+        | SomaAction::PythonGraduationApply { .. } => Err(anyhow::anyhow!(
             "Python operator actions require the shared application control plane"
         )),
         SomaAction::Help => Ok(rest_help()),

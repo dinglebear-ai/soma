@@ -245,13 +245,24 @@ fn schema_preserves_provider_action_output_schemas() {
             .expect("weather variant should declare required fields")
             .contains(&json!("_soma_action"))
     );
-    assert_eq!(weather_variant["properties"]["forecast"]["type"], "string");
+    assert_eq!(
+        weather_variant["properties"]["output"]["properties"]["forecast"]["type"],
+        "string"
+    );
+    for required in ["_soma_action", "output", "request_id", "progress"] {
+        assert!(
+            weather_variant["required"]
+                .as_array()
+                .expect("weather variant should declare required fields")
+                .contains(&json!(required))
+        );
+    }
 
     let opaque_variant = variants
         .iter()
         .find(|variant| variant["properties"]["_soma_action"]["const"] == "opaque_weather")
         .expect("actions without output schemas should still get discriminator branches");
-    assert_eq!(opaque_variant["additionalProperties"], true);
+    assert_eq!(opaque_variant["additionalProperties"], false);
     assert!(
         opaque_variant["required"]
             .as_array()

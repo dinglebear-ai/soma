@@ -266,7 +266,7 @@ async fn direct_rest_echo_accepts_typed_body() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["echo"], "hello");
+    assert_eq!(body["output"]["echo"], "hello");
 }
 
 #[tokio::test]
@@ -285,9 +285,9 @@ async fn dynamic_provider_rest_route_dispatches_from_registry_snapshot() {
     .await;
 
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["provider"], "dynamic-rest");
-    assert_eq!(body["action"], "weather");
-    assert_eq!(body["city"], "Paris");
+    assert_eq!(body["output"]["provider"], "dynamic-rest");
+    assert_eq!(body["output"]["action"], "weather");
+    assert_eq!(body["output"]["city"], "Paris");
 }
 
 #[tokio::test]
@@ -300,8 +300,8 @@ async fn generic_provider_tool_route_dispatches_tools_without_custom_rest_overla
         request_json(app, Method::POST, "/v1/tools/runtime_check", None, None).await;
 
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["provider"], "dynamic-rest");
-    assert_eq!(body["action"], "runtime_check");
+    assert_eq!(body["output"]["provider"], "dynamic-rest");
+    assert_eq!(body["output"]["action"], "runtime_check");
 }
 
 #[tokio::test]
@@ -385,7 +385,7 @@ async fn direct_rest_greet_accepts_empty_typed_body() {
     let (status, body) = request_json(app, Method::POST, "/v1/greet", None, Some(json!({}))).await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["target"], "World");
+    assert_eq!(body["output"]["target"], "World");
 }
 
 #[tokio::test]
@@ -420,8 +420,11 @@ async fn direct_rest_help_excludes_mcp_only_actions_from_rest_actions() {
         .collect::<Vec<_>>();
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["actions"], json!(expected_rest_actions));
-    assert_eq!(body["mcp_only_actions"], json!(expected_mcp_only_actions));
+    assert_eq!(body["output"]["actions"], json!(expected_rest_actions));
+    assert_eq!(
+        body["output"]["mcp_only_actions"],
+        json!(expected_mcp_only_actions)
+    );
 }
 
 #[tokio::test]
@@ -503,7 +506,7 @@ async fn mounted_bearer_auth_protects_rest_endpoint() {
     let (valid_status, valid_body) =
         request_json(app, Method::GET, "/v1/status", Some("secret"), None).await;
     assert_eq!(valid_status, StatusCode::OK);
-    assert_eq!(valid_body["status"], "ok");
+    assert_eq!(valid_body["output"]["status"], "ok");
 }
 
 #[tokio::test]
@@ -542,7 +545,7 @@ async fn trusted_gateway_unscoped_bypasses_local_auth() {
     let (status, body) = request_json(app, Method::GET, "/v1/status", None, None).await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["status"], "ok");
+    assert_eq!(body["output"]["status"], "ok");
 }
 
 #[tokio::test]

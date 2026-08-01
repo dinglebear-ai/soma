@@ -59,7 +59,17 @@ fn inspect_for_command(command: &ProviderCommand) -> Result<ProviderDirectoryIns
             .clone()
             .or_else(|| std::env::var_os("SOMA_PROVIDER_DIR").map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("providers")),
-        ProviderCommand::Validate | ProviderCommand::Inspect | ProviderCommand::Test { .. } => {
+        ProviderCommand::Validate
+        | ProviderCommand::Inspect
+        | ProviderCommand::Test { .. }
+        | ProviderCommand::Graduate { .. }
+        | ProviderCommand::BuildComponent { .. }
+        | ProviderCommand::VerifyComponent { .. }
+        | ProviderCommand::Compare { .. }
+        | ProviderCommand::Componentize { .. }
+        | ProviderCommand::GraduationStatus { .. }
+        | ProviderCommand::Activate { .. }
+        | ProviderCommand::Rollback { .. } => {
             unreachable!("only non-executing ProviderCommand variants reach the filesystem CLI")
         }
     };

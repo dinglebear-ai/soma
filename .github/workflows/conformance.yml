@@ -27,7 +27,7 @@ concurrency:
 jobs:
   conformance:
     name: MCP 2026 full matrix
-    runs-on: [self-hosted, ci-pool-rust]
+    runs-on: ci-pool-rust
     timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"

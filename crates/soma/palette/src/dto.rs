@@ -93,6 +93,8 @@ fn default_params() -> Value {
 pub struct LauncherExecuteResponse {
     pub output: Value,
     pub request_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub progress: Vec<soma_provider_core::ProviderProgressEvent>,
 }
 
 #[cfg(test)]

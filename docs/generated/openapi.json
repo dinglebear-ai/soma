@@ -228,12 +228,34 @@
         },
         "responses": {
           "200": {
-            "description": "Provider tool response",
+            "description": "Provider tool response envelope",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": true
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -279,11 +301,33 @@
         ],
         "responses": {
           "200": {
-            "description": "greet result",
+            "description": "greet result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GreetResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/GreetResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -336,11 +380,33 @@
         ],
         "responses": {
           "200": {
-            "description": "echo result",
+            "description": "echo result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EchoResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/EchoResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -393,11 +459,33 @@
         ],
         "responses": {
           "200": {
-            "description": "status result",
+            "description": "status result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StatusResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/StatusResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -433,11 +521,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_environment_status result",
+            "description": "python_environment_status result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -473,11 +583,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_environment_prune_plan result",
+            "description": "python_environment_prune_plan result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -531,11 +663,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_environment_prune result",
+            "description": "python_environment_prune result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -590,11 +744,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_environment_repair result",
+            "description": "python_environment_repair result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -648,11 +824,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_environment_update result",
+            "description": "python_environment_update result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -706,11 +904,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_worker_status result",
+            "description": "python_worker_status result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -746,11 +966,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_worker_cancel result",
+            "description": "python_worker_cancel result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -804,11 +1046,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_worker_reset result",
+            "description": "python_worker_reset result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -862,11 +1126,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_generation_status result",
+            "description": "python_generation_status result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -902,11 +1188,33 @@
         ],
         "responses": {
           "200": {
-            "description": "python_generation_rollback result",
+            "description": "python_generation_rollback result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PythonOperatorResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -944,6 +1252,168 @@
         }
       }
     },
+    "/v1/python/graduation/status": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_graduation_status",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonGraduationStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_graduation_status result envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonGraduationStatusRequest"
+              },
+              "examples": {
+                "python_graduation_status": {
+                  "value": {
+                    "workspace": "/srv/soma/graduations/example"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/python/graduation/apply": {
+      "post": {
+        "tags": [
+          "direct-rest"
+        ],
+        "summary": "Run python_graduation_apply",
+        "description": "Direct REST route over the shared service layer.",
+        "operationId": "postPythonGraduationApply",
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "python_graduation_apply result envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/PythonOperatorResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PythonGraduationApplyRequest"
+              },
+              "examples": {
+                "python_graduation_apply": {
+                  "value": {
+                    "operation": "compare",
+                    "workspace": "/srv/soma/graduations/example",
+                    "component": "/srv/soma/graduations/example/artifacts/candidate.wasm",
+                    "fixtures": "/srv/soma/graduations/example/fixtures/conformance-v1.json",
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/help": {
       "get": {
         "tags": [
@@ -960,11 +1430,33 @@
         ],
         "responses": {
           "200": {
-            "description": "help result",
+            "description": "help result envelope",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HelpResponse"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "output",
+                    "request_id",
+                    "progress"
+                  ],
+                  "properties": {
+                    "output": {
+                      "$ref": "#/components/schemas/HelpResponse"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "progress": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderProgressEvent"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1011,6 +1503,8 @@
           "python_worker_reset",
           "python_generation_status",
           "python_generation_rollback",
+          "python_graduation_status",
+          "python_graduation_apply",
           "help"
         ],
         "description": "REST-capable action names from crates/soma/domain/src/actions.rs."
@@ -1213,10 +1707,97 @@
           }
         }
       },
+      "PythonGraduationStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workspace"
+        ],
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        }
+      },
+      "PythonGraduationApplyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "workspace",
+          "confirm"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "graduate",
+              "build-component",
+              "verify-component",
+              "compare",
+              "activate",
+              "rollback"
+            ]
+          },
+          "workspace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "component": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "fixtures": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
       "PythonOperatorResponse": {
         "type": "object",
         "additionalProperties": true,
         "description": "Action-specific Python environment, worker, or generation result."
+      },
+      "ProviderProgressEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current"
+        ],
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          }
+        }
       },
       "HealthResponse": {
         "type": "object",
@@ -1442,7 +2023,7 @@
     "binary": "soma",
     "server_binary": "soma",
     "node_package": "soma-rmcp",
-    "oci_image": "ghcr.io/dinglebear-ai/soma:0.7.0",
+    "oci_image": "ghcr.io/dinglebear-ai/soma:0.8.0",
     "mcp_registry": "server.json",
     "provider_directory_env": "SOMA_PROVIDER_DIR",
     "auth_modes": [
@@ -1483,6 +2064,8 @@
       "python_worker_reset",
       "python_generation_status",
       "python_generation_rollback",
+      "python_graduation_status",
+      "python_graduation_apply",
       "help"
     ],
     "direct_rest_routes": {
@@ -1538,6 +2121,14 @@
         "method": "POST",
         "path": "/v1/python/generations/rollback"
       },
+      "python_graduation_status": {
+        "method": "POST",
+        "path": "/v1/python/graduation/status"
+      },
+      "python_graduation_apply": {
+        "method": "POST",
+        "path": "/v1/python/graduation/apply"
+      },
       "help": {
         "method": "GET",
         "path": "/v1/help"
@@ -1557,6 +2148,8 @@
       "python_worker_reset": "write",
       "python_generation_status": "cheap",
       "python_generation_rollback": "write",
+      "python_graduation_status": "cheap",
+      "python_graduation_apply": "write",
       "elicit_name": "cheap",
       "scaffold_intent": "moderate",
       "help": "cheap"

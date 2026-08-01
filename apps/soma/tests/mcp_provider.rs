@@ -88,7 +88,10 @@ async fn hot_dropped_mcp_provider_proxies_upstream_tool_call() -> anyhow::Result
             ),
         )
         .await?;
-    assert_eq!(result.structured_content.unwrap()["echo"], "hello");
+    assert_eq!(
+        result.structured_content.unwrap()["output"]["output"]["echo"],
+        "hello"
+    );
 
     service.cancel().await?;
     Ok(())
@@ -138,10 +141,11 @@ async fn mcp_provider_infers_http_transport_from_url() -> anyhow::Result<()> {
             params: json!({"message": "hello over http"}),
             surface: soma_provider_core::ProviderSurface::Mcp,
             snapshot_id: "test-snapshot".to_owned(),
+            context: Default::default(),
         })
         .await?;
 
-    assert_eq!(output.value["echo"], "hello over http");
+    assert_eq!(output.value["output"]["echo"], "hello over http");
     Ok(())
 }
 

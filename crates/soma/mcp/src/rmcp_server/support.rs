@@ -191,7 +191,7 @@ pub(super) fn trace_resolution_for_call(
     trace_resolution::resolve_trace_resolution(mode, &context.meta, headers)
 }
 
-pub(super) fn trace_context_from_meta(meta: &rmcp::model::Meta) -> Option<TraceContext> {
+pub(super) fn trace_context_from_meta(meta: &rmcp::model::MetaObject) -> Option<TraceContext> {
     let fields = soma_mcp_server::trace::raw_trace_fields_from_meta(meta, TraceTrust::Untrusted)?;
     Some(TraceContext {
         traceparent: fields.traceparent,
