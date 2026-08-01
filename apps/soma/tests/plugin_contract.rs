@@ -53,6 +53,10 @@ fn production_container_supports_persistent_python_provider_hot_reload() {
         .expect("runtime package installation should clean apt metadata")
         .0;
     assert!(
+        runtime_packages.contains("libseccomp2"),
+        "runtime image must ship the shared library used by Python containment"
+    );
+    assert!(
         runtime_packages.contains("python3"),
         "runtime image must ship the ambient interpreter used by .py providers"
     );

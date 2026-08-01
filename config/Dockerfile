@@ -85,13 +85,14 @@ FROM debian:bookworm-slim
 #   ca-certificates — TLS certificate verification for outbound HTTPS calls
 #   curl            — used by HEALTHCHECK
 #   gosu            — privilege drop in entrypoint.sh (exec as UID 1000:1000)
+#   libseccomp2     — runtime library for the Python containment backend
 #   python3         — ambient interpreter for dependency-free .py providers
 #
 # CUSTOMIZE: Add other runtime libraries your binary needs (e.g. libssl1.1 if not
 #           statically linked). Alpine users: replace gosu with su-exec and update
 #           entrypoint.sh accordingly.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl gosu python3 && \
+    apt-get install -y --no-install-recommends ca-certificates curl gosu libseccomp2 python3 && \
     rm -rf /var/lib/apt/lists/*
 
 # CUSTOMIZE: Replace "soma" with your binary name in both COPY and target path.
