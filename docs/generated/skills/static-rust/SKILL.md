@@ -38,7 +38,7 @@ Use for Soma built-in Rust actions, scaffold intent collection, MCP elicitation 
 | `python_generation_status` | yes | yes | yes | `python_generation_status` | `GET /v1/python/generations` | Inspect the active Python provider generation and bounded rollback history. |
 | `python_generation_rollback` | yes | yes | yes | `python_generation_rollback` | `POST /v1/python/generations/rollback` | Atomically reactivate a retained Python provider generation. |
 | `python_graduation_status` | yes | yes | yes | `python_graduation_status` | `POST /v1/python/graduation/status` | Inspect digest-bound Python graduation, conformance, activation, and rollback state. |
-| `python_graduation_apply` | yes | yes | yes | `python_graduation_apply` | `POST /v1/python/graduation/apply` | Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace. |
+| `python_graduation_apply` | yes | yes | yes | `python_graduation_apply` | `POST /v1/python/graduation/apply` | Scaffold, componentize, build, verify, compare, activate, or roll back a Python graduation workspace. |
 | `elicit_name` | yes | no | no | `N/A` | `N/A` | Ask the MCP client to collect a name, then return a personalised greeting. |
 | `scaffold_intent` | yes | no | no | `N/A` | `N/A` | Collect scaffold setup intent through MCP elicitation and return JSON for the scaffold-project skill. |
 | `help` | yes | yes | yes | `help` | `GET /v1/help` | Show the action reference. |
@@ -259,17 +259,17 @@ Inspect digest-bound Python graduation, conformance, activation, and rollback st
 
 ### `python_graduation_apply`
 
-Scaffold, build, verify, compare, activate, or roll back a Python graduation workspace.
+Scaffold, componentize, build, verify, compare, activate, or roll back a Python graduation workspace.
 
 - Scope: `soma:write`
 - Cost: `write`
 - Destructive: `true`
 - Requires admin: `true`
 - Required args: `operation: string, workspace: string, confirm: boolean`
-- Optional args: `source: string, component: string, fixtures: string`
+- Optional args: `source: string, component: string, fixtures: string, wheelhouse: string`
 - Output: `PythonGraduationReport`
 - MCP: `soma(action="python_graduation_apply")`
-- CLI: `soma python_graduation_apply --json '{"operation":"compare","workspace":"/absolute/path","component":"/absolute/candidate.wasm","fixtures":"/absolute/fixtures.json","confirm":true}'`
+- CLI: `soma python_graduation_apply --json '{"operation":"compare","workspace":"/absolute/path","fixtures":"/absolute/fixtures.json","confirm":true}'`
 - REST: `POST /v1/python/graduation/apply`
 
 ### `elicit_name`
