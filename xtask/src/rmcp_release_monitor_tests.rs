@@ -9,6 +9,34 @@ fn exact_version_strips_cargo_requirement_comparators() {
     assert!(semver::Version::parse(super::exact_version("=3.0.0-beta.2")).is_ok());
 }
 
+#[test]
+fn conformance_defaults_match_the_workspace_rmcp_pin() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let requirement = super::detect_current_rmcp_version(&root).expect("workspace rmcp pin");
+    let version = super::exact_version(&requirement);
+    let baseline: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join("conformance/upstream-baseline.json"))
+            .expect("conformance baseline"),
+    )
+    .expect("valid conformance baseline JSON");
+    let commit = baseline["rmcp"]["commit"]
+        .as_str()
+        .expect("baseline rmcp commit");
+    assert_eq!(baseline["rmcp"]["crate_version"], version);
+    assert_eq!(baseline["rmcp"]["release_tag"], format!("rmcp-v{version}"));
+
+    let script = std::fs::read_to_string(root.join("scripts/ci/mcp-conformance.sh"))
+        .expect("conformance script");
+    assert!(
+        script.contains(&format!("RMCP_VERSION=\"${{RMCP_VERSION:-{version}}}\"")),
+        "conformance script version must match workspace pin {version}"
+    );
+    assert!(
+        script.contains(&format!("RMCP_COMMIT=\"${{RMCP_COMMIT:-{commit}}}\"")),
+        "conformance script commit must match upstream baseline {commit}"
+    );
+}
+
 /// Minimal valid crates.io payload; these tests only care about the releases
 /// argument, which `build_monitor_report` parses second.
 const VALID_CRATE_JSON: &str = r#"{
