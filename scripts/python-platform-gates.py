@@ -31,8 +31,9 @@ def provider_source(name: str) -> str:
     return f'''from soma_provider import tool
 
 @tool
-fdef placeholder(): pass
-'''.replace("fdef placeholder(): pass", f"def {name}(value: int) -> dict[str, int]:\n    return {{\"value\": value + 1}}")
+def {name}(value: int) -> dict[str, int]:
+    return {{"value": value + 1}}
+'''
 
 async def invoke_many(runtime, modules, iterations: int) -> float:
     started = time.perf_counter()

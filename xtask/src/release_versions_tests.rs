@@ -130,6 +130,23 @@ OTHER = "unchanged"
 }
 
 #[test]
+fn python_assignment_version_accepts_common_whitespace() {
+    for content in [
+        "__version__='0.2.0'\n",
+        "__version__ =\"0.2.0\"\n",
+        "  __version__   =   '0.2.0'  # current\n",
+    ] {
+        assert_eq!(
+            read_python_assignment_version(content, Some("__version__")).unwrap(),
+            "0.2.0"
+        );
+        let updated =
+            replace_python_assignment_version(content, Some("__version__"), "0.3.0").unwrap();
+        assert!(updated.contains(r#"__version__ = "0.3.0""#));
+    }
+}
+
+#[test]
 fn oci_identifier_version_uses_tag_suffix() {
     let content = r#"{"packages":[{"identifier":"ghcr.io/dinglebear-ai/soma:0.4.1"}]}"#;
     assert_eq!(

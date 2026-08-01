@@ -22,15 +22,22 @@ pub(super) fn read_pyproject_version(content: &str, package: Option<&str>) -> Re
         .context("missing project.version")
 }
 
+fn python_assignment_value<'a>(line: &'a str, variable: &str) -> Option<&'a str> {
+    line.trim_start()
+        .strip_prefix(variable)?
+        .trim_start()
+        .strip_prefix('=')
+        .map(str::trim_start)
+}
+
 pub(super) fn read_python_assignment_version(
     content: &str,
     variable: Option<&str>,
 ) -> Result<String> {
     let variable = variable.context("python_assignment requires variable")?;
-    let prefix = format!("{variable} =");
     let value = content
         .lines()
-        .find_map(|line| line.trim().strip_prefix(&prefix).map(str::trim))
+        .find_map(|line| python_assignment_value(line, variable))
         .with_context(|| format!("missing Python assignment {variable}"))?;
     let value = value.split('#').next().unwrap_or(value).trim();
     for quote in ['"', '\''] {
@@ -82,12 +89,11 @@ pub(super) fn replace_python_assignment_version(
 ) -> Result<String> {
     let variable = variable.context("python_assignment requires variable")?;
     read_python_assignment_version(content, Some(variable))?;
-    let prefix = format!("{variable} =");
     let mut replaced = false;
     let output = content
         .lines()
         .map(|line| {
-            if !replaced && line.trim().starts_with(&prefix) {
+            if !replaced && python_assignment_value(line, variable).is_some() {
                 replaced = true;
                 let leading = &line[..line.len() - line.trim_start().len()];
                 format!(r#"{leading}{variable} = "{next}""#)
