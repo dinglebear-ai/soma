@@ -663,7 +663,7 @@ just validate-plugin
 | `packages/python` | pyo3 Python provider platform (`abi3-py311`) |
 | `xtask` | All repository automation; `scripts/*.py` are thin wrappers over it |
 
-`rmcp` is pinned exactly — `rmcp = { version = "=3.0.0-beta.2", default-features = false }`
+`rmcp` is pinned exactly — `rmcp = { version = "=3.1.0", default-features = false }`
 in `[workspace.dependencies]`, duplicated on the `rmcp-client` alias entry
 because TOML cannot cross-reference. Bump both together.
 
