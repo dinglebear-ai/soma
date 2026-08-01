@@ -14,6 +14,7 @@
 #![warn(missing_docs)]
 
 mod catalog;
+mod contract_id;
 mod event;
 mod identity;
 mod model;
@@ -25,6 +26,7 @@ mod result;
 pub use catalog::{
     CapabilitySupport, EvidenceKind, OperationDefinition, OperationSpec, ParameterGroup, SpecError,
 };
+pub use contract_id::{DiagnosticCode, DiagnosticCodeError, SchemaId, SchemaIdError};
 pub use event::{
     EventError, EventSink, OperationEvent, OperationEventEnvelope, OperationEventPayload,
     OperationEventType,

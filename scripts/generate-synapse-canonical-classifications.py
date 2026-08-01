@@ -155,6 +155,79 @@ def requirements(name: str, access: str) -> list[str]:
     raise ValueError(f"no capability requirements for {name}")
 
 
+def schema_id(name: str, kind: str, version: int = 1) -> str:
+    return f"schema.operations.{name}.{kind}.v{version}"
+
+
+def diagnostic_codes(name: str, access: str, verification: str) -> list[str]:
+    codes = {
+        "backend.unavailable",
+        "capability.unsupported",
+        "internal.failure",
+        "operation.cancelled",
+        "operation.timeout",
+        "request.invalid",
+        "target.not_found",
+    }
+    if access == "mutation":
+        codes.update(
+            {
+                "authorization.denied",
+                "authorization.expired",
+                "authorization.required",
+                "mutation.uncertain",
+                "plan.required",
+                "plan.stale",
+            }
+        )
+        if verification != "unsupported":
+            codes.update({"verification.failed", "verification.inconclusive"})
+
+    if name == "product.help":
+        codes.add("product.unavailable")
+    elif name.startswith(("docker.", "container.", "compose.")):
+        codes.update({"docker.conflict", "docker.not_found", "docker.unavailable"})
+    elif name == "fleet.nodes":
+        codes.update({"fleet.empty", "fleet.unavailable"})
+    elif name.startswith("files."):
+        codes.update(
+            {
+                "filesystem.not_found",
+                "filesystem.path_denied",
+                "filesystem.too_large",
+            }
+        )
+    elif name in {"host.exec", "host.exec_many"}:
+        codes.update(
+            {
+                "command.failed",
+                "command.rejected",
+                "host.not_found",
+                "host.unreachable",
+                "output.truncated",
+            }
+        )
+    elif name.startswith("host.") or name in {"processes.list", "filesystem.usage"}:
+        codes.update({"host.not_found", "host.unreachable"})
+    elif name.startswith("logs."):
+        codes.update({"logs.truncated", "logs.unavailable"})
+    elif name.startswith("zfs."):
+        codes.update({"zfs.not_found", "zfs.unavailable"})
+    return sorted(codes)
+
+
+def valid_diagnostic_code(value: str) -> bool:
+    segments = value.split(".")
+    return len(segments) >= 2 and all(
+        segment
+        and segment[0].islower()
+        and segment[0].isalpha()
+        and all(character.islower() or character.isdigit() or character in "-_" for character in segment)
+        and not segment.endswith(("-", "_"))
+        for segment in segments
+    )
+
+
 def parameter_group(fields: list[str]) -> dict[str, list[str]]:
     return {"fields": sorted(fields)}
 
@@ -195,6 +268,9 @@ def build_operation(legacy: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": name,
         "schema_version": 1,
+        "parameter_schema": schema_id(name, "parameters"),
+        "result_schema": schema_id(name, "result"),
+        "diagnostic_codes": diagnostic_codes(name, access, verification),
         "target_kind": target_kind(name),
         "access": access,
         "risk": risk,
@@ -259,6 +335,17 @@ def validate(bundle: dict[str, Any], legacy: dict[str, Any]) -> None:
                 raise ValueError(f"risky mutation lacks planning for {name}")
             if item["retry"] == "safe" and not item["idempotent"]:
                 raise ValueError(f"safe retry lacks idempotency for {name}")
+        expected_parameters = schema_id(name, "parameters", item["schema_version"])
+        expected_result = schema_id(name, "result", item["schema_version"])
+        if item.get("parameter_schema") != expected_parameters:
+            raise ValueError(f"parameter schema identity drift for {name}")
+        if item.get("result_schema") != expected_result:
+            raise ValueError(f"result schema identity drift for {name}")
+        codes = item.get("diagnostic_codes")
+        if not isinstance(codes, list) or not codes or codes != sorted(set(codes)):
+            raise ValueError(f"invalid diagnostic code set for {name}")
+        if not all(valid_diagnostic_code(code) for code in codes):
+            raise ValueError(f"invalid diagnostic code for {name}")
         if not item["evidence"] or not item["requirements"]:
             raise ValueError(f"missing evidence or requirements for {name}")
 

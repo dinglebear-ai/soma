@@ -11,7 +11,7 @@ use soma_ops::{AccessClass, CapabilitySupport, OperationSpec, RiskClass};
 const EXPECTED_LEGACY_DIGEST: &str =
     "74c9ed1e345a0c67ca7878a25c7aa73a89f36298c1ca6071a5343cf48dd4c4a1";
 const EXPECTED_CLASSIFICATION_DIGEST: &str =
-    "2f70a7654d7e2e0eb58655f74d7f325e2791fc71c921443c850df484646f6583";
+    "d7ebb3bfba204301bb3bc3406721f920a3b06cb1af395baff88fcf2d84ea5021";
 
 #[derive(Debug, Deserialize)]
 struct ClassificationBundle {
@@ -175,6 +175,27 @@ fn canonical_classifications_cover_and_validate_all_pinned_operations() {
         assert!(
             spec.evidence().next().is_some(),
             "missing evidence for {}",
+            spec.name()
+        );
+        assert_eq!(
+            spec.parameter_schema().as_str(),
+            format!(
+                "schema.operations.{}.parameters.v{}",
+                spec.name(),
+                spec.schema_version()
+            )
+        );
+        assert_eq!(
+            spec.result_schema().as_str(),
+            format!(
+                "schema.operations.{}.result.v{}",
+                spec.name(),
+                spec.schema_version()
+            )
+        );
+        assert!(
+            spec.diagnostic_codes().next().is_some(),
+            "missing diagnostic codes for {}",
             spec.name()
         );
         assert!(

@@ -10,6 +10,8 @@ It provides:
 
 - stable operation, event, correlation, and authorization identities;
 - validated dotted operation names and typed targets;
+- versioned parameter/result schema identities;
+- validated machine-stable diagnostic codes;
 - operation catalog metadata and typed operation definitions;
 - request context, deadlines, idempotency, and opaque authorization evidence;
 - deterministic plan fingerprints;

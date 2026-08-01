@@ -97,6 +97,45 @@ impl OperationDefinition for HostInspect {
 }
 
 #[test]
+fn schema_ids_follow_operation_name_and_version() {
+    let spec = mutation_spec().with_schema_version(3);
+    assert_eq!(
+        spec.parameter_schema().as_str(),
+        "schema.operations.container.restart.parameters.v3"
+    );
+    assert_eq!(
+        spec.result_schema().as_str(),
+        "schema.operations.container.restart.result.v3"
+    );
+    assert!(spec.validate().is_ok());
+
+    let mismatched = mutation_spec().with_schema_ids(
+        SchemaId::new("schema.operations.container.stop.parameters.v1").unwrap(),
+        SchemaId::new("schema.operations.container.stop.result.v1").unwrap(),
+    );
+    assert_eq!(
+        mismatched.validate(),
+        Err(SpecError::SchemaIdentityMismatch)
+    );
+}
+
+#[test]
+fn diagnostic_codes_are_sorted_unique_contract_metadata() {
+    let spec = mutation_spec()
+        .with_diagnostic_code(DiagnosticCode::new("target.not_found").unwrap())
+        .with_diagnostic_code(DiagnosticCode::new("backend.unavailable").unwrap())
+        .with_diagnostic_code(DiagnosticCode::new("target.not_found").unwrap());
+    assert_eq!(
+        spec.diagnostic_codes()
+            .map(DiagnosticCode::as_str)
+            .collect::<Vec<_>>(),
+        vec!["backend.unavailable", "target.not_found"]
+    );
+    assert!(spec.allows_diagnostic(&DiagnosticCode::new("target.not_found").unwrap()));
+    assert!(!spec.allows_diagnostic(&DiagnosticCode::new("plan.stale").unwrap()));
+}
+
+#[test]
 fn typed_operation_definition_resolves_target() {
     let target = HostInspect::target(&Params {
         host: "dookie".into(),

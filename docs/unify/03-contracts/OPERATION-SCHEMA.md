@@ -53,7 +53,7 @@ A legacy binding may map multiple legacy spellings to one canonical operation. T
 
 ## Parameter and result schemas
 
-Typed Rust request and output models are authoritative. JSON Schema is generated from those types or from an equally strict definition checked against them.
+Typed Rust request and output models are authoritative. Every operation/version has deterministic `schema.operations.<operation>.parameters.vN` and `.result.vN` identities. JSON Schema is generated from those types or from an equally strict definition checked against them.
 
 Schemas MUST use Draft 2020-12, be closed by default, carry stable `$id` values, express alternatives and bounds, reject ambiguous targets and control characters, version breaking changes, and exclude credentials or raw authorization tokens.
 
@@ -75,7 +75,7 @@ Surface-specific status names are projections. They MUST preserve canonical mean
 
 ## Diagnostic contract
 
-Diagnostics use stable machine codes and structured fields. Human messages may improve without breaking compatibility.
+Diagnostics use validated lowercase dotted `DiagnosticCode` values and structured fields. Every canonical operation declares its possible codes. Human messages may improve without breaking compatibility.
 
 Each diagnostic defines code, category, severity, retry classification, mutation-send uncertainty, correctable field paths, redaction behavior, and mappings for CLI exit codes, HTTP status, MCP error data, and operation events. Products MUST NOT infer retry safety from prose.
 

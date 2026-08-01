@@ -21,6 +21,8 @@ The crate is stewarded by the Synapse operations domain but remains independentl
 
 - UUIDv7 operation, event, correlation, and authorization identities
 - Validated dotted operation names
+- Versioned operation parameter/result schema identities
+- Stable validated diagnostic codes
 - Typed target references and bounded parent relationships
 - Access, risk, reversibility, retry, mutation-send, and verification classifications
 - Operation catalog metadata and typed operation definitions
@@ -49,7 +51,7 @@ The crate is stewarded by the Synapse operations domain but remains independentl
 The initial public boundary includes:
 
 - `OperationId`, `EventId`, `CorrelationId`, `AuthorizationId`
-- `OperationName`, `TargetKind`, `TargetRef`
+- `OperationName`, `SchemaId`, `DiagnosticCode`, `TargetKind`, `TargetRef`
 - `OperationSpec`, `OperationDefinition`, `ParameterGroup`
 - `OperationContext`, `OperationRequest`
 - `AuthorizationScope`, `AuthorizationEvidence`
@@ -87,7 +89,7 @@ The initial public boundary includes:
 - the exact donor commit and semantic-distribution counts are locked;
 - a deterministic SHA-256 digest detects any semantic fixture edit.
 
-`tests/synapse_canonical_classification.rs` consumes `synapse-canonical-operations.json`, deserializes every entry directly into `OperationSpec`, and proves complete canonical target, access, risk, reversibility, planning, progress, cancellation, verification, fanout, retry, idempotency, evidence, requirement, and parameter-group coverage. Request/result schemas and stable diagnostics remain the next contract slice.
+`tests/synapse_canonical_classification.rs` consumes `synapse-canonical-operations.json`, deserializes every entry directly into `OperationSpec`, and proves complete canonical target, access, risk, reversibility, planning, progress, cancellation, verification, fanout, retry, idempotency, evidence, requirement, parameter-group, versioned schema-identity, and stable diagnostic-code coverage. Concrete parameter/result field schemas and surface-specific diagnostic projections remain later slices.
 
 ## Standalone consumer fixture
 
