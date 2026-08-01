@@ -153,6 +153,8 @@ Security tests include host-key mismatch, changed endpoint revision, stale poole
 
 Exit: Synapse remote tests pass through fleet interfaces and no infrastructure domain imports SSH details.
 
+Implementation record: `soma-fleet` is now a native shared crate with validated topology identities, SHA-256 topology revisions, exact-revision connection pooling, bounded command and transfer contracts, process-backed conformance execution, strict OpenSSH native multiplexing, owner-only forwarding sockets, observable transfer guards, lifecycle events, and stable-order bounded fanout. OpenSSH post-spawn cancellation and timeout report `RemoteCommandDetached` because the remote process may still be running. Product configuration precedence, command allowlists, authorization, and infrastructure semantics remain outside the crate. Live host-key mismatch and remote smoke verification remain product-gated evidence; deterministic tests prove that only strict known-host plans can be constructed.
+
 ### PR 6: read-only infrastructure engines
 
 Base: PR 5.

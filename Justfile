@@ -278,6 +278,10 @@ synapse-product-import-release:
 synapse-compat-check:
     cargo test -p synapse-application --all-features
 
+# Validate neutral fleet contracts and all optional drivers
+fleet-check:
+    cargo test -p soma-fleet --all-features
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check

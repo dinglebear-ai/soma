@@ -70,6 +70,21 @@ fn valid_shared_only_graph_passes() {
 }
 
 #[test]
+fn fleet_shared_layer_depends_on_neutral_operations_only() {
+    let failures = failures(vec![
+        pkg("soma-ops", "crates/shared/operations/ops", "shared", vec![]),
+        pkg(
+            "soma-fleet",
+            "crates/shared/operations/fleet",
+            "shared",
+            vec![dep("soma-ops", "crates/shared/operations/ops")],
+        ),
+    ]);
+
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
 fn standalone_product_composes_its_own_crates_and_shared_engines() {
     let failures = failures(vec![
         pkg("soma-ops", "crates/shared/operations/ops", "shared", vec![]),
