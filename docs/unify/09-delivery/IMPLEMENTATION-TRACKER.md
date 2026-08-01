@@ -60,7 +60,7 @@ No generic `in_progress`.
 | product-family | 2 | `feat/operations-foundation` | `feat/product-family-architecture` | `~/workspace/soma/.worktrees/operations-foundation` | O2 operations contracts, models, schema, and plan | #260 | external_consumer_verified |
 | product-family | 3 | `feat/operations-semantic-parity` | `feat/operations-foundation` | `~/workspace/soma/.worktrees/operations-semantic-parity` | O2 donor legacy semantic fixture and parity test | #261 | parity_verifying |
 | product-family | 4 | `feat/operations-canonical-classification` | `feat/operations-semantic-parity` | `~/workspace/soma/.worktrees/operations-canonical-classification` | O2 canonical target, safety, lifecycle, and capability classifications | #262 | parity_verifying |
-| product-family | 5 | `feat/operations-schema-diagnostics` | `feat/operations-canonical-classification` | `~/workspace/soma/.worktrees/operations-schema-diagnostics` | O2 versioned schema identities and stable diagnostic vocabulary | pending | parity_verifying |
+| product-family | 5 | `feat/operations-schema-diagnostics` | `feat/operations-canonical-classification` | `~/workspace/soma/.worktrees/operations-schema-diagnostics` | O2 versioned schema identities and stable diagnostic vocabulary | #264 | parity_verifying |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
