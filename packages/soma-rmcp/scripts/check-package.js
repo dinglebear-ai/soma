@@ -166,7 +166,7 @@ function checkMetadata() {
 
   assert(packageJson.scripts && packageJson.scripts.prepack === "node scripts/sync-readme.js", "package prepack must sync README/LICENSE files");
   assert(packageJson.scripts && packageJson.scripts.postinstall === "node scripts/install.js", "package postinstall must install the verified native binary");
-  assert(packageJson.scripts && packageJson.scripts.test === "node --test", "package test must run the launcher test suite");
+  assert(packageJson.scripts && packageJson.scripts.test === "node --test --test-concurrency=1", "package test must run the launcher test suite serially");
   assert(packageJson.scripts && packageJson.scripts.prepublishOnly === "node scripts/check-package.js --release", "package prepublishOnly must run the release gate");
   assert(packageJson.scripts && packageJson.scripts.check && packageJson.scripts.check.includes("node scripts/check-package.js"), "package check must run the package verifier");
 }
