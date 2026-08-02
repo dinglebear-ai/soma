@@ -1,13 +1,17 @@
-# Soma Context Layer v1 Documentation Package
+# Soma Product Family and Context Layer Documentation Package
 
-**Status:** Proposed implementation source of truth  
-**Scope:** Merge Axon's knowledge pipeline and Cortex's observation platform into Soma  
-**Audit date:** 2026-07-21  
-**Product boundary:** Existing Soma gateway, authentication, provider catalog, Code Mode, CLI/API/MCP projection, and web shell remain authoritative.
+**Status:** Proposed implementation source of truth
+**Scope:** Build a multi-distribution monorepo while integrating Axon knowledge, Cortex observations, and Synapse operations into Soma
+**Audit dates:** Context baseline 2026-07-21; product-family extension 2026-07-31
+**Product boundary:** Labby, Axon, Cortex, and Synapse remain complete standalone products; Soma is the integrated superset.
 
 Begin with [`START-HERE.md`](START-HERE.md) for the implementation sequence, first milestone, and non-negotiable guardrails.
 
-This package defines the first integrated Soma context layer:
+This package defines the product-family boundaries and the first integrated Soma context layer:
+
+- five independent composition roots for Labby, Axon, Cortex, Synapse, and Soma;
+- independently consumable shared engines with no product policy;
+- a distinct Synapse-derived operations plane connected to Cortex through lifecycle events;
 
 - heterogeneous knowledge ingestion from Axon-derived source adapters;
 - operational observation ingestion from Cortex-derived receivers and collectors;
@@ -34,14 +38,14 @@ The schemas reserve no mandatory fields for those systems. They may be layered o
 
 ## Package deliverables
 
-- **16 shared-crate specifications** with ownership, exclusions, APIs, features, dependencies, tests, consumers, and publication gates.
+- **19 planned shared-crate specifications plus existing neutral clients** with ownership, exclusions, APIs, features, dependencies, tests, consumers, and publication gates.
 - **One combined JSON Schema bundle** with representative validated fixtures.
-- **Source, observation, RAG, graph, query, citation, error, event, redaction, retention, database, vector, and state-machine contracts.**
-- **Axon and Cortex donor disposition maps** covering every Axon crate and the relevant Cortex subsystems.
-- **A 14-phase vertical-slice implementation roadmap** and machine-readable capability ledger.
+- **Source, observation, RAG, graph, query, citation, operation, progress, verification, event, redaction, retention, database, vector, and state-machine contracts.**
+- **Axon, Cortex, and Synapse donor disposition maps** with pinned donor commits and parity fixtures.
+- **A 14-phase context roadmap plus a seven-phase operations track** and machine-readable capability ledger.
 - **A complete product-use-case and Aurora web-surface plan.**
-- **Parity, E2E, GraphRAG, performance, security, backup, migration, retention, and cutover plans.**
-- **Eleven v1 ADRs**, an implementation PR train, risk register, definitions of ready/done, and open-decision ledger.
+- **Parity, E2E, GraphRAG, operations, performance, security, backup, migration, retention, and cutover plans.**
+- **Thirteen ADRs**, a stacked implementation PR train, risk register, definitions of ready/done, and open-decision ledger.
 - **The Labby OAuth north-star evaluation scenario**, scoped to evidence-backed diagnosis and remediation planning in v1.
 
 ## Reading order
@@ -69,7 +73,7 @@ The words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are no
 02-crates/        Complete shared-crate catalog and per-crate implementation specs
 03-contracts/     Normative runtime, storage, citation, schema, and state contracts
 04-product/       Soma application use cases and existing surface integration
-05-migration/     Axon/Cortex extraction map, vertical slices, parity, cutover
+05-migration/     Axon/Cortex/Synapse extraction maps, vertical slices, parity, cutover
 06-testing/       Unit, contract, E2E, GraphRAG, performance, and security plans
 07-operations/    Runtime services, backup, retention, rebuild, health, upgrade
 08-adr/           Accepted architectural decisions for v1

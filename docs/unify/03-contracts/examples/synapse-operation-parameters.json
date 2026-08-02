@@ -1,0 +1,1946 @@
+{
+  "format_version": 1,
+  "classification_sha256": "d7ebb3bfba204301bb3bc3406721f920a3b06cb1af395baff88fcf2d84ea5021",
+  "excluded_surface_fields": [
+    "action",
+    "format",
+    "response_format",
+    "subaction"
+  ],
+  "schema_count": 59,
+  "schemas": [
+    {
+      "operation_name": "product.help",
+      "schema_id": "schema.operations.product.help.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.product.help.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "topic": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "docker.info",
+      "schema_id": "schema.operations.docker.info.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.info.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "docker.df",
+      "schema_id": "schema.operations.docker.df.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.df.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "docker.images",
+      "schema_id": "schema.operations.docker.images.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.images.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dangling_only": {
+            "type": "boolean"
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "docker.networks",
+      "schema_id": "schema.operations.docker.networks.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.networks.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "docker.volumes",
+      "schema_id": "schema.operations.docker.volumes.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.volumes.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "docker.pull",
+      "schema_id": "schema.operations.docker.pull.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.pull.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "image": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host",
+          "image"
+        ]
+      }
+    },
+    {
+      "operation_name": "docker.build",
+      "schema_id": "schema.operations.docker.build.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.build.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          },
+          "dockerfile": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "allOf": [
+              {
+                "not": {
+                  "pattern": "(^|/)\\.\\.(/|$)"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^/"
+                }
+              }
+            ]
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "no_cache": {
+            "type": "boolean"
+          },
+          "tag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "context",
+          "host",
+          "tag"
+        ]
+      }
+    },
+    {
+      "operation_name": "docker.rmi",
+      "schema_id": "schema.operations.docker.rmi.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.rmi.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "const": true
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "image": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "force",
+          "host",
+          "image"
+        ]
+      }
+    },
+    {
+      "operation_name": "docker.prune",
+      "schema_id": "schema.operations.docker.prune.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.prune.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "const": true
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "prune_target": {
+            "enum": [
+              "containers",
+              "images",
+              "volumes",
+              "networks",
+              "buildcache",
+              "all"
+            ]
+          }
+        },
+        "required": [
+          "force",
+          "host",
+          "prune_target"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.list",
+      "schema_id": "schema.operations.container.list.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.list.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "image_filter": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "label_filter": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "name_filter": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "state": {
+            "enum": [
+              "running",
+              "exited",
+              "paused",
+              "restarting",
+              "active",
+              "inactive",
+              "failed",
+              "all"
+            ]
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "container.inspect",
+      "schema_id": "schema.operations.container.inspect.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.inspect.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "summary": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "container_id"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.logs",
+      "schema_id": "schema.operations.container.logs.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.logs.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "grep": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 50
+          },
+          "since": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "stream": {
+            "enum": [
+              "stdout",
+              "stderr",
+              "both"
+            ]
+          },
+          "until": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "container_id"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.stats",
+      "schema_id": "schema.operations.container.stats.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.stats.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "container.top",
+      "schema_id": "schema.operations.container.top.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.top.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "container_id"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.search",
+      "schema_id": "schema.operations.container.search.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.search.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.start",
+      "schema_id": "schema.operations.container.start.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.start.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.stop",
+      "schema_id": "schema.operations.container.stop.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.stop.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.restart",
+      "schema_id": "schema.operations.container.restart.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.restart.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.pause",
+      "schema_id": "schema.operations.container.pause.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.pause.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.resume",
+      "schema_id": "schema.operations.container.resume.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.resume.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.pull",
+      "schema_id": "schema.operations.container.pull.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.pull.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.recreate",
+      "schema_id": "schema.operations.container.recreate.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.recreate.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "pull": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "container.exec",
+      "schema_id": "schema.operations.container.exec.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.exec.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "maxLength": 4096,
+              "pattern": "^[^\\u0000]+$"
+            }
+          },
+          "container_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "exec_timeout_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 300000,
+            "default": 30000
+          },
+          "exec_user": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "exec_workdir": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "command",
+          "container_id",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "host.status",
+      "schema_id": "schema.operations.host.status.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.status.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "host.info",
+      "schema_id": "schema.operations.host.info.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.info.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "host.uptime",
+      "schema_id": "schema.operations.host.uptime.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.uptime.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "host.resources",
+      "schema_id": "schema.operations.host.resources.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.resources.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "host.services",
+      "schema_id": "schema.operations.host.services.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.services.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "state": {
+            "enum": [
+              "running",
+              "exited",
+              "paused",
+              "restarting",
+              "active",
+              "inactive",
+              "failed",
+              "all"
+            ]
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "host.network",
+      "schema_id": "schema.operations.host.network.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.network.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "operation_name": "host.mounts",
+      "schema_id": "schema.operations.host.mounts.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.mounts.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "host.ports",
+      "schema_id": "schema.operations.host.ports.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.ports.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "protocol": {
+            "enum": [
+              "tcp",
+              "udp"
+            ]
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "host.doctor",
+      "schema_id": "schema.operations.host.doctor.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.doctor.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.list",
+      "schema_id": "schema.operations.compose.list.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.list.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.status",
+      "schema_id": "schema.operations.compose.status.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.status.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.up",
+      "schema_id": "schema.operations.compose.up.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.up.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.down",
+      "schema_id": "schema.operations.compose.down.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.down.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "type": "boolean"
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "remove_volumes": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "remove_volumes": {
+                  "const": true
+                }
+              },
+              "required": [
+                "remove_volumes"
+              ]
+            },
+            "then": {
+              "properties": {
+                "force": {
+                  "const": true
+                }
+              },
+              "required": [
+                "force"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.restart",
+      "schema_id": "schema.operations.compose.restart.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.restart.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.recreate",
+      "schema_id": "schema.operations.compose.recreate.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.recreate.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.logs",
+      "schema_id": "schema.operations.compose.logs.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.logs.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "since": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.build",
+      "schema_id": "schema.operations.compose.build.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.build.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.pull",
+      "schema_id": "schema.operations.compose.pull.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.pull.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "project": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host",
+          "project"
+        ]
+      }
+    },
+    {
+      "operation_name": "compose.refresh",
+      "schema_id": "schema.operations.compose.refresh.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.refresh.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "fleet.nodes",
+      "schema_id": "schema.operations.fleet.nodes.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.fleet.nodes.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "operation_name": "files.read",
+      "schema_id": "schema.operations.files.read.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.read.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 3
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          },
+          "tree": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "host",
+          "path"
+        ]
+      }
+    },
+    {
+      "operation_name": "files.find",
+      "schema_id": "schema.operations.files.find.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.find.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 10
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 500
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          },
+          "pattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "not": {
+              "pattern": "^-"
+            }
+          }
+        },
+        "required": [
+          "host",
+          "path",
+          "pattern"
+        ]
+      }
+    },
+    {
+      "operation_name": "processes.list",
+      "schema_id": "schema.operations.processes.list.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.processes.list.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grep": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 50
+          },
+          "sort": {
+            "enum": [
+              "cpu",
+              "mem",
+              "pid",
+              "time"
+            ]
+          },
+          "user": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "filesystem.usage",
+      "schema_id": "schema.operations.filesystem.usage.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.filesystem.usage.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "files.compare",
+      "schema_id": "schema.operations.files.compare.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.compare.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "source_host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "source_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          },
+          "target_host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "target_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          }
+        },
+        "required": [
+          "source_host",
+          "source_path"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "target_host"
+                  ]
+                },
+                {
+                  "required": [
+                    "target_path"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "target_host",
+              "target_path"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "operation_name": "host.exec",
+      "schema_id": "schema.operations.host.exec.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.exec.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "maxLength": 4096,
+              "pattern": "^[^\\u0000]+$"
+            }
+          },
+          "command": {
+            "enum": [
+              "cat",
+              "head",
+              "tail",
+              "grep",
+              "rg",
+              "ls",
+              "tree",
+              "wc",
+              "uniq",
+              "diff",
+              "stat",
+              "file",
+              "du",
+              "df",
+              "pwd",
+              "hostname",
+              "uptime",
+              "whoami"
+            ]
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          },
+          "timeout_secs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300,
+            "default": 30
+          }
+        },
+        "required": [
+          "command",
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "host.exec_many",
+      "schema_id": "schema.operations.host.exec_many.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.exec_many.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "maxLength": 4096,
+              "pattern": "^[^\\u0000]+$"
+            }
+          },
+          "command": {
+            "enum": [
+              "cat",
+              "head",
+              "tail",
+              "grep",
+              "rg",
+              "ls",
+              "tree",
+              "wc",
+              "uniq",
+              "diff",
+              "stat",
+              "file",
+              "du",
+              "df",
+              "pwd",
+              "hostname",
+              "uptime",
+              "whoami"
+            ]
+          },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "host"
+              ],
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "pattern": "^/"
+                }
+              }
+            }
+          },
+          "timeout_secs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300,
+            "default": 30
+          }
+        },
+        "required": [
+          "command",
+          "targets"
+        ]
+      }
+    },
+    {
+      "operation_name": "files.transfer",
+      "schema_id": "schema.operations.files.transfer.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.transfer.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dest_host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "dest_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          },
+          "source_host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "source_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^/"
+          }
+        },
+        "required": [
+          "dest_host",
+          "dest_path",
+          "source_host",
+          "source_path"
+        ]
+      }
+    },
+    {
+      "operation_name": "zfs.pools",
+      "schema_id": "schema.operations.zfs.pools.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.zfs.pools.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "pool": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "zfs.datasets",
+      "schema_id": "schema.operations.zfs.datasets.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.zfs.datasets.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dataset_type": {
+            "enum": [
+              "filesystem",
+              "volume",
+              "snapshot",
+              "bookmark",
+              "all"
+            ]
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "pool": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "recursive": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "zfs.snapshots",
+      "schema_id": "schema.operations.zfs.snapshots.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.zfs.snapshots.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "pool": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "logs.syslog",
+      "schema_id": "schema.operations.logs.syslog.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.syslog.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grep": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "logs.journal",
+      "schema_id": "schema.operations.logs.journal.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.journal.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grep": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          },
+          "priority": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "since": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "until": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "logs.kernel",
+      "schema_id": "schema.operations.logs.kernel.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.kernel.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grep": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    },
+    {
+      "operation_name": "logs.auth",
+      "schema_id": "schema.operations.logs.auth.parameters.v1",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.auth.parameters.v1",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grep": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          }
+        },
+        "required": [
+          "host"
+        ]
+      }
+    }
+  ],
+  "parameter_schema_sha256": "62ff07d6fed6bf18d65fae54708c28ceb3397a4c4cf9f9810a6ef61a68f308fa"
+}

@@ -36,6 +36,7 @@ impl Graph {
                 Package {
                     id,
                     name,
+                    product: Product::from_path(&rel_path),
                     rel_path,
                     layer,
                     metadata_layer,
@@ -141,6 +142,7 @@ impl Graph {
 pub(crate) struct Package {
     pub(crate) id: String,
     pub(crate) name: String,
+    pub(crate) product: Option<Product>,
     pub(crate) rel_path: String,
     pub(crate) layer: Layer,
     pub(crate) metadata_layer: Option<Layer>,
@@ -151,6 +153,50 @@ pub(crate) struct Edge {
     pub(crate) to: String,
     pub(crate) kind: String,
     pub(crate) optional: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Product {
+    Soma,
+    Labby,
+    Axon,
+    Cortex,
+    Synapse,
+}
+
+impl Product {
+    fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "soma" => Some(Self::Soma),
+            "labby" => Some(Self::Labby),
+            "axon" => Some(Self::Axon),
+            "cortex" => Some(Self::Cortex),
+            "synapse" => Some(Self::Synapse),
+            _ => None,
+        }
+    }
+
+    fn from_path(path: &str) -> Option<Self> {
+        if let Some(name) = path.strip_prefix("apps/")
+            && !name.contains('/')
+        {
+            return Self::from_name(name);
+        }
+
+        let rest = path.strip_prefix("crates/")?;
+        let (name, _) = rest.split_once('/')?;
+        Self::from_name(name)
+    }
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Soma => "soma",
+            Self::Labby => "labby",
+            Self::Axon => "axon",
+            Self::Cortex => "cortex",
+            Self::Synapse => "synapse",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -177,20 +223,29 @@ pub(crate) enum Layer {
 
 impl Layer {
     fn from_path(path: &str) -> Option<Self> {
+        if let Some(name) = path.strip_prefix("apps/")
+            && !name.contains('/')
+            && Product::from_name(name).is_some()
+        {
+            return Some(Self::App);
+        }
+
+        if let Some(rest) = path.strip_prefix("crates/")
+            && let Some((product, leaf)) = rest.split_once('/')
+            && Product::from_name(product).is_some()
+        {
+            return Some(match leaf {
+                "domain" => Self::ProductDomain,
+                "application" => Self::ProductApplication,
+                "integrations" => Self::ProductIntegration,
+                "runtime" => Self::ProductRuntime,
+                "api" | "cli" | "mcp" | "web" | "palette" => Self::ProductSurface,
+                "test-support" | "client" | "config" => Self::ProductSupport,
+                _ => Self::Legacy,
+            });
+        }
+
         match path {
-            "apps/soma" => Some(Self::App),
-            "crates/soma/domain" => Some(Self::ProductDomain),
-            "crates/soma/application" => Some(Self::ProductApplication),
-            "crates/soma/integrations" => Some(Self::ProductIntegration),
-            "crates/soma/runtime" => Some(Self::ProductRuntime),
-            "crates/soma/api"
-            | "crates/soma/cli"
-            | "crates/soma/mcp"
-            | "crates/soma/web"
-            | "crates/soma/palette" => Some(Self::ProductSurface),
-            "crates/soma/test-support" | "crates/soma/client" | "crates/soma/config" => {
-                Some(Self::ProductSupport)
-            }
             "xtask" => Some(Self::Legacy),
             // Language-binding packages (PyO3 extension shipped to PyPI as
             // soma_provider). They wrap the product-agnostic provider contract
@@ -199,7 +254,6 @@ impl Layer {
             path if path.starts_with("packages/") => Some(Self::Shared),
             path if path.starts_with("crates/shared/") => Some(Self::Shared),
             path if path.starts_with("crates/integrations/") => Some(Self::Vendor),
-            path if path.starts_with("crates/soma/") => Some(Self::Legacy),
             _ => None,
         }
     }

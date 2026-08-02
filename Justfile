@@ -218,6 +218,82 @@ openapi-check:
 scaffold-contract-check:
     cargo xtask check-scaffold-intent-contract
 
+# Run the neutral operations contract suite with every feature enabled
+ops-check:
+    cargo test -p soma-ops --all-features
+
+# Prove soma-ops compiles from an unrelated standalone Cargo workspace
+ops-external-consumer-check:
+    cargo check --manifest-path crates/shared/operations/ops/tests/fixtures/external-consumer/Cargo.toml
+
+# Validate the pinned 59-operation Synapse compatibility fixture
+synapse-operation-contract-check:
+    python3 scripts/generate-synapse-operation-fixture.py check
+
+# Regenerate the fixture from a caller-supplied local Synapse clone
+synapse-operation-contract-generate donor_repo donor_ref="origin/main":
+    python3 scripts/generate-synapse-operation-fixture.py generate --donor-repo "{{ donor_repo }}" --ref "{{ donor_ref }}"
+
+# Validate the canonical 59-operation target and safety classifications
+synapse-canonical-contract-check:
+    python3 scripts/generate-synapse-canonical-classifications.py check
+
+# Regenerate canonical classifications from the pinned legacy semantic fixture
+synapse-canonical-contract-generate:
+    python3 scripts/generate-synapse-canonical-classifications.py generate
+
+# Validate closed parameter schemas and diagnostic surface projections
+operation-surface-contracts-check:
+    python3 scripts/generate-operation-surface-contracts.py check
+
+# Regenerate parameter schemas and diagnostic projections
+operation-surface-contracts-generate:
+    python3 scripts/generate-operation-surface-contracts.py generate
+
+# Validate all 59 canonical result payload schemas
+operation-result-contracts-check:
+    python3 scripts/generate-operation-result-contracts.py check
+
+# Regenerate all canonical result payload schemas
+operation-result-contracts-generate:
+    python3 scripts/generate-operation-result-contracts.py generate
+
+# Verify the exact history-preserving Synapse donor import
+synapse-product-import-check:
+    python3 scripts/check-synapse-product-import.py
+
+# Build the imported standalone Synapse workspace without changing donor behavior
+synapse-product-import-build:
+    cargo build --manifest-path crates/synapse/import/Cargo.toml --workspace --all-features
+
+# Run the imported standalone Synapse workspace test suite
+synapse-product-import-test:
+    cargo test --manifest-path crates/synapse/import/Cargo.toml --workspace --all-features
+
+# Build the imported Synapse release binary using the donor release path
+synapse-product-import-release:
+    cargo build --manifest-path crates/synapse/import/Cargo.toml --release --locked --bin synapse
+
+# Validate native Synapse catalog and compatibility adapters
+synapse-compat-check:
+    cargo test -p synapse-application --all-features
+
+# Validate neutral fleet contracts and all optional drivers
+fleet-check:
+    cargo test -p soma-fleet --all-features
+
+# Validate read-only infrastructure contracts and optional drivers
+infra-check:
+    cargo test -p soma-infra --all-features
+
+# Validate the docs/unify package manifest and checksums
+unify-manifest-check:
+    python3 scripts/generate-unify-manifest.py check
+
+# Regenerate the docs/unify package manifest and checksums
+unify-manifest-generate:
+    python3 scripts/generate-unify-manifest.py generate
+
 # Check static contracts from docs/PATTERNS.md
 patterns-check:
     cargo xtask patterns

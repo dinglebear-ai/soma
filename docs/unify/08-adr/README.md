@@ -11,3 +11,5 @@
 - [0009-ai-session-model.md](0009-ai-session-model.md): Use one typed AI-session model with dual projections
 - [0010-existing-soma-surfaces.md](0010-existing-soma-surfaces.md): Keep existing Soma gateway, auth, provider catalog, and surfaces authoritative
 - [0011-semantic-outbox.md](0011-semantic-outbox.md): Use a transactional semantic outbox
+- [0012-multi-distribution-monorepo.md](0012-multi-distribution-monorepo.md): Build Labby, Axon, Cortex, Synapse, and Soma as complete distributions from one monorepo
+- [0013-operations-plane.md](0013-operations-plane.md): Establish Synapse as the operations-plane product over neutral shared engines

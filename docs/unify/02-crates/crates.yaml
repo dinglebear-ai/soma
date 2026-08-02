@@ -1,10 +1,10 @@
 apiVersion: soma.dev/v1
 kind: SharedCrateCatalog
 metadata:
-  name: soma-context-v1
+  name: soma-product-family
   status: proposed
-  auditDate: '2026-07-21'
-  note: Package names use the fixed soma-<one-word> convention; crates.io availability and fallback names remain to be verified.
+  auditDate: '2026-07-31'
+  note: Package names use the fixed soma-<one-word> convention; crates.io availability and fallback names remain to be verified. Every shared crate is independently consumable and contains no product policy.
 crates:
 - name: soma-primitives
   path: crates/shared/context/primitives
@@ -376,3 +376,77 @@ crates:
   - knowledge and observation projectors
   - soma-memory
   publication: Publishable flagship crate after shared vocabulary seam is proven.
+- name: soma-ops
+  path: crates/shared/operations/ops
+  phase: Operations foundation
+  purpose: Transport-neutral operation identity, targets, safety classification, plans, progress, verification,
+    authorization evidence, and lifecycle events.
+  source:
+  - 'Synapse: actions/operations.rs operation metadata'
+  - 'Synapse: runtime budgets and confirmation boundaries'
+  dependsOn:
+  - soma-primitives
+  - soma-sanitize
+  features:
+  - serde
+  - schema
+  - progress
+  consumers:
+  - soma-fleet
+  - soma-infra
+  - standalone Synapse application
+  - Soma operations adapter
+  - Cortex operation-event collector
+  publication: Publishable after embedded and standalone consumer fixtures pass.
+- name: soma-fleet
+  path: crates/shared/operations/fleet
+  phase: Operations connectivity
+  purpose: Explicit host topology, OpenSSH execution and pooling, forwarding, bounded transfer, fanout,
+    deadlines, and partial-success aggregation.
+  source:
+  - 'Synapse: host_config.rs neutral models and repository traits'
+  - 'Synapse: ssh/* and fanout.rs'
+  dependsOn:
+  - soma-ops
+  - soma-sanitize
+  - soma-process optional
+  features:
+  - ssh
+  - transfer
+  - forwarding
+  - serde
+  consumers:
+  - soma-infra
+  - standalone Synapse application
+  - future remote MCP and Incus host-agent adapters
+  publication: Publishable with no product host discovery defaults.
+- name: soma-infra
+  path: crates/shared/operations/infra
+  phase: Operations engine
+  purpose: Docker, Compose, Incus, host, file, process, log, and ZFS operational semantics over explicit
+    clients and fleet ports.
+  source:
+  - 'Synapse: FluxService and focused service modules'
+  - 'Synapse: ScoutService and focused service modules'
+  - 'Soma: neutral incus-client consumer behavior'
+  dependsOn:
+  - soma-ops
+  - soma-fleet
+  - soma-sanitize
+  - soma-process optional
+  - incus-client optional
+  features:
+  - docker
+  - compose
+  - incus
+  - host
+  - files
+  - processes
+  - logs
+  - zfs
+  - mutations
+  - all
+  consumers:
+  - standalone Synapse application
+  - Soma embedded operations adapter
+  publication: Publishable with read-only default features and mutation features opt-in until policy contracts stabilize.

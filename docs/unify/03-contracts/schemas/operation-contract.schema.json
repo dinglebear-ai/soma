@@ -1,0 +1,514 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dinglebear.ai/soma/operations/operation-contract.schema.json",
+  "title": "Soma Operation Contract Bundle",
+  "description": "Canonical operation specifications, Synapse compatibility bindings, and semantic fixtures.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bundle_version",
+    "generated_at",
+    "donor",
+    "operations",
+    "legacy_bindings",
+    "fixtures"
+  ],
+  "properties": {
+    "bundle_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "generator": {
+      "$ref": "#/$defs/text"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "donor": {
+      "$ref": "#/$defs/donor"
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/operationSpec"
+      }
+    },
+    "legacy_bindings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/legacyBinding"
+      }
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fixture"
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "operationName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){1,7}$"
+    },
+    "schemaRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9._:/#-]+$"
+    },
+    "targetKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "host",
+            "docker_daemon",
+            "container",
+            "compose_project",
+            "incus_server",
+            "incus_instance",
+            "image",
+            "network",
+            "storage_pool",
+            "storage_volume",
+            "file",
+            "process",
+            "log_source",
+            "zfs_pool",
+            "zfs_dataset",
+            "zfs_snapshot"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "$ref": "#/$defs/operationName"
+            }
+          }
+        }
+      ]
+    },
+    "support": {
+      "enum": [
+        "unsupported",
+        "optional",
+        "required"
+      ]
+    },
+    "donor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "operation_count",
+        "fixture_digest"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "operation_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fixture_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planning",
+        "progress",
+        "cancellation",
+        "verification",
+        "fanout"
+      ],
+      "properties": {
+        "planning": {
+          "$ref": "#/$defs/support"
+        },
+        "progress": {
+          "$ref": "#/$defs/support"
+        },
+        "cancellation": {
+          "$ref": "#/$defs/support"
+        },
+        "verification": {
+          "$ref": "#/$defs/support"
+        },
+        "fanout": {
+          "$ref": "#/$defs/support"
+        }
+      }
+    },
+    "operationSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "schema_version",
+        "parameter_schema",
+        "result_schema",
+        "diagnostic_codes",
+        "target_kind",
+        "access",
+        "risk",
+        "reversibility",
+        "required",
+        "required_any",
+        "planning",
+        "progress",
+        "cancellation",
+        "verification",
+        "fanout",
+        "retry",
+        "idempotent",
+        "evidence",
+        "requirements"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/operationName"
+        },
+        "schema_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "parameter_schema": {
+          "$ref": "#/$defs/schemaId"
+        },
+        "result_schema": {
+          "$ref": "#/$defs/schemaId"
+        },
+        "diagnostic_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/diagnosticCode"
+          }
+        },
+        "target_kind": {
+          "$ref": "#/$defs/targetKind"
+        },
+        "access": {
+          "enum": [
+            "read",
+            "mutation"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "safe",
+            "disruptive",
+            "destructive",
+            "privileged"
+          ]
+        },
+        "reversibility": {
+          "enum": [
+            "reversible",
+            "conditional",
+            "irreversible"
+          ]
+        },
+        "required": {
+          "$ref": "#/$defs/parameterGroup"
+        },
+        "required_any": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/parameterGroup"
+          }
+        },
+        "planning": {
+          "$ref": "#/$defs/support"
+        },
+        "progress": {
+          "$ref": "#/$defs/support"
+        },
+        "cancellation": {
+          "$ref": "#/$defs/support"
+        },
+        "verification": {
+          "$ref": "#/$defs/support"
+        },
+        "fanout": {
+          "$ref": "#/$defs/support"
+        },
+        "retry": {
+          "enum": [
+            "never",
+            "safe",
+            "conditional"
+          ]
+        },
+        "idempotent": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/evidenceKind"
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 256,
+            "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$"
+          }
+        }
+      }
+    },
+    "legacyBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product",
+        "surface",
+        "legacy_name",
+        "canonical_name",
+        "contract_version",
+        "legacy_access",
+        "legacy_destructive",
+        "transport",
+        "parameter_translator",
+        "result_projector"
+      ],
+      "properties": {
+        "product": {
+          "const": "synapse"
+        },
+        "surface": {
+          "enum": [
+            "flux",
+            "scout",
+            "shared"
+          ]
+        },
+        "legacy_name": {
+          "$ref": "#/$defs/text"
+        },
+        "action": {
+          "$ref": "#/$defs/text"
+        },
+        "subaction": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "canonical_name": {
+          "$ref": "#/$defs/operationName"
+        },
+        "contract_version": {
+          "$ref": "#/$defs/semver"
+        },
+        "legacy_access": {
+          "enum": [
+            "public",
+            "read",
+            "write"
+          ]
+        },
+        "legacy_destructive": {
+          "type": "boolean"
+        },
+        "transport": {
+          "enum": [
+            "rest",
+            "mcp_only",
+            "both"
+          ]
+        },
+        "required_params": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "required_any": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        "parameter_translator": {
+          "$ref": "#/$defs/text"
+        },
+        "result_projector": {
+          "$ref": "#/$defs/text"
+        },
+        "deprecated": {
+          "type": "boolean",
+          "default": false
+        },
+        "removal_condition": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_name",
+        "contract_version",
+        "case_id",
+        "kind",
+        "input",
+        "expected"
+      ],
+      "properties": {
+        "operation_name": {
+          "$ref": "#/$defs/operationName"
+        },
+        "contract_version": {
+          "$ref": "#/$defs/semver"
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{0,127}$"
+        },
+        "kind": {
+          "enum": [
+            "valid_minimal",
+            "valid_full",
+            "invalid",
+            "success",
+            "failure",
+            "verification",
+            "legacy_projection"
+          ]
+        },
+        "input": {},
+        "expected": {},
+        "expected_diagnostic_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{1,127}$"
+          }
+        },
+        "source_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "schemaId": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^schema\\.operations\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){1,7}\\.(?:parameters|result)\\.v[1-9][0-9]*$"
+    },
+    "diagnosticCode": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$"
+    },
+    "parameterGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        }
+      }
+    },
+    "evidenceKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "runtime_state",
+            "logs",
+            "configuration",
+            "artifact",
+            "diff",
+            "metrics"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "$ref": "#/$defs/operationName"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

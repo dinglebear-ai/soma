@@ -261,6 +261,9 @@ fn discover_rmcp_manifest_versions(root: &Path) -> Result<Vec<(PathBuf, String)>
 }
 
 fn is_ignored_manifest_dir(path: &Path) -> bool {
+    if path.ends_with("crates/synapse/import") {
+        return true;
+    }
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| matches!(name, ".git" | ".worktrees" | "target" | "node_modules"))
@@ -619,6 +622,12 @@ mod tests {
         fs::write(
             root.join(".worktrees/stale/crates/stale/Cargo.toml"),
             "rmcp = { version = \"9.9.9\", default-features = false }\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("crates/synapse/import")).unwrap();
+        fs::write(
+            root.join("crates/synapse/import/Cargo.toml"),
+            "rmcp = { version = \"3.1.0\", default-features = false }\n",
         )
         .unwrap();
 

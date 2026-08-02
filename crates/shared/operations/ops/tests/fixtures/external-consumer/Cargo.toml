@@ -1,0 +1,12 @@
+[workspace]
+
+[package]
+name = "soma-ops-external-consumer"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+soma-ops = { path = "../../..", features = ["schema"] }

@@ -1,6 +1,6 @@
 # Replace every placeholder with the full 40-character commit before implementation.
 format_version = 1
-generated_at = "2026-07-21"
+generated_at = "2026-07-31"
 
 [soma]
 repository = "https://github.com/dinglebear-ai/soma"
@@ -16,3 +16,10 @@ commit = "<resolve-full-sha>"
 repository = "https://github.com/dinglebear-ai/cortex"
 short_commit = "9633fc3"
 commit = "<resolve-full-sha>"
+
+[synapse]
+repository = "https://github.com/jmagar/synapse"
+short_commit = "b925529"
+commit = "<resolve-full-sha>"
+operation_source = "src/actions/operations.rs"
+operation_count = 59

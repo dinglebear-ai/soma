@@ -3,7 +3,21 @@ use serde_json::{Value, json};
 
 #[test]
 fn layer_paths_match_architecture_taxonomy() {
-    assert_eq!(Layer::from_path("apps/soma"), Some(Layer::App));
+    for product in ["soma", "labby", "axon", "cortex", "synapse"] {
+        assert_eq!(
+            Layer::from_path(&format!("apps/{product}")),
+            Some(Layer::App)
+        );
+        assert_eq!(
+            Layer::from_path(&format!("crates/{product}/application")),
+            Some(Layer::ProductApplication)
+        );
+        assert_eq!(
+            Layer::from_path(&format!("crates/{product}/mcp")),
+            Some(Layer::ProductSurface)
+        );
+    }
+
     assert_eq!(
         Layer::from_path("crates/shared/mcp/gateway"),
         Some(Layer::Shared)
@@ -13,15 +27,34 @@ fn layer_paths_match_architecture_taxonomy() {
         Some(Layer::ProductRuntime)
     );
     assert_eq!(
-        Layer::from_path("crates/soma/api"),
-        Some(Layer::ProductSurface)
-    );
-    assert_eq!(
         Layer::from_path("crates/integrations/unifi"),
         Some(Layer::Vendor)
     );
     assert_eq!(Layer::from_path("xtask"), Some(Layer::Legacy));
     assert_eq!(Layer::from_path("apps/web"), None);
+}
+
+#[test]
+fn product_paths_identify_their_distribution() {
+    assert_eq!(Product::from_path("apps/soma"), Some(Product::Soma));
+    assert_eq!(
+        Product::from_path("crates/labby/application"),
+        Some(Product::Labby)
+    );
+    assert_eq!(
+        Product::from_path("crates/axon/runtime"),
+        Some(Product::Axon)
+    );
+    assert_eq!(
+        Product::from_path("crates/cortex/web"),
+        Some(Product::Cortex)
+    );
+    assert_eq!(
+        Product::from_path("crates/synapse/mcp"),
+        Some(Product::Synapse)
+    );
+    assert_eq!(Product::from_path("crates/shared/operations/ops"), None);
+    assert_eq!(Product::from_path("apps/web"), None);
 }
 
 #[test]
