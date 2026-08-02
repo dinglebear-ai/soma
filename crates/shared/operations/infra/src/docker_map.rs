@@ -188,3 +188,7 @@ fn signed_optional(value: &Value, names: &[&str]) -> Option<i64> {
 fn boolean(value: &Value, names: &[&str]) -> Option<bool> {
     field(value, names)?.as_bool()
 }
+
+#[cfg(test)]
+#[path = "docker_map_tests.rs"]
+mod tests;
