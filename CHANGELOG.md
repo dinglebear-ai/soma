@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.8.2](https://github.com/dinglebear-ai/soma/compare/v0.8.1...v0.8.2) (2026-08-02)
+
+### Fixed
+
+* install and verify the native Soma binary from the npm package ([#279](https://github.com/dinglebear-ai/soma/pull/279)) ([2e07e8c](https://github.com/dinglebear-ai/soma/commit/2e07e8cdd51d5a6b033546d97f3d6ddc16f2d36b))
+
 ## [0.8.1](https://github.com/dinglebear-ai/soma/compare/v0.8.0...v0.8.1) (2026-08-02)
 
 
