@@ -83,7 +83,11 @@ Optional external drivers:
 9. The local Bollard adapter uses only the default daemon socket and cannot override the daemon independently of the host binding.
 10. Docker list results reject more than 10,000 items or an item larger than 256 KiB of JSON.
 11. Cancellation is accepted at every asynchronous driver boundary.
-12. No mutation operation is exposed by this slice.
+12. Docker log reads are one-shot, byte-bounded, and filter locally.
+13. Journal unit and time values reject option smuggling before argv construction.
+14. Process sorting and ZFS dataset types are allowlisted.
+15. dmesg permission failures return structured operator guidance.
+16. No mutation operation is exposed by this slice.
 
 ## Initial donor disposition
 

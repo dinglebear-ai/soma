@@ -111,6 +111,110 @@ pub struct ComposeConfig {
     pub volumes: Vec<String>,
 }
 
+/// Bounded Compose log request.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComposeLogRequest {
+    lines: u32,
+    since: Option<String>,
+    service: Option<String>,
+    deadline: Timestamp,
+}
+
+impl ComposeLogRequest {
+    /// Creates a request for the last 100 lines.
+    #[must_use]
+    pub const fn new(deadline: Timestamp) -> Self {
+        Self {
+            lines: 100,
+            since: None,
+            service: None,
+            deadline,
+        }
+    }
+
+    /// Sets the maximum requested line count.
+    pub fn with_lines(mut self, lines: u32) -> InfraResult<Self> {
+        if lines == 0 || lines > 5000 {
+            return Err(crate::InfraError::InvalidRequest {
+                domain: "compose",
+                message: "log line count must be 1-5000".into(),
+            });
+        }
+        self.lines = lines;
+        Ok(self)
+    }
+
+    /// Sets a Compose-compatible since expression.
+    pub fn with_since(mut self, since: impl Into<String>) -> InfraResult<Self> {
+        let since = since.into();
+        let option_like = since.starts_with("--")
+            || (since.starts_with('-')
+                && !since[1..]
+                    .chars()
+                    .next()
+                    .is_some_and(|character| character.is_ascii_digit()));
+        if since.is_empty()
+            || option_like
+            || since.chars().count() > 128
+            || since.chars().any(char::is_control)
+        {
+            return Err(crate::InfraError::InvalidRequest {
+                domain: "compose",
+                message: "invalid Compose log since expression".into(),
+            });
+        }
+        self.since = Some(since);
+        Ok(self)
+    }
+
+    /// Restricts logs to one validated service.
+    pub fn with_service(mut self, service: impl Into<String>) -> InfraResult<Self> {
+        let service = service.into();
+        validate_log_service(&service)?;
+        self.service = Some(service);
+        Ok(self)
+    }
+
+    /// Returns the line count.
+    #[must_use]
+    pub const fn lines(&self) -> u32 {
+        self.lines
+    }
+
+    /// Returns the optional since expression.
+    #[must_use]
+    pub fn since(&self) -> Option<&str> {
+        self.since.as_deref()
+    }
+
+    /// Returns the optional service.
+    #[must_use]
+    pub fn service(&self) -> Option<&str> {
+        self.service.as_deref()
+    }
+
+    /// Returns the absolute deadline.
+    #[must_use]
+    pub const fn deadline(&self) -> Timestamp {
+        self.deadline
+    }
+}
+
+/// Bounded Compose log result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComposeLogs {
+    /// Target host.
+    pub host: HostId,
+    /// Exact topology revision.
+    pub topology_revision: TopologyRevision,
+    /// Project name.
+    pub project: String,
+    /// Returned log lines.
+    pub lines: Vec<String>,
+    /// Whether the byte ceiling truncated output.
+    pub truncated: bool,
+}
+
 /// Product-neutral Compose inspection engine.
 #[async_trait]
 pub trait ComposeInspector: Send + Sync {
@@ -140,4 +244,33 @@ pub trait ComposeInspector: Send + Sync {
         deadline: Timestamp,
         cancellation: &CancellationToken,
     ) -> InfraResult<ComposeConfig>;
+
+    /// Reads bounded project logs.
+    async fn logs(
+        &self,
+        host: &HostRecord,
+        project: &ComposeProjectRef,
+        request: &ComposeLogRequest,
+        cancellation: &CancellationToken,
+    ) -> InfraResult<ComposeLogs>;
+}
+
+fn validate_log_service(value: &str) -> InfraResult<()> {
+    let mut chars = value.chars();
+    if value.is_empty()
+        || value.len() > 256
+        || !chars
+            .next()
+            .is_some_and(|character| character.is_ascii_alphanumeric())
+        || !chars.all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.')
+        })
+    {
+        Err(crate::InfraError::InvalidRequest {
+            domain: "compose",
+            message: format!("invalid service name: {value:?}"),
+        })
+    } else {
+        Ok(())
+    }
 }
