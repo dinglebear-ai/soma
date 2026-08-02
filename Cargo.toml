@@ -23,6 +23,8 @@ members = [
   "crates/shared/mcp/server",
   "crates/shared/observability",
   "crates/shared/openapi",
+  "crates/shared/operations/fleet",
+  "crates/shared/operations/infra",
   "crates/shared/operations/ops",
   "crates/shared/provider-adapters",
   "crates/shared/provider-core",
@@ -42,6 +44,7 @@ members = [
   "crates/soma/runtime",
   "crates/soma/test-support",
   "crates/soma/web",
+  "crates/synapse/application",
   "packages/python",
   "xtask",
 ]
@@ -132,6 +135,8 @@ soma-mcp-proxy = { path = "crates/shared/mcp/proxy", default-features = false }
 soma-mcp-server = { path = "crates/shared/mcp/server" }
 soma-observability = { path = "crates/shared/observability" }
 soma-openapi = { path = "crates/shared/openapi", default-features = false }
+soma-fleet = { path = "crates/shared/operations/fleet" }
+soma-infra = { path = "crates/shared/operations/infra" }
 soma-ops = { path = "crates/shared/operations/ops", default-features = false }
 soma-provider-adapters = { path = "crates/shared/provider-adapters" }
 soma-provider-core = { path = "crates/shared/provider-core", default-features = false }
@@ -150,6 +155,9 @@ soma-palette = { path = "crates/soma/palette" }
 soma-runtime = { path = "crates/soma/runtime", default-features = false }
 soma-test-support = { path = "crates/soma/test-support" }
 soma-web = { path = "crates/soma/web" }
+
+# Synapse product crates
+synapse-application = { path = "crates/synapse/application" }
 
 # ── profiles ─────────────────────────────────────────────────────────────────
 # release-fast: release-grade binary (optimized, stripped) but with cheap LTO and
