@@ -274,9 +274,14 @@ synapse-product-import-test:
 synapse-product-import-release:
     cargo build --manifest-path crates/synapse/import/Cargo.toml --release --locked --bin synapse
 
-# Validate native Synapse catalog and compatibility adapters
+# Validate native Synapse catalog and historical request aliases
 synapse-compat-check:
     cargo test -p synapse-application --all-features
+
+# Validate every canonical Synapse read and all infrastructure drivers
+synapse-canonical-read-check:
+    cargo test -p soma-infra --all-features
+    cargo test -p synapse-application
 
 # Validate neutral fleet contracts and all optional drivers
 fleet-check:

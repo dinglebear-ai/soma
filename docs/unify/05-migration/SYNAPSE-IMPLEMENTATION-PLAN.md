@@ -1,7 +1,7 @@
 ---
 title: "Synapse to Soma Shared-Crate Implementation Plan"
 created: 2026-08-01
-updated: 2026-08-01
+updated: 2026-08-02
 status: normative
 ---
 
@@ -9,9 +9,11 @@ status: normative
 
 ## Objective
 
-Move Synapse's reusable operations runtime into shared crates under Soma while preserving Synapse as a complete standalone distribution and retaining exact Flux, Scout, CLI, MCP, REST, auth, and packaging compatibility until an explicit versioned cutover.
+Move Synapse's reusable operations runtime into shared crates under Soma and expose one canonical operation contract to standalone Synapse, embedded Soma, and later orchestration surfaces.
 
 The result is one implementation of operation semantics consumed by standalone Synapse, embedded Soma, remote Soma-to-Synapse adapters, and later Labby orchestration.
+
+**Cutover decision, 2026-08-02:** Synapse has no external consumers that require historical result shapes. Canonical JSON is therefore the runtime boundary. Historical Flux and Scout names may remain as optional request aliases, but legacy result JSON and Markdown projection are deleted rather than preserved.
 
 ## Baselines
 
@@ -34,7 +36,7 @@ Before source movement, update `donors.lock.toml` to the full donor commit and r
 6. Execution success and verification are separate.
 7. Fanout preserves every per-target outcome.
 8. Unknown totals and uncertain mutation state are never fabricated away.
-9. The old and new runtime run differentially before each cutover.
+9. Canonical behavior is verified through schema-backed operation matrices and driver conformance; exact legacy presentation parity is not required.
 10. Donor code is deleted only after standalone Synapse consumes the shared implementation.
 
 ## Target repository layout
@@ -125,13 +127,13 @@ Deliverables:
 - one canonical catalog generated from typed definitions;
 - `LegacyOperationBinding` registry for all 59 operations;
 - typed parameter normalization for Flux and Scout;
-- canonical-to-legacy result projectors;
+- direct canonical result validation and JSON return;
 - stable diagnostic mapping to CLI, REST, and MCP;
 - generators for help, schema, OpenAPI, and documentation tables.
 
 Exit: all current surfaces are derived from or validated against the registry, and changing one required field in a surface fixture makes CI fail.
 
-Implementation record: `synapse-application` is now a native product-application crate that depends only on `soma-ops` and checked-in generated contracts. It loads and cross-validates the 59 canonical specifications, 59 legacy bindings, parameter and result schemas, and 33 diagnostic projections. Flux and Scout requests normalize into closed canonical parameters; canonical results validate before deterministic JSON or Markdown projection; diagnostic projection is rejected unless the operation declares the code. The generated Flux/Scout input schemas are derived from the same registry. The imported donor workspace remains unchanged and unlinked.
+Implementation record: `synapse-application` began as a compatibility-only crate over `soma-ops`. The canonical cutover extends it into the product runtime over `soma-fleet` and `soma-infra`. It still cross-validates 59 canonical specifications, 59 historical request bindings, parameter and result schemas, and 33 diagnostic mappings. Flux and Scout requests may normalize into canonical parameters, but canonical results now return directly as schema-validated JSON. The obsolete Markdown and legacy result projector has been removed. The imported donor workspace remains unchanged and unlinked.
 
 ### PR 5: fleet foundation
 
@@ -176,15 +178,17 @@ For each slice:
 - define the canonical operation spec;
 - implement local and remote drivers behind the same trait;
 - normalize donor behavior into canonical output;
-- preserve Flux/Scout output with a product projector;
-- run donor/new differential fixtures;
+- return the canonical result family directly;
+- run canonical schema, security, and driver-conformance fixtures;
 - add a live smoke test only after deterministic mock tests pass.
 
 Exit: standalone Synapse delegates every migrated read to `soma-infra`, and embedded Soma can execute the same read through an operations port without importing Synapse.
 
 Implementation record: the first `soma-infra` slice defines neutral read-only host, Docker, Compose, and filesystem contracts. Host and Compose reads execute through `soma-fleet` with discrete argv and bounded output. The optional Bollard adapter is local-only, bound to one host topology revision, and maps generated SDK models into stable neutral types. Linux filesystem stat, preview, and SHA-256 hashing reuse the donor's `openat2` confinement with explicit roots, `BENEATH`, `NO_SYMLINKS`, `NO_MAGICLINKS`, preview limits, and hash ceilings.
 
-The read-expansion slice adds Docker disk usage, one-shot bounded container logs and statistics, Compose logs, typed process snapshots, validated syslog/journal/dmesg/auth reads, and structured ZFS pool, dataset, and snapshot tables. Command-backed reads preserve discrete argv, local filtering, cancellation, byte ceilings, allowlisted process sorts and ZFS types, journal option-smuggling defenses, and structured dmesg permission diagnostics. Mutations, continuous streaming, filesystem list/tail, remote Docker composition, donor differential projection, and Synapse cutover remain outside this PR.
+The read-expansion slice adds Docker disk usage, one-shot bounded container logs and statistics, Compose logs, typed process snapshots, validated syslog/journal/dmesg/auth reads, and structured ZFS pool, dataset, and snapshot tables. Command-backed reads preserve discrete argv, local filtering, cancellation, byte ceilings, allowlisted process sorts and ZFS types, journal option-smuggling defenses, and structured dmesg permission diagnostics.
+
+The canonical-cutover slice completes remote Docker composition, descriptor-confined local/remote file, tree, find, and tail queries, remaining host-system reads, and container process tables. `SynapseReadRuntime` executes all 35 read operations through typed ports and validates every result against the checked-in canonical result schema. The legacy result projector is deleted. The remaining 24 operations are mutations and fail closed until the mutation framework is implemented.
 
 ### PR 7: mutation framework and infrastructure mutations
 
@@ -221,17 +225,17 @@ Exit: each mutation has plan, authorization, send-state, verification, cancellat
 
 Base: PR 7.
 
-Replace the legacy dispatcher internals with compatibility adapters over the shared engines.
+Replace the legacy dispatcher internals with the canonical runtime over the shared engines.
 
 Deliverables:
 
 - Flux and Scout parsers normalize to typed canonical requests;
-- shared results project back to exact legacy JSON and human output;
+- canonical results return directly as schema-validated JSON;
 - Synapse product policy issues authorization evidence;
 - MCP elicitation and CLI confirmation remain product adapters;
-- REST and MCP routing keep current action names and schemas;
+- REST, MCP, and CLI surfaces consume canonical names and schemas; historical names may remain optional aliases;
 - activity, status, readiness, and observability remain product-owned;
-- old service implementations are removed after differential parity.
+- old service implementations are removed after canonical coverage and driver conformance are proven.
 
 Exit: Synapse's complete test suite, destructive smoke suite, MCPorter suite, OpenAPI drift check, CLI snapshots, npm wrapper tests, and release packaging pass with no donor engine path remaining.
 
@@ -309,20 +313,19 @@ Exit: install, upgrade, rollback, and fresh deployment are proven from release a
 - duplicate names, aliases, or bindings fail;
 - deterministic bundle and plan digests are stable across platforms.
 
-### Behavioral differential
+### Canonical behavioral verification
 
-For each migrated operation, run the donor and shared implementation against the same fake driver or controlled environment and compare:
+For each migrated operation, execute the canonical runtime against fake drivers and controlled environments and verify:
 
 - accepted and rejected requests;
 - normalization and defaults;
 - target resolution;
 - backend calls and ordering;
 - canonical outputs and diagnostics;
-- legacy result projections;
 - progress and terminal events;
 - cancellation, retry, and verification behavior.
 
-Intentional differences require a versioned compatibility decision and fixture update.
+Intentional differences from the donor require a documented canonical contract decision and fixture update. Presentation-only differences do not block cutover because there are no external Synapse consumers.
 
 ### Driver conformance
 
@@ -352,7 +355,7 @@ Event delivery failure after an external mutation is recorded separately and nev
 
 ## Cutover and rollback
 
-Each vertical slice has a product feature gate while differential verification runs. Cutover requires green parity, no direct legacy calls, and a rollback path that re-enables the previous dispatcher without data conversion.
+Each vertical slice has a product feature gate while canonical verification runs. Cutover requires complete canonical coverage, no direct donor runtime calls, and a rollback path that does not require data conversion.
 
 The final cutover requires release artifacts from the monorepo, config compatibility, state and cache compatibility, preserved operation names, documented changed behavior, and a tested rollback release.
 
@@ -362,7 +365,7 @@ No two-way source synchronization is allowed after final cutover.
 
 | Risk | Failure mode | Control |
 |---|---|---|
-| Name-only parity | 59 operations appear mapped while behavior drifts | full semantic fixture plus differential execution |
+| Name-only parity | 59 operations appear mapped while behavior drifts | schema-backed execution matrix plus driver conformance |
 | Product leakage | shared crates acquire scopes, env vars, RMCP, or UI policy | architecture lint and forbidden-import scan |
 | Dual runtime drift | donor and shared engines evolve independently | feature-gated cutover, then delete donor engine code |
 | Oversized migration PRs | review cannot prove behavior | one vertical slice and one responsibility per PR |

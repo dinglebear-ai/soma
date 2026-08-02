@@ -1,7 +1,7 @@
 ---
 title: "soma-infra"
 created: 2026-08-01
-updated: 2026-08-01
+updated: 2026-08-02
 status: implemented
 ---
 
@@ -27,6 +27,7 @@ Required internal dependencies:
 Optional external drivers:
 
 - Bollard for local Docker reads;
+- strict OpenSSH Unix-socket forwarding for remote Docker reads;
 - Rustix `openat2` for Linux descriptor-confined filesystem access.
 
 ## Public contracts
@@ -92,10 +93,12 @@ Optional external drivers:
 8. Bollard-generated models remain private to the adapter.
 9. Cancellation is accepted at every asynchronous driver boundary.
 10. Docker log reads are one-shot, byte-bounded, and filter locally.
-11. Journal unit and time values reject option smuggling before argv construction.
-12. Process sorting and ZFS dataset types are allowlisted.
-13. dmesg permission failures return structured operator guidance.
-14. No mutation operation is exposed by this slice.
+11. Remote Docker clients own private Unix-socket forwards and exact-revision pooled SSH connections.
+12. Remote filesystem queries open every path segment with `O_NOFOLLOW` and receive user values only through argv.
+13. Journal unit and time values reject option smuggling before argv construction.
+14. Process sorting and ZFS dataset types are allowlisted.
+15. dmesg permission failures return structured operator guidance.
+16. No mutation operation is exposed by this slice.
 
 ## Initial donor disposition
 
@@ -109,7 +112,7 @@ This slice begins extraction of:
 - Compose log reads;
 - Scout process, operating-system log, and ZFS reads.
 
-The imported donor remains unchanged. Synapse does not cut over in these foundation PRs. Differential surface projection, remote Docker composition, filesystem list/tail, and product delegation follow in later stacked slices.
+The imported donor remains unchanged as historical source material. The canonical Synapse read runtime now delegates all 35 read operations to `soma-fleet` and `soma-infra`; no legacy result projection is retained. Mutations remain the next execution layer.
 
 ## Verification
 

@@ -264,6 +264,29 @@ pub trait ContainerReader: Send + Sync {
         container: &str,
         cancellation: &CancellationToken,
     ) -> InfraResult<ContainerInspect>;
+
+    /// Returns one container process table.
+    async fn top_container(
+        &self,
+        host: &HostRecord,
+        container: &str,
+        cancellation: &CancellationToken,
+    ) -> InfraResult<ContainerProcessTable>;
+}
+
+/// Process table returned by Docker top.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContainerProcessTable {
+    /// Target host.
+    pub host: HostId,
+    /// Exact topology revision.
+    pub topology_revision: TopologyRevision,
+    /// Container identifier.
+    pub container: String,
+    /// Process column titles.
+    pub titles: Vec<String>,
+    /// Process value rows.
+    pub processes: Vec<Vec<String>>,
 }
 
 /// Docker image read operations.
@@ -298,27 +321,6 @@ pub trait VolumeReader: Send + Sync {
         host: &HostRecord,
         cancellation: &CancellationToken,
     ) -> InfraResult<Vec<VolumeSummary>>;
-}
-
-/// Complete neutral Docker read surface.
-pub trait DockerReadClient:
-    DockerSystemReader
-    + ContainerReader
-    + ImageReader
-    + NetworkReader
-    + VolumeReader
-    + crate::DockerTelemetryReader
-{
-}
-
-impl<T> DockerReadClient for T where
-    T: DockerSystemReader
-        + ContainerReader
-        + ImageReader
-        + NetworkReader
-        + VolumeReader
-        + crate::DockerTelemetryReader
-{
 }
 
 #[cfg(test)]
