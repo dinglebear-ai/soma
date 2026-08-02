@@ -11,10 +11,10 @@
 #   'Alice'?" IS a good test — it proves semantic correctness, not just liveness.
 #
 #   This script demonstrates the pattern with four checks:
-#     greet(name="Alice")    → response MUST contain "Alice" in the greeting string
-#     echo(message="ping")   → response MUST echo back the exact string "ping"
-#     status()               → response MUST have a "status" key
-#     help()                 → response MUST include a non-empty action catalog
+#     greet(name="Alice")    → response.output MUST contain "Alice" in the greeting string
+#     echo(message="ping")   → response.output MUST echo back the exact string "ping"
+#     status()               → response.output MUST have a "status" key
+#     help()                 → response.output MUST include a non-empty action catalog
 #     schema resource        → MUST be valid JSON schema with name="soma" and inputSchema
 #
 #   MCP elicitation actions (`elicit_name`, `scaffold_intent`) require a client
@@ -537,22 +537,22 @@ suite_core() {
 
   # Basic greet — check the key exists
   run_test "example greet: returns greeting object" \
-    "soma" '{"action":"greet"}' "greeting"
+    "soma" '{"action":"greet"}' "output.greeting"
 
   # Semantic check: greeting with name="Alice" MUST contain "Alice" in the response
   # CUSTOMIZE: This is the gold standard test format.
   #           Input: action=greet, name="Alice"
-  #           Expected: response.greeting contains "Alice"
+  #           Expected: response.output.greeting contains "Alice"
   #           Why: proves the name parameter is actually used, not ignored
   run_test_semantic "example greet: name param reflected in response" \
     "soma" '{"action":"greet","name":"Alice"}' \
-    "greeting" "Alice" "contains"
+    "output.greeting" "Alice" "contains"
 
   # The default target should be "World"
   # CUSTOMIZE: Test documented defaults explicitly — they break silently otherwise.
   run_test_semantic "example greet: default target is World" \
     "soma" '{"action":"greet"}' \
-    "target" "World" "exact"
+    "output.target" "World" "exact"
 
   # ── echo ────────────────────────────────────────────────────────────────────
   # CUSTOMIZE: Echo-style operations are the simplest semantic test:
@@ -560,39 +560,39 @@ suite_core() {
 
   # Basic echo key check
   run_test "soma echo: returns echo object" \
-    "soma" '{"action":"echo","message":"ping"}' "echo"
+    "soma" '{"action":"echo","message":"ping"}' "output.echo"
 
   # Semantic: the echoed value must match the input EXACTLY
   # CUSTOMIZE: "contains" is too weak for echo — use "exact" to catch truncation bugs
   run_test_semantic "soma echo: exact message round-trip" \
     "soma" '{"action":"echo","message":"hello-mcporter-test-12345"}' \
-    "echo" "hello-mcporter-test-12345" "exact"
+    "output.echo" "hello-mcporter-test-12345" "exact"
 
   # ── status ──────────────────────────────────────────────────────────────────
   # CUSTOMIZE: Replace this with your service's status/health action.
   #           Add checks for fields your service actually returns.
 
   run_test "example status: returns status field" \
-    "soma" '{"action":"status"}' "status"
+    "soma" '{"action":"status"}' "output.status"
 
   # The status value must be "ok" — not just present, but correct
   # CUSTOMIZE: If your status action can return other values, adjust or skip this.
   run_test_semantic "example status: status value is ok" \
     "soma" '{"action":"status"}' \
-    "status" "ok" "exact"
+    "output.status" "ok" "exact"
 
   # ── help ────────────────────────────────────────────────────────────────────
   # CUSTOMIZE: The help action should always return non-empty documentation.
   #           This test proves the help text is actually served, not a 500 error.
 
   run_test "example help: returns help content" \
-    "soma" '{"action":"help"}' ""
+    "soma" '{"action":"help"}' "output"
 
   # Help should contain the action list — "greet" is always in Soma.
   # CUSTOMIZE: Replace "greet" with an action that must appear in your help catalog.
   run_test_semantic "example help: mentions greet action" \
     "soma" '{"action":"help"}' \
-    "actions" "greet" "contains"
+    "output.actions" "greet" "contains"
 }
 
 # ── suite_schema_resource ──────────────────────────────────────────────────────

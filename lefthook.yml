@@ -33,6 +33,7 @@
 #   - cargo audit     → network call; runs in CI
 #   - just conformance → boots a server and runs the official MCP conformance suite; CI/manual only
 #   - cargo xtask patterns → full-repo contract scan; runs in CI and `just soma-check`
+#   - just synapse-product-import-check → locked donor snapshot check; runs in CI/manual only
 #   - cargo xtask check-release-versions → PR/main release gate; runs in CI and release scripts
 #   - cargo xtask doc --strict → rustdoc -D warnings gate; runs in CI (docs.yml) and `just doc-check`
 #

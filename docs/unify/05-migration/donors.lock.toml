@@ -16,5 +16,6 @@ commit = "3d75d109cc3531d1b18c9d32c4059566651cd863"
 [synapse]
 repository = "https://github.com/dinglebear-ai/synapse"
 commit = "8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f"
+import_tree = "26377caa5464ac14375063b497e731b9db711e27"
 operation_source = "src/actions/operations.rs"
 operation_count = 59

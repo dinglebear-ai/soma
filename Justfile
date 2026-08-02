@@ -258,7 +258,7 @@ operation-result-contracts-check:
 operation-result-contracts-generate:
     python3 scripts/generate-operation-result-contracts.py generate
 
-# Verify the exact history-preserving Synapse donor import
+# Verify the locked Synapse donor import snapshot
 synapse-product-import-check:
     python3 scripts/check-synapse-product-import.py
 
