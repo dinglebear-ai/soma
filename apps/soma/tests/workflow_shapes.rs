@@ -240,6 +240,12 @@ fn artifact_workflows_run_from_published_releases() {
         release.contains("validate-release-tag:") && docker.contains("validate:"),
         "artifact publication must validate the immutable release contract"
     );
+    let docker_validate = workflow_job_block(&docker, "validate");
+    assert!(
+        docker_validate
+            .contains("if: startsWith(github.event.release.tag_name || inputs.tag_name, 'v')"),
+        "the Soma container workflow must ignore component-prefixed provider releases"
+    );
     assert!(
         release.contains("gh release upload")
             && release.contains("\"${{ needs.validate-release-tag.outputs.release_tag }}\""),
@@ -262,6 +268,10 @@ fn artifact_workflows_run_from_published_releases() {
         npm.contains("needs: [validate-release-tag, release]")
             && npm.contains("npm-trusted-publish.yml@a5937b60b317abed7e757737d95ad003fac2bfb0"),
         "npm publish must wait for artifacts and use the fleet source of truth"
+    );
+    assert!(
+        !npm.contains("NPM_TOKEN"),
+        "trusted npm publication must use OIDC without a legacy registry token"
     );
     assert!(
         release.contains("arch: linux-x86_64")
@@ -315,7 +325,6 @@ fn python_wheel_release_supports_immutable_tag_recovery() {
         "provider recovery must validate and upload to the requested immutable tag"
     );
 }
-
 #[test]
 fn python_wheel_release_uses_oidc_capable_pypi_publisher() {
     let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
