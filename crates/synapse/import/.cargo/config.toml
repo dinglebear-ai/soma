@@ -15,4 +15,3 @@
 # The `cargo xtask` convention: `cargo xtask <cmd>` delegates to the xtask crate.
 # See: https://github.com/matklad/cargo-xtask
 xtask = "run --package xtask --"
-

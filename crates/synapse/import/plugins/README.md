@@ -122,8 +122,8 @@ session start.
 
 Three-tier structured documentation for the Synapse `flux` and `scout` MCP tools, used by Claude Code and Codex to understand when and how to invoke them.
 
-**Tier 1** (above the fold): tool name, quick action table, most common usage.  
-**Tier 2**: full action reference — parameters, types, example calls, response shapes.  
+**Tier 1** (above the fold): tool name, quick action table, most common usage.
+**Tier 2**: full action reference — parameters, types, example calls, response shapes.
 **Tier 3**: multi-step workflows demonstrating real-world use.
 
 Tier 3 also includes a REST fallback for when the MCP transport is unavailable: `POST /v1/synapse` using the `SYNAPSE_MCP_HOST`, `SYNAPSE_MCP_PORT`, and `SYNAPSE_MCP_TOKEN` env vars.
