@@ -99,7 +99,7 @@ jobs:
     name: Fast Rust
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@364993bc854c4feb82cb26917e741fd6465cd47a
+    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       toolchain: "1.97.1"
       timeout-minutes: 35
