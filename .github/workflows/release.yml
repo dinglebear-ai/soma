@@ -20,6 +20,12 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing vX.Y.Z release tag to resume
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -30,24 +36,31 @@ env:
   BINARY_NAME: soma
   CARGO_INCREMENTAL: "0"
   # Release builds route through kache (RUSTC_WRAPPER) and its compiler cache.
-  RELEASE_TAG: ${{ github.event.release.tag_name }}
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
 
 jobs:
   validate-release-tag:
     name: Validate release tag
-    if: startsWith(github.event.release.tag_name, 'v')
+    if: startsWith(github.event.release.tag_name || inputs.tag_name, 'v')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
       release_tag: ${{ steps.validate.outputs.release_tag }}
+      release_ref: ${{ steps.validate.outputs.release_ref }}
       version: ${{ steps.validate.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag_name }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Install validation system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libseccomp-dev
 
       - name: Install Rust and kache
         uses: ./.github/actions/setup-rust-kache
@@ -87,8 +100,11 @@ jobs:
           # target entries while retaining kache's compiler cache layers.
           CARGO_TARGET_DIR="${RUNNER_TEMP}/soma-version-sync-target" \
             cargo xtask check-version-sync
-          echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          {
+            echo "release_tag=${tag}"
+            echo "release_ref=refs/tags/${tag}"
+            echo "version=${version}"
+          } >> "$GITHUB_OUTPUT"
 
   frontend-assets:
     name: Frontend Assets
@@ -103,7 +119,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ needs.validate-release-tag.outputs.release_tag }}
+          ref: ${{ needs.validate-release-tag.outputs.release_ref }}
 
       - name: Set up mise tools
         uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
@@ -148,7 +164,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ needs.validate-release-tag.outputs.release_tag }}
+          ref: ${{ needs.validate-release-tag.outputs.release_ref }}
 
       - name: Download web export
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -192,7 +208,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
+          sudo apt-get install -y pkg-config libssl-dev libseccomp-dev
 
       - name: Cache Cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -231,7 +247,7 @@ jobs:
     needs: [validate-release-tag, release]
     uses: dinglebear-ai/workflows/.github/workflows/npm-trusted-publish.yml@a5937b60b317abed7e757737d95ad003fac2bfb0
     with:
-      checkout-ref: ${{ needs.validate-release-tag.outputs.release_tag }}
+      checkout-ref: ${{ needs.validate-release-tag.outputs.release_ref }}
       expected-version: ${{ needs.validate-release-tag.outputs.version }}
       working-directory: packages/soma-rmcp
       cache-dependency-path: packages/soma-rmcp/package.json
@@ -254,7 +270,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ needs.validate-release-tag.outputs.release_tag }}
+          ref: ${{ needs.validate-release-tag.outputs.release_ref }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093

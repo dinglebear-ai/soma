@@ -35,6 +35,117 @@ fn workflow_job_block(workflow: &str, job_name: &str) -> String {
 }
 
 #[test]
+fn shared_workflow_callers_use_approved_reachable_revisions() {
+    const WORKFLOW_PREFIX: &str = "dinglebear-ai/workflows/.github/workflows/";
+    const FLEET_REVISION: &str = "d1a41a7af9c41189e0f1062234364f5814bda99d";
+    // npm publication needs token-mode support added after the fleet revision.
+    const NPM_PUBLISH_REVISION: &str = "a5937b60b317abed7e757737d95ad003fac2bfb0";
+    let workflow_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(".github/workflows");
+    let mut unexpected_callers = Vec::new();
+    let mut caller_count = 0;
+    let mut implementation_ref_count = 0;
+
+    for entry in std::fs::read_dir(&workflow_dir).expect("read workflow directory") {
+        let path = entry.expect("read workflow entry").path();
+        if !matches!(
+            path.extension().and_then(std::ffi::OsStr::to_str),
+            Some("yml" | "yaml")
+        ) {
+            continue;
+        }
+        let workflow = std::fs::read_to_string(&path).expect("read workflow file");
+        for (line_number, line) in workflow.lines().enumerate() {
+            if let Some(revision) = line.trim().strip_prefix("implementation-ref:") {
+                implementation_ref_count += 1;
+                if revision.trim() != FLEET_REVISION {
+                    unexpected_callers.push(format!(
+                        "{}:{}: implementation-ref {}",
+                        path.display(),
+                        line_number + 1,
+                        revision.trim()
+                    ));
+                }
+            }
+            let Some((_, shared_call)) = line.split_once(WORKFLOW_PREFIX) else {
+                continue;
+            };
+            let Some((called_workflow, revision)) = shared_call.split_once('@') else {
+                unexpected_callers.push(format!(
+                    "{}:{}: missing immutable revision",
+                    path.display(),
+                    line_number + 1
+                ));
+                continue;
+            };
+            caller_count += 1;
+            let expected_revision = if called_workflow == "npm-trusted-publish.yml" {
+                NPM_PUBLISH_REVISION
+            } else {
+                FLEET_REVISION
+            };
+            if revision.split_whitespace().next() != Some(expected_revision) {
+                unexpected_callers.push(format!(
+                    "{}:{}: {called_workflow}@{revision}",
+                    path.display(),
+                    line_number + 1
+                ));
+            }
+        }
+    }
+
+    assert!(caller_count > 0, "expected shared workflow callers");
+    assert!(
+        implementation_ref_count > 0,
+        "expected shared contract implementation revisions"
+    );
+    unexpected_callers.sort();
+    assert!(
+        unexpected_callers.is_empty(),
+        "shared workflow callers must use approved default-branch revisions:\n{}",
+        unexpected_callers.join("\n")
+    );
+}
+
+#[test]
+fn hosted_container_smoke_is_explicitly_allowed_by_fleet_policy() {
+    let ci = include_str!("../../../.github/workflows/ci.yml");
+    let fleet_policy = include_str!("../../../.github/workflows/fleet-policy.yml");
+    let container_smoke = workflow_job_block(ci, "container-smoke");
+    let policy = workflow_job_block(fleet_policy, "policy");
+
+    assert!(
+        container_smoke.contains("runs-on: ubuntu-24.04"),
+        "production container smoke must retain a hosted Docker runner"
+    );
+    assert!(
+        policy.contains("allow-hosted-fast: true"),
+        "fleet policy must explicitly allow the hosted production container smoke"
+    );
+}
+
+#[test]
+fn container_hot_reload_source_stays_outside_service_owned_data() {
+    let ci = include_str!("../../../.github/workflows/ci.yml");
+    let container_smoke = workflow_job_block(ci, "container-smoke");
+
+    assert!(
+        container_smoke.contains("provider_dir=\"${RUNNER_TEMP}/soma-container-providers\""),
+        "hot-reloaded providers must live outside /data because the entrypoint recursively owns /data"
+    );
+    assert!(
+        container_smoke.contains("-e SOMA_PROVIDER_DIR=/providers")
+            && container_smoke.contains("-v \"${provider_dir}:/providers:ro\""),
+        "the production-container smoke must mount the externally mutable provider source separately"
+    );
+    assert!(
+        !container_smoke.contains("${data_dir}/providers"),
+        "the host runner cannot hot-reload files under the service-owned /data bind mount"
+    );
+}
+
+#[test]
 fn ci_runs_release_version_gate_before_merge() {
     let workflow = include_str!("../../../.github/workflows/ci.yml");
     let soma = workflow_job_block(workflow, "soma");
@@ -58,9 +169,12 @@ fn native_builds_are_release_only_and_github_hosted() {
     );
     assert!(
         release.contains("release:\n    types: [published]")
-            && !release.contains("workflow_dispatch:")
+            && release.contains("workflow_dispatch:")
+            && release.contains("tag_name:")
+            && release
+                .contains("ref: refs/tags/${{ github.event.release.tag_name || inputs.tag_name }}")
             && !release.contains("self-hosted"),
-        "heavy native builds must run only for published releases on GitHub-hosted runners"
+        "heavy native builds must use published releases or an explicit immutable-tag recovery on GitHub-hosted runners"
     );
 }
 
@@ -104,11 +218,22 @@ fn artifact_workflows_run_from_published_releases() {
             workflow.contains("release:\n    types: [published]"),
             "artifact workflow must trigger from release-please published releases"
         );
-        assert!(
-            !workflow.contains("workflow_dispatch:"),
-            "heavy artifact workflows must run only from a published release"
-        );
     }
+    assert!(
+        release.contains("workflow_dispatch:")
+            && release.contains("tag_name:")
+            && release.contains("release_ref=refs/tags/${tag}")
+            && release
+                .contains("checkout-ref: ${{ needs.validate-release-tag.outputs.release_ref }}"),
+        "the binary release workflow must support only explicit immutable-tag recovery"
+    );
+    assert!(
+        docker.contains("workflow_dispatch:")
+            && docker.contains("tag_name:")
+            && docker.contains("release_ref=refs/tags/${RELEASE_TAG}")
+            && docker.contains("checkout-ref: ${{ needs.validate.outputs.release_ref }}"),
+        "the container publication workflow must support explicit immutable-tag recovery"
+    );
     assert!(
         release.contains("validate-release-tag:") && docker.contains("validate:"),
         "artifact publication must validate the immutable release contract"
@@ -119,13 +244,21 @@ fn artifact_workflows_run_from_published_releases() {
         "release artifact workflow must attach files to the existing release tag"
     );
     assert!(
+        release.contains("sudo apt-get install -y pkg-config libssl-dev libseccomp-dev"),
+        "release builds must install the native seccomp development library"
+    );
+    assert!(
+        docker.contains("sudo apt-get install -y libseccomp-dev"),
+        "container release validation must install the native seccomp development library"
+    );
+    assert!(
         !release.contains("git push origin HEAD:main") && !release.contains("ref: main"),
         "release artifact workflow must not write generated binaries back to main"
     );
     let npm = workflow_job_block(&release, "npm");
     assert!(
         npm.contains("needs: [validate-release-tag, release]")
-            && npm.contains("npm-trusted-publish.yml@364993bc854c4feb82cb26917e741fd6465cd47a"),
+            && npm.contains("npm-trusted-publish.yml@a5937b60b317abed7e757737d95ad003fac2bfb0"),
         "npm publish must wait for artifacts and use the fleet source of truth"
     );
     assert!(
@@ -145,7 +278,7 @@ fn artifact_workflows_run_from_published_releases() {
         "the product-specific MCP Registry publication must remain in Soma"
     );
     assert!(
-        docker.contains("hosted-container-release.yml@364993bc854c4feb82cb26917e741fd6465cd47a"),
+        docker.contains("hosted-container-release.yml@d1a41a7af9c41189e0f1062234364f5814bda99d"),
         "container publication must use the pinned fleet workflow"
     );
 }
