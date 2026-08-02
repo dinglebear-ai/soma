@@ -75,42 +75,38 @@ async fn single_round_trip_sends_request_and_parses_response() {
 #[tokio::test]
 async fn concurrent_requests_on_the_same_socket_do_not_block_each_other() {
     let body = r#"{"type":"sync","status":"Success","status_code":200,"metadata":{}}"#;
-    let (socket_path, _dir) = spawn_fake_daemon(move |req| {
-        let req_text = String::from_utf8_lossy(&req);
-        // The "slow" request path deliberately sleeps before responding,
-        // simulating a long-poll wait_for_operation call. If requests were
-        // serialized through one shared connection, the fast request below
-        // would have to wait for this sleep to elapse too.
-        if req_text.contains("/1.0/slow") {
-            std::thread::sleep(Duration::from_millis(300));
-        }
-        json_response("HTTP/1.1 200 OK", body)
-    })
-    .await;
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let socket_path = dir.path().join("incus.sock");
+    let listener = UnixListener::bind(&socket_path).expect("bind unix listener");
+    let slow_started = std::sync::Arc::new(tokio::sync::Notify::new());
+    let release_slow = std::sync::Arc::new(tokio::sync::Notify::new());
 
-    let fast_path = socket_path.clone();
-    let fast = tokio::spawn(async move {
-        let start = std::time::Instant::now();
-        execute(
-            &fast_path,
-            RequestSpec {
-                method: Method::Get,
-                path: "/1.0/fast",
-                query: &[],
-                body: None,
-                if_match: None,
-            },
-            None,
-        )
-        .await
-        .expect("fast request should succeed");
-        start.elapsed()
+    let daemon_slow_started = slow_started.clone();
+    let daemon_release_slow = release_slow.clone();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            let slow_started = daemon_slow_started.clone();
+            let release_slow = daemon_release_slow.clone();
+            tokio::spawn(async move {
+                let mut request = vec![0u8; 8192];
+                let bytes_read = stream.read(&mut request).await.unwrap_or(0);
+                request.truncate(bytes_read);
+                if String::from_utf8_lossy(&request).contains("/1.0/slow") {
+                    slow_started.notify_one();
+                    release_slow.notified().await;
+                }
+                let response = json_response("HTTP/1.1 200 OK", body);
+                let _ = stream.write_all(&response).await;
+                let _ = stream.shutdown().await;
+            });
+        }
     });
 
-    // Give the slow request a head start so it's genuinely in-flight first.
-    tokio::time::sleep(Duration::from_millis(20)).await;
     let slow_path = socket_path.clone();
-    let _slow = tokio::spawn(async move {
+    let slow = tokio::spawn(async move {
         execute(
             &slow_path,
             RequestSpec {
@@ -123,14 +119,40 @@ async fn concurrent_requests_on_the_same_socket_do_not_block_each_other() {
             None,
         )
         .await
+        .expect("slow request should succeed after release");
     });
 
-    let fast_elapsed = fast.await.expect("fast task should not panic");
+    tokio::time::timeout(Duration::from_secs(5), slow_started.notified())
+        .await
+        .expect("slow request must reach the daemon");
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        execute(
+            &socket_path,
+            RequestSpec {
+                method: Method::Get,
+                path: "/1.0/fast",
+                query: &[],
+                body: None,
+                if_match: None,
+            },
+            None,
+        )
+        .await
+        .expect("fast request should succeed while the slow request is gated");
+    })
+    .await
+    .expect("fast request must not wait for the gated slow request");
     assert!(
-        fast_elapsed < Duration::from_millis(150),
-        "fast request took {fast_elapsed:?}, expected it to complete well before the slow \
-         request's 300ms sleep - a shared/serialized connection would have blocked it"
+        !slow.is_finished(),
+        "slow request must remain gated when the fast request completes"
     );
+
+    release_slow.notify_one();
+    tokio::time::timeout(Duration::from_secs(5), slow)
+        .await
+        .expect("released slow request must finish")
+        .expect("slow request task must not panic");
 }
 
 #[tokio::test]
@@ -542,20 +564,24 @@ async fn a_daemon_that_never_responds_times_out_instead_of_hanging_forever() {
     let socket_path = dir.path().join("incus.sock");
     let listener = UnixListener::bind(&socket_path).expect("bind unix listener");
 
+    let request_received = std::sync::Arc::new(tokio::sync::Notify::new());
+    let daemon_request_received = request_received.clone();
     tokio::spawn(async move {
-        let Ok((_stream, _)) = listener.accept().await else {
+        let Ok((mut stream, _)) = listener.accept().await else {
             return;
         };
-        // Accept the connection but never read or write anything - the
-        // caller-supplied timeout, not a server-side signal, must be what
-        // ends this call.
+        let mut request = vec![0u8; 8192];
+        let _ = stream.read(&mut request).await;
+        daemon_request_received.notify_one();
+        // Read the request but never write a response. This proves the request
+        // was sent before the caller-supplied timeout ends the call.
         std::future::pending::<()>().await;
     });
 
-    let result = tokio::time::timeout(
-        Duration::from_secs(5),
+    let request_path = socket_path.clone();
+    let request = tokio::spawn(async move {
         execute(
-            &socket_path,
+            &request_path,
             RequestSpec {
                 method: Method::Get,
                 path: "/1.0/test",
@@ -563,11 +589,18 @@ async fn a_daemon_that_never_responds_times_out_instead_of_hanging_forever() {
                 body: None,
                 if_match: None,
             },
-            Some(Duration::from_millis(100)),
-        ),
-    )
-    .await
-    .expect("the per-request timeout must fire well before the test's own 5s backstop");
+            Some(Duration::from_secs(1)),
+        )
+        .await
+    });
+
+    tokio::time::timeout(Duration::from_secs(5), request_received.notified())
+        .await
+        .expect("daemon must receive the request before its timeout");
+    let result = tokio::time::timeout(Duration::from_secs(5), request)
+        .await
+        .expect("the per-request timeout must fire before the test backstop")
+        .expect("request task must not panic");
 
     match result {
         Err(crate::Error::Timeout {
