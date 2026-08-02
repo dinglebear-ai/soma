@@ -20,6 +20,12 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing vX.Y.Z release tag to resume
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -30,12 +36,12 @@ env:
   BINARY_NAME: soma
   CARGO_INCREMENTAL: "0"
   # Release builds route through kache (RUSTC_WRAPPER) and its compiler cache.
-  RELEASE_TAG: ${{ github.event.release.tag_name }}
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
 
 jobs:
   validate-release-tag:
     name: Validate release tag
-    if: startsWith(github.event.release.tag_name, 'v')
+    if: startsWith(github.event.release.tag_name || inputs.tag_name, 'v')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -46,8 +52,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.event.release.tag_name || inputs.tag_name }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Install validation system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libseccomp-dev
 
       - name: Install Rust and kache
         uses: ./.github/actions/setup-rust-kache
