@@ -40,6 +40,8 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
     const FLEET_REVISION: &str = "d1a41a7af9c41189e0f1062234364f5814bda99d";
     // npm publication needs token-mode support added after the fleet revision.
     const NPM_PUBLISH_REVISION: &str = "a5937b60b317abed7e757737d95ad003fac2bfb0";
+    // Native wheels need platform-specific cibuildwheel architecture names.
+    const PYTHON_WHEELS_REVISION: &str = "eadba32f019e984b26d93c807ef72e5094df2876";
     let workflow_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join(".github/workflows");
@@ -80,10 +82,10 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
                 continue;
             };
             caller_count += 1;
-            let expected_revision = if called_workflow == "npm-trusted-publish.yml" {
-                NPM_PUBLISH_REVISION
-            } else {
-                FLEET_REVISION
+            let expected_revision = match called_workflow {
+                "npm-trusted-publish.yml" => NPM_PUBLISH_REVISION,
+                "hosted-python-wheels.yml" => PYTHON_WHEELS_REVISION,
+                _ => FLEET_REVISION,
             };
             if revision.split_whitespace().next() != Some(expected_revision) {
                 unexpected_callers.push(format!(
