@@ -284,3 +284,14 @@ fn artifact_workflows_run_from_published_releases() {
         "container publication must use the pinned fleet workflow"
     );
 }
+
+#[test]
+fn python_wheel_publish_merges_platform_artifacts() {
+    let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
+
+    assert!(
+        workflow.contains("pattern: soma-provider-wheels-*")
+            && workflow.contains("merge-multiple: true"),
+        "provider publication must merge every platform-specific wheel artifact"
+    );
+}
