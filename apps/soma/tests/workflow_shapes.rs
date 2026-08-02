@@ -169,9 +169,13 @@ fn native_builds_are_release_only_and_github_hosted() {
     );
     assert!(
         release.contains("release:\n    types: [published]")
-            && !release.contains("workflow_dispatch:")
+            && release.contains("workflow_dispatch:")
+            && release.contains("tag_name:")
+            && release.contains(
+                "ref: refs/tags/${{ github.event.release.tag_name || inputs.tag_name }}"
+            )
             && !release.contains("self-hosted"),
-        "heavy native builds must run only for published releases on GitHub-hosted runners"
+        "heavy native builds must use published releases or an explicit immutable-tag recovery on GitHub-hosted runners"
     );
 }
 
@@ -215,11 +219,20 @@ fn artifact_workflows_run_from_published_releases() {
             workflow.contains("release:\n    types: [published]"),
             "artifact workflow must trigger from release-please published releases"
         );
-        assert!(
-            !workflow.contains("workflow_dispatch:"),
-            "heavy artifact workflows must run only from a published release"
-        );
     }
+    assert!(
+        release.contains("workflow_dispatch:")
+            && release.contains("tag_name:")
+            && release.contains("release_ref=refs/tags/${tag}")
+            && release.contains(
+                "checkout-ref: ${{ needs.validate-release-tag.outputs.release_ref }}"
+            ),
+        "the binary release workflow must support only explicit immutable-tag recovery"
+    );
+    assert!(
+        !docker.contains("workflow_dispatch:"),
+        "the container publication workflow must remain release-event only"
+    );
     assert!(
         release.contains("validate-release-tag:") && docker.contains("validate:"),
         "artifact publication must validate the immutable release contract"
@@ -228,6 +241,10 @@ fn artifact_workflows_run_from_published_releases() {
         release.contains("gh release upload")
             && release.contains("\"${{ needs.validate-release-tag.outputs.release_tag }}\""),
         "release artifact workflow must attach files to the existing release tag"
+    );
+    assert!(
+        release.contains("sudo apt-get install -y pkg-config libssl-dev libseccomp-dev"),
+        "release builds must install the native seccomp development library"
     );
     assert!(
         !release.contains("git push origin HEAD:main") && !release.contains("ref: main"),
