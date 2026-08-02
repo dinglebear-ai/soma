@@ -330,9 +330,8 @@ fn python_wheel_release_uses_oidc_capable_pypi_publisher() {
     let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
 
     assert!(
-        workflow.contains(
-            "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
-        ) && workflow.contains("packages-dir: dist")
+        workflow.contains("pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",)
+            && workflow.contains("packages-dir: dist")
             && workflow.contains("attestations: true"),
         "provider publication must use the approved OIDC and attestation capable PyPI action"
     );
