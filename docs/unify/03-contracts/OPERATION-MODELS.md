@@ -30,12 +30,14 @@ A stable lowercase dotted identifier such as `container.restart`.
 - `CorrelationId`: workflow or incident identity.
 - `CausationId`: causing event or operation.
 - `AuthorizationId`: opaque product-issued evidence identity.
+- `SchemaId`: validated `schema.operations.<operation>.<parameters|result>.vN` identity bound to the operation name and positive schema version.
+- `DiagnosticCode`: validated lowercase dotted machine code such as `target.not_found`; human messages are not stable identifiers.
 
 ### TargetRef
 
 Fields: target kind, authority, canonical key, optional resource/topology revision, and a bounded parent chain. Display labels are metadata, never identity.
 
-Target kinds initially include host, docker_engine, container, compose_project, filesystem_path, process, log_source, zfs_pool, zfs_dataset, zfs_snapshot, incus_server, incus_instance, and extension.
+Target kinds include host, docker_daemon, container, compose_project, Incus server and instance, image, network, storage pool and volume, file, process, log source, ZFS pool/dataset/snapshot, and validated custom kinds.
 
 ## Catalog
 
@@ -46,7 +48,8 @@ Required fields:
 - name and contract version;
 - target kind;
 - access, risk, and reversibility;
-- parameter and result schema IDs;
+- parameter and result `SchemaId` values;
+- stable diagnostic-code declarations;
 - planning, progress, cancellation, verification, fanout, and idempotency support;
 - retry classification;
 - required backend capabilities;
@@ -60,7 +63,7 @@ It never contains Flux/Scout names, REST exposure, product scopes, or UI labels.
 - `AccessClass`: read or mutation.
 - `RiskClass`: safe, disruptive, destructive, privileged.
 - `Reversibility`: reversible, conditional, irreversible.
-- `RetryClass`: never, safe, safe_with_idempotency, caller_decides.
+- `RetryClass`: never, safe, conditional. A safe mutation retry additionally requires explicit idempotency.
 - `MutationSendState`: not_sent, may_have_been_sent, sent, confirmed_applied.
 
 Reads cannot be destructive. Automatic mutation retry requires idempotency. Destructive and privileged operations require planning. Irreversible operations require explicit product approval policy.

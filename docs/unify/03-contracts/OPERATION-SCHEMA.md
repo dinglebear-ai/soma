@@ -53,17 +53,17 @@ A legacy binding may map multiple legacy spellings to one canonical operation. T
 
 ## Parameter and result schemas
 
-Typed Rust request and output models are authoritative. JSON Schema is generated from those types or from an equally strict definition checked against them.
+Typed Rust request and output models are authoritative. Every operation/version has deterministic `schema.operations.<operation>.parameters.vN` and `.result.vN` identities. JSON Schema is generated from those types or from an equally strict definition checked against them.
 
 Schemas MUST use Draft 2020-12, be closed by default, carry stable `$id` values, express alternatives and bounds, reject ambiguous targets and control characters, version breaking changes, and exclude credentials or raw authorization tokens.
 
-Compatibility adapters may accept aliases, but normalization MUST produce exactly one canonical typed request before engine admission.
+Compatibility adapters may accept aliases, but normalization MUST produce exactly one canonical typed request before engine admission. The generated canonical parameter schemas are closed, exclude legacy routing and presentation fields, and are digest-bound to the 59-operation classification registry. Canonical result payload schemas are likewise closed and normalize donor outputs into bounded inventory, status, metrics, mutation, text/artifact, command, fanout, transfer, diff, and diagnostic-report families. Legacy response formatting is a product projector above these payloads.
 
 ## Semantic fixtures
 
 Every operation MUST provide a minimal valid request, a representative full request when optional behavior exists, each required alternative group, invalid unknown and conflicting fields, invalid target identity, deadline and budget failures, authorization failures for mutations, stale plan or topology cases, representative success and backend failure, and verification outcomes when supported.
 
-Fixtures assert normalized requests, target resolution, plans, fingerprints, diagnostics, results, verification, events, and legacy projections. Snapshot-only testing is insufficient for security and state-machine behavior.
+Fixtures assert normalized requests, target resolution, plans, fingerprints, diagnostics, results, verification, events, and legacy projections. The canonical classification fixture MUST deserialize directly into the shared `OperationSpec` model and remain digest-bound to the legacy semantic fixture. Snapshot-only testing is insufficient for security and state-machine behavior.
 
 ## State machine
 
@@ -75,9 +75,9 @@ Surface-specific status names are projections. They MUST preserve canonical mean
 
 ## Diagnostic contract
 
-Diagnostics use stable machine codes and structured fields. Human messages may improve without breaking compatibility.
+Diagnostics use validated lowercase dotted `DiagnosticCode` values and structured fields. Every canonical operation declares its possible codes. Human messages may improve without breaking compatibility.
 
-Each diagnostic defines code, category, severity, retry classification, mutation-send uncertainty, correctable field paths, redaction behavior, and mappings for CLI exit codes, HTTP status, MCP error data, and operation events. Products MUST NOT infer retry safety from prose.
+Each diagnostic defines code, category, severity, retry classification, mutation-send uncertainty, correctable field paths, redaction behavior, and mappings for CLI exit codes, HTTP status, MCP error data, and operation events. The generated projection table covers every diagnostic declared by the canonical operation registry. Products MUST NOT infer retry safety from prose.
 
 ## Generation pipeline
 

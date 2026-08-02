@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
-    AccessClass, OperationName, RetryClass, Reversibility, RiskClass, TargetKind, TargetRef,
-    TargetRefError,
+    AccessClass, DiagnosticCode, OperationName, RetryClass, Reversibility, RiskClass, SchemaId,
+    TargetKind, TargetRef, TargetRefError,
 };
 
 const MAX_PARAMETER_CHARS: usize = 128;
@@ -99,6 +99,9 @@ impl ParameterGroup {
 pub struct OperationSpec {
     name: OperationName,
     schema_version: u32,
+    parameter_schema: SchemaId,
+    result_schema: SchemaId,
+    diagnostic_codes: BTreeSet<DiagnosticCode>,
     target_kind: TargetKind,
     access: AccessClass,
     risk: RiskClass,
@@ -109,6 +112,7 @@ pub struct OperationSpec {
     progress: CapabilitySupport,
     cancellation: CapabilitySupport,
     verification: CapabilitySupport,
+    fanout: CapabilitySupport,
     retry: RetryClass,
     idempotent: bool,
     evidence: BTreeSet<EvidenceKind>,
@@ -119,9 +123,16 @@ impl OperationSpec {
     /// Creates a minimal version-one specification.
     #[must_use]
     pub fn new(name: OperationName, target_kind: TargetKind, access: AccessClass) -> Self {
+        let parameter_schema = SchemaId::parameters(&name, 1)
+            .expect("validated operation names produce valid parameter schema IDs");
+        let result_schema = SchemaId::result(&name, 1)
+            .expect("validated operation names produce valid result schema IDs");
         Self {
             name,
             schema_version: 1,
+            parameter_schema,
+            result_schema,
+            diagnostic_codes: BTreeSet::new(),
             target_kind,
             access,
             risk: RiskClass::Safe,
@@ -132,6 +143,7 @@ impl OperationSpec {
             progress: CapabilitySupport::Unsupported,
             cancellation: CapabilitySupport::Unsupported,
             verification: CapabilitySupport::Unsupported,
+            fanout: CapabilitySupport::Unsupported,
             retry: RetryClass::Never,
             idempotent: false,
             evidence: BTreeSet::new(),
@@ -143,6 +155,27 @@ impl OperationSpec {
     #[must_use]
     pub fn with_schema_version(mut self, schema_version: u32) -> Self {
         self.schema_version = schema_version;
+        if let Ok(schema) = SchemaId::parameters(&self.name, schema_version) {
+            self.parameter_schema = schema;
+        }
+        if let Ok(schema) = SchemaId::result(&self.name, schema_version) {
+            self.result_schema = schema;
+        }
+        self
+    }
+
+    /// Sets explicit parameter and result schema identities.
+    #[must_use]
+    pub fn with_schema_ids(mut self, parameter_schema: SchemaId, result_schema: SchemaId) -> Self {
+        self.parameter_schema = parameter_schema;
+        self.result_schema = result_schema;
+        self
+    }
+
+    /// Declares a stable diagnostic code that the operation may emit.
+    #[must_use]
+    pub fn with_diagnostic_code(mut self, code: DiagnosticCode) -> Self {
+        self.diagnostic_codes.insert(code);
         self
     }
 
@@ -168,7 +201,7 @@ impl OperationSpec {
         self
     }
 
-    /// Sets lifecycle capability support.
+    /// Sets lifecycle and fanout capability support.
     #[must_use]
     pub fn with_lifecycle(
         mut self,
@@ -176,11 +209,13 @@ impl OperationSpec {
         progress: CapabilitySupport,
         cancellation: CapabilitySupport,
         verification: CapabilitySupport,
+        fanout: CapabilitySupport,
     ) -> Self {
         self.planning = planning;
         self.progress = progress;
         self.cancellation = cancellation;
         self.verification = verification;
+        self.fanout = fanout;
         self
     }
 
@@ -213,6 +248,13 @@ impl OperationSpec {
     pub fn validate(&self) -> Result<(), SpecError> {
         if self.schema_version == 0 {
             return Err(SpecError::ZeroSchemaVersion);
+        }
+        let expected_parameters = SchemaId::parameters(&self.name, self.schema_version)
+            .map_err(|_| SpecError::SchemaIdentityMismatch)?;
+        let expected_result = SchemaId::result(&self.name, self.schema_version)
+            .map_err(|_| SpecError::SchemaIdentityMismatch)?;
+        if self.parameter_schema != expected_parameters || self.result_schema != expected_result {
+            return Err(SpecError::SchemaIdentityMismatch);
         }
         if self.required_any.iter().any(ParameterGroup::is_empty) {
             return Err(SpecError::EmptyAlternative);
@@ -254,6 +296,29 @@ impl OperationSpec {
     #[must_use]
     pub const fn schema_version(&self) -> u32 {
         self.schema_version
+    }
+
+    /// Returns the versioned parameter schema identity.
+    #[must_use]
+    pub fn parameter_schema(&self) -> &SchemaId {
+        &self.parameter_schema
+    }
+
+    /// Returns the versioned result schema identity.
+    #[must_use]
+    pub fn result_schema(&self) -> &SchemaId {
+        &self.result_schema
+    }
+
+    /// Iterates over stable diagnostic codes declared by the operation.
+    pub fn diagnostic_codes(&self) -> impl Iterator<Item = &DiagnosticCode> {
+        self.diagnostic_codes.iter()
+    }
+
+    /// Returns whether the operation contract declares this diagnostic code.
+    #[must_use]
+    pub fn allows_diagnostic(&self, code: &DiagnosticCode) -> bool {
+        self.diagnostic_codes.contains(code)
     }
 
     /// Returns the required target kind.
@@ -316,6 +381,12 @@ impl OperationSpec {
         self.verification
     }
 
+    /// Returns fanout support.
+    #[must_use]
+    pub const fn fanout(&self) -> CapabilitySupport {
+        self.fanout
+    }
+
     /// Returns retry classification.
     #[must_use]
     pub const fn retry(&self) -> RetryClass {
@@ -360,6 +431,9 @@ pub enum SpecError {
     /// Schema version zero is invalid.
     #[error("operation schema version must be greater than zero")]
     ZeroSchemaVersion,
+    /// Parameter or result schema identity did not match the operation and version.
+    #[error("operation schema identity does not match operation name and version")]
+    SchemaIdentityMismatch,
     /// A parameter name is invalid.
     #[error("invalid operation parameter name: {0}")]
     InvalidParameter(String),

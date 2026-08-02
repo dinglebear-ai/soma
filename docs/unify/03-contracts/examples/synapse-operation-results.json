@@ -1,0 +1,3513 @@
+{
+  "format_version": 1,
+  "classification_sha256": "d7ebb3bfba204301bb3bc3406721f920a3b06cb1af395baff88fcf2d84ea5021",
+  "schema_count": 59,
+  "schemas": [
+    {
+      "operation_name": "compose.build",
+      "schema_id": "schema.operations.compose.build.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.build.result.v1",
+        "title": "compose.build canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.down",
+      "schema_id": "schema.operations.compose.down.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.down.result.v1",
+        "title": "compose.down canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.list",
+      "schema_id": "schema.operations.compose.list.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.list.result.v1",
+        "title": "compose.list canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.logs",
+      "schema_id": "schema.operations.compose.logs.result.v1",
+      "family": "text",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bytes",
+          "truncated",
+          "encoding"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "content_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "binary",
+              "unknown"
+            ]
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "required": [
+                "content_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "content_artifact"
+            ],
+            "not": {
+              "required": [
+                "content"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                },
+                {
+                  "required": [
+                    "content_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.logs.result.v1",
+        "title": "compose.logs canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.pull",
+      "schema_id": "schema.operations.compose.pull.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.pull.result.v1",
+        "title": "compose.pull canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.recreate",
+      "schema_id": "schema.operations.compose.recreate.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.recreate.result.v1",
+        "title": "compose.recreate canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.refresh",
+      "schema_id": "schema.operations.compose.refresh.result.v1",
+      "family": "status",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "refreshed": {
+            "type": "boolean"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.refresh.result.v1",
+        "title": "compose.refresh canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.restart",
+      "schema_id": "schema.operations.compose.restart.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.restart.result.v1",
+        "title": "compose.restart canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.status",
+      "schema_id": "schema.operations.compose.status.result.v1",
+      "family": "status",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "refreshed": {
+            "type": "boolean"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.status.result.v1",
+        "title": "compose.status canonical result payload"
+      }
+    },
+    {
+      "operation_name": "compose.up",
+      "schema_id": "schema.operations.compose.up.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.compose.up.result.v1",
+        "title": "compose.up canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.exec",
+      "schema_id": "schema.operations.container.exec.result.v1",
+      "family": "command",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "exit_code",
+          "timed_out",
+          "truncated"
+        ],
+        "properties": {
+          "exit_code": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 255
+          },
+          "stdout": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "stdout_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "stderr": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "stderr_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          {
+            "oneOf": [
+              {
+                "required": [
+                  "stdout"
+                ],
+                "not": {
+                  "required": [
+                    "stdout_artifact"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "stdout_artifact"
+                ],
+                "not": {
+                  "required": [
+                    "stdout"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "stdout"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "stdout_artifact"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "oneOf": [
+              {
+                "required": [
+                  "stderr"
+                ],
+                "not": {
+                  "required": [
+                    "stderr_artifact"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "stderr_artifact"
+                ],
+                "not": {
+                  "required": [
+                    "stderr"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "stderr"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "stderr_artifact"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.exec.result.v1",
+        "title": "container.exec canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.inspect",
+      "schema_id": "schema.operations.container.inspect.result.v1",
+      "family": "resource_detail",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource"
+        ],
+        "properties": {
+          "resource": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.inspect.result.v1",
+        "title": "container.inspect canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.list",
+      "schema_id": "schema.operations.container.list.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.list.result.v1",
+        "title": "container.list canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.logs",
+      "schema_id": "schema.operations.container.logs.result.v1",
+      "family": "text",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bytes",
+          "truncated",
+          "encoding"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "content_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "binary",
+              "unknown"
+            ]
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "required": [
+                "content_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "content_artifact"
+            ],
+            "not": {
+              "required": [
+                "content"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                },
+                {
+                  "required": [
+                    "content_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.logs.result.v1",
+        "title": "container.logs canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.pause",
+      "schema_id": "schema.operations.container.pause.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.pause.result.v1",
+        "title": "container.pause canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.pull",
+      "schema_id": "schema.operations.container.pull.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.pull.result.v1",
+        "title": "container.pull canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.recreate",
+      "schema_id": "schema.operations.container.recreate.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.recreate.result.v1",
+        "title": "container.recreate canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.restart",
+      "schema_id": "schema.operations.container.restart.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.restart.result.v1",
+        "title": "container.restart canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.resume",
+      "schema_id": "schema.operations.container.resume.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.resume.result.v1",
+        "title": "container.resume canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.search",
+      "schema_id": "schema.operations.container.search.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.search.result.v1",
+        "title": "container.search canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.start",
+      "schema_id": "schema.operations.container.start.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.start.result.v1",
+        "title": "container.start canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.stats",
+      "schema_id": "schema.operations.container.stats.result.v1",
+      "family": "metrics",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metrics"
+        ],
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "sampled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.stats.result.v1",
+        "title": "container.stats canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.stop",
+      "schema_id": "schema.operations.container.stop.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.stop.result.v1",
+        "title": "container.stop canonical result payload"
+      }
+    },
+    {
+      "operation_name": "container.top",
+      "schema_id": "schema.operations.container.top.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.container.top.result.v1",
+        "title": "container.top canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.build",
+      "schema_id": "schema.operations.docker.build.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.build.result.v1",
+        "title": "docker.build canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.df",
+      "schema_id": "schema.operations.docker.df.result.v1",
+      "family": "metrics",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metrics"
+        ],
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "sampled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.df.result.v1",
+        "title": "docker.df canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.images",
+      "schema_id": "schema.operations.docker.images.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.images.result.v1",
+        "title": "docker.images canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.info",
+      "schema_id": "schema.operations.docker.info.result.v1",
+      "family": "resource_detail",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource"
+        ],
+        "properties": {
+          "resource": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.info.result.v1",
+        "title": "docker.info canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.networks",
+      "schema_id": "schema.operations.docker.networks.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.networks.result.v1",
+        "title": "docker.networks canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.prune",
+      "schema_id": "schema.operations.docker.prune.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.prune.result.v1",
+        "title": "docker.prune canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.pull",
+      "schema_id": "schema.operations.docker.pull.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.pull.result.v1",
+        "title": "docker.pull canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.rmi",
+      "schema_id": "schema.operations.docker.rmi.result.v1",
+      "family": "mutation",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "changed",
+          "action",
+          "summary"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "backend_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "target_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.rmi.result.v1",
+        "title": "docker.rmi canonical result payload"
+      }
+    },
+    {
+      "operation_name": "docker.volumes",
+      "schema_id": "schema.operations.docker.volumes.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.docker.volumes.result.v1",
+        "title": "docker.volumes canonical result payload"
+      }
+    },
+    {
+      "operation_name": "files.compare",
+      "schema_id": "schema.operations.files.compare.result.v1",
+      "family": "diff",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "equal",
+          "summary"
+        ],
+        "properties": {
+          "equal": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "patch": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "patch_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+          },
+          "target_digest": {
+            "type": "string",
+            "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "patch"
+            ],
+            "not": {
+              "required": [
+                "patch_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "patch_artifact"
+            ],
+            "not": {
+              "required": [
+                "patch"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "patch"
+                  ]
+                },
+                {
+                  "required": [
+                    "patch_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.compare.result.v1",
+        "title": "files.compare canonical result payload"
+      }
+    },
+    {
+      "operation_name": "files.find",
+      "schema_id": "schema.operations.files.find.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.find.result.v1",
+        "title": "files.find canonical result payload"
+      }
+    },
+    {
+      "operation_name": "files.read",
+      "schema_id": "schema.operations.files.read.result.v1",
+      "family": "file_content",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bytes",
+          "truncated",
+          "encoding"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "content_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "binary",
+              "unknown"
+            ]
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "directory",
+              "tree"
+            ]
+          },
+          "entries": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "required": [
+                "content_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "content_artifact"
+            ],
+            "not": {
+              "required": [
+                "content"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                },
+                {
+                  "required": [
+                    "content_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.read.result.v1",
+        "title": "files.read canonical result payload"
+      }
+    },
+    {
+      "operation_name": "files.transfer",
+      "schema_id": "schema.operations.files.transfer.result.v1",
+      "family": "transfer",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "destination",
+          "bytes",
+          "verified"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+          },
+          "destination_digest": {
+            "type": "string",
+            "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.files.transfer.result.v1",
+        "title": "files.transfer canonical result payload"
+      }
+    },
+    {
+      "operation_name": "filesystem.usage",
+      "schema_id": "schema.operations.filesystem.usage.result.v1",
+      "family": "metrics",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metrics"
+        ],
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "sampled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.filesystem.usage.result.v1",
+        "title": "filesystem.usage canonical result payload"
+      }
+    },
+    {
+      "operation_name": "fleet.nodes",
+      "schema_id": "schema.operations.fleet.nodes.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.fleet.nodes.result.v1",
+        "title": "fleet.nodes canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.doctor",
+      "schema_id": "schema.operations.host.doctor.result.v1",
+      "family": "diagnostic_report",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "overall",
+          "checks"
+        ],
+        "properties": {
+          "overall": {
+            "enum": [
+              "ok",
+              "warning",
+              "failed"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "status",
+                "summary"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_.-]+$"
+                },
+                "status": {
+                  "enum": [
+                    "ok",
+                    "warning",
+                    "failed",
+                    "skipped"
+                  ]
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "evidence": {
+                  "type": "object",
+                  "maxProperties": 128,
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.doctor.result.v1",
+        "title": "host.doctor canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.exec",
+      "schema_id": "schema.operations.host.exec.result.v1",
+      "family": "command",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "exit_code",
+          "timed_out",
+          "truncated"
+        ],
+        "properties": {
+          "exit_code": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 255
+          },
+          "stdout": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "stdout_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "stderr": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "stderr_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          {
+            "oneOf": [
+              {
+                "required": [
+                  "stdout"
+                ],
+                "not": {
+                  "required": [
+                    "stdout_artifact"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "stdout_artifact"
+                ],
+                "not": {
+                  "required": [
+                    "stdout"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "stdout"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "stdout_artifact"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "oneOf": [
+              {
+                "required": [
+                  "stderr"
+                ],
+                "not": {
+                  "required": [
+                    "stderr_artifact"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "stderr_artifact"
+                ],
+                "not": {
+                  "required": [
+                    "stderr"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "stderr"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "stderr_artifact"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.exec.result.v1",
+        "title": "host.exec canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.exec_many",
+      "schema_id": "schema.operations.host.exec_many.result.v1",
+      "family": "fanout_command",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "results",
+          "success_count",
+          "failure_count",
+          "cancelled_count"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "target",
+                "ok"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "output": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "exit_code",
+                    "timed_out",
+                    "truncated"
+                  ],
+                  "properties": {
+                    "exit_code": {
+                      "type": "integer",
+                      "minimum": -1,
+                      "maximum": 255
+                    },
+                    "stdout": {
+                      "type": "string",
+                      "maxLength": 1048576
+                    },
+                    "stdout_artifact": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "uri",
+                        "media_type",
+                        "bytes"
+                      ],
+                      "properties": {
+                        "uri": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "media_type": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+                        },
+                        "protected": {
+                          "type": "boolean",
+                          "default": false
+                        }
+                      }
+                    },
+                    "stderr": {
+                      "type": "string",
+                      "maxLength": 1048576
+                    },
+                    "stderr_artifact": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "uri",
+                        "media_type",
+                        "bytes"
+                      ],
+                      "properties": {
+                        "uri": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "media_type": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+                        },
+                        "protected": {
+                          "type": "boolean",
+                          "default": false
+                        }
+                      }
+                    },
+                    "timed_out": {
+                      "type": "boolean"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "allOf": [
+                    {
+                      "oneOf": [
+                        {
+                          "required": [
+                            "stdout"
+                          ],
+                          "not": {
+                            "required": [
+                              "stdout_artifact"
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "stdout_artifact"
+                          ],
+                          "not": {
+                            "required": [
+                              "stdout"
+                            ]
+                          }
+                        },
+                        {
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "stdout"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "stdout_artifact"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "oneOf": [
+                        {
+                          "required": [
+                            "stderr"
+                          ],
+                          "not": {
+                            "required": [
+                              "stderr_artifact"
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "stderr_artifact"
+                          ],
+                          "not": {
+                            "required": [
+                              "stderr"
+                            ]
+                          }
+                        },
+                        {
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "stderr"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "stderr_artifact"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "diagnostic_codes": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "success_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failure_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cancelled_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.exec_many.result.v1",
+        "title": "host.exec_many canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.info",
+      "schema_id": "schema.operations.host.info.result.v1",
+      "family": "resource_detail",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource"
+        ],
+        "properties": {
+          "resource": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.info.result.v1",
+        "title": "host.info canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.mounts",
+      "schema_id": "schema.operations.host.mounts.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.mounts.result.v1",
+        "title": "host.mounts canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.network",
+      "schema_id": "schema.operations.host.network.result.v1",
+      "family": "resource_detail",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource"
+        ],
+        "properties": {
+          "resource": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.network.result.v1",
+        "title": "host.network canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.ports",
+      "schema_id": "schema.operations.host.ports.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.ports.result.v1",
+        "title": "host.ports canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.resources",
+      "schema_id": "schema.operations.host.resources.result.v1",
+      "family": "metrics",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metrics"
+        ],
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "sampled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.resources.result.v1",
+        "title": "host.resources canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.services",
+      "schema_id": "schema.operations.host.services.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.services.result.v1",
+        "title": "host.services canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.status",
+      "schema_id": "schema.operations.host.status.result.v1",
+      "family": "status",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "details": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "refreshed": {
+            "type": "boolean"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.status.result.v1",
+        "title": "host.status canonical result payload"
+      }
+    },
+    {
+      "operation_name": "host.uptime",
+      "schema_id": "schema.operations.host.uptime.result.v1",
+      "family": "metrics",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metrics"
+        ],
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "maxProperties": 128,
+            "additionalProperties": true
+          },
+          "sampled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.host.uptime.result.v1",
+        "title": "host.uptime canonical result payload"
+      }
+    },
+    {
+      "operation_name": "logs.auth",
+      "schema_id": "schema.operations.logs.auth.result.v1",
+      "family": "text",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bytes",
+          "truncated",
+          "encoding"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "content_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "binary",
+              "unknown"
+            ]
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "required": [
+                "content_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "content_artifact"
+            ],
+            "not": {
+              "required": [
+                "content"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                },
+                {
+                  "required": [
+                    "content_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.auth.result.v1",
+        "title": "logs.auth canonical result payload"
+      }
+    },
+    {
+      "operation_name": "logs.journal",
+      "schema_id": "schema.operations.logs.journal.result.v1",
+      "family": "text",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bytes",
+          "truncated",
+          "encoding"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "content_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "binary",
+              "unknown"
+            ]
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "required": [
+                "content_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "content_artifact"
+            ],
+            "not": {
+              "required": [
+                "content"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                },
+                {
+                  "required": [
+                    "content_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.journal.result.v1",
+        "title": "logs.journal canonical result payload"
+      }
+    },
+    {
+      "operation_name": "logs.kernel",
+      "schema_id": "schema.operations.logs.kernel.result.v1",
+      "family": "text",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bytes",
+          "truncated",
+          "encoding"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "content_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "binary",
+              "unknown"
+            ]
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "required": [
+                "content_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "content_artifact"
+            ],
+            "not": {
+              "required": [
+                "content"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                },
+                {
+                  "required": [
+                    "content_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.kernel.result.v1",
+        "title": "logs.kernel canonical result payload"
+      }
+    },
+    {
+      "operation_name": "logs.syslog",
+      "schema_id": "schema.operations.logs.syslog.result.v1",
+      "family": "text",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "bytes",
+          "truncated",
+          "encoding"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "content_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "uri",
+              "media_type",
+              "bytes"
+            ],
+            "properties": {
+              "uri": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "media_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-f]{64}$"
+              },
+              "protected": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "enum": [
+              "utf-8",
+              "binary",
+              "unknown"
+            ]
+          },
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "content"
+            ],
+            "not": {
+              "required": [
+                "content_artifact"
+              ]
+            }
+          },
+          {
+            "required": [
+              "content_artifact"
+            ],
+            "not": {
+              "required": [
+                "content"
+              ]
+            }
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "content"
+                  ]
+                },
+                {
+                  "required": [
+                    "content_artifact"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.logs.syslog.result.v1",
+        "title": "logs.syslog canonical result payload"
+      }
+    },
+    {
+      "operation_name": "processes.list",
+      "schema_id": "schema.operations.processes.list.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.processes.list.result.v1",
+        "title": "processes.list canonical result payload"
+      }
+    },
+    {
+      "operation_name": "product.help",
+      "schema_id": "schema.operations.product.help.result.v1",
+      "family": "help",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "topics",
+          "operations"
+        ],
+        "properties": {
+          "topics": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "summary"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                }
+              }
+            }
+          },
+          "operations": {
+            "type": "array",
+            "maxItems": 1024,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "summary"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                }
+              }
+            }
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.product.help.result.v1",
+        "title": "product.help canonical result payload"
+      }
+    },
+    {
+      "operation_name": "zfs.datasets",
+      "schema_id": "schema.operations.zfs.datasets.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.zfs.datasets.result.v1",
+        "title": "zfs.datasets canonical result payload"
+      }
+    },
+    {
+      "operation_name": "zfs.pools",
+      "schema_id": "schema.operations.zfs.pools.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.zfs.pools.result.v1",
+        "title": "zfs.pools canonical result payload"
+      }
+    },
+    {
+      "operation_name": "zfs.snapshots",
+      "schema_id": "schema.operations.zfs.snapshots.result.v1",
+      "family": "resource_list",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "count",
+          "truncated"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "schema.operations.zfs.snapshots.result.v1",
+        "title": "zfs.snapshots canonical result payload"
+      }
+    }
+  ],
+  "result_schema_sha256": "7addf92410b53205dc7ae2b9b80bb58a4ccfbe947e206bb93a8bb439366c3e3a"
+}
