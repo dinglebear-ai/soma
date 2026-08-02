@@ -3,10 +3,19 @@ name: Container and MCP Registry Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing vX.Y.Z release tag to resume
+        required: true
+        type: string
 
 concurrency:
-  group: container-release-${{ github.event.release.tag_name }}
+  group: container-release-${{ github.event.release.tag_name || inputs.tag_name }}
   cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
 
 permissions:
   contents: read
@@ -21,19 +30,23 @@ jobs:
     timeout-minutes: 10
     outputs:
       version: ${{ steps.validate.outputs.version }}
+      release_ref: ${{ steps.validate.outputs.release_ref }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag_name }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Install validation system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libseccomp-dev
 
       - uses: ./.github/actions/setup-rust-kache
 
       - id: validate
         name: Validate immutable release version
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
@@ -46,14 +59,17 @@ jobs:
           test "$cargo_version" = "$version"
           test "$npm_version" = "$version"
           cargo xtask check-version-sync
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$version"
+            echo "release_ref=refs/tags/${RELEASE_TAG}"
+          } >> "$GITHUB_OUTPUT"
 
   container:
     name: Build, verify, and publish amd64 image
     needs: [validate]
     uses: dinglebear-ai/workflows/.github/workflows/hosted-container-release.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
     with:
-      checkout-ref: ${{ github.event.release.tag_name }}
+      checkout-ref: ${{ needs.validate.outputs.release_ref }}
       image: ghcr.io/dinglebear-ai/soma
       release-tag: ${{ needs.validate.outputs.version }}
       dockerfile: config/Dockerfile
@@ -73,7 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ needs.validate.outputs.release_ref }}
           persist-credentials: false
 
       - name: Install mcp-publisher

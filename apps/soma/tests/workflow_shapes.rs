@@ -228,8 +228,11 @@ fn artifact_workflows_run_from_published_releases() {
         "the binary release workflow must support only explicit immutable-tag recovery"
     );
     assert!(
-        !docker.contains("workflow_dispatch:"),
-        "the container publication workflow must remain release-event only"
+        docker.contains("workflow_dispatch:")
+            && docker.contains("tag_name:")
+            && docker.contains("release_ref=refs/tags/${RELEASE_TAG}")
+            && docker.contains("checkout-ref: ${{ needs.validate.outputs.release_ref }}"),
+        "the container publication workflow must support explicit immutable-tag recovery"
     );
     assert!(
         release.contains("validate-release-tag:") && docker.contains("validate:"),
@@ -243,6 +246,10 @@ fn artifact_workflows_run_from_published_releases() {
     assert!(
         release.contains("sudo apt-get install -y pkg-config libssl-dev libseccomp-dev"),
         "release builds must install the native seccomp development library"
+    );
+    assert!(
+        docker.contains("sudo apt-get install -y libseccomp-dev"),
+        "container release validation must install the native seccomp development library"
     );
     assert!(
         !release.contains("git push origin HEAD:main") && !release.contains("ref: main"),
