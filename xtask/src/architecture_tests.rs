@@ -70,6 +70,114 @@ fn valid_shared_only_graph_passes() {
 }
 
 #[test]
+fn fleet_shared_layer_depends_on_neutral_operations_only() {
+    let failures = failures(vec![
+        pkg("soma-ops", "crates/shared/operations/ops", "shared", vec![]),
+        pkg(
+            "soma-fleet",
+            "crates/shared/operations/fleet",
+            "shared",
+            vec![dep("soma-ops", "crates/shared/operations/ops")],
+        ),
+    ]);
+
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn infra_shared_layer_depends_on_ops_and_fleet_only() {
+    let failures = failures(vec![
+        pkg("soma-ops", "crates/shared/operations/ops", "shared", vec![]),
+        pkg(
+            "soma-fleet",
+            "crates/shared/operations/fleet",
+            "shared",
+            vec![dep("soma-ops", "crates/shared/operations/ops")],
+        ),
+        pkg(
+            "soma-infra",
+            "crates/shared/operations/infra",
+            "shared",
+            vec![
+                dep("soma-ops", "crates/shared/operations/ops"),
+                dep("soma-fleet", "crates/shared/operations/fleet"),
+            ],
+        ),
+    ]);
+
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn standalone_product_composes_its_own_crates_and_shared_engines() {
+    let failures = failures(vec![
+        pkg("soma-ops", "crates/shared/operations/ops", "shared", vec![]),
+        pkg(
+            "synapse-application",
+            "crates/synapse/application",
+            "product-application",
+            vec![],
+        ),
+        pkg(
+            "synapse",
+            "apps/synapse",
+            "app",
+            vec![
+                dep("synapse-application", "crates/synapse/application"),
+                dep("soma-ops", "crates/shared/operations/ops"),
+            ],
+        ),
+    ]);
+
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn cross_product_internal_dependency_fails() {
+    let failures = failures(vec![
+        pkg(
+            "soma",
+            "apps/soma",
+            "app",
+            vec![dep("synapse-application", "crates/synapse/application")],
+        ),
+        pkg(
+            "synapse-application",
+            "crates/synapse/application",
+            "product-application",
+            vec![],
+        ),
+    ]);
+
+    let report = failures.join("\n");
+    assert!(report.contains("soma product package soma (apps/soma)"));
+    assert!(report.contains("depends on synapse product package synapse-application"));
+    assert!(report.contains("stable remote contracts"));
+}
+
+#[test]
+fn shared_dependency_on_any_product_fails() {
+    let failures = failures(vec![
+        pkg(
+            "soma-ops",
+            "crates/shared/operations/ops",
+            "shared",
+            vec![dep("cortex-application", "crates/cortex/application")],
+        ),
+        pkg(
+            "cortex-application",
+            "crates/cortex/application",
+            "product-application",
+            vec![],
+        ),
+    ]);
+
+    let report = failures.join("\n");
+    assert!(report.contains("shared package soma-ops"));
+    assert!(report.contains("non-shared package cortex-application"));
+}
+
+#[test]
 fn shared_optional_dependency_on_product_fails() {
     let failures = failures(vec![
         pkg(

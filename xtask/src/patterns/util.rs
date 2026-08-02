@@ -83,6 +83,12 @@ pub(super) fn size_limit(path: &Path) -> Option<usize> {
 
 pub(super) fn is_size_exempt(path: &Path) -> bool {
     let path = path.to_string_lossy();
+    // The exact history-preserving Synapse donor import is a temporary nested
+    // workspace. Its source remains byte-for-byte locked until product-native
+    // splitting begins, so root module-size guidance is not actionable there.
+    if path.starts_with("crates/synapse/import/") {
+        return true;
+    }
     // Vendored upstream MCP schema mirrors.
     if path.starts_with("docs/references/mcp/schema/") {
         return true;
@@ -247,6 +253,16 @@ mod tests {
             "{ \"name\": \"foo\" }",
             "version"
         ));
+    }
+
+    #[test]
+    fn size_limits_skip_exact_synapse_import_boundary() {
+        assert!(is_size_exempt(Path::new(
+            "crates/synapse/import/src/host_config.rs"
+        )));
+        assert!(!is_size_exempt(Path::new(
+            "crates/synapse/application/src/host_config.rs"
+        )));
     }
 
     #[test]

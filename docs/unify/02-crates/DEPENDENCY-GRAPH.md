@@ -1,7 +1,7 @@
 ---
 title: "Shared Crate Dependency Graph"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Shared Crate Dependency Graph
@@ -11,49 +11,60 @@ updated: 2026-07-30
 Arrows point from a consumer to the crate it depends on.
 
 ```text
-soma-process       ──> soma-sanitize
-soma-route         ──> soma-primitives
-soma-crawl         ──> soma-process
-soma-crawl         ──> soma-sanitize
+soma-process       -> soma-sanitize
+soma-route         -> soma-primitives
+soma-crawl         -> soma-process
+soma-crawl         -> soma-sanitize
 
-soma-sources       ──> soma-primitives
-soma-sources       ──> soma-route
-soma-sources       ──> soma-sanitize
-soma-sources       ──> soma-process
-soma-sources       ──> soma-transcript
-soma-sources       ──> soma-crawl          optional web feature
+soma-sources       -> soma-primitives
+soma-sources       -> soma-route
+soma-sources       -> soma-sanitize
+soma-sources       -> soma-process
+soma-sources       -> soma-transcript
+soma-sources       -> soma-crawl          optional web feature
 
-soma-ledger        ──> soma-primitives
-soma-jobs          ──> soma-primitives
-soma-llm           ──> soma-sanitize       optional
+soma-ledger        -> soma-primitives
+soma-jobs          -> soma-primitives
+soma-llm           -> soma-sanitize       optional
 
-soma-rag           ──> soma-primitives
-soma-rag           ──> soma-sanitize
-soma-rag           ──> soma-llm            optional synthesis feature
+soma-rag           -> soma-primitives
+soma-rag           -> soma-sanitize
+soma-rag           -> soma-llm            optional synthesis feature
 
-soma-transcript    ──> soma-primitives
-soma-transcript    ──> soma-sanitize
+soma-transcript    -> soma-primitives
+soma-transcript    -> soma-sanitize
 
-soma-observations  ──> soma-primitives
-soma-observations  ──> soma-sanitize
-soma-ingest        ──> soma-observations
-soma-ingest        ──> soma-primitives
+soma-observations  -> soma-primitives
+soma-observations  -> soma-sanitize
+soma-ingest        -> soma-observations
+soma-ingest        -> soma-primitives
 
-soma-collectors    ──> soma-observations
-soma-collectors    ──> soma-ingest
-soma-collectors    ──> soma-transcript
-soma-collectors    ──> soma-sanitize
-soma-collectors    ──> soma-process         optional process-backed collectors
+soma-collectors    -> soma-observations
+soma-collectors    -> soma-ingest
+soma-collectors    -> soma-transcript
+soma-collectors    -> soma-sanitize
+soma-collectors    -> soma-process         optional process-backed collectors
 
-soma-graph         ──> soma-primitives
-soma-graph         ──> soma-sanitize
+soma-graph         -> soma-primitives
+soma-graph         -> soma-sanitize
 
-soma-memory        ──> soma-primitives
-soma-memory        ──> soma-rag             narrow retrieval port
-soma-memory        ──> soma-llm             optional extraction feature
+soma-memory        -> soma-primitives
+soma-memory        -> soma-rag             narrow retrieval port
+soma-memory        -> soma-llm             optional extraction feature
+
+soma-ops           -> soma-primitives
+soma-ops           -> soma-sanitize
+soma-fleet         -> soma-ops
+soma-fleet         -> soma-sanitize
+soma-fleet         -> soma-process         optional process-backed transport
+soma-infra         -> soma-ops
+soma-infra         -> soma-fleet
+soma-infra         -> soma-sanitize
+soma-infra         -> soma-process         optional command driver
+soma-infra         -> incus-client         optional Incus feature
 ```
 
-`Soma` product runners may compose `soma-jobs` with `soma-ledger`, `soma-sources`, `soma-rag`, `soma-graph`, or `soma-memory`. The reusable `soma-jobs` crate itself MUST NOT depend on those domain crates.
+Product runners may compose shared engines with `soma-jobs`. The reusable jobs crate itself MUST NOT depend on product runners or domain adapters.
 
 ## Dependency families
 
@@ -80,6 +91,12 @@ Observations
 ├── soma-ingest
 └── soma-collectors
 
+Operations
+├── soma-ops
+├── soma-fleet
+├── soma-infra
+└── incus-client
+
 Cross-cutting
 ├── soma-jobs
 └── soma-graph
@@ -90,39 +107,43 @@ The family grouping is organizational. The explicit dependency list above is nor
 ## Prohibited dependency directions
 
 - `soma-primitives` MUST NOT depend on any other proposed domain crate.
-- `soma-jobs` MUST NOT depend on `soma-sources`, `soma-rag`, `soma-ledger`, `soma-graph`, or `soma-memory`.
+- `soma-jobs` MUST NOT depend on source, RAG, ledger, graph, memory, collector, fleet, or infrastructure engines.
 - `soma-rag` MUST NOT depend on `soma-sources` or `soma-collectors`.
-- Observation crates MUST NOT depend on source-generation semantics.
-- Source crates MUST NOT depend on observation-stream semantics.
-- No shared crate may depend on Soma product crates or surface crates.
+- Observation crates MUST NOT depend on source-generation or operation-execution semantics.
+- Source crates MUST NOT depend on observation-stream or operation-execution semantics.
+- `soma-ops` MUST NOT contain Synapse scopes, Soma principals, MCP elicitation, or product prompts.
+- `soma-fleet` MUST NOT choose product host-discovery defaults.
+- `soma-infra` MUST NOT depend on RMCP, Axum, product auth, web frameworks, or Cortex stores.
+- No shared crate may depend on any product or surface crate.
 - Integration clients MUST remain independently usable and MUST NOT depend on product crates.
 
 ## Allowed product composition
 
 ```text
-crates/soma/application
-    ├── knowledge use cases
-    ├── observation use cases
-    ├── graph/context use cases
-    └── memory use cases
+crates/<product>/application
+    -> defines use cases and ports
 
-crates/soma/runtime
-    ├── SQLite stores
-    ├── Qdrant/TEI clients
-    ├── job runners
-    ├── receivers/collectors
-    └── context broker construction
+crates/<product>/integrations or runtime
+    -> implements ports over shared engines or remote clients
 
-apps/soma
-    └── executable lifecycle and concrete wiring
+crates/<product>/{cli,api,mcp,web}
+    -> calls product application use cases only
+
+apps/<product>
+    -> executable lifecycle and concrete wiring
 ```
+
+Soma may choose embedded or remote implementations for Axon, Cortex, and Synapse capabilities. A standalone product never depends on Soma product crates.
 
 ## CI enforcement
 
-`cargo xtask context-contracts dependency-graph --check` MUST fail when:
+Architecture checks MUST fail when:
 
 - a lower layer imports a higher layer;
-- a shared crate imports `crates/soma/*` or `apps/*`;
+- a shared crate imports any `crates/<product>/*` or `apps/*` path;
+- a standalone product imports `crates/soma/*` or `apps/soma`;
 - a public crate contains an unpublished path dependency;
 - product configuration types leak into a shared public API;
+- product environment variables are read inside shared crates;
+- a product surface reaches database, Docker, SSH, or Incus clients directly;
 - a heavy backend becomes a mandatory default dependency without an ADR.

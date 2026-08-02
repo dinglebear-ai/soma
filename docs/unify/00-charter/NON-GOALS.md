@@ -1,7 +1,7 @@
 ---
 title: "V1 Non-Goals"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # V1 Non-Goals
@@ -12,7 +12,7 @@ V1 defines no `apm.yaml`, `apm.lock`, mission compiler, Orchestrator workflow, i
 
 ## Incus workers
 
-The existing Incus client may remain in Soma, but v1 does not:
+The neutral Incus client remains independently consumable under `crates/shared`, and Synapse is the steward of generic Incus operations. Context v1 still does not:
 
 - create task-specific containers;
 - build custom images;
@@ -22,7 +22,7 @@ The existing Incus client may remain in Soma, but v1 does not:
 
 ## Surface redesign
 
-Soma's current gateway, authentication, provider catalog, Code Mode, and surface projection are the source of truth. Axon and Cortex transports are not migrated as competing frameworks.
+Soma's current gateway, authentication, provider catalog, Code Mode, and integrated surface projection are the source of truth for Soma. Axon, Cortex, and Synapse retain complete standalone surfaces, but context v1 does not migrate those surfaces into Soma as competing frameworks.
 
 ## Universal ingestion
 

@@ -1,0 +1,20 @@
+format_version = 1
+generated_at = "2026-08-01"
+
+[soma]
+repository = "https://github.com/dinglebear-ai/soma"
+commit = "00a3336dab84a1ae847fc814d3af917f46c90b47"
+
+[axon]
+repository = "https://github.com/dinglebear-ai/axon"
+commit = "346238ac31a89f0fd4bddca36f0628a11b8edd98"
+
+[cortex]
+repository = "https://github.com/dinglebear-ai/cortex"
+commit = "3d75d109cc3531d1b18c9d32c4059566651cd863"
+
+[synapse]
+repository = "https://github.com/dinglebear-ai/synapse"
+commit = "8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f"
+operation_source = "src/actions/operations.rs"
+operation_count = 59

@@ -1,7 +1,7 @@
 ---
 title: "Pull Request Train"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Pull Request Train
@@ -53,6 +53,16 @@ Each vertical slice uses a predictable train.
 - health/doctor;
 - backup/retention impact;
 - package readiness.
+
+## Stacked branch protocol
+
+- Every PR is developed in a dedicated worktree under `~/workspace/soma/.worktrees`.
+- The first branch is based on current `origin/main`, never an uncommitted main checkout.
+- Each later branch is created from the branch immediately below it.
+- Each PR targets the preceding branch until that branch merges.
+- After a lower PR merges, the next PR is rebased or restacked onto updated `main` and its base is changed before merge.
+- A stack records branch, worktree, base branch, capability, and PR number in the implementation tracker.
+- No branch in a stack may silently absorb unrelated changes from another active stack.
 
 ## Rules
 

@@ -1,14 +1,14 @@
 ---
 title: "Shared Crate Catalog"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Shared Crate Catalog
 
-**Status:** Proposed v1 extraction boundary  
-**Count:** 16 new shared crates  
-**Naming:** Every proposed package uses `soma-<one-word>`. The convention is fixed; crates.io availability and fallback names remain to be verified.
+**Status:** Proposed multi-distribution extraction boundary
+**Count:** 19 planned new shared crates plus existing neutral clients
+**Naming:** Every proposed public package uses `soma-<one-word>`. The convention is fixed; crates.io availability and fallback names remain to be verified.
 
 The crate boundaries are intentionally coarser than Axon's current 23-crate workspace. They are organized around independently useful capabilities, not donor-internal dependency surgery.
 
@@ -30,6 +30,9 @@ The crate boundaries are intentionally coarser than Axon's current 23-crate work
 | 14 | `soma-ingest` | Observation runtime | Generic reliable stream/batch ingestion engine with acknowledgement, checkpointing, backpressure, and semantic outbox. |
 | 15 | `soma-collectors` | Observation ingestion | Feature-gated receivers, collectors, and normalizers for Cortex's operational sources. |
 | 16 | `soma-graph` | Context intelligence | Evidence-first temporal graph kernel joining knowledge, infrastructure, sessions, tools, and observations. |
+| 17 | `soma-ops` | Operations foundation | Transport-neutral operation identities, targets, safety classification, plans, progress, verification, authorization evidence, and events. |
+| 18 | `soma-fleet` | Operations connectivity | Host topology, OpenSSH execution and pooling, forwarding, bounded transfer, fanout, deadlines, and partial-success aggregation. |
+| 19 | `soma-infra` | Operations engine | Docker, Compose, Incus, host, file, process, log, and ZFS operational semantics over explicit clients and fleet ports. |
 
 ## Existing Soma crates that remain authoritative
 
@@ -70,6 +73,11 @@ Operational observations
 ├── soma-ingest
 └── soma-collectors
 
+Operations
+├── soma-ops
+├── soma-fleet
+└── soma-infra
+
 Cross-cutting runtime and intelligence
 ├── soma-jobs
 └── soma-graph
@@ -81,7 +89,7 @@ A shared crate MUST:
 
 1. be useful without the Soma product binary;
 2. avoid dependencies on `crates/soma/*` and `apps/*`;
-3. accept explicit configuration rather than reading `SOMA_*`, `AXON_*`, or `CORTEX_*`;
+3. accept explicit configuration rather than reading `SOMA_*`, `LABBY_*`, `AXON_*`, `CORTEX_*`, or `SYNAPSE_*`;
 4. expose typed, non-exhaustive errors;
 5. place storage and heavy providers behind optional features or traits;
 6. provide an independent consumer fixture outside the Soma workspace;
@@ -90,18 +98,18 @@ A shared crate MUST:
 
 ## Product composition rule
 
-The following remain product behavior, initially implemented as modules inside Soma's existing `domain`, `application`, and `runtime` crates:
+The following remain product behavior inside `crates/<product>/*` and `apps/<product>` rather than shared crates:
 
-- knowledge source administration;
-- observation source administration;
-- semantic projection policy;
-- context query planning;
-- GraphRAG strategy selection;
-- cross-store evidence hydration;
-- memory promotion policy;
+- product configuration defaults and environment-variable translation;
+- enabled adapters and storage layout;
+- product authorization, approvals, and tenancy;
+- compatibility surfaces and command grammar;
 - web/API/MCP/CLI use cases;
-- authorization and tenancy;
-- service supervision and runtime construction.
+- health, setup, doctor, backup, restore, and upgrade policy;
+- service supervision and runtime construction;
+- independent packaging and release identity.
+
+Soma additionally owns cross-domain context query planning, GraphRAG strategy selection, semantic projection policy, cross-store evidence hydration, memory promotion policy, unified audit, and selection between embedded and remote product adapters.
 
 ## Specs
 

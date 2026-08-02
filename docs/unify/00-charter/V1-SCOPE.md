@@ -1,7 +1,7 @@
 ---
 title: "V1 Scope"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # V1 Scope
@@ -9,6 +9,8 @@ updated: 2026-07-30
 ## Mission
 
 Create the first integrated Soma context layer by transplanting reusable knowledge mechanisms from Axon and reusable observation mechanisms from Cortex, while preserving Soma's existing gateway, authentication, provider, surface, and web architecture.
+
+The repository simultaneously adopts a multi-distribution architecture for Labby, Axon, Cortex, Synapse, and Soma. That repository decision does not expand context-v1 mutation or agent-orchestration scope.
 
 ## In scope
 

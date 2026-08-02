@@ -1,10 +1,14 @@
 ---
 title: "Soma Context Layer v1 Master Specification"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Soma Context Layer v1 Master Specification
+
+## 0. Product-family architecture
+
+This context specification is implemented inside a multi-distribution monorepo. Labby, Axon, Cortex, and Synapse remain complete standalone products; Soma is the integrated superset. Product-neutral engines live under `crates/shared`, product behavior under `crates/<product>`, and final composition under `apps/<product>`. Context-v1 scope remains bounded even though the repository architecture also reserves a separate Synapse-derived operations plane.
 
 ## 1. Product outcome
 

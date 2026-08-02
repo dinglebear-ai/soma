@@ -1,7 +1,7 @@
 ---
 title: "Start Here"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Start Here
@@ -10,7 +10,15 @@ updated: 2026-07-30
 
 ## The plan in one sentence
 
-Finish Soma's existing gateway and Aurora-based product shell, then transplant Axon's refreshable knowledge pipeline and Cortex's continuous observation pipeline as reusable crates, keep their ingestion lifecycles separate, and join them through one evidence-backed context plane built on SQLite, FTS5, Qdrant, graph relationships, memory, and Soma's existing CLI, API, MCP, and web surfaces.
+Build one multi-distribution monorepo where Labby, Axon, Cortex, and Synapse remain complete standalone products, Soma composes their neutral engines as the integrated superset, Axon and Cortex keep separate ingestion lifecycles, and Synapse supplies a distinct operations plane joined to Cortex through evidence-backed lifecycle events.
+
+## Product-family boundary
+
+- `crates/shared/*` contains independently consumable neutral engines only.
+- `crates/<product>/*` contains product policy, compatibility, and surfaces.
+- `apps/labby`, `apps/axon`, `apps/cortex`, `apps/synapse`, and `apps/soma` are independent composition roots.
+- Soma may embed shared engines or connect to standalone products through stable remote contracts.
+- A focused product must build, run, store data, migrate, test, and release without Soma.
 
 ## V1 boundary
 
@@ -27,7 +35,7 @@ The following are treated as the final product direction and are **not** reopene
 - transactional self-update behavior;
 - the existing Soma application, runtime, and composition architecture.
 
-Axon and Cortex contribute context capabilities to that chassis. They do not redefine it.
+The context-v1 program integrates Axon and Cortex capabilities into the Soma chassis without merging their pipelines. The wider product-family program also preserves complete standalone Axon and Cortex distributions and introduces Synapse as the operations-plane product.
 
 ### In scope
 
@@ -260,7 +268,7 @@ SQLite and durable artifacts remain authoritative. FTS5, Qdrant, graph summaries
 
 ### 4. Keep shared crates product-neutral
 
-No shared crate may depend on `crates/soma/*`, `apps/*`, Soma authorization, Soma surface DTOs, product environment variables, or product-specific runtime policy. Concrete composition belongs in Soma's application/runtime layer and `apps/soma`.
+No shared crate may depend on any `crates/<product>/*` package, `apps/*`, product authorization, product surface DTOs, product environment variables, or product-specific runtime policy. Concrete composition belongs in the relevant product application/runtime layer and `apps/<product>`.
 
 ### 5. Require citations and evidence at every cross-domain boundary
 
@@ -280,11 +288,11 @@ Do not measure the program by lines moved or packages created. Measure:
 
 ## Immediate next actions
 
-1. Finish the gateway and full-product web shell to the desired baseline.
-2. Replace abbreviated donor SHAs in [`05-migration/donors.lock.example.toml`](05-migration/donors.lock.example.toml) with full pinned commits.
-3. Resolve the readiness items in [`09-delivery/OPEN-DECISIONS.md`](09-delivery/OPEN-DECISIONS.md) that block Slice 1.
-4. Implement the `xtask` contract landing zone.
-5. Begin the local-knowledge PR train with contracts and fixtures, not copied implementation code.
+1. Merge the multi-distribution and operations-plane ADR stack.
+2. Treat [`05-migration/donors.lock.toml`](05-migration/donors.lock.toml) as the pinned donor source of truth.
+3. Validate the committed 59-operation Synapse fixture against the pinned donor.
+4. Import Synapse history without redesign, then extract `soma-ops`, `soma-fleet`, and read-only `soma-infra` in stacked PRs.
+5. Continue the Axon and Cortex vertical-slice trains while preserving their complete standalone application boundaries.
 
 ## Read next
 

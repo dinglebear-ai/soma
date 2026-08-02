@@ -1,93 +1,99 @@
 ---
-title: "Validation Report"
+title: Validation Report
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Validation Report
 
-**Generated:** 2026-07-22  
+**Generated:** 2026-07-31
 **Result:** PASS
 
 ## Package checks
 
 | Check | Result |
 |---|---|
-| Package files | 112 |
-| Markdown documents | 99 |
-| Approximate documentation words | 27,074 |
-| Proposed shared crates | 16 |
+| Package files | 119 |
+| Manifest content files | 117 |
+| Markdown documents | 104 |
+| Approximate documentation words | 36,764 |
+| Planned shared crates | 19 |
+| Detailed context crate specifications | 16 |
+| Operations boundary specifications | 3 planned in catalog and ADRs; implementation specs land with extraction PRs |
 | `soma-<one-word>` naming | PASS |
-| Deprecated compound crate references | 0 PASS |
-| Per-crate specs present | PASS |
-| Crate catalog matches specs | PASS |
-| ADR count | 11 |
+| ADR count | 13 |
 | Machine-readable capability entries | 13 |
 | JSON/YAML/TOML parse | PASS |
-| Draft 2020-12 schema validity | PASS |
-| Representative schema fixtures | 4 PASS |
-| Local Markdown links checked | 39 |
+| Draft 2020-12 context schema validity | PASS |
+| Context schema fixtures | 4 PASS |
+| Synapse operation compatibility fixture | 59 operations PASS |
+| Local Markdown links checked | 42 |
 | Broken local Markdown links | 0 |
 | Forbidden APM/Incus mission schema keys | 0 |
-| Integrity checksum entries | 111 |
+| Integrity checksum entries | 118 |
 
-## Schema fixtures
+## Executable checks
 
-- `source-request.json` validates as `SourceRequest`
-- `observation-record.json` validates as `ObservationRecord`
-- `graph-candidate.json` validates as `GraphCandidate`
-- `context-query.json` validates as `ContextQuery`
+| Check | Result |
+|---|---|
+| Targeted architecture tests | 25 PASS |
+| Complete xtask tests | 206 PASS |
+| Workspace architecture graph | PASS: 36 packages, 85 internal edges |
+| xtask clippy with warnings denied | PASS |
+| Rust formatting | PASS |
+| Python syntax | PASS |
+| Git diff whitespace | PASS |
+| Documentation manifest freshness | PASS |
+| Synapse donor fixture parity | PASS against pinned `origin/main` |
 
-## Crate-spec coverage
+## Product-family decisions
 
-- `soma-primitives`
-- `soma-sanitize`
-- `soma-process`
-- `soma-route`
-- `soma-sources`
-- `soma-crawl`
-- `soma-ledger`
-- `soma-jobs`
-- `soma-llm`
-- `soma-rag`
-- `soma-transcript`
-- `soma-memory`
-- `soma-observations`
-- `soma-ingest`
-- `soma-collectors`
-- `soma-graph`
+- Labby, Axon, Cortex, Synapse, and Soma are complete distributions with independent composition roots.
+- Shared crates remain independently consumable and may not import any product crate.
+- Product crates may not import another product's internals; integration occurs through neutral shared engines or stable remote contracts.
+- Synapse is the operations-plane product and primary steward of `soma-ops`, `soma-fleet`, and `soma-infra`.
+- The existing Incus REST client remains neutral under `crates/shared`.
+- Cortex consumes neutral operation lifecycle events and never gains execution authority.
+- Axon and Cortex retain separate ingestion lifecycles while remaining complete standalone products.
 
-## Entry-point coverage
+## Donor locks
 
-`START-HERE.md` is the first implementation entry point and contains:
+| Donor | Full pinned commit | Validation in this slice |
+|---|---|---|
+| Soma | `00a3336dab84a1ae847fc814d3af917f46c90b47` | Destination workspace and architecture graph validated |
+| Axon | `346238ac31a89f0fd4bddca36f0628a11b8edd98` | Full donor ref pinned |
+| Cortex | `3d75d109cc3531d1b18c9d32c4059566651cd863` | Full donor ref pinned |
+| Synapse | `b92552900c1458aa03b370c80edc812884c77f31` | Operation source hashed and all 59 operations parsed into parity fixture |
 
-- the v1 scope and exclusions;
-- the Soma capabilities already treated as authoritative;
-- the separate Axon and Cortex ingestion semantics;
-- the proposed crate catalog and first implementation batch;
-- the local-knowledge walking-skeleton acceptance test;
-- the ordered vertical-slice plan;
-- five non-negotiable architectural rules.
+The canonical donor lock is [`05-migration/donors.lock.toml`](05-migration/donors.lock.toml).
 
-## Naming contract
+## Compatibility fixtures
 
-Every proposed public package uses the `soma-<one-word>` convention. The `soma-` portion is the namespace; the semantic package name contains no additional hyphen. Crates.io availability remains a pre-scaffolding gate.
+The original context fixtures remain valid: `source-request.json`, `observation-record.json`, `graph-candidate.json`, and `context-query.json`.
 
-## Scope check
+The new [`03-contracts/examples/synapse-operations.json`](03-contracts/examples/synapse-operations.json) fixture records the full donor commit and source SHA-256, all 59 legacy operation identities, canonical neutral names, Flux/Scout ownership, scope and destructive classifications, transport availability, required parameter groups, and donor source lines.
 
-The runtime schema bundle contains no Agent Package Manager, mission-lock, Incus worker-container, or custom-image contract. AI session and agent-event observation records remain valid because v1 ingests historical/runtime agent activity; it does not orchestrate or deploy agents.
+## Shared-crate coverage
+
+The original 16 context crates retain detailed per-crate specifications. The operations extension adds three accepted coarse boundaries: `soma-ops`, `soma-fleet`, and `soma-infra`.
+
+Their implementation-level public APIs and independent-consumer fixtures are intentionally deferred to the stacked extraction PRs, where compiler feedback and real Synapse consumers can stabilize the boundaries before publication.
 
 ## Integrity
 
-`CHECKSUMS.sha256` covers every package file except itself. `MANIFEST.yaml` records package metadata, source baselines, scope, entry points, and per-file hashes for all non-self-referential content files.
+`CHECKSUMS.sha256` covers every package file except itself. `MANIFEST.yaml` records package metadata, full donor baselines, scope, entry points, counts, and per-file hashes for all 117 non-self-referential content files.
 
-## Source-level audit limitation
+Both artifacts are generated and checked by `scripts/generate-unify-manifest.py`. Check mode was verified not to modify either artifact.
 
-Repository cloning and compilation were not available during package generation. The source baselines and architecture were audited from the public repositories, but implementation MUST still:
+## Remaining verification delegated to later PRs
 
-- resolve full donor commit SHAs;
-- run `cargo metadata`;
-- verify feature unification;
-- compile and test each donor fixture and extracted crate;
-- inspect package contents and licenses;
-- re-audit gateway PRs merged after the recorded Soma baseline.
+This architecture slice does not claim runtime parity for code that has not yet been imported or extracted. Later stacked PRs must still:
+
+- import Synapse history and build its standalone binary unchanged;
+- run Synapse's complete Rust, web, packaging, and security suites;
+- compile each extracted shared crate with an unrelated external consumer fixture;
+- prove standalone and embedded operation behavior independently;
+- prove Soma embedded operations and Soma-to-Labby-to-Synapse remote operations against the same contracts;
+- compile and validate the Axon and Cortex standalone distributions as their product roots land;
+- verify crates.io package-name availability before publishing new shared crates;
+- preserve migration and rollback evidence before donor-repository cutover.

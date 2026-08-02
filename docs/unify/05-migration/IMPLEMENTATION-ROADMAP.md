@@ -1,7 +1,7 @@
 ---
 title: "Implementation Roadmap"
 created: 2026-07-24
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Implementation Roadmap
@@ -24,7 +24,21 @@ updated: 2026-07-30
 | 11 | Evidence graph | Cross-domain paths have canonical evidence |
 | 12 | GraphRAG context broker | North-star evidence retrieval succeeds |
 | 13 | Memory | Verified memory lifecycle and recall pass |
-| 14 | Cutover | Migration, performance, backup, security and parity gates pass |
+| 14 | Context cutover | Migration, performance, backup, security and parity gates pass |
+
+## Product-family and operations track
+
+| Phase | Outcome | Exit gate |
+|---:|---|---|
+| O0 | Multi-distribution contracts | ADRs, donor locks, product boundaries, and architecture checks are accepted |
+| O1 | Synapse baseline import | Standalone Synapse builds unchanged from a history-preserving import |
+| O2 | Shared operations foundation | `soma-ops` external consumer and 59-operation mapping fixtures pass |
+| O3 | Fleet and read-only infrastructure | SSH/fanout security gates and live read-only Docker/host parity pass |
+| O4 | Controlled mutations | Plan, authorization evidence, progress, cancellation, verification, and events pass |
+| O5 | Incus convergence | Generic Incus operations use the neutral client; Soma deployment policy consumes the operations port |
+| O6 | Standalone and integrated cutover | Synapse packaging plus embedded/remote Soma parity and rollback gates pass |
+
+The operations track is additive to the context v1 plan. It does not make autonomous execution part of context v1.
 
 ## Recommended PR train per slice
 
