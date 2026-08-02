@@ -153,7 +153,8 @@ pub async fn invoke_prepared_component_artifact_before_async(
 
 /// Validate that `path` contains a component-model artifact.
 pub fn verify_component_artifact(path: &std::path::Path) -> Result<(), String> {
-    verify_component_artifact_before(path, Instant::now() + Duration::from_secs(5))
+    let bytes = read_artifact(path)?;
+    verify_component_artifact_before(path, Instant::now() + artifact_compile_timeout(&bytes))
 }
 
 /// Validate a component-model artifact within an existing absolute deadline.
