@@ -380,7 +380,9 @@ cargo xtask check-stale-claims
 
 Scans non-generated source/docs for Soma claims that should not reappear,
 such as stale old local-port examples, old MCP port defaults, or explicit
-plugin manifest `version` fields.
+plugin manifest `version` fields. The exact history-preserving Synapse donor
+tree under `crates/synapse/import` is excluded because its product-specific and
+historical claims must remain byte-for-byte identical to the locked donor.
 
 ### `check-plugin-hook-contract.py`
 
