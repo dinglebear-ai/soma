@@ -93,7 +93,7 @@ jobs:
           gh release upload "${RELEASE_TAG}" dist/*.whl supply-chain/* --clobber --repo "${GITHUB_REPOSITORY}"
 
       - name: Publish to PyPI with trusted publishing
-        uses: pypa/gh-action-pypi-publish@c1b34028248d0c9f7d90fe29fef2122e2276ff6f
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
         with:
           packages-dir: dist
           attestations: true
