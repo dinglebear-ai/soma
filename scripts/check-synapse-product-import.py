@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the exact history-preserving Synapse donor import boundary."""
+"""Verify the locked Synapse donor import snapshot boundary."""
 from __future__ import annotations
 
 import json
@@ -64,28 +64,18 @@ def main() -> int:
     try:
         locked = tomllib.loads(LOCK.read_text(encoding="utf-8"))["synapse"]
         donor = str(locked["commit"])
+        expected_import_tree = str(locked["import_tree"])
         repository = str(locked["repository"])
         if repository != "https://github.com/dinglebear-ai/synapse":
             raise ValueError(f"unexpected Synapse donor repository {repository}")
 
-        subprocess.run(
-            ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", donor, "HEAD"],
-            check=True,
-        )
-        donor_tree = tree(donor)
-        imported_tree = tree("HEAD", PREFIX)
-        if donor_tree != imported_tree:
-            missing = sorted(set(donor_tree) - set(imported_tree))
-            extra = sorted(set(imported_tree) - set(donor_tree))
-            changed = sorted(
-                path
-                for path in set(donor_tree).intersection(imported_tree)
-                if donor_tree[path] != imported_tree[path]
-            )
+        imported_tree_id = git("rev-parse", f"HEAD:{PREFIX.as_posix()}").strip()
+        if imported_tree_id != expected_import_tree:
             raise ValueError(
-                "import differs from donor: "
-                f"missing={missing[:10]} extra={extra[:10]} changed={changed[:10]}"
+                "import differs from locked snapshot: "
+                f"expected tree {expected_import_tree}, found {imported_tree_id}"
             )
+        imported_tree = tree("HEAD", PREFIX)
         if len(imported_tree) != EXPECTED_FILES:
             raise ValueError(
                 f"expected {EXPECTED_FILES} imported files, found {len(imported_tree)}"
@@ -106,8 +96,9 @@ def main() -> int:
             raise ValueError("temporary Synapse import leaked into the Soma root workspace")
 
         print(
-            "Synapse product import is exact "
-            f"({donor[:12]}, {len(imported_tree)} files, packages={package_names})"
+            "Synapse product import matches locked snapshot "
+            f"(donor={donor[:12]}, tree={imported_tree_id[:12]}, "
+            f"{len(imported_tree)} files, packages={package_names})"
         )
         return 0
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as exc:
