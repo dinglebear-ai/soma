@@ -9,6 +9,9 @@ owner: "soma"
 
 # Provider Tool Namespace Wire Models
 
+These examples distinguish canonical application fields (`provider`, `tool`)
+from MCP's transport spelling (`provider`, `action`).
+
 ## Manifest v2
 
 ```json
@@ -24,6 +27,7 @@ owner: "soma"
       "name": "repos",
       "description": "List repositories and checkout state.",
       "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -38,7 +42,24 @@ owner: "soma"
 }
 ```
 
+Python selects the manifest semantics separately from other SDK/protocol
+versions:
+
+```python
+PROVIDER = provider(manifest_version=2, name="nexus", kind="python")
+```
+
 `repositories` means `soma nexus repositories`, not `soma repositories`.
+
+## Canonical Application Request
+
+```json
+{
+  "provider": "nexus",
+  "tool": "repos",
+  "params": { "repo": "soma" }
+}
+```
 
 ## CLI Parse Model
 
@@ -52,25 +73,57 @@ ProviderCliInvocation {
 }
 ```
 
-Provider-level and tool-level help are discovery operations and do not execute
-provider code beyond the catalog lifecycle already required by live CLI
-inspection.
+Provider-level and tool-level help are discovery operations. They use one
+immutable catalog snapshot but do not claim a later command sees the same
+generation.
+
+## Confirmation Preflight
+
+```json
+{
+  "provider": "nexus",
+  "tool": "keys",
+  "snapshot_id": "sha256:abc123",
+  "destructive": false,
+  "requires_admin": true,
+  "required_scope": "soma:read"
+}
+```
+
+If policy changes after an interactive prompt, final dispatch rejects the old
+proof:
+
+```json
+{
+  "kind": "provider_tool_error",
+  "schema_version": 1,
+  "code": "stale_provider_confirmation",
+  "provider": "nexus",
+  "tool": "keys",
+  "message": "Provider tool policy changed after confirmation preflight.",
+  "retryable": true,
+  "remediation": "Resolve the tool again and repeat confirmation."
+}
+```
 
 ## MCP Request
 
 ```json
 {
   "provider": "nexus",
-  "tool": "repos",
+  "action": "repos",
   "repo": "soma"
 }
 ```
 
-The generated MCP input schema uses conditional branches keyed by both
-`provider` and `action`. Parameter names shared by different tools are merged
-only as schema properties; the matching conditional branch controls validity.
+The generated MCP input schema contains one complete Draft 2020-12 object
+branch per provider/action pair. Each branch requires both discriminators with
+`const` and contains only that tool's parameter schema plus shared paging
+fields. Parameter definitions are not globally merged.
 
 ## MCP Success
+
+The following object is `CallToolResult.structuredContent`:
 
 ```json
 {
@@ -85,7 +138,30 @@ only as schema properties; the matching conditional branch controls validity.
 }
 ```
 
-## REST Request and Success
+`CallToolResult.content` also contains a text block whose parsed JSON
+normalizes to the same object for older clients.
+
+## MCP Structured Error
+
+Unknown provider/action inside the MCP tool `soma` is a tool-result error:
+
+```json
+{
+  "isError": true,
+  "structuredContent": {
+    "kind": "provider_tool_error",
+    "schema_version": 1,
+    "code": "unknown_provider_tool",
+    "provider": "nexus",
+    "action": "missing",
+    "message": "Provider `nexus` has no tool `missing`.",
+    "retryable": false,
+    "remediation": "Inspect the current provider catalog."
+  }
+}
+```
+
+## REST Request and Canonical Success
 
 ```http
 POST /v1/providers/nexus/tools/repos HTTP/1.1
@@ -97,7 +173,7 @@ content-type: application/json
 ```json
 {
   "provider": "nexus",
-  "action": "repos",
+  "tool": "repos",
   "output": {
     "items": []
   },
@@ -107,20 +183,69 @@ content-type: application/json
 }
 ```
 
-## Provider Discovery
+The v1 `/v1/tools/repos` compatibility route preserves its existing envelope
+during the migration and carries HTTP deprecation metadata:
 
-`GET /v1/providers` exposes canonical routes and local aliases:
+```http
+Deprecation: @1785542400
+Link: </docs/migrations/provider-tool-namespaces>; rel="deprecation"; type="text/html"
+Sunset: Sat, 01 Aug 2027 00:00:00 GMT
+```
+
+Dates are examples; release automation records the actual values.
+
+## Live OpenAPI Operation
+
+Runtime uses a generic capture route, but live OpenAPI enumerates the concrete
+loaded operation:
 
 ```json
 {
+  "/v1/providers/nexus/tools/repos": {
+    "post": {
+      "operationId": "provider_5_nexus_tool_5_repos",
+      "x-soma-provider": "nexus",
+      "x-soma-tool": "repos",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": { "type": "object" }
+          }
+        }
+      },
+      "responses": {
+        "200": { "description": "Canonical provider tool result" }
+      }
+    }
+  }
+}
+```
+
+The length-prefixed operation ID is illustrative; implementation may use
+another deterministic injective encoding or stable digest suffix.
+
+## Provider Discovery
+
+`GET /v1/providers` exposes identity, semantics, schemas, concrete routes,
+aliases, compatibility state, and generation:
+
+```json
+{
+  "generation_id": 42,
+  "fingerprint": "sha256:abc123",
+  "canonical_rest_template": "/v1/providers/{provider}/tools/{tool}",
   "providers": [
     {
       "name": "nexus",
+      "manifest_semantics": "v2-namespaced",
       "tools": [
         {
           "name": "repos",
           "identity": { "provider": "nexus", "tool": "repos" },
           "display_name": "nexus.repos",
+          "input_schema": { "type": "object" },
+          "output_schema": { "type": "object" },
+          "compatibility": { "legacy_surfaces": [] },
           "surfaces": {
             "cli": {
               "command": ["nexus", "repos"],
@@ -134,6 +259,11 @@ content-type: application/json
             "rest": {
               "method": "POST",
               "path": "/v1/providers/nexus/tools/repos"
+            },
+            "palette": {
+              "provider": "nexus",
+              "tool": "repos",
+              "display_id": "nexus.repos"
             }
           }
         }
@@ -143,7 +273,39 @@ content-type: application/json
 }
 ```
 
-## Structured Error
+## Palette Model
+
+```json
+{
+  "provider": "nexus",
+  "tool": "repos",
+  "display_id": "nexus.repos",
+  "title": "Repositories",
+  "description": "List repositories and checkout state.",
+  "input_schema": { "type": "object" }
+}
+```
+
+Palette schema lookup and execution send `provider` and `tool`; they do not
+split `display_id`.
+
+## Non-Executing Python Inspection
+
+```json
+{
+  "file_name": "nexus.py",
+  "status": "runtime-validation-required",
+  "provisional_provider": "nexus",
+  "declared_provider": null,
+  "tools": [],
+  "code": "python_runtime_validation_required",
+  "message": "Python catalog discovery requires contained execution; run `soma providers validate`."
+}
+```
+
+The provisional file stem is diagnostic, not confirmed API identity.
+
+## Canonical Structured Error
 
 ```json
 {
@@ -163,25 +325,30 @@ content-type: application/json
 ```json
 {
   "code": "legacy_flat_action",
-  "message": "Flat action `nexus_repos` is deprecated; use `nexus.repos`.",
+  "surface": "mcp",
+  "legacy_name": "repos",
+  "message": "Provider-less action `repos` is deprecated; use `nexus.repos`.",
   "canonical_provider": "nexus",
   "canonical_tool": "repos"
 }
 ```
 
-Warnings are returned in envelopes where supported and emitted through
-structured diagnostics/logging otherwise. They never include credentials or
-raw input values.
+Warnings never include credentials or raw input values.
 
-## Ambiguous Legacy Failure
+## Surface-Specific Ambiguity
 
-If both `nexus.status` and `weather.status` exist, a provider-less `status`
-compatibility call fails:
+If `nexus.status` and `weather.status` are both MCP-exposed, a provider-less MCP
+`status` fails:
 
 ```json
 {
-  "code": "ambiguous_legacy_action",
-  "legacy_action": "status",
+  "kind": "provider_tool_error",
+  "schema_version": 1,
+  "code": "ambiguous_legacy_mcp_action",
+  "surface": "mcp",
+  "legacy_name": "status",
+  "message": "Provider-less MCP action `status` is ambiguous.",
+  "retryable": false,
   "candidates": [
     { "provider": "nexus", "tool": "status" },
     { "provider": "weather", "tool": "status" }
@@ -189,4 +356,22 @@ compatibility call fails:
 }
 ```
 
-Candidates are sorted for deterministic diagnostics.
+The same spelling may still resolve uniquely on CLI if only one provider
+declares it as a v1 CLI command. Candidates are sorted deterministically.
+
+## Refresh Event
+
+```json
+{
+  "generation_id": 43,
+  "fingerprint": "sha256:def456",
+  "added": [{ "provider": "nexus", "tool": "shares" }],
+  "removed": [],
+  "surface_changes": [{ "provider": "nexus", "tool": "repos" }],
+  "schema_changed": true
+}
+```
+
+A successful event with `schema_changed: true` drives MCP
+`notifications/tools/list_changed`. A rejected candidate emits neither this
+event nor the MCP notification and retains the prior generation.

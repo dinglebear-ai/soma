@@ -2,12 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://soma.dinglebear.ai/schemas/provider-tool-namespace.schema.json",
   "title": "Soma Provider Tool Namespace Models",
-  "description": "Canonical provider/tool identity, invocation, result, warning, and lookup-error models.",
+  "description": "Canonical provider/tool identity, invocation, result, confirmation, warning, and error models.",
   "oneOf": [
     { "$ref": "#/$defs/providerToolId" },
     { "$ref": "#/$defs/invocation" },
     { "$ref": "#/$defs/result" },
-    { "$ref": "#/$defs/lookupError" }
+    { "$ref": "#/$defs/confirmationProof" },
+    { "$ref": "#/$defs/warning" },
+    { "$ref": "#/$defs/providerToolError" }
   ],
   "$defs": {
     "identifier": {
@@ -34,6 +36,9 @@
         "params": { "type": "object" }
       }
     },
+    "legacySurface": {
+      "enum": ["cli", "mcp", "rest"]
+    },
     "progressEvent": {
       "type": "object",
       "additionalProperties": false,
@@ -41,15 +46,24 @@
       "properties": {
         "current": { "type": "integer", "minimum": 0 },
         "total": { "type": ["integer", "null"], "minimum": 0 },
-        "message": { "type": ["string", "null"] }
+        "message": { "type": ["string", "null"], "maxLength": 1024 }
       }
     },
     "warning": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "message", "canonical_provider", "canonical_tool"],
+      "required": [
+        "code",
+        "surface",
+        "legacy_name",
+        "message",
+        "canonical_provider",
+        "canonical_tool"
+      ],
       "properties": {
-        "code": { "type": "string", "minLength": 1 },
+        "code": { "const": "legacy_flat_action" },
+        "surface": { "$ref": "#/$defs/legacySurface" },
+        "legacy_name": { "$ref": "#/$defs/identifier" },
         "message": { "type": "string", "minLength": 1 },
         "canonical_provider": { "$ref": "#/$defs/identifier" },
         "canonical_tool": { "$ref": "#/$defs/identifier" }
@@ -71,14 +85,33 @@
         },
         "warnings": {
           "type": "array",
-          "items": { "$ref": "#/$defs/warning" }
+          "items": { "$ref": "#/$defs/warning" },
+          "maxItems": 32
         }
+      }
+    },
+    "confirmationProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "tool",
+        "snapshot_id",
+        "destructive",
+        "confirmed"
+      ],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" },
+        "snapshot_id": { "type": "string", "minLength": 1 },
+        "destructive": { "type": "boolean" },
+        "confirmed": { "type": "boolean" }
       }
     },
     "candidate": {
       "$ref": "#/$defs/providerToolId"
     },
-    "lookupError": {
+    "providerToolError": {
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "schema_version", "code", "message", "retryable"],
@@ -87,11 +120,30 @@
         "schema_version": { "const": 1 },
         "code": {
           "enum": [
+            "invalid_provider_name",
+            "invalid_tool_name",
+            "reserved_provider_namespace",
+            "duplicate_provider_name",
+            "duplicate_provider_tool",
+            "duplicate_provider_cli_command",
+            "duplicate_rest_route",
+            "ambiguous_rest_route_shape",
+            "shadowed_rest_route",
             "unknown_provider",
             "unknown_provider_tool",
-            "ambiguous_legacy_action",
+            "ambiguous_legacy_cli_command",
+            "ambiguous_legacy_mcp_action",
+            "ambiguous_legacy_rest_action",
             "legacy_action_removed",
-            "reserved_provider_namespace"
+            "provider_filename_mismatch",
+            "python_runtime_validation_required",
+            "stale_provider_confirmation"
+          ]
+        },
+        "surface": {
+          "oneOf": [
+            { "$ref": "#/$defs/legacySurface" },
+            { "type": "null" }
           ]
         },
         "provider": {
@@ -106,21 +158,94 @@
             { "type": "null" }
           ]
         },
-        "legacy_action": {
+        "action": {
+          "oneOf": [
+            { "$ref": "#/$defs/identifier" },
+            { "type": "null" }
+          ]
+        },
+        "legacy_name": {
           "oneOf": [
             { "$ref": "#/$defs/identifier" },
             { "type": "null" }
           ]
         },
         "message": { "type": "string", "minLength": 1 },
-        "retryable": { "const": false },
+        "retryable": { "type": "boolean" },
         "remediation": { "type": "string" },
         "candidates": {
           "type": "array",
           "items": { "$ref": "#/$defs/candidate" },
           "uniqueItems": true
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "ambiguous_legacy_cli_command",
+                  "ambiguous_legacy_mcp_action",
+                  "ambiguous_legacy_rest_action"
+                ]
+              }
+            },
+            "required": ["code"]
+          },
+          "then": {
+            "required": ["surface", "legacy_name", "candidates"],
+            "properties": {
+              "candidates": { "minItems": 2 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": { "const": "unknown_provider" }
+            },
+            "required": ["code"]
+          },
+          "then": {
+            "required": ["provider"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "unknown_provider_tool",
+                  "stale_provider_confirmation"
+                ]
+              }
+            },
+            "required": ["code"]
+          },
+          "then": {
+            "required": ["provider", "tool"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": { "const": "stale_provider_confirmation" }
+            },
+            "required": ["code"]
+          },
+          "then": {
+            "properties": {
+              "retryable": { "const": true }
+            }
+          },
+          "else": {
+            "properties": {
+              "retryable": { "const": false }
+            }
+          }
+        }
+      ]
     }
   }
 }

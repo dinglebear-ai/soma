@@ -9,15 +9,14 @@ owner: "soma"
 
 # Provider Tool Namespace Rust Types
 
-These signatures are normative design targets, not compiled source.
+These signatures are normative design targets, not compiled source. Private
+helper layout may follow crate conventions, but validation and ownership
+boundaries are part of the contract.
 
 ## Identity Types
 
 ```rust
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
-    serde::Serialize, serde::Deserialize,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
 pub struct ToolId(String);
 
@@ -27,9 +26,17 @@ impl ToolId {
     pub fn into_string(self) -> String;
 }
 
+impl TryFrom<String> for ToolId {
+    type Error = ToolIdError;
+    fn try_from(value: String) -> Result<Self, Self::Error>;
+}
+
+// Manual Deserialize, or #[serde(try_from = "String")], is required.
+// Transparent derived Deserialize would bypass ToolId::new.
+
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
-    serde::Serialize, serde::Deserialize,
+    Serialize, Deserialize,
 )]
 pub struct ProviderToolId {
     pub provider: ProviderId,
@@ -38,12 +45,30 @@ pub struct ProviderToolId {
 
 impl ProviderToolId {
     pub fn new(provider: ProviderId, tool: ToolId) -> Self;
-    pub fn display_name(&self) -> String; // Presentation only: provider.tool
+    pub fn display_name(&self) -> String; // Presentation only.
 }
 ```
 
-`ProviderId` and `ToolId` SHOULD share one private identifier validator while
-retaining distinct public types and error codes.
+`ProviderId` and `ToolId` share one private grammar validator while
+retaining distinct public types and error codes. `ProviderId` must receive the
+same serde hardening; current transparent deserialization is not sufficient.
+
+## Manifest Semantics
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderManifestSemantics {
+    V1Flat,
+    V2Namespaced,
+}
+
+impl ProviderManifest {
+    pub fn semantics(&self) -> Result<ProviderManifestSemantics, ProviderValidationError>;
+}
+```
+
+One `ProviderManifest` structure represents both versions. `RegisteredTool`
+retains semantics so response/compatibility projections do not guess later.
 
 ## Registered Tool
 
@@ -51,6 +76,7 @@ retaining distinct public types and error codes.
 #[derive(Clone)]
 pub struct RegisteredTool {
     id: ProviderToolId,
+    semantics: ProviderManifestSemantics,
     tool: ToolSpec,
     input_validator: Arc<jsonschema::Validator>,
     output_validator: Option<Arc<jsonschema::Validator>>,
@@ -60,23 +86,42 @@ impl RegisteredTool {
     pub fn id(&self) -> &ProviderToolId;
     pub fn provider_id(&self) -> &ProviderId;
     pub fn tool_id(&self) -> &ToolId;
+    pub fn semantics(&self) -> ProviderManifestSemantics;
     pub fn spec(&self) -> &ToolSpec;
 }
 ```
 
 ## Surface Keys
 
+Provider-core stays transport-neutral and does not add an `http` dependency.
+
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CliToolKey {
-    pub provider_command: String,
-    pub tool_command: String,
+    pub provider: ProviderId,
+    pub command: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RestRouteKey {
-    pub method: http::Method,
+pub struct RestMethod(String); // Validated, uppercase ASCII method.
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CustomRestRouteKey {
+    pub method: RestMethod,
     pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RestRouteShapeKey {
+    pub method: RestMethod,
+    pub normalized_segments: Vec<RestRouteSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RestRouteSegment {
+    Static(String),
+    Capture,
+    CatchAll,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,8 +131,7 @@ pub enum LegacyToolResolution {
 }
 ```
 
-The ambiguous vector is sorted for diagnostics and MUST NOT be used to select a
-winner.
+Ambiguous vectors are sorted for diagnostics and never used to pick a winner.
 
 ## Registry Indexes
 
@@ -96,8 +140,11 @@ winner.
 pub struct ProviderIndexes {
     tools: BTreeMap<ProviderToolId, RegisteredTool>,
     cli: BTreeMap<CliToolKey, ProviderToolId>,
-    rest: BTreeMap<RestRouteKey, ProviderToolId>,
-    legacy_flat: BTreeMap<String, LegacyToolResolution>,
+    custom_rest: BTreeMap<CustomRestRouteKey, ProviderToolId>,
+    custom_rest_shapes: BTreeMap<RestRouteShapeKey, ProviderToolId>,
+    legacy_cli_commands: BTreeMap<String, LegacyToolResolution>,
+    legacy_mcp_actions: BTreeMap<String, LegacyToolResolution>,
+    legacy_rest_actions: BTreeMap<String, LegacyToolResolution>,
     primitives: BTreeMap<String, PrimitiveKind>,
 }
 
@@ -108,16 +155,33 @@ impl ProviderIndexes {
         provider: &ProviderId,
     ) -> impl Iterator<Item = &RegisteredTool>;
     pub fn cli_tool(&self, key: &CliToolKey) -> Option<&ProviderToolId>;
-    pub fn rest_tool(&self, key: &RestRouteKey) -> Option<&ProviderToolId>;
-    pub fn legacy_tool(&self, action: &str) -> Option<&LegacyToolResolution>;
+    pub fn custom_rest_tool(
+        &self,
+        key: &CustomRestRouteKey,
+    ) -> Option<&ProviderToolId>;
+    pub fn legacy_cli_command(&self, command: &str) -> Option<&LegacyToolResolution>;
+    pub fn legacy_mcp_action(&self, action: &str) -> Option<&LegacyToolResolution>;
+    pub fn legacy_rest_action(&self, action: &str) -> Option<&LegacyToolResolution>;
 }
 ```
 
-## Invocation Types
+The canonical route does not appear here: its validated path segments form a
+`ProviderToolId` and use `tool()` directly. App-owned route validation layers
+in infrastructure/reserved-path policy and dynamic resource-template checks.
+
+## Canonical Request and Core Invocation
 
 ```rust
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExecuteProviderToolRequest {
+    pub id: ProviderToolId,
+    #[serde(default)]
+    pub params: serde_json::Value,
+}
+
 #[derive(Debug, Clone)]
-pub struct ProviderCall {
+pub struct ProviderInvocation {
     pub id: ProviderToolId,
     pub params: serde_json::Value,
     pub surface: ProviderSurface,
@@ -125,22 +189,91 @@ pub struct ProviderCall {
     pub context: ProviderInvocationContext,
 }
 
-impl ProviderCall {
+impl ProviderInvocation {
     pub fn new(id: ProviderToolId, params: serde_json::Value) -> Self;
     pub fn provider(&self) -> &ProviderId;
     pub fn tool(&self) -> &ToolId;
 }
+```
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ExecuteProviderToolRequest {
-    pub provider: ProviderId,
-    pub tool: ToolId,
-    #[serde(default)]
+`ProviderInvocation` is product-neutral and belongs in provider-core. It does
+not replace the application type that carries principal, auth mode,
+confirmation, limits, traces, and progress.
+
+## Application Preflight and Execution
+
+```rust
+#[derive(Debug, Clone)]
+pub struct ProviderToolPreflight {
+    pub id: ProviderToolId,
+    pub snapshot_id: String,
+    pub destructive: bool,
+    pub requires_admin: bool,
+    pub required_scope: Option<String>,
+    pub input_schema: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfirmationProof {
+    pub id: ProviderToolId,
+    pub snapshot_id: String,
+    pub destructive: bool,
+    pub confirmed: bool,
+}
+
+pub struct PreparedProviderExecution {
+    pub id: ProviderToolId,
+    pub snapshot: Arc<RegistrySnapshot>,
+    pub entry: RegisteredTool,
+    pub provider: Arc<dyn Provider>,
+    pub dispatch_lease: DispatchLease,
+    pub principal: ProviderPrincipal,
+    pub auth_mode: ProviderAuthMode,
+    pub limits: ProviderRequestLimits,
+    pub context: ProviderInvocationContext,
+}
+```
+
+Preflight does not contain a `DispatchLease`. Final preparation re-resolves the
+identity, validates any proof, then acquires the lease. The exact visibility of
+private fields may vary, but the lifetime boundary is normative.
+
+## Legacy Request Types
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum LegacyProviderSurface {
+    Cli,
+    Mcp,
+    Rest,
+}
+
+#[derive(Debug, Clone)]
+pub struct LegacyProviderToolRequest {
+    pub surface: LegacyProviderSurface,
+    pub flat_name: String,
     pub params: serde_json::Value,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderSurfaceWarning {
+    pub code: String,
+    pub surface: LegacyProviderSurface,
+    pub legacy_name: String,
+    pub message: String,
+    pub canonical_provider: ProviderId,
+    pub canonical_tool: ToolId,
+}
+```
+
+Compatibility resolution is an explicit application policy call. Canonical
+requests never execute a "try canonical, then flat" fallback.
+
+## Results and Refresh Events
+
+```rust
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderToolResultEnvelope {
     pub provider: ProviderId,
@@ -151,25 +284,17 @@ pub struct ProviderToolResultEnvelope {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<ProviderSurfaceWarning>,
 }
-```
 
-## Compatibility Types
-
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProviderManifestSemantics {
-    V1Flat,
-    V2Namespaced,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ProviderSurfaceWarning {
-    pub code: String,
-    pub message: String,
-    pub canonical_provider: ProviderId,
-    pub canonical_tool: ToolId,
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderRefreshEvent {
+    pub generation_id: u64,
+    pub fingerprint: String,
+    pub added: Vec<ProviderToolId>,
+    pub removed: Vec<ProviderToolId>,
+    pub surface_changes: Vec<ProviderToolId>,
+    pub schema_changed: bool,
 }
 ```
 
-Compatibility resolution belongs in provider-core/application policy, never in
-individual CLI, MCP, or REST adapters.
+MCP paging cache entries additionally retain `ProviderToolId`; Palette and web
+DTOs use the same structured identity rather than parsing display strings.
