@@ -1,0 +1,53 @@
+{
+  "name": "synapse-rmcp",
+  "version": "0.6.2",
+  "description": "MCP server and CLI for host and container operations: Docker and Compose control, SSH, host inspection, logs, ZFS, and safe file transfer.",
+  "license": "MIT",
+  "homepage": "https://github.com/dinglebear-ai/synapse#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dinglebear-ai/synapse.git",
+    "directory": "packages/synapse-rmcp"
+  },
+  "bugs": {
+    "url": "https://github.com/dinglebear-ai/synapse/issues"
+  },
+  "bin": {
+    "synapse": "bin/synapse.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "scripts/",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "test": "node --test",
+    "check": "node --check bin/synapse.js && node --check scripts/install.js && node --check lib/platform.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "rmcp",
+    "rust",
+    "cli",
+    "homelab",
+    "docker",
+    "docker-compose",
+    "ssh",
+    "zfs",
+    "logs",
+    "file-operations",
+    "host-inspection",
+    "automation",
+    "claude-code",
+    "codex",
+    "gemini"
+  ],
+  "mcpName": "ai.dinglebear/synapse-rmcp"
+}

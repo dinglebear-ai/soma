@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dinglebear.ai/soma/operations/synapse-operation-results.schema.json",
+  "title": "Synapse Canonical Operation Result Schemas",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "classification_sha256", "result_schema_sha256", "schema_count", "schemas"],
+  "properties": {
+    "format_version": {"const": 1},
+    "classification_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "result_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "schema_count": {"const": 59},
+    "schemas": {
+      "type": "array", "minItems": 59, "maxItems": 59,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operation_name", "schema_id", "family", "schema"],
+        "properties": {
+          "operation_name": {"$ref": "operation-contract.schema.json#/$defs/operationName"},
+          "schema_id": {"$ref": "operation-contract.schema.json#/$defs/schemaId"},
+          "family": {"enum": ["help", "resource_list", "resource_detail", "metrics", "status", "mutation", "text", "file_content", "command", "fanout_command", "transfer", "diff", "diagnostic_report"]},
+          "schema": {"type": "object"}
+        }
+      }
+    }
+  }
+}

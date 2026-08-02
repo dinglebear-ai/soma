@@ -57,7 +57,7 @@ Typed Rust request and output models are authoritative. Every operation/version 
 
 Schemas MUST use Draft 2020-12, be closed by default, carry stable `$id` values, express alternatives and bounds, reject ambiguous targets and control characters, version breaking changes, and exclude credentials or raw authorization tokens.
 
-Compatibility adapters may accept aliases, but normalization MUST produce exactly one canonical typed request before engine admission.
+Compatibility adapters may accept aliases, but normalization MUST produce exactly one canonical typed request before engine admission. The generated canonical parameter schemas are closed, exclude legacy routing and presentation fields, and are digest-bound to the 59-operation classification registry. Canonical result payload schemas are likewise closed and normalize donor outputs into bounded inventory, status, metrics, mutation, text/artifact, command, fanout, transfer, diff, and diagnostic-report families. Legacy response formatting is a product projector above these payloads.
 
 ## Semantic fixtures
 
@@ -77,7 +77,7 @@ Surface-specific status names are projections. They MUST preserve canonical mean
 
 Diagnostics use validated lowercase dotted `DiagnosticCode` values and structured fields. Every canonical operation declares its possible codes. Human messages may improve without breaking compatibility.
 
-Each diagnostic defines code, category, severity, retry classification, mutation-send uncertainty, correctable field paths, redaction behavior, and mappings for CLI exit codes, HTTP status, MCP error data, and operation events. Products MUST NOT infer retry safety from prose.
+Each diagnostic defines code, category, severity, retry classification, mutation-send uncertainty, correctable field paths, redaction behavior, and mappings for CLI exit codes, HTTP status, MCP error data, and operation events. The generated projection table covers every diagnostic declared by the canonical operation registry. Products MUST NOT infer retry safety from prose.
 
 ## Generation pipeline
 
