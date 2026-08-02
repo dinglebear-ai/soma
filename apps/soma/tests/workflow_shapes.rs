@@ -332,9 +332,7 @@ fn python_wheel_publish_uses_current_trusted_publisher_contract() {
     let publish = workflow_job_block(workflow, "publish");
 
     assert!(
-        publish.contains(
-            "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33"
-        ),
+        publish.contains("pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33"),
         "provider publication must pin the current trusted-publisher action contract"
     );
     assert!(
