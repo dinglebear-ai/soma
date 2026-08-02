@@ -60,6 +60,8 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `generate-synapse-operation-fixture.py` | Python contract tool | `just synapse-operation-contract-check`, `just synapse-operation-contract-generate` | Generates the pinned 59-operation Synapse semantic fixture and validates names, dispatch shapes, exact scopes, destructive/transport metadata, parameter groups, source provenance, donor identity, and the deterministic semantic digest. |
 | `generate-synapse-canonical-classifications.py` | Python contract tool | `just synapse-canonical-contract-check`, `just synapse-canonical-contract-generate` | Generates and validates the digest-bound canonical `OperationSpec` registry, including mutation safety, target kinds, lifecycle support, retry/idempotency, versioned parameter/result schema IDs, stable diagnostic codes, evidence, and backend capability requirements. |
 | `generate-operation-surface-contracts.py` | Python contract tool | `just operation-surface-contracts-check`, `just operation-surface-contracts-generate` | Generates 59 closed canonical parameter schemas and the complete 33-code projection table for CLI exits, HTTP statuses, MCP error codes, event severity, retry, and terminal semantics. |
+| `generate-operation-result-contracts.py` | Python contract tool | `just operation-result-contracts-check`, `just operation-result-contracts-generate` | Generates 59 closed canonical result payload schemas across 13 normalized output families, including bounded text/artifact, command, fanout, transfer, diff, metrics, status, mutation, and inventory shapes. |
+| `check-synapse-product-import.py` | Python import contract | `just synapse-product-import-check` | Proves the temporary `crates/synapse/import` subtree is byte-for-byte identical to the locked donor commit, preserves the donor commit as an ancestor, contains exactly 386 tracked files, resolves only the `synapse` and `xtask` packages, and remains outside Soma's root Cargo workspace. |
 | `generate-unify-manifest.py` | Python package tool | `just unify-manifest-check`, `just unify-manifest-generate` | Generates and validates `docs/unify/MANIFEST.yaml` plus `CHECKSUMS.sha256` from the pinned donor lock and current package files. Requires PyYAML. |
 | `check-coupled-files.sh` | Bash wrapper | `cargo xtask check-coupled-files`, `just coupled-files-check`, CI | Delegates to xtask to warn when files that usually change together drift, such as script edits without `scripts/README.md` updates. |
 | `refresh-docs.sh` | Bash wrapper | `cargo xtask refresh-docs`, `just refresh-docs*` | Delegates to xtask to refresh ignored protocol, SDK, Claude Code, and mcporter references under `docs/references/`. |
@@ -508,6 +510,19 @@ and one complete projection table for all 33 stable diagnostic codes. Canonical
 schemas exclude Flux/Scout routing and presentation fields. Check mode proves
 coverage, schema IDs, required fields, exclusivity, stable digests, and exact
 CLI/HTTP/MCP/event/retry projection coverage.
+
+### `generate-operation-result-contracts.py`
+
+```bash
+just operation-result-contracts-check
+just operation-result-contracts-generate
+```
+
+Generates 59 closed canonical result payload schemas across 13 normalized
+families. Text and command outputs support bounded inline values or protected
+artifact references; inventory, metrics, status, mutation, fanout, transfer,
+diff, and diagnostic-report payloads have stable top-level shapes. Legacy JSON
+is projected above these schemas rather than becoming the shared contract.
 
 ### `generate-unify-manifest.py`
 

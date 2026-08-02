@@ -250,6 +250,42 @@ operation-surface-contracts-check:
 operation-surface-contracts-generate:
     python3 scripts/generate-operation-surface-contracts.py generate
 
+# Validate all 59 canonical result payload schemas
+operation-result-contracts-check:
+    python3 scripts/generate-operation-result-contracts.py check
+
+# Regenerate all canonical result payload schemas
+operation-result-contracts-generate:
+    python3 scripts/generate-operation-result-contracts.py generate
+
+# Verify the exact history-preserving Synapse donor import
+synapse-product-import-check:
+    python3 scripts/check-synapse-product-import.py
+
+# Build the imported standalone Synapse workspace without changing donor behavior
+synapse-product-import-build:
+    cargo build --manifest-path crates/synapse/import/Cargo.toml --workspace --all-features
+
+# Run the imported standalone Synapse workspace test suite
+synapse-product-import-test:
+    cargo test --manifest-path crates/synapse/import/Cargo.toml --workspace --all-features
+
+# Build the imported Synapse release binary using the donor release path
+synapse-product-import-release:
+    cargo build --manifest-path crates/synapse/import/Cargo.toml --release --locked --bin synapse
+
+# Validate native Synapse catalog and compatibility adapters
+synapse-compat-check:
+    cargo test -p synapse-application --all-features
+
+# Validate neutral fleet contracts and all optional drivers
+fleet-check:
+    cargo test -p soma-fleet --all-features
+
+# Validate read-only infrastructure contracts and optional drivers
+infra-check:
+    cargo test -p soma-infra --all-features
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check
