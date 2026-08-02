@@ -126,6 +126,26 @@ fn hosted_container_smoke_is_explicitly_allowed_by_fleet_policy() {
 }
 
 #[test]
+fn container_hot_reload_source_stays_outside_service_owned_data() {
+    let ci = include_str!("../../../.github/workflows/ci.yml");
+    let container_smoke = workflow_job_block(ci, "container-smoke");
+
+    assert!(
+        container_smoke.contains("provider_dir=\"${RUNNER_TEMP}/soma-container-providers\""),
+        "hot-reloaded providers must live outside /data because the entrypoint recursively owns /data"
+    );
+    assert!(
+        container_smoke.contains("-e SOMA_PROVIDER_DIR=/providers")
+            && container_smoke.contains("-v \"${provider_dir}:/providers:ro\""),
+        "the production-container smoke must mount the externally mutable provider source separately"
+    );
+    assert!(
+        !container_smoke.contains("${data_dir}/providers"),
+        "the host runner cannot hot-reload files under the service-owned /data bind mount"
+    );
+}
+
+#[test]
 fn ci_runs_release_version_gate_before_merge() {
     let workflow = include_str!("../../../.github/workflows/ci.yml");
     let soma = workflow_job_block(workflow, "soma");
