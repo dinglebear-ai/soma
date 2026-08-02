@@ -58,6 +58,8 @@ fn failures_require_error_diagnostics() {
         "target did not answer before the deadline",
     )
     .unwrap();
+    assert_eq!(diagnostic.code(), "transport.timeout");
+    assert_eq!(diagnostic.code_id().as_str(), "transport.timeout");
     failed_result()
         .with_diagnostic(diagnostic)
         .validate()

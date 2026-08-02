@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    MutationSendState, OperationId, OperationName, RetryClass, TargetRef, Timestamp,
-    VerificationStatus,
+    DiagnosticCode, MutationSendState, OperationId, OperationName, RetryClass, TargetRef,
+    Timestamp, VerificationStatus,
 };
 
 const MAX_URI_CHARS: usize = 2_048;
@@ -43,7 +43,7 @@ pub enum DiagnosticSeverity {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Diagnostic {
-    code: String,
+    code: DiagnosticCode,
     severity: DiagnosticSeverity,
     message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -61,7 +61,7 @@ impl Diagnostic {
     ) -> Result<Self, ResultError> {
         let code = code.into();
         let message = message.into();
-        validate_code(&code)?;
+        let code = DiagnosticCode::new(code.clone()).map_err(|_| ResultError::InvalidCode(code))?;
         validate_text("diagnostic message", &message, MAX_DIAGNOSTIC_CHARS)?;
         Ok(Self {
             code,
@@ -91,6 +91,12 @@ impl Diagnostic {
     /// Returns the stable diagnostic code.
     #[must_use]
     pub fn code(&self) -> &str {
+        self.code.as_str()
+    }
+
+    /// Returns the typed stable diagnostic code.
+    #[must_use]
+    pub fn code_id(&self) -> &DiagnosticCode {
         &self.code
     }
 

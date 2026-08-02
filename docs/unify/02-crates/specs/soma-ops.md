@@ -21,6 +21,8 @@ The crate is stewarded by the Synapse operations domain but remains independentl
 
 - UUIDv7 operation, event, correlation, and authorization identities
 - Validated dotted operation names
+- Versioned operation parameter/result schema identities
+- Stable validated diagnostic codes
 - Typed target references and bounded parent relationships
 - Access, risk, reversibility, retry, mutation-send, and verification classifications
 - Operation catalog metadata and typed operation definitions
@@ -49,7 +51,7 @@ The crate is stewarded by the Synapse operations domain but remains independentl
 The initial public boundary includes:
 
 - `OperationId`, `EventId`, `CorrelationId`, `AuthorizationId`
-- `OperationName`, `TargetKind`, `TargetRef`
+- `OperationName`, `SchemaId`, `DiagnosticCode`, `TargetKind`, `TargetRef`
 - `OperationSpec`, `OperationDefinition`, `ParameterGroup`
 - `OperationContext`, `OperationRequest`
 - `AuthorizationScope`, `AuthorizationEvidence`
@@ -87,7 +89,11 @@ The initial public boundary includes:
 - the exact donor commit and semantic-distribution counts are locked;
 - a deterministic SHA-256 digest detects any semantic fixture edit.
 
-`tests/synapse_canonical_classification.rs` consumes `synapse-canonical-operations.json`, deserializes every entry directly into `OperationSpec`, and proves complete canonical target, access, risk, reversibility, planning, progress, cancellation, verification, fanout, retry, idempotency, evidence, requirement, and parameter-group coverage. Request/result schemas and stable diagnostics remain the next contract slice.
+`tests/synapse_canonical_classification.rs` consumes `synapse-canonical-operations.json`, deserializes every entry directly into `OperationSpec`, and proves complete canonical target, access, risk, reversibility, planning, progress, cancellation, verification, fanout, retry, idempotency, evidence, requirement, parameter-group, versioned schema-identity, and stable diagnostic-code coverage.
+
+`tests/synapse_surface_contracts.rs` locks all 59 closed canonical parameter schemas and proves that the 33 diagnostic projections exactly cover the operation registry across CLI exit, HTTP, MCP, event severity, retry, and terminal behavior.
+
+`tests/synapse_result_contracts.rs` locks all 59 closed canonical result payload schemas, their per-operation `SchemaId` bindings, and the normalized output-family registry. Legacy response envelopes remain product-owned projectors.
 
 ## Standalone consumer fixture
 
@@ -111,9 +117,11 @@ The crate has no workspace path dependencies.
 
 ## Verification
 
-- 49 unit tests
+- 55 unit tests
 - one digest-bound 59-operation Synapse legacy semantic compatibility integration test
 - one digest-bound 59-operation canonical `OperationSpec` classification integration test
+- two digest-bound surface-contract integration tests for 59 parameter schemas and 33 diagnostic projections
+- one digest-bound 59-operation canonical result-schema integration test
 - default-feature and all-feature test builds
 - unrelated external Cargo consumer compile
 - clippy with warnings denied
