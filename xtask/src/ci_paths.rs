@@ -172,7 +172,7 @@ fn classify(event: &str, paths: &[String]) -> BTreeMap<String, bool> {
             matches!(p, "Cargo.lock" | "deny.toml") || starts(p, &["vendor/"])
         });
     let native = rust || web;
-    let release = rust || web || any(paths, |p| starts(p, &["release/"]));
+    let release = rust || web || any(paths, |p| starts(p, &["release/", "packages/soma-rmcp/"]));
 
     let mut result = BTreeMap::new();
     result.insert("all".to_owned(), false);
@@ -366,6 +366,14 @@ mod tests {
         assert!(out["soma"]);
         assert!(out["security"]);
         assert!(out["release"]);
+    }
+
+    #[test]
+    fn npm_launcher_changes_enable_release_checks() {
+        let out = classify_paths(&["packages/soma-rmcp/scripts/install.js"]);
+        assert!(out["release"]);
+        assert!(!out["rust"]);
+        assert!(!out["web"]);
     }
 
     #[test]

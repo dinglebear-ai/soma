@@ -507,6 +507,25 @@ jobs:
       command: cargo deny check all
       timeout-minutes: 20
 
+  npm-launcher:
+    name: npm launcher
+    needs: [changes]
+    if: ${{ needs.changes.outputs.release == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Verify npm launcher
+        working-directory: packages/soma-rmcp
+        run: |
+          node scripts/sync-readme.js
+          npm test
+          npm run check
+          npm pack --dry-run --json
+
   # ── ci-gate: single required status that aggregates every job ────────────────
   # Point branch protection at THIS job ("CI Gate") instead of each job below.
   # It fails if any needed job ended in anything other than success or skipped,
@@ -527,6 +546,7 @@ jobs:
       - lefthook-speed
       - soma
       - audit
+      - npm-launcher
     runs-on: ci-pool-ops
     timeout-minutes: 5
     steps:
