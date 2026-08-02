@@ -3,9 +3,15 @@ name: Python wheels
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing immutable soma-provider release tag to resume
+        required: true
+        type: string
 
 concurrency:
-  group: python-wheels-${{ github.event.release.tag_name }}
+  group: python-wheels-${{ github.event.release.tag_name || inputs.tag_name }}
   cancel-in-progress: false
 
 permissions:
@@ -14,10 +20,10 @@ permissions:
 jobs:
   wheels:
     name: Build x86_64 native wheels
-    if: startsWith(github.event.release.tag_name, 'soma-provider-v')
-    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
+    if: startsWith(github.event.release.tag_name || inputs.tag_name, 'soma-provider-v')
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@eadba32f019e984b26d93c807ef72e5094df2876
     with:
-      checkout-ref: ${{ github.event.release.tag_name }}
+      checkout-ref: ${{ github.event.release.tag_name || inputs.tag_name }}
       package-dir: packages/python
       cibw-build: "cp311-* cp312-* cp313-* cp314-*"
       test-command: >-
@@ -27,7 +33,7 @@ jobs:
 
   publish:
     name: Attest and publish soma-provider
-    if: startsWith(github.event.release.tag_name, 'soma-provider-v')
+    if: startsWith(github.event.release.tag_name || inputs.tag_name, 'soma-provider-v')
     needs: wheels
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -36,16 +42,19 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag_name }}
           persist-credentials: false
 
       - name: Download wheelhouse
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
-          name: soma-provider-wheels
+          pattern: soma-provider-wheels-*
+          merge-multiple: true
           path: dist
 
       - name: Validate tag and wheelhouse
@@ -53,7 +62,7 @@ jobs:
         run: |
           set -euo pipefail
           version="$(python3 -c 'import tomllib; print(tomllib.load(open("packages/python/pyproject.toml", "rb"))["project"]["version"])')"
-          test "${GITHUB_REF_NAME}" = "soma-provider-v${version}"
+          test "${RELEASE_TAG}" = "soma-provider-v${version}"
           compgen -G 'dist/*.whl' >/dev/null
 
       - name: Generate checksums and CycloneDX SBOM
@@ -81,10 +90,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release upload "${GITHUB_REF_NAME}" dist/*.whl supply-chain/* --clobber --repo "${GITHUB_REPOSITORY}"
+          gh release upload "${RELEASE_TAG}" dist/*.whl supply-chain/* --clobber --repo "${GITHUB_REPOSITORY}"
 
       - name: Publish to PyPI with trusted publishing
-        uses: pypa/gh-action-pypi-publish@c1b34028248d0c9f7d90fe29fef2122e2276ff6f
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
         with:
           packages-dir: dist
           attestations: true

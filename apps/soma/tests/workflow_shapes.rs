@@ -40,6 +40,8 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
     const FLEET_REVISION: &str = "d1a41a7af9c41189e0f1062234364f5814bda99d";
     // npm publication needs token-mode support added after the fleet revision.
     const NPM_PUBLISH_REVISION: &str = "a5937b60b317abed7e757737d95ad003fac2bfb0";
+    // Native wheels need platform-specific cibuildwheel architecture names.
+    const PYTHON_WHEELS_REVISION: &str = "eadba32f019e984b26d93c807ef72e5094df2876";
     let workflow_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join(".github/workflows");
@@ -80,10 +82,10 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
                 continue;
             };
             caller_count += 1;
-            let expected_revision = if called_workflow == "npm-trusted-publish.yml" {
-                NPM_PUBLISH_REVISION
-            } else {
-                FLEET_REVISION
+            let expected_revision = match called_workflow {
+                "npm-trusted-publish.yml" => NPM_PUBLISH_REVISION,
+                "hosted-python-wheels.yml" => PYTHON_WHEELS_REVISION,
+                _ => FLEET_REVISION,
             };
             if revision.split_whitespace().next() != Some(expected_revision) {
                 unexpected_callers.push(format!(
@@ -238,6 +240,12 @@ fn artifact_workflows_run_from_published_releases() {
         release.contains("validate-release-tag:") && docker.contains("validate:"),
         "artifact publication must validate the immutable release contract"
     );
+    let docker_validate = workflow_job_block(&docker, "validate");
+    assert!(
+        docker_validate
+            .contains("if: startsWith(github.event.release.tag_name || inputs.tag_name, 'v')"),
+        "the Soma container workflow must ignore component-prefixed provider releases"
+    );
     assert!(
         release.contains("gh release upload")
             && release.contains("\"${{ needs.validate-release-tag.outputs.release_tag }}\""),
@@ -262,6 +270,10 @@ fn artifact_workflows_run_from_published_releases() {
         "npm publish must wait for artifacts and use the fleet source of truth"
     );
     assert!(
+        !npm.contains("NPM_TOKEN"),
+        "trusted npm publication must use OIDC without a legacy registry token"
+    );
+    assert!(
         release.contains("arch: linux-x86_64")
             && release.contains("artifacts/${{ env.BINARY_NAME }}-${{ matrix.arch }}.tar.gz",),
         "release assets must include the installer's linux-x86_64 naming convention"
@@ -280,5 +292,47 @@ fn artifact_workflows_run_from_published_releases() {
     assert!(
         docker.contains("hosted-container-release.yml@d1a41a7af9c41189e0f1062234364f5814bda99d"),
         "container publication must use the pinned fleet workflow"
+    );
+}
+
+#[test]
+fn python_wheel_publish_merges_platform_artifacts() {
+    let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
+
+    assert!(
+        workflow.contains("pattern: soma-provider-wheels-*")
+            && workflow.contains("merge-multiple: true"),
+        "provider publication must merge every platform-specific wheel artifact"
+    );
+}
+
+#[test]
+fn python_wheel_release_supports_immutable_tag_recovery() {
+    let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
+    let release_tag = "${{ github.event.release.tag_name || inputs.tag_name }}";
+
+    assert!(
+        workflow.contains("workflow_dispatch:") && workflow.contains("tag_name:"),
+        "provider wheels need an explicit immutable-tag recovery input"
+    );
+    assert!(
+        workflow.matches(release_tag).count() >= 4,
+        "provider build and publish jobs must consistently use the resolved release tag"
+    );
+    assert!(
+        workflow.contains("test \"${RELEASE_TAG}\" = \"soma-provider-v${version}\"")
+            && workflow.contains("gh release upload \"${RELEASE_TAG}\""),
+        "provider recovery must validate and upload to the requested immutable tag"
+    );
+}
+#[test]
+fn python_wheel_release_uses_oidc_capable_pypi_publisher() {
+    let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
+
+    assert!(
+        workflow.contains("pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",)
+            && workflow.contains("packages-dir: dist")
+            && workflow.contains("attestations: true"),
+        "provider publication must use the approved OIDC and attestation capable PyPI action"
     );
 }
