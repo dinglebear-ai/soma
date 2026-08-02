@@ -81,6 +81,24 @@ they apply:
    just test-mcporter
    ```
 
+The production Compose sample enables trusted-gateway mode because local
+Python providers deliberately reject ordinary remote bearer-token execution.
+It publishes Soma on host loopback by default; place an authenticating and
+authorizing reverse proxy on that host in front of it:
+
+```bash
+docker compose -f docker-compose.prod.yml config --quiet
+docker compose -f docker-compose.prod.yml up -d
+curl --fail http://127.0.0.1:40060/health
+```
+
+`SOMA_MCP_PUBLISH_HOST` controls the host-side bind address and defaults to
+`127.0.0.1`. A Tailscale address may be set in the project `.env` when tailnet
+identity and ACLs are the intended transport trust boundary. Never set it to
+`0.0.0.0` or an unprotected LAN address while `SOMA_NOAUTH=true`. Deployments
+without local-runtime providers may instead remove `SOMA_NOAUTH`, set
+`SOMA_MCP_TOKEN`, and publish the bearer-protected service directly.
+
 ## Binary environment awareness
 
 The binary normalizes data paths based on its deployment context. Bind host and

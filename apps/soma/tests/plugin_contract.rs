@@ -35,6 +35,22 @@ fn docker_stages(dockerfile: &str) -> Vec<&str> {
         .collect()
 }
 
+fn apt_install_packages(stage: &str) -> Vec<String> {
+    let normalized = stage.replace("\\\n", " ");
+    let install = normalized
+        .split("apt-get install")
+        .nth(1)
+        .expect("stage should contain apt-get install")
+        .split("&&")
+        .next()
+        .expect("install command should terminate");
+    install
+        .split_whitespace()
+        .filter(|token| !token.starts_with('-'))
+        .map(str::to_owned)
+        .collect()
+}
+
 #[test]
 fn docker_stage_parser_accepts_digest_pinned_images() {
     let dockerfile = "FROM node:26-bookworm-slim AS web\nRUN true\nFROM rust@sha256:builder AS builder\nRUN true\nFROM debian:bookworm-slim@sha256:runtime\nRUN true\n";
@@ -49,7 +65,16 @@ fn production_container_supports_persistent_python_provider_hot_reload() {
     let compose = read("docker-compose.prod.yml");
     assert!(compose.contains("SOMA_HOME: /data"));
     assert!(compose.contains("SOMA_PROVIDER_DIR: /data/providers"));
+    assert!(compose.contains("SOMA_PYTHON_RUNNER_MODE: persistent"));
+    assert!(compose.contains("SOMA_PYTHON_EXECUTION_PROFILE: trusted"));
+    assert!(compose.contains("SOMA_NOAUTH: \"true\""));
+    assert!(
+        compose
+            .contains("${SOMA_MCP_PUBLISH_HOST:-127.0.0.1}:${SOMA_MCP_HOST_PORT:-40060}:40060/tcp")
+    );
+    assert!(!compose.contains("- \"${SOMA_MCP_HOST_PORT:-40060}:40060/tcp\""));
     assert!(compose.contains("${HOME}/.soma:/data"));
+    assert!(compose.contains("${HOME}/.soma/providers:/data/providers:ro"));
     assert!(
         compose.contains("read_only: true"),
         "hot reload must use the data mount rather than weakening the root filesystem"
@@ -68,24 +93,38 @@ fn production_container_supports_persistent_python_provider_hot_reload() {
         })
         .expect("Dockerfile should contain a named builder stage");
     assert!(
-        builder.contains("libseccomp-dev"),
+        apt_install_packages(builder)
+            .iter()
+            .any(|package| package == "libseccomp-dev"),
         "builder image must link the Python containment backend"
     );
     let runtime = stages
         .last()
         .expect("Dockerfile should contain a runtime stage");
-    let runtime_packages = runtime
-        .split_once("rm -rf /var/lib/apt/lists/*")
-        .expect("runtime package installation should clean apt metadata")
-        .0;
+    let runtime_packages = apt_install_packages(runtime);
     assert!(
-        runtime_packages.contains("libseccomp2"),
+        runtime_packages
+            .iter()
+            .any(|package| package == "libseccomp2"),
         "runtime image must ship the shared library used by Python containment"
     );
     assert!(
-        runtime_packages.contains("python3"),
+        runtime_packages.iter().any(|package| package == "python3"),
         "runtime image must ship the ambient interpreter used by .py providers"
     );
+    for package in ["bubblewrap", "util-linux"] {
+        assert!(
+            runtime_packages.iter().any(|actual| actual == package),
+            "runtime image must ship brokered-worker prerequisite {package}"
+        );
+    }
+    assert!(
+        runtime.contains(
+            "COPY packages/python/python/soma_provider/*.py /usr/lib/python3/dist-packages/soma_provider/"
+        ),
+        "persistent workers require the dependency-free runner in Python's isolated system path"
+    );
+    assert!(runtime.contains("python3 -I -c 'import soma_provider.runner'"));
     assert!(
         dockerfile.contains("COPY wit/ wit/"),
         "builder image must include the embedded provider WIT world"

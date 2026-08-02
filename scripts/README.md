@@ -65,6 +65,8 @@ usage text, Justfile wiring, CI references, and hook integration.
 | File | Type | Entry points | What it does |
 |---|---|---|---|
 | `conformance_report.py` | Python | `just conformance-report` | Summarizes official MCP conformance `checks.json` result files under `results/`, with optional JSON output for audits. |
+| `ci/mcp-conformance.sh` | Bash | `just conformance-matrix`, CI | Runs the pinned server/client conformance matrix with per-run output isolation, RMCP-revision-keyed build artifacts, and retry-safe dynamic server ports. |
+| `ci/mcp-conformance-port.sh` | Bash library | sourced by `ci/mcp-conformance.sh` | Holds cooperative per-port locks for parallel matrix jobs; the caller retains the lock for the Soma child lifetime and retries non-cooperating bind races. |
 | `validate-plugin-layout.sh` | Bash wrapper | `cargo xtask validate-plugin-layout`, `just validate-plugin`, CI | Delegates to xtask to validate Claude, Codex, and Gemini plugin packaging conventions. |
 | `check-plugin-hook-contract.py` | Python wrapper | `cargo xtask check-plugin-hook-contract` | Delegates to xtask to audit cross-repo plugin setup hook JSON contracts, optionally executing setup commands. |
 | `check-plugin-stdio-smoke.sh` | Bash wrapper | `cargo xtask check-plugin-stdio-smoke`, docs/contracts | Delegates to xtask to smoke-test the installed stdio plugin binary with JSON-RPC initialize plus `status`. |
