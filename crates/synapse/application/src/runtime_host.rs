@@ -159,3 +159,7 @@ impl SynapseReadRuntime {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "runtime_host_tests.rs"]
+mod tests;

@@ -199,3 +199,7 @@ fn filter_containers(
         name_matches && image_matches && query_matches
     });
 }
+
+#[cfg(test)]
+#[path = "runtime_docker_tests.rs"]
+mod tests;

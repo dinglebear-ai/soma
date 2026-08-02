@@ -141,3 +141,7 @@ fn append_patch(patch: &mut String, prefix: &str, line: &str) {
 fn digest(value: &[u8]) -> String {
     format!("{:x}", Sha256::digest(value))
 }
+
+#[cfg(test)]
+#[path = "runtime_result_tests.rs"]
+mod tests;

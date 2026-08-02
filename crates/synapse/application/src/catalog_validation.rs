@@ -15,3 +15,7 @@ impl SynapseCatalog {
             .validate(operation, "result", result)
     }
 }
+
+#[cfg(test)]
+#[path = "catalog_validation_tests.rs"]
+mod tests;

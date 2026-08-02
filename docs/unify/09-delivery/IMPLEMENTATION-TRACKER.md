@@ -68,7 +68,7 @@ No generic `in_progress`.
 | product-family | 10 | `feat/fleet-foundation` | `feat/synapse-compat-adapters` | `~/workspace/soma/.worktrees/fleet-foundation` | Neutral topology, pooling, OpenSSH, forwarding, transfer lifecycle, and bounded fanout | #270 | parity_verifying |
 | product-family | 11 | `feat/infra-foundation` | `feat/fleet-foundation` | `~/workspace/soma/.worktrees/infra-foundation` | Read-only host, Docker, Compose, and confined filesystem engines | #271 | parity_verifying |
 | product-family | 12 | `feat/infra-read-expansion` | `feat/infra-foundation` | `~/workspace/soma/.worktrees/infra-read-expansion` | Docker telemetry, Compose logs, process, OS logs, and ZFS reads | #272 | parity_verifying |
-| product-family | 13 | `feat/synapse-canonical-cutover` | `feat/infra-read-expansion` | `~/workspace/soma/.worktrees/synapse-canonical-cutover` | Complete canonical read runtime, remote Docker/filesystem reads, and legacy result projector removal | pending | parity_verifying |
+| product-family | 13 | `feat/synapse-canonical-cutover` | `feat/infra-read-expansion` | `~/workspace/soma/.worktrees/synapse-canonical-cutover` | Complete canonical read runtime, remote Docker/filesystem reads, and legacy result projector removal | #284 | parity_verifying |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 

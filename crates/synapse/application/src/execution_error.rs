@@ -44,3 +44,7 @@ pub enum ExecutionError {
     #[error("canonical result serialization failed: {0}")]
     Serialization(String),
 }
+
+#[cfg(test)]
+#[path = "execution_error_tests.rs"]
+mod tests;

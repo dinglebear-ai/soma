@@ -13,11 +13,13 @@ use crate::runtime_test_support::Fixture;
 impl ComposeInspector for Fixture {
     async fn list_projects(
         &self,
-        _host: &HostRecord,
+        host: &HostRecord,
         _: Timestamp,
         _: &CancellationToken,
     ) -> InfraResult<Vec<ComposeProject>> {
         Ok(vec![ComposeProject {
+            host: host.id().clone(),
+            topology_revision: host.revision().clone(),
             name: "soma".into(),
             status: Some("running".into()),
             config_files: vec!["/srv/soma/compose.yaml".into()],

@@ -101,3 +101,7 @@ pub(crate) fn invalid(field: &str, message: &str) -> ExecutionError {
         message: message.to_owned(),
     }
 }
+
+#[cfg(test)]
+#[path = "runtime_params_tests.rs"]
+mod tests;

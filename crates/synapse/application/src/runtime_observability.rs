@@ -272,3 +272,7 @@ fn parse_priority(value: &str) -> Result<JournalPriority, ExecutionError> {
         }
     })
 }
+
+#[cfg(test)]
+#[path = "runtime_observability_tests.rs"]
+mod tests;

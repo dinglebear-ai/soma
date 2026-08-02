@@ -13,7 +13,6 @@ const DEFAULT_REMOTE_SOCKET: &str = "/var/run/docker.sock";
 /// Revision-aware Bollard provider for local and strict-SSH hosts.
 pub struct BollardClientProvider {
     pool: Arc<ConnectionPool<OpenSshConnector>>,
-    local_sockets: BTreeMap<HostId, PathBuf>,
     remote_sockets: BTreeMap<HostId, PathBuf>,
 }
 
@@ -23,20 +22,8 @@ impl BollardClientProvider {
     pub fn new(pool: Arc<ConnectionPool<OpenSshConnector>>) -> Self {
         Self {
             pool,
-            local_sockets: BTreeMap::new(),
             remote_sockets: BTreeMap::new(),
         }
-    }
-
-    /// Configures an explicit local Docker socket for one host.
-    pub fn with_local_socket(
-        mut self,
-        host: HostId,
-        path: impl Into<PathBuf>,
-    ) -> InfraResult<Self> {
-        self.local_sockets
-            .insert(host, validate_socket(path.into())?);
-        Ok(self)
     }
 
     /// Configures an explicit remote Docker socket for one SSH host.
@@ -52,9 +39,7 @@ impl BollardClientProvider {
 
     fn plan<'a>(&'a self, host: &'a HostRecord) -> InfraResult<SocketPlan<'a>> {
         match host.endpoint() {
-            HostEndpoint::Local => Ok(SocketPlan::Local(
-                self.local_sockets.get(host.id()).map(PathBuf::as_path),
-            )),
+            HostEndpoint::Local => Ok(SocketPlan::Local),
             HostEndpoint::Ssh(_) => Ok(SocketPlan::Remote(
                 self.remote_sockets
                     .get(host.id())
@@ -77,9 +62,7 @@ impl DockerClientProvider for BollardClientProvider {
         cancellation: &CancellationToken,
     ) -> InfraResult<Arc<dyn DockerReadClient>> {
         match self.plan(host)? {
-            SocketPlan::Local(socket) => {
-                Ok(Arc::new(BollardReadClient::connect_local(host, socket)?))
-            }
+            SocketPlan::Local => Ok(Arc::new(BollardReadClient::connect_local(host)?)),
             SocketPlan::Remote(socket) => {
                 let connection = self.pool.get_or_connect(host, cancellation).await?;
                 Ok(Arc::new(
@@ -92,7 +75,7 @@ impl DockerClientProvider for BollardClientProvider {
 }
 
 enum SocketPlan<'a> {
-    Local(Option<&'a Path>),
+    Local,
     Remote(&'a Path),
 }
 

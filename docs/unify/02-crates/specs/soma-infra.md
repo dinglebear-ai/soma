@@ -7,8 +7,8 @@ status: implemented
 
 # soma-infra
 
-**Path:** `crates/shared/operations/infra`  
-**Layer:** shared  
+**Path:** `crates/shared/operations/infra`
+**Layer:** shared
 **Package status:** private during extraction
 
 ## Purpose

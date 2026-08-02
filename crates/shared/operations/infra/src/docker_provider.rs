@@ -39,3 +39,7 @@ impl<T> DockerReadClient for T where
         + crate::DockerTelemetryReader
 {
 }
+
+#[cfg(test)]
+#[path = "docker_provider_tests.rs"]
+mod tests;
