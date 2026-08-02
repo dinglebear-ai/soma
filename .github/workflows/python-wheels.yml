@@ -15,7 +15,7 @@ jobs:
   wheels:
     name: Build x86_64 native wheels
     if: startsWith(github.event.release.tag_name, 'soma-provider-v')
-    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@eadba32f019e984b26d93c807ef72e5094df2876
     with:
       checkout-ref: ${{ github.event.release.tag_name }}
       package-dir: packages/python
@@ -45,7 +45,8 @@ jobs:
       - name: Download wheelhouse
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
-          name: soma-provider-wheels
+          pattern: soma-provider-wheels-*
+          merge-multiple: true
           path: dist
 
       - name: Validate tag and wheelhouse
