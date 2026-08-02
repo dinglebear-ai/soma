@@ -317,7 +317,7 @@ fn mcp_registry_manifest_advertises_rich_product_metadata() {
 #[test]
 fn npm_launcher_package_has_distribution_metadata() {
     let package = json("packages/soma-rmcp/package.json");
-    assert_eq!(package["name"], "soma-rmcp");
+    assert_eq!(package["name"], "@dinglebear/soma");
     assert_eq!(package["mcpName"], "ai.dinglebear/soma");
     assert_eq!(package["homepage"], "https://soma.dinglebear.ai");
     assert_eq!(package["author"]["name"], "dinglebear.ai");
@@ -340,7 +340,7 @@ fn generated_openapi_carries_product_metadata() {
         "https://github.com/dinglebear-ai/soma/tree/main/docs"
     );
     assert_eq!(openapi["x-soma"]["binary"], "soma");
-    assert_eq!(openapi["x-soma"]["node_package"], "soma-rmcp");
+    assert_eq!(openapi["x-soma"]["node_package"], "@dinglebear/soma");
     assert_eq!(openapi["x-soma"]["mcp_registry"], "server.json");
     assert_eq!(openapi["x-soma"]["publisher"]["name"], "dinglebear.ai");
     assert!(

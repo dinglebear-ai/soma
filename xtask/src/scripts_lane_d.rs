@@ -593,7 +593,7 @@ fn render_openapi(root: &Path) -> Result<Value> {
             "preferred_rest_style": "direct_routes",
             "binary": "soma",
             "server_binary": "soma",
-            "node_package": "soma-rmcp",
+            "node_package": "@dinglebear/soma",
             "oci_image": format!("ghcr.io/dinglebear-ai/soma:{version}"),
             "mcp_registry": "server.json",
             "provider_directory_env": "SOMA_PROVIDER_DIR",

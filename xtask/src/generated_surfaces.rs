@@ -689,7 +689,7 @@ fn render_distribution_plugin(snapshot: &Value) -> Value {
             "server": "soma"
         },
         "packages": {
-            "npm": "soma-rmcp",
+            "npm": "@dinglebear/soma",
             "oci": "ghcr.io/dinglebear-ai/soma"
         },
         "runtime": {
@@ -815,7 +815,7 @@ fn render_codex_marketplace() -> Value {
             },
             "metadata": {
                 "mcpServer": "server.json",
-                "nodePackage": "soma-rmcp",
+                "nodePackage": "@dinglebear/soma",
                 "ociImage": "ghcr.io/dinglebear-ai/soma",
                 "binary": "soma"
             }
@@ -844,7 +844,7 @@ fn render_claude_marketplace() -> Value {
             "category": "infrastructure",
             "metadata": {
                 "mcpServer": "server.json",
-                "nodePackage": "soma-rmcp",
+                "nodePackage": "@dinglebear/soma",
                 "ociImage": "ghcr.io/dinglebear-ai/soma",
                 "binary": "soma"
             }
