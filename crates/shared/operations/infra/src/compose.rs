@@ -41,6 +41,10 @@ impl ComposeProjectRef {
 /// Project row returned by `docker compose ls`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComposeProject {
+    /// Target host.
+    pub host: HostId,
+    /// Exact topology revision.
+    pub topology_revision: TopologyRevision,
     /// Project name.
     pub name: String,
     /// Engine-reported status text.

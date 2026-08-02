@@ -25,6 +25,7 @@ pub(crate) fn validate_service(service: &str) -> InfraResult<()> {
 
 pub(crate) fn validate_absolute_path(path: PathBuf) -> InfraResult<PathBuf> {
     if !path.is_absolute()
+        || path.to_str().is_none()
         || path
             .components()
             .any(|component| matches!(component, Component::ParentDir | Component::CurDir))
@@ -42,7 +43,7 @@ pub(crate) fn validate_absolute_path(path: PathBuf) -> InfraResult<PathBuf> {
 }
 
 #[cfg(any(feature = "process-driver", test))]
-pub(crate) fn parse_project_list(raw: &str) -> InfraResult<Vec<ComposeProject>> {
+pub(crate) fn parse_project_list(host: &HostRecord, raw: &str) -> InfraResult<Vec<ComposeProject>> {
     let records = parse_records(raw, "Compose project list")?;
     records
         .into_iter()
@@ -61,10 +62,14 @@ pub(crate) fn parse_project_list(raw: &str) -> InfraResult<Vec<ComposeProject>> 
                         .map(str::trim)
                         .filter(|item| !item.is_empty())
                         .map(PathBuf::from)
-                        .collect()
+                        .map(validate_absolute_path)
+                        .collect::<InfraResult<Vec<_>>>()
                 })
+                .transpose()?
                 .unwrap_or_default();
             Ok(ComposeProject {
+                host: host.id().clone(),
+                topology_revision: host.revision().clone(),
                 name,
                 status,
                 config_files,

@@ -99,11 +99,11 @@ pub trait HostInspector: Send + Sync {
 }
 
 /// Host inspector backed by a `soma-fleet` command executor.
-pub struct CommandHostInspector<E> {
+pub struct LinuxCommandHostInspector<E> {
     executor: Arc<E>,
 }
 
-impl<E> CommandHostInspector<E> {
+impl<E> LinuxCommandHostInspector<E> {
     /// Creates an inspector using the supplied fleet command executor.
     #[must_use]
     pub fn new(executor: Arc<E>) -> Self {
@@ -112,7 +112,7 @@ impl<E> CommandHostInspector<E> {
 }
 
 #[async_trait]
-impl<E> HostInspector for CommandHostInspector<E>
+impl<E> HostInspector for LinuxCommandHostInspector<E>
 where
     E: CommandExecutor,
 {
@@ -181,7 +181,7 @@ where
     }
 }
 
-impl<E> CommandHostInspector<E>
+impl<E> LinuxCommandHostInspector<E>
 where
     E: CommandExecutor,
 {
@@ -208,7 +208,7 @@ fn checked_text(host: &HostRecord, output: CommandOutput) -> InfraResult<String>
             domain: "host",
             host: host.id().clone(),
             exit_code: output.exit_code(),
-            stderr: String::from_utf8_lossy(output.stderr()).trim().to_owned(),
+            stderr: crate::error::public_diagnostic(output.stderr()),
         });
     }
     if output.truncated() {
@@ -243,9 +243,10 @@ fn parse_meminfo(raw: &str) -> InfraResult<HostMemory> {
         let mut fields = line.split_whitespace();
         let key = fields.next().unwrap_or_default().trim_end_matches(':');
         let value = fields.next().and_then(|value| value.parse::<u64>().ok());
+        let unit = fields.next();
         match key {
-            "MemTotal" => total_kib = value,
-            "MemAvailable" => available_kib = value,
+            "MemTotal" if unit == Some("kB") => total_kib = value,
+            "MemAvailable" if unit == Some("kB") => available_kib = value,
             _ => {}
         }
     }
@@ -261,14 +262,16 @@ fn parse_meminfo(raw: &str) -> InfraResult<HostMemory> {
             domain: "host",
             message: "missing or overflowing MemAvailable".into(),
         })?;
-    let used_bytes = total_bytes.saturating_sub(available_bytes);
-    let usage_percent = if total_bytes == 0 {
-        0
-    } else {
-        ((used_bytes as f64 / total_bytes as f64) * 100.0)
-            .round()
-            .clamp(0.0, 100.0) as u8
-    };
+    if total_bytes == 0 || available_bytes > total_bytes {
+        return Err(InfraError::Parse {
+            domain: "host",
+            message: "inconsistent MemTotal and MemAvailable".into(),
+        });
+    }
+    let used_bytes = total_bytes - available_bytes;
+    let usage_percent = ((used_bytes as f64 / total_bytes as f64) * 100.0)
+        .round()
+        .clamp(0.0, 100.0) as u8;
     Ok(HostMemory {
         total_bytes,
         available_bytes,

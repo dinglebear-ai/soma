@@ -45,7 +45,7 @@ where
                 cancellation,
             )
             .await?;
-        parse_project_list(&raw)
+        parse_project_list(host, &raw)
     }
 
     async fn status(
@@ -56,11 +56,17 @@ where
         deadline: Timestamp,
         cancellation: &CancellationToken,
     ) -> InfraResult<ComposeStatus> {
-        let config = project.config_file().to_string_lossy().into_owned();
+        let config = project
+            .config_file()
+            .to_str()
+            .expect("ComposeProjectRef validates UTF-8 paths")
+            .to_owned();
         let mut args = vec![
             "compose".to_owned(),
             "-f".to_owned(),
             config,
+            "--project-name".to_owned(),
+            project.name().to_owned(),
             "ps".to_owned(),
             "--format".to_owned(),
             "json".to_owned(),
@@ -87,7 +93,13 @@ where
                 vec![
                     "compose".into(),
                     "-f".into(),
-                    project.config_file().to_string_lossy().into_owned(),
+                    project
+                        .config_file()
+                        .to_str()
+                        .expect("ComposeProjectRef validates UTF-8 paths")
+                        .to_owned(),
+                    "--project-name".into(),
+                    project.name().to_owned(),
                     "config".into(),
                     "--format".into(),
                     "json".into(),
@@ -142,7 +154,7 @@ fn checked_output(host: &HostRecord, output: CommandOutput) -> InfraResult<Strin
             domain: "compose",
             host: host.id().clone(),
             exit_code: output.exit_code(),
-            stderr: String::from_utf8_lossy(output.stderr()).trim().to_owned(),
+            stderr: crate::error::public_diagnostic(output.stderr()),
         });
     }
     if output.truncated() {

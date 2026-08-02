@@ -39,8 +39,8 @@ pub use filesystem::{
     FileHash, FileKind, FileMetadata, FilePreview, FileReadPolicy, FilesystemInspector,
 };
 pub use host::{
-    CommandHostInspector, HostIdentity, HostInspectRequest, HostInspection, HostInspector,
-    HostLoadAverage, HostMemory,
+    HostIdentity, HostInspectRequest, HostInspection, HostInspector, HostLoadAverage, HostMemory,
+    LinuxCommandHostInspector,
 };
 #[cfg(all(feature = "linux-filesystem", target_os = "linux"))]
 pub use linux_filesystem::LinuxFilesystemInspector;

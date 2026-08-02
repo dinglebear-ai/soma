@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 use std::future::Future;
-use std::path::Path;
 
 use async_trait::async_trait;
+use bollard::Docker;
 use bollard::query_parameters::{
     ListContainersOptions, ListImagesOptions, ListNetworksOptions, ListVolumesOptions,
 };
-use bollard::{API_DEFAULT_VERSION, Docker};
 use soma_fleet::{HostEndpoint, HostId, HostRecord, TopologyRevision};
 use tokio_util::sync::CancellationToken;
 
 use crate::docker_map::{
-    array_field, map_container_inspect, map_container_summary, map_image, map_network,
-    map_system_info, map_volume, parse_error,
+    map_container_inspect, map_container_summary, map_image, map_network, map_system_info,
+    map_volume, parse_error,
 };
 use crate::{
     ContainerInspect, ContainerListOptions, ContainerReader, ContainerSummary, DockerSystemInfo,
@@ -20,7 +19,8 @@ use crate::{
     NetworkReader, NetworkSummary, VolumeReader, VolumeSummary,
 };
 
-const CLIENT_TIMEOUT_SECONDS: u64 = 120;
+const MAX_LIST_ITEMS: usize = 10_000;
+const MAX_LIST_ITEM_JSON_BYTES: usize = 256 * 1024;
 
 /// Local Bollard implementation of the neutral Docker read contracts.
 pub struct BollardReadClient {
@@ -31,22 +31,15 @@ pub struct BollardReadClient {
 
 impl BollardReadClient {
     /// Connects to a local Docker socket and binds the client to one host revision.
-    pub fn connect_local(host: &HostRecord, socket: Option<&Path>) -> InfraResult<Self> {
+    pub fn connect_local(host: &HostRecord) -> InfraResult<Self> {
         if !matches!(host.endpoint(), HostEndpoint::Local) {
             return Err(InfraError::UnsupportedTarget {
                 domain: "docker",
                 host: host.id().clone(),
             });
         }
-        let docker = match socket {
-            Some(path) => Docker::connect_with_socket(
-                path.to_string_lossy().as_ref(),
-                CLIENT_TIMEOUT_SECONDS,
-                API_DEFAULT_VERSION,
-            ),
-            None => Docker::connect_with_socket_defaults(),
-        }
-        .map_err(|error| InfraError::Docker(error.to_string()))?;
+        let docker = Docker::connect_with_socket_defaults()
+            .map_err(|error| InfraError::Docker(error.to_string()))?;
         Ok(Self {
             docker,
             host: host.id().clone(),
@@ -106,8 +99,9 @@ impl ContainerReader for BollardReadClient {
             query.filters = Some(filters);
         }
         let rows = cancellable(cancellation, self.docker.list_containers(Some(query))).await?;
+        ensure_list_bound("containers", rows.len())?;
         rows.into_iter()
-            .map(|row| serde_json::to_value(row).map_err(|error| parse_error(error.to_string())))
+            .map(|row| bounded_json_value("container", row))
             .map(|value| value.and_then(|value| map_container_summary(host, &value)))
             .filter(|result| {
                 result.as_ref().map_or(true, |row| {
@@ -153,8 +147,9 @@ impl ImageReader for BollardReadClient {
             query.filters = Some(filters);
         }
         let rows = cancellable(cancellation, self.docker.list_images(Some(query))).await?;
+        ensure_list_bound("images", rows.len())?;
         rows.into_iter()
-            .map(|row| serde_json::to_value(row).map_err(|error| parse_error(error.to_string())))
+            .map(|row| bounded_json_value("image", row))
             .map(|value| value.and_then(|value| map_image(host, &value)))
             .collect()
     }
@@ -173,8 +168,9 @@ impl NetworkReader for BollardReadClient {
             self.docker.list_networks(None::<ListNetworksOptions>),
         )
         .await?;
+        ensure_list_bound("networks", rows.len())?;
         rows.into_iter()
-            .map(|row| serde_json::to_value(row).map_err(|error| parse_error(error.to_string())))
+            .map(|row| bounded_json_value("network", row))
             .map(|value| value.and_then(|value| map_network(host, &value)))
             .collect()
     }
@@ -193,13 +189,40 @@ impl VolumeReader for BollardReadClient {
             self.docker.list_volumes(None::<ListVolumesOptions>),
         )
         .await?;
-        let value =
-            serde_json::to_value(response).map_err(|error| parse_error(error.to_string()))?;
-        match array_field(&value, &["Volumes", "volumes"]) {
-            Some(values) => values.iter().map(|value| map_volume(host, value)).collect(),
-            None => Ok(Vec::new()),
-        }
+        let rows = response.volumes.unwrap_or_default();
+        ensure_list_bound("volumes", rows.len())?;
+        rows.into_iter()
+            .map(|row| bounded_json_value("volume", row))
+            .map(|value| value.and_then(|value| map_volume(host, &value)))
+            .collect()
     }
+}
+
+fn ensure_list_bound(domain: &'static str, count: usize) -> InfraResult<()> {
+    if count > MAX_LIST_ITEMS {
+        Err(InfraError::InvalidRequest {
+            domain: "docker",
+            message: format!("{domain} response exceeds the {MAX_LIST_ITEMS}-item limit"),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+fn bounded_json_value<T: serde::Serialize>(
+    domain: &'static str,
+    row: T,
+) -> InfraResult<serde_json::Value> {
+    let encoded = serde_json::to_vec(&row).map_err(|error| parse_error(error.to_string()))?;
+    if encoded.len() > MAX_LIST_ITEM_JSON_BYTES {
+        return Err(InfraError::InvalidRequest {
+            domain: "docker",
+            message: format!(
+                "{domain} response item exceeds the {MAX_LIST_ITEM_JSON_BYTES}-byte limit"
+            ),
+        });
+    }
+    serde_json::from_slice(&encoded).map_err(|error| parse_error(error.to_string()))
 }
 
 async fn cancellable<T, F>(cancellation: &CancellationToken, future: F) -> InfraResult<T>

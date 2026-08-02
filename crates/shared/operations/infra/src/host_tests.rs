@@ -66,7 +66,7 @@ fn request() -> HostInspectRequest {
 #[tokio::test(flavor = "current_thread")]
 async fn command_inspector_returns_typed_host_snapshot() {
     let executor = Arc::new(MockExecutor::standard());
-    let inspector = CommandHostInspector::new(Arc::clone(&executor));
+    let inspector = LinuxCommandHostInspector::new(Arc::clone(&executor));
     let result = inspector
         .inspect(&host(), request(), &CancellationToken::new())
         .await
@@ -96,7 +96,7 @@ async fn command_inspector_returns_typed_host_snapshot() {
 async fn cancellation_propagates_before_collection() {
     let cancellation = CancellationToken::new();
     cancellation.cancel();
-    let result = CommandHostInspector::new(Arc::new(MockExecutor::standard()))
+    let result = LinuxCommandHostInspector::new(Arc::new(MockExecutor::standard()))
         .inspect(&host(), request(), &cancellation)
         .await;
     assert!(matches!(
@@ -109,6 +109,9 @@ async fn cancellation_propagates_before_collection() {
 fn parsers_fail_closed_on_missing_or_invalid_values() {
     assert!(parse_uptime("nope").is_err());
     assert!(parse_meminfo("MemTotal: 10 kB\n").is_err());
+    assert!(parse_meminfo("MemTotal: 1 kB\nMemAvailable: 2 kB\n").is_err());
+    assert!(parse_meminfo("MemTotal: 10 MB\nMemAvailable: 2 MB\n").is_err());
+    assert!(parse_meminfo("MemTotal: 0 kB\nMemAvailable: 0 kB\n").is_err());
     assert!(parse_loadavg("1 2").is_err());
     assert!(parse_loadavg("1 NaN 3").is_err());
 }

@@ -27,8 +27,9 @@ fn project_references_are_closed_and_normalized() {
 #[test]
 fn project_list_accepts_array_and_json_lines() {
     let array = r#"[{"Name":"soma","Status":"running(2)","ConfigFiles":"/srv/soma/compose.yaml"}]"#;
-    let projects = parse_project_list(array).unwrap();
+    let projects = parse_project_list(&host(), array).unwrap();
     assert_eq!(projects[0].name, "soma");
+    assert_eq!(projects[0].host.as_str(), "dookie");
     assert_eq!(projects[0].status.as_deref(), Some("running(2)"));
     assert_eq!(
         projects[0].config_files,
@@ -36,8 +37,22 @@ fn project_list_accepts_array_and_json_lines() {
     );
 
     let lines = "{\"Name\":\"a\"}\n{\"Name\":\"b\"}\n";
-    assert_eq!(parse_project_list(lines).unwrap().len(), 2);
-    assert!(parse_project_list("not-json").is_err());
+    assert_eq!(parse_project_list(&host(), lines).unwrap().len(), 2);
+    assert!(parse_project_list(&host(), "not-json").is_err());
+    assert!(
+        parse_project_list(&host(), r#"[{"Name":"bad","ConfigFiles":"relative.yml"}]"#).is_err()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn project_references_reject_non_utf8_paths() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let mut bytes = b"/tmp/compose-".to_vec();
+    bytes.push(0xff);
+    assert!(ComposeProjectRef::new("soma", PathBuf::from(OsString::from_vec(bytes))).is_err());
 }
 
 #[test]

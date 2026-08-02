@@ -146,8 +146,8 @@ files:
   sha256: 4d2e96e353baaf01c56441b42372f3b88e79f94166fe0c0be27bc17ae2a793ec
   type: md
 - path: 02-crates/specs/soma-infra.md
-  bytes: 3142
-  sha256: bf674d1043a62ed45be9d3f71ecaa20488e3de5d26805540fd076fcda3490254
+  bytes: 3403
+  sha256: 5135a20e6329fe68d400f65093561f9c82bdb7d30581194500b3aaa6dfaacfb3
   type: md
 - path: 02-crates/specs/soma-ingest.md
   bytes: 3147

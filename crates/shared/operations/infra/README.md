@@ -4,7 +4,7 @@
 
 ## Current read surface
 
-- host identity, uptime, memory, and load through a fleet command executor;
+- Linux host identity, uptime, memory, and load through a fleet command executor;
 - Docker daemon, container, image, network, and volume reads through segregated traits;
 - optional local Bollard driver bound to one host topology revision;
 - Compose project listing, status, and normalized configuration through discrete `docker compose` arguments;
@@ -26,6 +26,8 @@ The default build exposes only neutral models and traits.
 - filesystem reads are restricted to explicit roots and reject symlinks, magic links, and traversal;
 - preview and hash byte ceilings are explicit;
 - Docker clients reject host or topology revision drift;
+- local Docker connections use the default daemon socket, so daemon identity cannot drift outside the host binding;
+- Docker list results are capped at 10,000 items and 256 KiB of JSON per item;
 - cancellation is propagated through fleet commands and Docker API calls;
 - SDK-specific Bollard types never cross the public API.
 

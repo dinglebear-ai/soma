@@ -88,11 +88,26 @@ async fn driver_uses_discrete_compose_arguments_and_parses_results() {
             "compose",
             "-f",
             "/srv/soma/compose.yaml",
+            "--project-name",
+            "soma",
             "ps",
             "--format",
             "json",
             "--",
             "api"
+        ]
+    );
+    assert_eq!(
+        calls[2],
+        vec![
+            "compose",
+            "-f",
+            "/srv/soma/compose.yaml",
+            "--project-name",
+            "soma",
+            "config",
+            "--format",
+            "json"
         ]
     );
 }

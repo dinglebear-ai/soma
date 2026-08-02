@@ -1,4 +1,7 @@
+use std::io::{Cursor, Read};
 use std::os::unix::fs::symlink;
+use std::process::Command;
+use std::time::Duration;
 
 use soma_fleet::{HostEndpoint, HostId, SshEndpoint};
 
@@ -111,4 +114,90 @@ async fn directories_hash_limits_remote_targets_and_cancellation_fail_closed() {
         inspector.stat(&local_host(), &file, &cancellation).await,
         Err(InfraError::Fleet(soma_fleet::FleetError::Cancelled))
     ));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn special_files_fail_promptly_without_blocking_the_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let fifo = root.path().join("pipe");
+    let status = Command::new("mkfifo").arg(&fifo).status().unwrap();
+    assert!(status.success());
+    let inspector = LinuxFilesystemInspector::new(FileReadPolicy::new([root.path()]).unwrap());
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(1),
+        inspector.read(&local_host(), &fifo, &CancellationToken::new()),
+    )
+    .await
+    .expect("FIFO inspection must not block");
+    assert!(matches!(result, Err(InfraError::Filesystem { .. })));
+
+    let metadata = tokio::time::timeout(
+        Duration::from_secs(1),
+        inspector.stat(&local_host(), &fifo, &CancellationToken::new()),
+    )
+    .await
+    .expect("FIFO stat must not block");
+    assert!(matches!(metadata, Err(InfraError::Filesystem { .. })));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn hash_observes_cancellation_before_reading() {
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("data");
+    std::fs::write(&file, vec![0_u8; 1024 * 1024]).unwrap();
+    let inspector = LinuxFilesystemInspector::new(FileReadPolicy::new([root.path()]).unwrap());
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+
+    assert!(matches!(
+        inspector.hash(&local_host(), &file, &cancellation).await,
+        Err(InfraError::Fleet(soma_fleet::FleetError::Cancelled))
+    ));
+}
+
+#[test]
+fn hash_reader_stops_at_the_byte_ceiling_even_if_the_source_is_larger() {
+    let mut reader = Cursor::new(b"123456".to_vec());
+    let result = hash_reader(
+        &mut reader,
+        Path::new("growing-file"),
+        5,
+        &CancellationToken::new(),
+    );
+    assert!(matches!(result, Err(InfraError::InvalidRequest { .. })));
+    assert_eq!(reader.position(), 6);
+}
+
+#[test]
+fn hash_reader_observes_cancellation_between_chunks() {
+    struct CancelAfterFirstRead {
+        source: Cursor<Vec<u8>>,
+        cancellation: CancellationToken,
+    }
+
+    impl Read for CancelAfterFirstRead {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let read = self.source.read(buffer)?;
+            self.cancellation.cancel();
+            Ok(read)
+        }
+    }
+
+    let cancellation = CancellationToken::new();
+    let mut reader = CancelAfterFirstRead {
+        source: Cursor::new(vec![0_u8; 128 * 1024]),
+        cancellation: cancellation.clone(),
+    };
+    let result = hash_reader(
+        &mut reader,
+        Path::new("large-file"),
+        128 * 1024,
+        &cancellation,
+    );
+    assert!(matches!(
+        result,
+        Err(InfraError::Fleet(soma_fleet::FleetError::Cancelled))
+    ));
+    assert_eq!(reader.source.position(), 64 * 1024);
 }

@@ -49,7 +49,7 @@ impl FilesystemInspector for LinuxFilesystemInspector {
         let path = path.to_path_buf();
         let host = host.clone();
         run_blocking(cancellation, move || {
-            let bound = bind_read_path(&policy, &path)?;
+            let bound = bind_path(&policy, &path, OFlags::PATH | OFlags::CLOEXEC)?;
             metadata_for(
                 &host,
                 &path,
@@ -73,8 +73,13 @@ impl FilesystemInspector for LinuxFilesystemInspector {
         let policy = self.policy.clone();
         let path = path.to_path_buf();
         let host = host.clone();
+        let operation_cancellation = cancellation.clone();
         run_blocking(cancellation, move || {
-            let mut bound = bind_read_path(&policy, &path)?;
+            let mut bound = bind_path(
+                &policy,
+                &path,
+                OFlags::RDONLY | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            )?;
             let metadata = bound
                 .file
                 .metadata()
@@ -89,12 +94,20 @@ impl FilesystemInspector for LinuxFilesystemInspector {
             }
             let limit = policy.max_preview_bytes();
             let mut content = Vec::with_capacity(limit.min(8192));
-            bound
-                .file
-                .by_ref()
-                .take((limit as u64).saturating_add(1))
-                .read_to_end(&mut content)
-                .map_err(|error| fs_error("read", &typed.path, error))?;
+            let mut buffer = [0_u8; 64 * 1024];
+            while content.len() <= limit {
+                ensure_not_cancelled(&operation_cancellation)?;
+                let remaining = limit.saturating_add(1).saturating_sub(content.len());
+                let read_limit = remaining.min(buffer.len());
+                let read = bound
+                    .file
+                    .read(&mut buffer[..read_limit])
+                    .map_err(|error| fs_error("read", &typed.path, error))?;
+                if read == 0 {
+                    break;
+                }
+                content.extend_from_slice(&buffer[..read]);
+            }
             let truncated = content.len() > limit;
             content.truncate(limit);
             Ok(FilePreview {
@@ -117,8 +130,13 @@ impl FilesystemInspector for LinuxFilesystemInspector {
         let policy = self.policy.clone();
         let path = path.to_path_buf();
         let host = host.clone();
+        let operation_cancellation = cancellation.clone();
         run_blocking(cancellation, move || {
-            let mut bound = bind_read_path(&policy, &path)?;
+            let mut bound = bind_path(
+                &policy,
+                &path,
+                OFlags::RDONLY | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            )?;
             let metadata = bound
                 .file
                 .metadata()
@@ -145,23 +163,15 @@ impl FilesystemInspector for LinuxFilesystemInspector {
                 .file
                 .seek(SeekFrom::Start(0))
                 .map_err(|error| fs_error("hash", &typed.path, error))?;
-            let mut hasher = Sha256::new();
-            let mut buffer = [0_u8; 64 * 1024];
-            let mut bytes_hashed = 0_u64;
-            loop {
-                let read = bound
-                    .file
-                    .read(&mut buffer)
-                    .map_err(|error| fs_error("hash", &typed.path, error))?;
-                if read == 0 {
-                    break;
-                }
-                bytes_hashed = bytes_hashed.saturating_add(read as u64);
-                hasher.update(&buffer[..read]);
-            }
+            let (sha256, bytes_hashed) = hash_reader(
+                &mut bound.file,
+                &typed.path,
+                policy.max_hash_bytes(),
+                &operation_cancellation,
+            )?;
             Ok(FileHash {
                 metadata: typed,
-                sha256: format!("{:x}", hasher.finalize()),
+                sha256,
                 bytes_hashed,
             })
         })
@@ -169,11 +179,46 @@ impl FilesystemInspector for LinuxFilesystemInspector {
     }
 }
 
+fn hash_reader(
+    reader: &mut impl Read,
+    path: &Path,
+    max_bytes: u64,
+    cancellation: &CancellationToken,
+) -> InfraResult<(String, u64)> {
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut bytes_hashed = 0_u64;
+    loop {
+        ensure_not_cancelled(cancellation)?;
+        let read_limit_u64 = max_bytes
+            .saturating_sub(bytes_hashed)
+            .saturating_add(1)
+            .min(buffer.len() as u64);
+        let read_limit = usize::try_from(read_limit_u64).unwrap_or(buffer.len());
+        let read = reader
+            .read(&mut buffer[..read_limit])
+            .map_err(|error| fs_error("hash", path, error))?;
+        if read == 0 {
+            break;
+        }
+        let next_bytes = bytes_hashed.saturating_add(read as u64);
+        if next_bytes > max_bytes {
+            return Err(InfraError::InvalidRequest {
+                domain: "filesystem",
+                message: format!("file grew beyond hash limit of {max_bytes} bytes"),
+            });
+        }
+        bytes_hashed = next_bytes;
+        hasher.update(&buffer[..read]);
+    }
+    Ok((format!("{:x}", hasher.finalize()), bytes_hashed))
+}
+
 struct BoundFile {
     file: File,
 }
 
-fn bind_read_path(policy: &FileReadPolicy, path: &Path) -> InfraResult<BoundFile> {
+fn bind_path(policy: &FileReadPolicy, path: &Path, target_flags: OFlags) -> InfraResult<BoundFile> {
     let (root, relative) = policy.resolve(path)?;
     let slash: OwnedFd = open(
         "/",
@@ -202,7 +247,7 @@ fn bind_read_path(policy: &FileReadPolicy, path: &Path) -> InfraResult<BoundFile
     let fd = openat2(
         &root_fd,
         target,
-        OFlags::RDONLY | OFlags::CLOEXEC,
+        target_flags,
         Mode::empty(),
         ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
     )

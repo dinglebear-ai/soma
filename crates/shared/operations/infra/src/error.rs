@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use soma_fleet::{FleetError, HostId};
 
+const PUBLIC_DIAGNOSTIC_LIMIT: usize = 2048;
+
 /// Result type for neutral infrastructure reads.
 pub type InfraResult<T> = Result<T, InfraError>;
 
@@ -64,6 +66,52 @@ pub enum InfraError {
     /// Docker API access failed.
     #[error("Docker read failed: {0}")]
     Docker(String),
+}
+
+pub(crate) fn public_diagnostic(bytes: &[u8]) -> String {
+    #[derive(Clone, Copy)]
+    enum EscapeState {
+        None,
+        Escape,
+        ControlSequence,
+    }
+
+    let text = String::from_utf8_lossy(bytes);
+    let mut sanitized = String::with_capacity(text.len().min(PUBLIC_DIAGNOSTIC_LIMIT));
+    let mut escape = EscapeState::None;
+    for character in text.chars() {
+        match escape {
+            EscapeState::Escape => {
+                escape = if character == '[' {
+                    EscapeState::ControlSequence
+                } else {
+                    EscapeState::None
+                };
+                continue;
+            }
+            EscapeState::ControlSequence => {
+                if ('@'..='~').contains(&character) {
+                    escape = EscapeState::None;
+                }
+                continue;
+            }
+            EscapeState::None => {}
+        }
+        if character == '\u{1b}' {
+            escape = EscapeState::Escape;
+            continue;
+        }
+        if character.is_control() {
+            if !sanitized.ends_with(' ') && sanitized.len() < PUBLIC_DIAGNOSTIC_LIMIT {
+                sanitized.push(' ');
+            }
+        } else if sanitized.len() + character.len_utf8() <= PUBLIC_DIAGNOSTIC_LIMIT {
+            sanitized.push(character);
+        } else {
+            break;
+        }
+    }
+    sanitized.trim().to_owned()
 }
 
 #[cfg(test)]

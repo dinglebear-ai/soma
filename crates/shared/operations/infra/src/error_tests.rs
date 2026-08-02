@@ -19,3 +19,14 @@ fn filesystem_errors_do_not_hide_requested_path() {
     let error = InfraError::PathOutsideRoots("/etc/shadow".into());
     assert!(error.to_string().contains("/etc/shadow"));
 }
+
+#[test]
+fn public_diagnostics_are_small_and_strip_controls() {
+    let mut raw = b"failure\n\x1b[31mred\x1b[0m\0".to_vec();
+    raw.extend(std::iter::repeat_n(b'x', 4096));
+    let diagnostic = public_diagnostic(&raw);
+    assert!(!diagnostic.contains('\u{1b}'));
+    assert!(!diagnostic.contains('\n'));
+    assert!(diagnostic.len() <= PUBLIC_DIAGNOSTIC_LIMIT);
+    assert!(diagnostic.starts_with("failure red"));
+}
