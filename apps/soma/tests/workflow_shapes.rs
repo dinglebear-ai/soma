@@ -295,3 +295,23 @@ fn python_wheel_publish_merges_platform_artifacts() {
         "provider publication must merge every platform-specific wheel artifact"
     );
 }
+
+#[test]
+fn python_wheel_release_supports_immutable_tag_recovery() {
+    let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
+    let release_tag = "${{ github.event.release.tag_name || inputs.tag_name }}";
+
+    assert!(
+        workflow.contains("workflow_dispatch:") && workflow.contains("tag_name:"),
+        "provider wheels need an explicit immutable-tag recovery input"
+    );
+    assert!(
+        workflow.matches(release_tag).count() >= 4,
+        "provider build and publish jobs must consistently use the resolved release tag"
+    );
+    assert!(
+        workflow.contains("test \"${RELEASE_TAG}\" = \"soma-provider-v${version}\"")
+            && workflow.contains("gh release upload \"${RELEASE_TAG}\""),
+        "provider recovery must validate and upload to the requested immutable tag"
+    );
+}
