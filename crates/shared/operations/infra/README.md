@@ -5,14 +5,17 @@
 ## Current read surface
 
 - host identity, uptime, memory, and load through a fleet command executor;
-- Docker daemon, container, image, network, and volume reads through segregated traits;
+- Docker daemon, disk-usage, container, image, network, volume, logs, and one-shot stats reads through segregated traits;
 - optional local Bollard driver bound to one host topology revision;
-- Compose project listing, status, and normalized configuration through discrete `docker compose` arguments;
+- Compose project listing, status, normalized configuration, and bounded logs through discrete `docker compose` arguments;
+- typed process snapshots with allowlisted sort fields and local filters;
+- bounded syslog, journal, dmesg, and auth-log reads with validated journal filters;
+- ZFS pool, dataset, and snapshot tables with validated targets and types;
 - Linux filesystem stat, bounded preview, and SHA-256 hashing through descriptor-confined `openat2`.
 
 ## Feature flags
 
-- `process-driver`: command-backed Compose support;
+- `process-driver`: command-backed Compose, process, log, and ZFS support;
 - `bollard-driver`: local Docker API reads;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
 
@@ -29,7 +32,7 @@ The default build exposes only neutral models and traits.
 - cancellation is propagated through fleet commands and Docker API calls;
 - SDK-specific Bollard types never cross the public API.
 
-Mutations, product policy, remote Docker forwarding composition, logs/stats streaming, process/log/ZFS reads, and Synapse cutover belong to later slices.
+Mutations, product policy, remote Docker forwarding composition, continuous streaming, filesystem list/tail, donor differential projection, and Synapse cutover belong to later slices.
 
 ## Verification
 

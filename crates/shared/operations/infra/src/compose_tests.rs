@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use soma_fleet::{HostEndpoint, HostId};
 
+use crate::ComposeLogRequest;
+
 use super::*;
 
 fn host() -> HostRecord {
@@ -22,6 +24,33 @@ fn project_references_are_closed_and_normalized() {
     assert!(ComposeProjectRef::new("soma", "/srv/../etc/passwd").is_err());
     assert!(validate_service("api_1.web").is_ok());
     assert!(validate_service("bad service").is_err());
+}
+
+#[test]
+fn log_requests_validate_bounds_and_option_like_values() {
+    let deadline = soma_ops::Timestamp::from_unix_millis(100);
+    let request = ComposeLogRequest::new(deadline)
+        .with_lines(250)
+        .unwrap()
+        .with_since("-1h")
+        .unwrap()
+        .with_service("api_1.web")
+        .unwrap();
+    assert_eq!(request.lines(), 250);
+    assert_eq!(request.since(), Some("-1h"));
+    assert_eq!(request.service(), Some("api_1.web"));
+    assert!(ComposeLogRequest::new(deadline).with_lines(0).is_err());
+    assert!(ComposeLogRequest::new(deadline).with_lines(5001).is_err());
+    assert!(
+        ComposeLogRequest::new(deadline)
+            .with_since("--timestamps")
+            .is_err()
+    );
+    assert!(
+        ComposeLogRequest::new(deadline)
+            .with_service("bad service")
+            .is_err()
+    );
 }
 
 #[test]

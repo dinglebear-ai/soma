@@ -54,7 +54,7 @@ impl BollardReadClient {
         })
     }
 
-    fn validate_host(&self, host: &HostRecord) -> InfraResult<()> {
+    pub(crate) fn validate_host(&self, host: &HostRecord) -> InfraResult<()> {
         if host.id() == &self.host && host.revision() == &self.revision {
             Ok(())
         } else {
@@ -69,6 +69,10 @@ impl BollardReadClient {
                 ),
             })
         }
+    }
+
+    pub(crate) fn docker(&self) -> &Docker {
+        &self.docker
     }
 }
 
@@ -202,7 +206,7 @@ impl VolumeReader for BollardReadClient {
     }
 }
 
-async fn cancellable<T, F>(cancellation: &CancellationToken, future: F) -> InfraResult<T>
+pub(crate) async fn cancellable<T, F>(cancellation: &CancellationToken, future: F) -> InfraResult<T>
 where
     F: Future<Output = Result<T, bollard::errors::Error>>,
 {

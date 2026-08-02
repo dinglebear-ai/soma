@@ -49,7 +49,8 @@ Optional external drivers:
 - `NetworkReader`;
 - `VolumeReader`;
 - `DockerReadClient`;
-- neutral daemon, container, image, network, and volume models;
+- `DockerTelemetryReader`;
+- neutral daemon, disk-usage, container, image, network, volume, log, and one-shot stats models;
 - optional `BollardReadClient`.
 
 ### Compose
@@ -58,8 +59,17 @@ Optional external drivers:
 - `ComposeProject`;
 - `ComposeStatus`;
 - `ComposeConfig`;
+- `ComposeLogRequest`;
+- `ComposeLogs`;
 - `ComposeInspector`;
 - optional `CommandComposeInspector`.
+
+### Process, logs, and ZFS
+
+- `ProcessListRequest`, `ProcessSnapshot`, and `ProcessInspector`;
+- `LogReadRequest`, `JournalFilters`, `LogRead`, and `LogReader`;
+- `ZfsPoolRequest`, `ZfsDatasetRequest`, `ZfsSnapshotRequest`, `ZfsTable`, and `ZfsInspector`;
+- optional fleet-backed command drivers for each domain.
 
 ### Filesystem
 
@@ -81,7 +91,11 @@ Optional external drivers:
 7. Docker clients reject a host or revision different from their construction binding.
 8. Bollard-generated models remain private to the adapter.
 9. Cancellation is accepted at every asynchronous driver boundary.
-10. No mutation operation is exposed by this slice.
+10. Docker log reads are one-shot, byte-bounded, and filter locally.
+11. Journal unit and time values reject option smuggling before argv construction.
+12. Process sorting and ZFS dataset types are allowlisted.
+13. dmesg permission failures return structured operator guidance.
+14. No mutation operation is exposed by this slice.
 
 ## Initial donor disposition
 
@@ -90,9 +104,12 @@ This slice begins extraction of:
 - `flux_service/host*`;
 - read-only `docker_client` and `flux_service` Docker paths;
 - `flux_service/compose*` read paths;
-- `secure_path.rs` and Scout filesystem reads.
+- `secure_path.rs` and Scout filesystem reads;
+- container logs/stats and Docker data-usage reads;
+- Compose log reads;
+- Scout process, operating-system log, and ZFS reads.
 
-The imported donor remains unchanged. Synapse does not cut over in this PR. Differential surface projection and remaining reads follow in later stacked slices.
+The imported donor remains unchanged. Synapse does not cut over in these foundation PRs. Differential surface projection, remote Docker composition, filesystem list/tail, and product delegation follow in later stacked slices.
 
 ## Verification
 
@@ -104,6 +121,9 @@ Required gates:
 - filesystem traversal and symlink rejection;
 - preview truncation and hash ceiling tests;
 - cancellation and non-zero command failure tests;
+- process/ZFS parser and discrete-argv tests;
+- journal option-smuggling and file-fallback tests;
+- Docker usage/stat mapper and one-shot telemetry tests;
 - strict Clippy and warning-free rustdoc;
 - workspace sibling and architecture checks;
 - no product or surface dependency leakage.
