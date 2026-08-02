@@ -15,7 +15,7 @@ jobs:
   wheels:
     name: Build x86_64 native wheels
     if: startsWith(github.event.release.tag_name, 'soma-provider-v')
-    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@364993bc854c4feb82cb26917e741fd6465cd47a
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-python-wheels.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
     with:
       checkout-ref: ${{ github.event.release.tag_name }}
       package-dir: packages/python
