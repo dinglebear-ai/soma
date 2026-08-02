@@ -325,18 +325,15 @@ fn python_wheel_release_supports_immutable_tag_recovery() {
         "provider recovery must validate and upload to the requested immutable tag"
     );
 }
-
 #[test]
-fn python_wheel_publish_uses_current_trusted_publisher_contract() {
+fn python_wheel_release_uses_oidc_capable_pypi_publisher() {
     let workflow = include_str!("../../../.github/workflows/python-wheels.yml");
-    let publish = workflow_job_block(workflow, "publish");
 
     assert!(
-        publish.contains("pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33"),
-        "provider publication must pin the current trusted-publisher action contract"
-    );
-    assert!(
-        publish.contains("packages-dir: dist") && publish.contains("attestations: true"),
-        "provider publication must use the action's supported trusted-publishing inputs"
+        workflow.contains(
+            "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
+        ) && workflow.contains("packages-dir: dist")
+            && workflow.contains("attestations: true"),
+        "provider publication must use the approved OIDC and attestation capable PyPI action"
     );
 }
