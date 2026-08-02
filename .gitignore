@@ -79,6 +79,12 @@ dist/
 build/
 out/
 
+# Synapse's imported web package needs an empty export directory so its Docker
+# COPY remains valid before the frontend has been built.
+!crates/synapse/import/apps/web/out/
+crates/synapse/import/apps/web/out/*
+!crates/synapse/import/apps/web/out/.gitkeep
+
 # ── Generated docs ────────────────────────────────────────────────────────────
 # Do not commit build output from doc generators.
 .docs/
