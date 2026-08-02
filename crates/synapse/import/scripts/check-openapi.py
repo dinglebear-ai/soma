@@ -401,7 +401,6 @@ def validate_openapi(value: dict[str, Any]) -> list[str]:
             if not operation.get("operationId"):
                 failures.append(f"{method.upper()} {path} is missing operationId")
     action_enum = value.get("components", {}).get("schemas", {}).get("ActionName", {}).get("enum")
-    entries = action_entries()
     if len(operation_entries()) != 59:
         failures.append(f"operation registry drifted: expected 59 entries, got {len(operation_entries())}")
     expected = [action["name"] for action in rest_actions()]

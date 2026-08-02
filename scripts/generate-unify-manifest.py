@@ -10,7 +10,14 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError as exc:
+    print(
+        "error: PyYAML is required; install it with `python3 -m pip install PyYAML`",
+        file=sys.stderr,
+    )
+    raise SystemExit(1) from exc
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "docs/unify"
@@ -147,12 +154,20 @@ def check() -> None:
     expected_manifest = render_manifest()
     current_manifest = MANIFEST.read_text(encoding="utf-8")
     if current_manifest != expected_manifest:
-        raise ValueError("docs/unify/MANIFEST.yaml is stale; run generate-unify-manifest.py generate")
+        raise ValueError(
+            "docs/unify/MANIFEST.yaml is stale; run "
+            "`python3 scripts/generate-unify-manifest.py generate` "
+            "or `just unify-manifest-generate` from the repository root"
+        )
 
     expected_checksums = render_checksums(expected_manifest)
     current_checksums = CHECKSUMS.read_text(encoding="utf-8")
     if current_checksums != expected_checksums:
-        raise ValueError("docs/unify/CHECKSUMS.sha256 is stale; run generate-unify-manifest.py generate")
+        raise ValueError(
+            "docs/unify/CHECKSUMS.sha256 is stale; run "
+            "`python3 scripts/generate-unify-manifest.py generate` "
+            "or `just unify-manifest-generate` from the repository root"
+        )
 
 
 def main() -> int:

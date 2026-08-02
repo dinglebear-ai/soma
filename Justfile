@@ -230,8 +230,8 @@ ops-external-consumer-check:
 synapse-operation-contract-check:
     python3 scripts/generate-synapse-operation-fixture.py check
 
-# Regenerate the fixture from a local Synapse clone
-synapse-operation-contract-generate donor_repo="/home/jmagar/workspace/synapse" donor_ref="origin/main":
+# Regenerate the fixture from a caller-supplied local Synapse clone
+synapse-operation-contract-generate donor_repo donor_ref="origin/main":
     python3 scripts/generate-synapse-operation-fixture.py generate --donor-repo "{{ donor_repo }}" --ref "{{ donor_ref }}"
 
 # Validate the canonical 59-operation target and safety classifications
