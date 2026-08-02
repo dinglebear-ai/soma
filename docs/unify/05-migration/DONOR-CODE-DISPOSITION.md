@@ -65,6 +65,8 @@ This document prevents accidental one-for-one copying.
 
 ## Synapse
 
+The authoritative file-by-file ledger and proof gates are in [`SYNAPSE-CODE-MAP.md`](SYNAPSE-CODE-MAP.md).
+
 | Donor area | Target | Disposition |
 |---|---|---|
 | src/actions/operations.rs | soma-ops | Extract operation identity, target, safety, parameter, planning/progress/verification capabilities, and event metadata. Product scopes remain in Synapse. |

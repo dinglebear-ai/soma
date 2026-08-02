@@ -1,12 +1,13 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "donor": {
-    "repository": "https://github.com/jmagar/synapse",
-    "commit": "b92552900c1458aa03b370c80edc812884c77f31",
+    "repository": "https://github.com/dinglebear-ai/synapse",
+    "commit": "8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f",
     "source_path": "src/actions/operations.rs",
     "source_sha256": "f89fa4f5fdb7089adeaea74512775e27641e7e081a0e6ce9057583daf77b3a62"
   },
   "operation_count": 59,
+  "semantic_sha256": "74c9ed1e345a0c67ca7878a25c7aa73a89f36298c1ca6071a5343cf48dd4c4a1",
   "operations": [
     {
       "legacy_name": "help",
@@ -15,11 +16,14 @@
       "legacy_action": "help",
       "legacy_subaction": null,
       "legacy_access": "public",
+      "legacy_scope": null,
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 69
+      "source_path": "src/actions/operations.rs",
+      "source_line": 69,
+      "source_macro_sha256": "74cc51561f55c9c9487682781174c47d7fb0da363cc22e5a0a6d0221859e13de"
     },
     {
       "legacy_name": "flux.docker.info",
@@ -28,11 +32,14 @@
       "legacy_action": "docker",
       "legacy_subaction": "info",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 70
+      "source_path": "src/actions/operations.rs",
+      "source_line": 70,
+      "source_macro_sha256": "80411d3603615a84ca60cc3a070506e522a4ada3180b870622732c27554fa166"
     },
     {
       "legacy_name": "flux.docker.df",
@@ -41,11 +48,14 @@
       "legacy_action": "docker",
       "legacy_subaction": "df",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 71
+      "source_path": "src/actions/operations.rs",
+      "source_line": 71,
+      "source_macro_sha256": "4a62b4f3da993a08e82a176653ac3e6426caeb68e1e75dd26626977c4e852990"
     },
     {
       "legacy_name": "flux.docker.images",
@@ -54,11 +64,14 @@
       "legacy_action": "docker",
       "legacy_subaction": "images",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 72
+      "source_path": "src/actions/operations.rs",
+      "source_line": 72,
+      "source_macro_sha256": "1c2a5b8d465a9687ae5aedc135e5b65ab948cec843c8296cc7b0f0eeb7066667"
     },
     {
       "legacy_name": "flux.docker.networks",
@@ -67,11 +80,14 @@
       "legacy_action": "docker",
       "legacy_subaction": "networks",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 73
+      "source_path": "src/actions/operations.rs",
+      "source_line": 73,
+      "source_macro_sha256": "916c9640ae67b9e8619315dd33b8388161c859c4f13ac092949ade29db2c65b1"
     },
     {
       "legacy_name": "flux.docker.volumes",
@@ -80,11 +96,14 @@
       "legacy_action": "docker",
       "legacy_subaction": "volumes",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 74
+      "source_path": "src/actions/operations.rs",
+      "source_line": 74,
+      "source_macro_sha256": "63e23de9ac31d413599be2314d7ecba028d8a217b25be25dbec55c3adfc65944"
     },
     {
       "legacy_name": "flux.docker.pull",
@@ -93,6 +112,7 @@
       "legacy_action": "docker",
       "legacy_subaction": "pull",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [
@@ -100,7 +120,9 @@
         "image"
       ],
       "required_any": [],
-      "source_line": 75
+      "source_path": "src/actions/operations.rs",
+      "source_line": 75,
+      "source_macro_sha256": "390429a3500f72a990ddded533c3a2bec8c2dcab7cf25b86db97988e2461fb16"
     },
     {
       "legacy_name": "flux.docker.build",
@@ -109,6 +131,7 @@
       "legacy_action": "docker",
       "legacy_subaction": "build",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "rest",
       "required_params": [
@@ -117,7 +140,9 @@
         "tag"
       ],
       "required_any": [],
-      "source_line": 76
+      "source_path": "src/actions/operations.rs",
+      "source_line": 76,
+      "source_macro_sha256": "2e361811728657faac0b02b9b362a5e56cd6b41b6be71745b89e216dc599c2b5"
     },
     {
       "legacy_name": "flux.docker.rmi",
@@ -126,6 +151,7 @@
       "legacy_action": "docker",
       "legacy_subaction": "rmi",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "rest",
       "required_params": [
@@ -134,7 +160,9 @@
         "force"
       ],
       "required_any": [],
-      "source_line": 77
+      "source_path": "src/actions/operations.rs",
+      "source_line": 77,
+      "source_macro_sha256": "aef878e2136732f8a7c44bafdeced24d24886c4db5fbe42051bb4da099e4b0da"
     },
     {
       "legacy_name": "flux.docker.prune",
@@ -143,6 +171,7 @@
       "legacy_action": "docker",
       "legacy_subaction": "prune",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "rest",
       "required_params": [
@@ -151,7 +180,9 @@
         "force"
       ],
       "required_any": [],
-      "source_line": 78
+      "source_path": "src/actions/operations.rs",
+      "source_line": 78,
+      "source_macro_sha256": "c0315309d91052efaf63848ee53460f9374b7c90a0dfac5d83f445485f7f8d5e"
     },
     {
       "legacy_name": "flux.container.list",
@@ -160,11 +191,14 @@
       "legacy_action": "container",
       "legacy_subaction": "list",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 79
+      "source_path": "src/actions/operations.rs",
+      "source_line": 79,
+      "source_macro_sha256": "4bef9a81329181a907d2732002aaa6fbb445b106c10b8ce836ef4572e5617307"
     },
     {
       "legacy_name": "flux.container.inspect",
@@ -173,13 +207,16 @@
       "legacy_action": "container",
       "legacy_subaction": "inspect",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "container_id"
       ],
       "required_any": [],
-      "source_line": 80
+      "source_path": "src/actions/operations.rs",
+      "source_line": 80,
+      "source_macro_sha256": "7fdf069be2e5b1099fd979a10e454bd1668055857d312744221b71d8531b90dd"
     },
     {
       "legacy_name": "flux.container.logs",
@@ -188,13 +225,16 @@
       "legacy_action": "container",
       "legacy_subaction": "logs",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "container_id"
       ],
       "required_any": [],
-      "source_line": 81
+      "source_path": "src/actions/operations.rs",
+      "source_line": 81,
+      "source_macro_sha256": "008682e0f110f26363f2c7cf374c2910759ddfc4320dc60366eb7c75b23c0ae8"
     },
     {
       "legacy_name": "flux.container.stats",
@@ -203,11 +243,14 @@
       "legacy_action": "container",
       "legacy_subaction": "stats",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [],
       "required_any": [],
-      "source_line": 82
+      "source_path": "src/actions/operations.rs",
+      "source_line": 82,
+      "source_macro_sha256": "034557b843fcff3fdd63dad124791d88312d2cb18bcdbc652d8b4375d6cc2377"
     },
     {
       "legacy_name": "flux.container.top",
@@ -216,13 +259,16 @@
       "legacy_action": "container",
       "legacy_subaction": "top",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "container_id"
       ],
       "required_any": [],
-      "source_line": 83
+      "source_path": "src/actions/operations.rs",
+      "source_line": 83,
+      "source_macro_sha256": "1cc7847361d8da6ca10a99d5b21009b22aa57110f60667bf588fa049caa6933d"
     },
     {
       "legacy_name": "flux.container.search",
@@ -231,13 +277,16 @@
       "legacy_action": "container",
       "legacy_subaction": "search",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "query"
       ],
       "required_any": [],
-      "source_line": 84
+      "source_path": "src/actions/operations.rs",
+      "source_line": 84,
+      "source_macro_sha256": "047243966bcdf263dcd11aa761f2286a8a555c25b557c4c6430dd2b4092d67b7"
     },
     {
       "legacy_name": "flux.container.start",
@@ -246,6 +295,7 @@
       "legacy_action": "container",
       "legacy_subaction": "start",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -253,7 +303,9 @@
         "container_id"
       ],
       "required_any": [],
-      "source_line": 85
+      "source_path": "src/actions/operations.rs",
+      "source_line": 85,
+      "source_macro_sha256": "604d1460d0d1e73168b1a996e7b0f481f59ba2fddf02bf2f9f30ecfdb3bc6bc0"
     },
     {
       "legacy_name": "flux.container.stop",
@@ -262,6 +314,7 @@
       "legacy_action": "container",
       "legacy_subaction": "stop",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -269,7 +322,9 @@
         "container_id"
       ],
       "required_any": [],
-      "source_line": 86
+      "source_path": "src/actions/operations.rs",
+      "source_line": 86,
+      "source_macro_sha256": "dcc7533cced6b2a68d12e0da8db823b2446bf0767f18832616b769445f5096c7"
     },
     {
       "legacy_name": "flux.container.restart",
@@ -278,6 +333,7 @@
       "legacy_action": "container",
       "legacy_subaction": "restart",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -285,7 +341,9 @@
         "container_id"
       ],
       "required_any": [],
-      "source_line": 87
+      "source_path": "src/actions/operations.rs",
+      "source_line": 87,
+      "source_macro_sha256": "347c72876807f4706fa4bbd462f076336fc432e87fc80d8e813003ee0f0e3a12"
     },
     {
       "legacy_name": "flux.container.pause",
@@ -294,6 +352,7 @@
       "legacy_action": "container",
       "legacy_subaction": "pause",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -301,7 +360,9 @@
         "container_id"
       ],
       "required_any": [],
-      "source_line": 88
+      "source_path": "src/actions/operations.rs",
+      "source_line": 88,
+      "source_macro_sha256": "0dc69eba46e7d5cbb788c2a24b556463fa4f73f55e6e5fe0661b1a0c38301e91"
     },
     {
       "legacy_name": "flux.container.resume",
@@ -310,6 +371,7 @@
       "legacy_action": "container",
       "legacy_subaction": "resume",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -317,7 +379,9 @@
         "container_id"
       ],
       "required_any": [],
-      "source_line": 89
+      "source_path": "src/actions/operations.rs",
+      "source_line": 89,
+      "source_macro_sha256": "784097bf7a5a34e98cbf96274b8232cc9865909c78a921f8eb036d75891a49fb"
     },
     {
       "legacy_name": "flux.container.pull",
@@ -326,6 +390,7 @@
       "legacy_action": "container",
       "legacy_subaction": "pull",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -333,7 +398,9 @@
         "container_id"
       ],
       "required_any": [],
-      "source_line": 90
+      "source_path": "src/actions/operations.rs",
+      "source_line": 90,
+      "source_macro_sha256": "34e011cb84373b280c3509f9d032633589a060aeb9d8510ec9f33f172bf97584"
     },
     {
       "legacy_name": "flux.container.recreate",
@@ -342,6 +409,7 @@
       "legacy_action": "container",
       "legacy_subaction": "recreate",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -349,7 +417,9 @@
         "container_id"
       ],
       "required_any": [],
-      "source_line": 91
+      "source_path": "src/actions/operations.rs",
+      "source_line": 91,
+      "source_macro_sha256": "f86dd08c0a12322a4272ce0a51b4a40cdc764d0cfe02175e4e4e071e5799552e"
     },
     {
       "legacy_name": "flux.container.exec",
@@ -358,6 +428,7 @@
       "legacy_action": "container",
       "legacy_subaction": "exec",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -366,7 +437,9 @@
         "command"
       ],
       "required_any": [],
-      "source_line": 92
+      "source_path": "src/actions/operations.rs",
+      "source_line": 92,
+      "source_macro_sha256": "b342ea76b18c9cec5a9e2c779cc9a6456a4519ab5254695d634ba7a6f98e74e3"
     },
     {
       "legacy_name": "flux.host.status",
@@ -375,11 +448,14 @@
       "legacy_action": "host",
       "legacy_subaction": "status",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [],
       "required_any": [],
-      "source_line": 93
+      "source_path": "src/actions/operations.rs",
+      "source_line": 93,
+      "source_macro_sha256": "cdf25a348d6f5c4befe30fe51525e61045de9626faca68b8087709a75837b5e2"
     },
     {
       "legacy_name": "flux.host.info",
@@ -388,11 +464,14 @@
       "legacy_action": "host",
       "legacy_subaction": "info",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [],
       "required_any": [],
-      "source_line": 94
+      "source_path": "src/actions/operations.rs",
+      "source_line": 94,
+      "source_macro_sha256": "2109363122fc8c5ce5987f3c9b9701bf5bf6ac650fde73bf931c87d4378ce68d"
     },
     {
       "legacy_name": "flux.host.uptime",
@@ -401,11 +480,14 @@
       "legacy_action": "host",
       "legacy_subaction": "uptime",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [],
       "required_any": [],
-      "source_line": 95
+      "source_path": "src/actions/operations.rs",
+      "source_line": 95,
+      "source_macro_sha256": "02457c2fad206621ae546ba113d0802faff6f41a4ddb08fd10bec3e1b056a13f"
     },
     {
       "legacy_name": "flux.host.resources",
@@ -414,11 +496,14 @@
       "legacy_action": "host",
       "legacy_subaction": "resources",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [],
       "required_any": [],
-      "source_line": 96
+      "source_path": "src/actions/operations.rs",
+      "source_line": 96,
+      "source_macro_sha256": "5c9b4d6294258091a0ef8ce9d598701ccfe57dbd9a3bb065dead3db2a3d03a50"
     },
     {
       "legacy_name": "flux.host.services",
@@ -427,13 +512,16 @@
       "legacy_action": "host",
       "legacy_subaction": "services",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 97
+      "source_path": "src/actions/operations.rs",
+      "source_line": 97,
+      "source_macro_sha256": "c3f08d09680888e65c11c6cdb9aa7fafc5800831ce36f64569f193ab2621132f"
     },
     {
       "legacy_name": "flux.host.network",
@@ -442,11 +530,14 @@
       "legacy_action": "host",
       "legacy_subaction": "network",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [],
       "required_any": [],
-      "source_line": 98
+      "source_path": "src/actions/operations.rs",
+      "source_line": 98,
+      "source_macro_sha256": "46c2e278fc059bc3d337ef667595fe6854c6cc57198061b31f55f6310645bf61"
     },
     {
       "legacy_name": "flux.host.mounts",
@@ -455,13 +546,16 @@
       "legacy_action": "host",
       "legacy_subaction": "mounts",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 99
+      "source_path": "src/actions/operations.rs",
+      "source_line": 99,
+      "source_macro_sha256": "35a936b452ba2bc266eb69221765183d45a8bb8903a016c48313cf24d25b3de1"
     },
     {
       "legacy_name": "flux.host.ports",
@@ -470,13 +564,16 @@
       "legacy_action": "host",
       "legacy_subaction": "ports",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 100
+      "source_path": "src/actions/operations.rs",
+      "source_line": 100,
+      "source_macro_sha256": "86d19541ca7ce2ddb4572c0e54ff2b7f8586d76d3d557f12ad6e91c88d2a4b5c"
     },
     {
       "legacy_name": "flux.host.doctor",
@@ -485,13 +582,16 @@
       "legacy_action": "host",
       "legacy_subaction": "doctor",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 101
+      "source_path": "src/actions/operations.rs",
+      "source_line": 101,
+      "source_macro_sha256": "551f210bfbf536558122c3a6b20a0fa371e3205a8cc4ec61e8d24492f599ee73"
     },
     {
       "legacy_name": "flux.compose.list",
@@ -500,13 +600,16 @@
       "legacy_action": "compose",
       "legacy_subaction": "list",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 102
+      "source_path": "src/actions/operations.rs",
+      "source_line": 102,
+      "source_macro_sha256": "c390f3e107e50d2238d2e0099e80e2f4e572ae1d44c33e64292d194948766ee5"
     },
     {
       "legacy_name": "flux.compose.status",
@@ -515,6 +618,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "status",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -522,7 +626,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 103
+      "source_path": "src/actions/operations.rs",
+      "source_line": 103,
+      "source_macro_sha256": "d70d85b0757deb6721fca041d4169d8bd380fcd4fbb59601f173b9514f6af7b3"
     },
     {
       "legacy_name": "flux.compose.up",
@@ -531,6 +637,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "up",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -538,7 +645,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 104
+      "source_path": "src/actions/operations.rs",
+      "source_line": 104,
+      "source_macro_sha256": "ac26d83a310c37bec3a54d17c0bd62ed320a8cf2f0953f0f5ccd44413ccca9a2"
     },
     {
       "legacy_name": "flux.compose.down",
@@ -547,6 +656,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "down",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -554,7 +664,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 105
+      "source_path": "src/actions/operations.rs",
+      "source_line": 105,
+      "source_macro_sha256": "5897353b016ea9a957356b302029e5c0b9af1f9bd945adc2c307a71cfc93d2a3"
     },
     {
       "legacy_name": "flux.compose.restart",
@@ -563,6 +675,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "restart",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -570,7 +683,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 106
+      "source_path": "src/actions/operations.rs",
+      "source_line": 106,
+      "source_macro_sha256": "e92589657bf67ac6ffed8c8c41d2d9f61f7681b400b506ca08efde0cbc1478bc"
     },
     {
       "legacy_name": "flux.compose.recreate",
@@ -579,6 +694,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "recreate",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -586,7 +702,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 107
+      "source_path": "src/actions/operations.rs",
+      "source_line": 107,
+      "source_macro_sha256": "54b7623778644a0436ce68486a4cbe9a38e1e3b913445bfac2fcdb7a3cbb7474"
     },
     {
       "legacy_name": "flux.compose.logs",
@@ -595,6 +713,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "logs",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -602,7 +721,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 108
+      "source_path": "src/actions/operations.rs",
+      "source_line": 108,
+      "source_macro_sha256": "23cf79ade61be32040fc4dacded2b52e7fe8133bf4fdd378177d0ee4a0090774"
     },
     {
       "legacy_name": "flux.compose.build",
@@ -611,6 +732,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "build",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -618,7 +740,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 109
+      "source_path": "src/actions/operations.rs",
+      "source_line": 109,
+      "source_macro_sha256": "e505c1c39a9ef50fd5e83be7a34a7aee81ec89a5dabb9b1e15fb1f8b5905e94e"
     },
     {
       "legacy_name": "flux.compose.pull",
@@ -627,6 +751,7 @@
       "legacy_action": "compose",
       "legacy_subaction": "pull",
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -634,7 +759,9 @@
         "project"
       ],
       "required_any": [],
-      "source_line": 110
+      "source_path": "src/actions/operations.rs",
+      "source_line": 110,
+      "source_macro_sha256": "151ab7cd3793ec5d3abd3e262aaa576cb793ca5d9ee4a646af4b007ea1b6a492"
     },
     {
       "legacy_name": "flux.compose.refresh",
@@ -643,13 +770,16 @@
       "legacy_action": "compose",
       "legacy_subaction": "refresh",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 111
+      "source_path": "src/actions/operations.rs",
+      "source_line": 111,
+      "source_macro_sha256": "12743ad89ceb065cabed7e4310d20a78410278c939ec391a5f47a0aff3804e97"
     },
     {
       "legacy_name": "scout.nodes",
@@ -658,11 +788,14 @@
       "legacy_action": "nodes",
       "legacy_subaction": null,
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [],
       "required_any": [],
-      "source_line": 112
+      "source_path": "src/actions/operations.rs",
+      "source_line": 112,
+      "source_macro_sha256": "6e35f1cdad50c9b1d3033e3aaf1ec7e516fa211da7d9b8cda7342372bed3b5c1"
     },
     {
       "legacy_name": "scout.peek",
@@ -671,6 +804,7 @@
       "legacy_action": "peek",
       "legacy_subaction": null,
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "rest",
       "required_params": [
@@ -678,7 +812,9 @@
         "path"
       ],
       "required_any": [],
-      "source_line": 113
+      "source_path": "src/actions/operations.rs",
+      "source_line": 113,
+      "source_macro_sha256": "2c3bcba116250c5a5544ef07bc2800ac96c7f8009578e23d853f149f682c7d77"
     },
     {
       "legacy_name": "scout.find",
@@ -687,6 +823,7 @@
       "legacy_action": "find",
       "legacy_subaction": null,
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -695,7 +832,9 @@
         "pattern"
       ],
       "required_any": [],
-      "source_line": 114
+      "source_path": "src/actions/operations.rs",
+      "source_line": 114,
+      "source_macro_sha256": "6cecb2085596e30710feeb18d151ec950bc48f738237b976ed08422f1e8ef1aa"
     },
     {
       "legacy_name": "scout.ps",
@@ -704,13 +843,16 @@
       "legacy_action": "ps",
       "legacy_subaction": null,
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 115
+      "source_path": "src/actions/operations.rs",
+      "source_line": 115,
+      "source_macro_sha256": "d416410a6c5620d235e8e044b26b1f961fec65f72f87bb430d4addf78fe5782f"
     },
     {
       "legacy_name": "scout.df",
@@ -719,13 +861,16 @@
       "legacy_action": "df",
       "legacy_subaction": null,
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 116
+      "source_path": "src/actions/operations.rs",
+      "source_line": 116,
+      "source_macro_sha256": "40b0a743ca3d55048aef2c7c7ae72a24268b951b3bced2dd0a45c062c27c6cf5"
     },
     {
       "legacy_name": "scout.delta",
@@ -734,6 +879,7 @@
       "legacy_action": "delta",
       "legacy_subaction": null,
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -749,7 +895,9 @@
           "target_path"
         ]
       ],
-      "source_line": 117
+      "source_path": "src/actions/operations.rs",
+      "source_line": 117,
+      "source_macro_sha256": "0d14bb441394bf9c8596b483d1302a5b5c1dc6df024b1d4cf64998e8ed59501b"
     },
     {
       "legacy_name": "scout.exec",
@@ -758,6 +906,7 @@
       "legacy_action": "exec",
       "legacy_subaction": null,
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "rest",
       "required_params": [
@@ -765,7 +914,9 @@
         "command"
       ],
       "required_any": [],
-      "source_line": 118
+      "source_path": "src/actions/operations.rs",
+      "source_line": 118,
+      "source_macro_sha256": "a504b55e686bf1800507f0c03aaf1d32536868c956b670e240e2f2438b0f30fe"
     },
     {
       "legacy_name": "scout.emit",
@@ -774,6 +925,7 @@
       "legacy_action": "emit",
       "legacy_subaction": null,
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -781,7 +933,9 @@
         "command"
       ],
       "required_any": [],
-      "source_line": 119
+      "source_path": "src/actions/operations.rs",
+      "source_line": 119,
+      "source_macro_sha256": "cdcb7379092a1b8f93a3e96cc839afb29ab16651a9757a174970a6c009601c57"
     },
     {
       "legacy_name": "scout.beam",
@@ -790,6 +944,7 @@
       "legacy_action": "beam",
       "legacy_subaction": null,
       "legacy_access": "write",
+      "legacy_scope": "synapse:write",
       "legacy_destructive": true,
       "legacy_transport": "mcp_only",
       "required_params": [
@@ -799,7 +954,9 @@
         "dest_path"
       ],
       "required_any": [],
-      "source_line": 120
+      "source_path": "src/actions/operations.rs",
+      "source_line": 120,
+      "source_macro_sha256": "f114d780506559694f528e4dbf7ce4c71ccc9cd814359d89b42ed0ceb1eaf805"
     },
     {
       "legacy_name": "scout.zfs.pools",
@@ -808,13 +965,16 @@
       "legacy_action": "zfs",
       "legacy_subaction": "pools",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 121
+      "source_path": "src/actions/operations.rs",
+      "source_line": 121,
+      "source_macro_sha256": "613b76a2f482a8aebebf90a23a52f0379539bcb828b7758357c9184a5dc1416e"
     },
     {
       "legacy_name": "scout.zfs.datasets",
@@ -823,13 +983,16 @@
       "legacy_action": "zfs",
       "legacy_subaction": "datasets",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 122
+      "source_path": "src/actions/operations.rs",
+      "source_line": 122,
+      "source_macro_sha256": "18c8575df33e43f962c3340403b9e10e5e1e125e9e146d51bacd44aac9d3f59b"
     },
     {
       "legacy_name": "scout.zfs.snapshots",
@@ -838,13 +1001,16 @@
       "legacy_action": "zfs",
       "legacy_subaction": "snapshots",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 123
+      "source_path": "src/actions/operations.rs",
+      "source_line": 123,
+      "source_macro_sha256": "8e2412dd3dc94b9a0c1f35c6299c314ea47992c0e03919ac2a88bc46dea4c6d3"
     },
     {
       "legacy_name": "scout.logs.syslog",
@@ -853,13 +1019,16 @@
       "legacy_action": "logs",
       "legacy_subaction": "syslog",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 124
+      "source_path": "src/actions/operations.rs",
+      "source_line": 124,
+      "source_macro_sha256": "96452674fe64f219683d75e2090583768fb455d5cf1ca577454d3213bef0b9d6"
     },
     {
       "legacy_name": "scout.logs.journal",
@@ -868,13 +1037,16 @@
       "legacy_action": "logs",
       "legacy_subaction": "journal",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 125
+      "source_path": "src/actions/operations.rs",
+      "source_line": 125,
+      "source_macro_sha256": "8a20d8998e608ccbe14b70920ffe48c2695614e3a13caae8c588523319d33062"
     },
     {
       "legacy_name": "scout.logs.dmesg",
@@ -883,13 +1055,16 @@
       "legacy_action": "logs",
       "legacy_subaction": "dmesg",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 126
+      "source_path": "src/actions/operations.rs",
+      "source_line": 126,
+      "source_macro_sha256": "394c3447c80ddb42e92b022012506b29359d538d1174d9a5c82c49cb1ed03ef9"
     },
     {
       "legacy_name": "scout.logs.auth",
@@ -898,13 +1073,16 @@
       "legacy_action": "logs",
       "legacy_subaction": "auth",
       "legacy_access": "read",
+      "legacy_scope": "synapse:read",
       "legacy_destructive": false,
       "legacy_transport": "mcp_only",
       "required_params": [
         "host"
       ],
       "required_any": [],
-      "source_line": 127
+      "source_path": "src/actions/operations.rs",
+      "source_line": 127,
+      "source_macro_sha256": "7e372dfdccbdfeda7b49e20c8fb81a5611ed6e2b1ac68ec0fc91c53b620553fd"
     }
   ]
 }

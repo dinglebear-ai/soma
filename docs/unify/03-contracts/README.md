@@ -59,4 +59,14 @@ cargo xtask context-contracts donor-parity --check
 - operation requests, plans, safety, progress, results, and verification;
 - operation lifecycle events and Cortex projection.
 
-Operations-specific normative documents are [`OPERATIONS-CONTRACT.md`](OPERATIONS-CONTRACT.md) and [`OPERATION-EVENT-CONTRACT.md`](OPERATION-EVENT-CONTRACT.md).
+Operations-specific normative documents are:
+
+- [`OPERATIONS-CONTRACT.md`](OPERATIONS-CONTRACT.md);
+- [`OPERATION-EVENT-CONTRACT.md`](OPERATION-EVENT-CONTRACT.md);
+- [`OPERATION-MODELS.md`](OPERATION-MODELS.md);
+- [`OPERATION-SCHEMA.md`](OPERATION-SCHEMA.md);
+- [`schemas/operation-contract.schema.json`](schemas/operation-contract.schema.json);
+- [`schemas/synapse-canonical-operations.schema.json`](schemas/synapse-canonical-operations.schema.json);
+- [`schemas/synapse-operation-parameters.schema.json`](schemas/synapse-operation-parameters.schema.json);
+- [`schemas/operation-diagnostic-projections.schema.json`](schemas/operation-diagnostic-projections.schema.json);
+- [`schemas/synapse-operation-results.schema.json`](schemas/synapse-operation-results.schema.json).

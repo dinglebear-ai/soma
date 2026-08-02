@@ -1,7 +1,7 @@
 ---
 title: "Synapse Extraction Plan"
 created: 2026-07-31
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # Synapse Extraction Plan
@@ -10,12 +10,14 @@ updated: 2026-07-31
 
 Import Synapse into the Soma multi-distribution monorepo while preserving a complete standalone Synapse product and extracting neutral infrastructure engines that Soma can embed directly.
 
+The authoritative detailed artifacts are [`SYNAPSE-EXTRACTION-SPEC.md`](SYNAPSE-EXTRACTION-SPEC.md), [`SYNAPSE-CODE-MAP.md`](SYNAPSE-CODE-MAP.md), [`SYNAPSE-IMPLEMENTATION-PLAN.md`](SYNAPSE-IMPLEMENTATION-PLAN.md), [`../03-contracts/OPERATION-MODELS.md`](../03-contracts/OPERATION-MODELS.md), and [`../03-contracts/OPERATION-SCHEMA.md`](../03-contracts/OPERATION-SCHEMA.md).
+
 ## Donor baseline
 
-- Repository: `https://github.com/jmagar/synapse`
+- Repository: `https://github.com/dinglebear-ai/synapse`
 - Branch: `main`
-- Commit: `b92552900c1458aa03b370c80edc812884c77f31`
-- Observed: 2026-07-31
+- Commit: `8f1bb2efc1a519c9d3b1b5b41ea8bb2ba178011f`
+- Observed: 2026-08-01
 - Standalone binary: `synapse`
 - Rust package: `synapse2`
 - Compatibility MCP tools: `flux` and `scout`
@@ -67,18 +69,20 @@ Final public package naming follows the repository's one-word publication rule a
 
 ## PR train
 
-1. Architecture decisions, contracts, donor lock, and 59-operation parity fixture.
-2. History-preserving Synapse source import with no redesign.
-3. `soma-ops` scaffold, typed contracts, and external consumer fixture.
-4. `soma-fleet` extraction with SSH and fanout security fixtures.
-5. Read-only `soma-infra` extraction.
-6. Mutation extraction with planning, authorization evidence, progress, and verification.
-7. Split Synapse product surfaces and composition root.
-8. Add Soma's read-only embedded operations port and provider projection.
-9. Add generic Incus operations over the existing neutral client.
-10. Narrow Soma deployment policy to consume the operations port.
-11. Prove embedded/remote parity through Labby and standalone Synapse.
-12. Cut over standalone packaging and remove temporary compatibility shells.
+The authoritative tasks and exit criteria are in [`SYNAPSE-IMPLEMENTATION-PLAN.md`](SYNAPSE-IMPLEMENTATION-PLAN.md). The stack is:
+
+1. architecture and donor freeze;
+2. operations foundation, semantic schema, and generators;
+3. history-preserving Synapse product import;
+4. canonical catalog and compatibility adapters;
+5. fleet foundation;
+6. read-only infrastructure engines;
+7. mutation framework and infrastructure mutations;
+8. standalone Synapse cutover;
+9. Soma embedded operations;
+10. Incus operations;
+11. remote adapter and Labby parity;
+12. release, cutover, and donor retirement.
 
 Every PR is developed in its own worktree. Each branch is based on the branch immediately below it until the stack is merged or restacked.
 
