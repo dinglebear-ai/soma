@@ -131,6 +131,8 @@ Deliverables:
 
 Exit: all current surfaces are derived from or validated against the registry, and changing one required field in a surface fixture makes CI fail.
 
+Implementation record: `synapse-application` is now a native product-application crate that depends only on `soma-ops` and checked-in generated contracts. It loads and cross-validates the 59 canonical specifications, 59 legacy bindings, parameter and result schemas, and 33 diagnostic projections. Flux and Scout requests normalize into closed canonical parameters; canonical results validate before deterministic JSON or Markdown projection; diagnostic projection is rejected unless the operation declares the code. The generated Flux/Scout input schemas are derived from the same registry. The imported donor workspace remains unchanged and unlinked.
+
 ### PR 5: fleet foundation
 
 Base: PR 4.
@@ -150,6 +152,8 @@ Deliverables:
 Security tests include host-key mismatch, changed endpoint revision, stale pooled connection, argument injection, timeout before spawn, timeout after send, cancellation, transfer bounds, pool shutdown, and fanout overload.
 
 Exit: Synapse remote tests pass through fleet interfaces and no infrastructure domain imports SSH details.
+
+Implementation record: `soma-fleet` is now a native shared crate with validated topology identities, SHA-256 topology revisions, exact-revision connection pooling, bounded command and transfer contracts, process-backed conformance execution, strict OpenSSH native multiplexing, owner-only forwarding sockets, observable transfer guards, lifecycle events, and stable-order bounded fanout. OpenSSH post-spawn cancellation and timeout report `RemoteCommandDetached` because the remote process may still be running. Product configuration precedence, command allowlists, authorization, and infrastructure semantics remain outside the crate. Live host-key mismatch and remote smoke verification remain product-gated evidence; deterministic tests prove that only strict known-host plans can be constructed.
 
 ### PR 6: read-only infrastructure engines
 
@@ -177,6 +181,8 @@ For each slice:
 - add a live smoke test only after deterministic mock tests pass.
 
 Exit: standalone Synapse delegates every migrated read to `soma-infra`, and embedded Soma can execute the same read through an operations port without importing Synapse.
+
+Implementation record: the first `soma-infra` slice now defines neutral read-only host, Docker, Compose, and filesystem contracts. Host and Compose reads execute through `soma-fleet` with discrete argv and bounded output. The optional Bollard adapter is local-only, bound to one host topology revision, and maps generated SDK models into stable neutral types. Linux filesystem stat, preview, and SHA-256 hashing reuse the donor's `openat2` confinement with explicit roots, `BENEATH`, `NO_SYMLINKS`, `NO_MAGICLINKS`, preview limits, and hash ceilings. Mutations, streaming logs/stats, process/log/ZFS reads, remote Docker composition, and Synapse cutover remain outside this PR.
 
 ### PR 7: mutation framework and infrastructure mutations
 

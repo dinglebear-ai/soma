@@ -1,0 +1,43 @@
+[package]
+name = "soma-fleet"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Neutral host topology, connection, transfer, and bounded fanout contracts"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+readme = "README.md"
+keywords = ["fleet", "ssh", "topology", "fanout"]
+categories = ["development-tools", "asynchronous"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[features]
+default = []
+openssh-driver = ["dep:openssh", "dep:rustix", "tokio/fs", "tokio/io-util"]
+process-driver = ["tokio/io-util", "tokio/process"]
+
+[dependencies]
+async-trait = "0.1"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+openssh = { version = "0.11", default-features = false, features = ["native-mux"], optional = true }
+soma-ops = { workspace = true }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+tokio-util = { version = "0.7", default-features = false }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs", "process"], optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -1,0 +1,44 @@
+[package]
+name = "soma-infra"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Product-neutral read-only host, Docker, Compose, and filesystem infrastructure engines"
+homepage.workspace = true
+license = "MIT"
+repository.workspace = true
+readme = "README.md"
+keywords = ["infrastructure", "docker", "compose", "filesystem"]
+categories = ["development-tools", "asynchronous"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[features]
+default = []
+process-driver = ["tokio/io-util", "tokio/process"]
+bollard-driver = ["dep:bollard"]
+linux-filesystem = ["dep:rustix"]
+
+[dependencies]
+async-trait = "0.1"
+bollard = { version = "0.21", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+soma-fleet = { workspace = true }
+soma-ops = { workspace = true }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+tokio-util = { version = "0.7", default-features = false }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"], optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
