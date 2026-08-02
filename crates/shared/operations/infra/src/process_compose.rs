@@ -15,7 +15,7 @@ const COMPOSE_OUTPUT_LIMIT: usize = 4 * 1024 * 1024;
 
 /// Compose inspector backed by a `soma-fleet` command executor.
 pub struct CommandComposeInspector<E> {
-    executor: Arc<E>,
+    pub(crate) executor: Arc<E>,
 }
 
 impl<E> CommandComposeInspector<E> {

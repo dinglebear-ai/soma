@@ -4,10 +4,10 @@ use soma_fleet::{FleetError, HostId};
 
 const PUBLIC_DIAGNOSTIC_LIMIT: usize = 2048;
 
-/// Result type for neutral infrastructure reads.
+/// Result type for neutral infrastructure operations.
 pub type InfraResult<T> = Result<T, InfraError>;
 
-/// Product-neutral infrastructure inspection failure.
+/// Product-neutral infrastructure operation failure.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum InfraError {
@@ -23,7 +23,7 @@ pub enum InfraError {
         message: String,
     },
     /// The target transport cannot execute the requested driver.
-    #[error("{domain} inspection is unsupported for host {host}")]
+    #[error("{domain} operation is unsupported for host {host}")]
     UnsupportedTarget {
         /// Infrastructure domain.
         domain: &'static str,
@@ -64,7 +64,7 @@ pub enum InfraError {
     #[error("path is outside admitted read roots: {0}")]
     PathOutsideRoots(PathBuf),
     /// Docker API access failed.
-    #[error("Docker read failed: {0}")]
+    #[error("Docker access failed: {0}")]
     Docker(String),
 }
 

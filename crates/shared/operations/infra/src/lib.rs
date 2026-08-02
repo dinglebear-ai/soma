@@ -1,14 +1,18 @@
-//! Product-neutral read-only infrastructure engines.
+//! Product-neutral infrastructure read and verified mutation engines.
 //!
-//! `soma-infra` defines typed host, Docker, Compose, and filesystem read
-//! contracts above `soma-fleet`. Product configuration, authorization,
-//! Flux/Scout compatibility, and CLI/MCP/REST presentation remain outside.
+//! `soma-infra` defines typed host, Docker, Compose, filesystem, process, log,
+//! and ZFS contracts above `soma-fleet`, plus bounded mutation coordinators that
+//! preserve send state and verify postconditions. Product configuration,
+//! authorization, and CLI/MCP/REST presentation remain outside.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 mod compose;
+mod compose_mutation;
 mod compose_parse;
+mod container_mutation;
+mod container_mutation_engine;
 mod docker;
 mod docker_provider;
 mod docker_telemetry;
@@ -22,11 +26,14 @@ mod host_system;
 #[cfg(feature = "process-driver")]
 mod host_system_parse;
 mod logs;
+mod mutation;
 mod process;
 mod zfs;
 
 #[cfg(feature = "bollard-driver")]
 mod bollard_driver;
+#[cfg(feature = "bollard-driver")]
+mod bollard_mutation;
 #[cfg(feature = "remote-bollard")]
 mod bollard_provider;
 #[cfg(feature = "bollard-driver")]
@@ -37,6 +44,8 @@ mod docker_map;
 mod linux_filesystem;
 #[cfg(feature = "process-driver")]
 mod process_compose;
+#[cfg(feature = "process-driver")]
+mod process_compose_mutation;
 #[cfg(feature = "process-driver")]
 mod process_filesystem;
 #[cfg(feature = "process-driver")]
@@ -56,6 +65,16 @@ pub use compose::{
     ComposeConfig, ComposeInspector, ComposeLogRequest, ComposeLogs, ComposeProject,
     ComposeProjectRef, ComposeServiceConfig, ComposeServiceStatus, ComposeStatus,
 };
+pub use compose_mutation::{
+    ComposeMutationAction, ComposeMutationClient, ComposeMutationEngine, ComposeMutationOutcome,
+    ComposeMutationReceipt, ComposeMutationRequest, ComposeMutator,
+};
+pub use container_mutation::{
+    ContainerLifecycleAction, ContainerLifecycleMutator, ContainerLifecycleOutcome,
+    ContainerLifecycleRequest, ContainerMutationReceipt, DockerMutationClient,
+    DockerMutationClientProvider, MutationVerificationPolicy,
+};
+pub use container_mutation_engine::ContainerLifecycleEngine;
 pub use docker::{
     ContainerInspect, ContainerListOptions, ContainerProcessTable, ContainerReader, ContainerState,
     ContainerSummary, DockerSystemInfo, DockerSystemReader, ImageListOptions, ImageReader,
@@ -88,6 +107,7 @@ pub use logs::{
     JournalFilters, JournalPriority, LogPermissionDiagnostic, LogRead, LogReadRequest, LogReader,
     LogSource,
 };
+pub use mutation::{MutationFailure, MutationResult, MutationVerification};
 pub use process::{ProcessInspector, ProcessListRequest, ProcessRow, ProcessSnapshot, ProcessSort};
 #[cfg(feature = "process-driver")]
 pub use process_compose::CommandComposeInspector;
