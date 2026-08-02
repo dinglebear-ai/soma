@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dinglebear.ai/schemas/provider-tool-namespace.schema.json",
+  "title": "Soma Provider Tool Namespace Models",
+  "description": "Canonical provider/tool identity, invocation, result, warning, and lookup-error models.",
+  "oneOf": [
+    { "$ref": "#/$defs/providerToolId" },
+    { "$ref": "#/$defs/invocation" },
+    { "$ref": "#/$defs/result" },
+    { "$ref": "#/$defs/lookupError" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z](?:[a-z0-9]|[-_][a-z0-9])*$",
+      "minLength": 1
+    },
+    "providerToolId": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tool"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tool", "params"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" },
+        "params": { "type": "object" }
+      }
+    },
+    "progressEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current"],
+      "properties": {
+        "current": { "type": "integer", "minimum": 0 },
+        "total": { "type": ["integer", "null"], "minimum": 0 },
+        "message": { "type": ["string", "null"] }
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "canonical_provider", "canonical_tool"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "canonical_provider": { "$ref": "#/$defs/identifier" },
+        "canonical_tool": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tool", "output", "request_id", "progress"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" },
+        "output": true,
+        "request_id": { "type": "string", "minLength": 1 },
+        "progress": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/progressEvent" },
+          "maxItems": 256
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/warning" }
+        }
+      }
+    },
+    "candidate": {
+      "$ref": "#/$defs/providerToolId"
+    },
+    "lookupError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schema_version", "code", "message", "retryable"],
+      "properties": {
+        "kind": { "const": "provider_tool_error" },
+        "schema_version": { "const": 1 },
+        "code": {
+          "enum": [
+            "unknown_provider",
+            "unknown_provider_tool",
+            "ambiguous_legacy_action",
+            "legacy_action_removed",
+            "reserved_provider_namespace"
+          ]
+        },
+        "provider": {
+          "oneOf": [
+            { "$ref": "#/$defs/identifier" },
+            { "type": "null" }
+          ]
+        },
+        "tool": {
+          "oneOf": [
+            { "$ref": "#/$defs/identifier" },
+            { "type": "null" }
+          ]
+        },
+        "legacy_action": {
+          "oneOf": [
+            { "$ref": "#/$defs/identifier" },
+            { "type": "null" }
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 },
+        "retryable": { "const": false },
+        "remediation": { "type": "string" },
+        "candidates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/candidate" },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
