@@ -37,7 +37,8 @@ use build::run_isolated_component_build;
 pub use comparison::{ComparisonRequest, GraduationFixture, compare};
 pub(crate) use comparison::{read_fixture_snapshot, read_fixtures};
 pub use recovery::{recover, recover_all};
-use state::{read_state, validate_state_paths, write_state, write_state_at};
+pub(crate) use state::{read_state, validate_state_paths};
+use state::{write_state, write_state_at};
 use transaction::{
     AmbiguousCommitError, begin_transaction, finish_transaction, recover_transaction,
     remove_committed_tombstone,
@@ -97,10 +98,10 @@ pub struct GraduationState {
     pub attestation: Option<ConformanceAttestation>,
 }
 
-struct WorkspaceLock(File);
+pub(crate) struct WorkspaceLock(File);
 
 impl WorkspaceLock {
-    fn acquire(workspace: &Path) -> anyhow::Result<Self> {
+    pub(crate) fn acquire(workspace: &Path) -> anyhow::Result<Self> {
         Self::acquire_before(workspace, Instant::now() + Duration::from_secs(30))
     }
 
@@ -279,6 +280,14 @@ pub fn build_component(
     provider_root: &Path,
 ) -> anyhow::Result<Value> {
     let _lock = WorkspaceLock::acquire(workspace)?;
+    build_component_locked(workspace, component, provider_root)
+}
+
+pub(crate) fn build_component_locked(
+    workspace: &Path,
+    component: Option<&Path>,
+    provider_root: &Path,
+) -> anyhow::Result<Value> {
     ensure_no_transaction(workspace)?;
     let initial_state = fs::read(workspace.join("graduation.json"))?;
     validate_state_paths(workspace, provider_root, &read_state(workspace)?)?;
@@ -645,7 +654,7 @@ fn recover_after_error<T>(
     }
 }
 
-fn ensure_no_transaction(workspace: &Path) -> anyhow::Result<()> {
+pub(crate) fn ensure_no_transaction(workspace: &Path) -> anyhow::Result<()> {
     if workspace.join(TRANSACTION_DIR).exists() {
         anyhow::bail!(
             "graduation workspace has an in-progress or interrupted transaction; recover it before another operation"

@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, error::Error, fmt};
 
-use rmcp::model::Meta;
+use rmcp::model::MetaObject;
 use serde_json::Value;
 
 pub const TRACEPARENT_KEY: &str = "traceparent";
@@ -108,12 +108,12 @@ struct TraceContext {
 
 #[cfg(test)]
 impl TraceContext {
-    fn from_meta(meta: &Meta, trust: TraceTrust) -> Result<Option<Self>, TraceParseError> {
+    fn from_meta(meta: &MetaObject, trust: TraceTrust) -> Result<Option<Self>, TraceParseError> {
         Self::from_meta_with_limits(meta, trust, TraceLimits::default())
     }
 
     fn from_meta_with_limits(
-        meta: &Meta,
+        meta: &MetaObject,
         trust: TraceTrust,
         limits: TraceLimits,
     ) -> Result<Option<Self>, TraceParseError> {
@@ -181,11 +181,15 @@ impl TraceSummary {
         summary
     }
 
-    pub fn from_meta(meta: &Meta, trust: TraceTrust) -> Self {
+    pub fn from_meta(meta: &MetaObject, trust: TraceTrust) -> Self {
         Self::from_meta_with_limits(meta, trust, TraceLimits::default())
     }
 
-    pub fn from_meta_with_limits(meta: &Meta, trust: TraceTrust, limits: TraceLimits) -> Self {
+    pub fn from_meta_with_limits(
+        meta: &MetaObject,
+        trust: TraceTrust,
+        limits: TraceLimits,
+    ) -> Self {
         let (mut summary, has_valid_traceparent) = match parse_meta_traceparent(meta, limits) {
             Ok(Some(traceparent)) => (Self::from_traceparent(&traceparent, trust), true),
             Ok(None) => (Self::absent_with_trust(trust), false),
@@ -398,7 +402,7 @@ impl fmt::Display for TraceParseError {
 impl Error for TraceParseError {}
 
 fn optional_meta_str<'a>(
-    meta: &'a Meta,
+    meta: &'a MetaObject,
     field: &'static str,
 ) -> Result<Option<&'a str>, TraceParseError> {
     match meta.get(field) {
@@ -410,7 +414,7 @@ fn optional_meta_str<'a>(
 
 #[cfg(test)]
 fn bounded_optional_meta_string(
-    meta: &Meta,
+    meta: &MetaObject,
     field: &'static str,
     max: usize,
 ) -> Result<Option<String>, TraceParseError> {
@@ -418,7 +422,7 @@ fn bounded_optional_meta_string(
 }
 
 fn bounded_optional_meta_str<'a>(
-    meta: &'a Meta,
+    meta: &'a MetaObject,
     field: &'static str,
     max: usize,
 ) -> Result<Option<&'a str>, TraceParseError> {
@@ -436,7 +440,7 @@ fn bounded_optional_meta_str<'a>(
 }
 
 fn parse_meta_traceparent(
-    meta: &Meta,
+    meta: &MetaObject,
     limits: TraceLimits,
 ) -> Result<Option<TraceParent>, TraceParseError> {
     let Some(traceparent) = optional_meta_str(meta, TRACEPARENT_KEY)? else {
@@ -735,7 +739,7 @@ mod tests {
 
     #[test]
     fn trace_context_parses_meta_and_summarizes_safely() {
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.set_traceparent(VALID_TRACEPARENT);
         meta.set_tracestate("vendor=value");
         meta.set_baggage("region=us-east-1,accessToken=super-secret-token");
@@ -830,11 +834,11 @@ mod tests {
 
     #[test]
     fn strict_context_rejects_oversized_optional_metadata() {
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.set_traceparent("x".repeat(4096));
         assert!(TraceContext::from_meta(&meta, TraceTrust::Untrusted).is_err());
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.set_traceparent(VALID_TRACEPARENT);
         meta.set_tracestate("v".repeat(20));
         let limits = TraceLimits {
@@ -843,7 +847,7 @@ mod tests {
         };
         assert!(TraceContext::from_meta_with_limits(&meta, TraceTrust::Untrusted, limits).is_err());
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.set_traceparent(VALID_TRACEPARENT);
         meta.set_baggage("a".repeat(20));
         let limits = TraceLimits {
@@ -855,14 +859,14 @@ mod tests {
 
     #[test]
     fn strict_context_rejects_invalid_optional_metadata() {
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.set_traceparent(VALID_TRACEPARENT);
         meta.set_tracestate("vendor=value,vendor=other");
         let error = TraceContext::from_meta(&meta, TraceTrust::Untrusted)
             .expect_err("duplicate tracestate keys should be rejected");
         assert!(matches!(error, TraceParseError::DuplicateTraceStateKey));
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.set_traceparent(VALID_TRACEPARENT);
         meta.set_baggage("a=1,b=2,c=3");
         let limits = TraceLimits {

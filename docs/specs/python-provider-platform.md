@@ -1,7 +1,7 @@
 ---
 title: "Python Provider Platform Plan"
 created: 2026-07-29
-updated: 2026-07-30
+updated: 2026-07-31
 doc_type: "spec"
 status: "active"
 owner: "soma"
@@ -18,7 +18,7 @@ upstream_refs:
   - "crates/shared/provider-adapters/src/python_protocol.rs"
   - "crates/shared/provider-adapters/src/python/"
   - "packages/python/"
-last_reviewed: "2026-07-30"
+last_reviewed: "2026-07-31"
 ---
 
 # Python Provider Platform Plan
@@ -187,11 +187,12 @@ Implementation under `crates/shared/provider-adapters/src/python/` includes:
 | 5. PEP 723 and `uv` lifecycle | Complete | Planning, production immutable activation, and authorized operator status/prune/repair/update surfaces are implemented. |
 | 6. Persistent supervised runner | Complete, opt-in | Installed-wheel supervised workers cover all authoring paths with cancellation, bounded redacted logs, status, quarantine, and reset controls. |
 | 7. Generation-aware reload | Complete | Candidate preflight, debounced/coalesced atomic activation, bounded retained history, retirement, status, and rollback are implemented. |
-| 8. Capability broker and containment | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
-| 9. WIT/WASI components | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
-| 10. Graduation tooling | Partial | Implementation is complete on PR #253; merge and CI verification remain. |
-| 11. `componentize-py` | Experimental | Narrow compatibility-scanned Python component path. |
-| 12. Release and operations | Partial | Wheel build matrix exists; publication and hardening remain. |
+| 8. Capability broker and containment | Complete | Invocation-bound broker services and fail-closed Linux containment merged in PR #253. |
+| 9. WIT/WASI components | Complete | Versioned component runtime, guest SDK, host limits, and conformance fixtures merged in PR #253. |
+| 10. Graduation tooling | Complete | Scaffold/build/verify/compare/activate/rollback workflow merged in PR #253. |
+| 11. `componentize-py` | Implementation complete, pending merge | Verified wheel mapping, WIT bindings, isolated builds, persistent compiler caching, exact Wasmtime validation, and operator surfaces are implemented in PR #256. |
+| 12. Release and operations | Implementation complete, pending merge | Trusted publication, wheelhouse integration, checksums, SBOM/provenance attestations, bounded cache policy, performance budgets, and soak CI are implemented in PR #256. |
+| 13. SDK completeness | Implementation complete, pending merge | Discriminators, inferred output schemas, canonical generated models, public stubs, and typed Context conveniences are implemented in PR #256. |
 
 The earlier session-local implementation plan numbered the `uv` lifecycle as
 Phase 4 and the persistent runner as Phase 5. This canonical plan separates
@@ -406,7 +407,8 @@ The reference Python and Rust component implementations share
 
 ## Phase 10: Graduation Tooling
 
-Status: implemented; pending merge and CI verification.
+**Complete.** Merged in PR #253 after the full local and GitHub verification
+matrix passed.
 
 Planned commands:
 
@@ -442,82 +444,99 @@ state atomically, and retain the previous artifact.
 
 ## Phase 11: Experimental `componentize-py`
 
-Only after the stable component host exists:
+**Implementation complete in PR #256; pending merge.** The dependency-free SDK
+exposes a non-executing compatibility scanner that parses provider source with
+the Python AST, maps external imports to authenticated pure-Python wheels, rejects
+native extensions and unsupported ambient-authority assumptions, and emits a
+digest-bound report. Wheel scanning and extraction reject unsafe, duplicate,
+encrypted, oversized, over-expanded, unauthenticated, and path-escaping entries.
 
-- scan imports and dependency wheels;
-- reject unsupported native extensions;
-- check process/thread/socket/filesystem assumptions;
-- generate Python WIT bindings;
-- build in isolation;
-- validate under Soma's exact Wasmtime host;
-- return actionable incompatibility reports.
+The active operator path is `soma providers componentize-scan`,
+`componentize-bindings`, `componentize-build`, and `componentize-validate`.
+Those operations are carried by the shared Soma action contract, so the same
+reports and artifact state are available through CLI, MCP, REST, and generated web
+action surfaces. Bindings are generated from `wit/soma-provider/world.wit` with
+exactly pinned `componentize-py==0.25.0`. Builds run in a Linux bubblewrap
+namespace with no network, a cleared environment, read-only toolchain roots,
+bounded files, CPU, tasks, virtual address space, and wall time. Components retain
+real WASI Preview 2 imports for clocks and randomness; Soma supplies them through a
+default-deny WASI context rather than baking trapping stubs into the guest. Generated
+artifacts are content-addressed and validated by Soma's production Wasmtime engine
+against `soma:provider@1.0.0` before they enter the existing graduation candidate
+path. Componentized artifacts carry a deterministic custom-section marker that
+selects a bounded 600-second compilation window without widening the ordinary
+30-second Wasm-provider deadline. Validation also seeds Wasmtime's
+content-addressed persistent compiler cache, bounded to 256 files and a 2 GiB
+soft ceiling, for subsequent process restarts. Preflight and invocation keep the
+ordinary 64 MiB and 10,000-table-element defaults, while the componentize marker
+selects the existing bounded ceilings of 30 seconds, 10,000,000 fuel, and 64
+instances instead of widening the ordinary 5-second, 1,000,000-fuel, and
+16-instance Wasm-provider defaults.
 
-This phase must not block the stable Rust/component graduation path.
+This remains an explicitly experimental, opt-in route. It does not bypass,
+replace, or weaken stable manual Rust/component graduation.
 
 ## Phase 12: Release and Operations
 
-Already delivered:
+**Implementation complete in PR #256; pending merge.** The Python SDK remains a
+Python 3.11+ maturin mixed package with abi3 wheels and a dependency-free fallback.
+The independent `soma-provider-v*` release path now builds and verifies the wheel
+matrix, uses PyPI trusted publishing, produces deterministic SHA-256 checksums and
+a CycloneDX SBOM, creates GitHub provenance and SBOM attestations, and attaches the
+wheelhouse and evidence to the release. Main Soma releases consume the matching
+provider wheelhouse and attest the combined binary and wheel artifact set.
 
-- maturin mixed package;
-- Python 3.11+ metadata;
-- abi3 extension and pure-Python fallback;
-- cross-platform wheel CI for Linux, Windows, and macOS x86_64;
-- isolated wheel installation and contract verification.
+`release/python-platform-policy.toml` is the machine-checked release policy. It
+pins componentize-py and Wasmtime compatibility, requires trusted publication,
+checksums, provenance, and SBOMs, and rejects source distributions plus Git, URL,
+and local-path dependencies. Existing environment repair, immutable activation,
+generation rollback, source backup/restore, worker status, and quarantine actions
+remain available through CLI, API, MCP, and web contracts, with regression tests
+covering interrupted transactions and failed-cache restoration.
 
-Remaining:
+Cold import, catalog, invocation, reload, and memory-soak budgets are enforced by
+`scripts/python-platform-gates.py`. A scheduled and manually dispatchable soak
+workflow runs the full budgets plus the real isolated componentize-py-to-Soma
+Wasmtime integration test on the Python runner pool.
 
-- `soma-provider` publish/version policy;
-- matching wheelhouse integration with Soma releases;
-- checksums, signatures, attestations, SBOM, and provenance;
-- dependency and Wasmtime security-update policy;
-- upgrade/rollback and cache backup/restore tests;
-- CLI/API/MCP/web status for environments, workers, generations, and quarantine;
-- cold/warm/reload performance budgets;
-- cache-churn, crash-loop, high-volume log, and mixed-provider soak tests.
+## Phase 13: SDK Completeness
 
-## Cross-Cutting SDK Backlog
+**Implementation complete in PR #256; pending merge.** Dependency-free schema
+inference covers dataclasses, required and optional `TypedDict` keys,
+`Annotated` descriptions and allowlisted constraints, discriminators, literals,
+fixed and variadic tuples, typed mappings, unions, and nullable forms. Unsupported
+metadata fails closed. Tool return annotations now produce output schemas unless
+an explicit schema overrides them.
 
-These can land independently without delaying the runner:
+Python catalog models are generated from the canonical Rust provider-manifest
+schema and checked for drift by `cargo xtask check-docs`. Arbitrary JSON Schema
+objects remain typed as maps and schema composition references retain their
+canonical model type. The package publishes `py.typed`, generated `.pyi` files
+for the public SDK and componentize report, and typed conveniences for the
+broker-backed Context services.
 
-- complete dataclass and `TypedDict` schema handling;
-- `Annotated` descriptions and constraints;
-- complete union/nullable handling;
-- stronger output-schema inference;
-- generated Python catalog models from canonical Rust schemas;
-- richer stubs;
-- additional typed SDK conveniences over the delivered broker-backed Context
-  services.
+## Python Platform Policy
 
-## Open Policy Decisions
-
-- permitted package indexes
-- interpreter download policy
-- source distribution policy
-- Git, URL, and local-path dependency policy
-- license, hash, and provenance requirements
-- cache quotas and retention
-- offline update behavior
-- SDK wheel selection by platform
-- policy-version migrations
-
-Defaults should favor reproducibility, offline restart, and fail-closed handling
-of unsupported dependency sources.
+The versioned policy in `release/python-platform-policy.toml` is authoritative
+for publication, dependency-source, runtime-version, supply-chain, and performance
+requirements. Current defaults require registry-locked artifacts, disallow source,
+Git, URL, and local-path dependencies, and require trusted publishing, checksums,
+provenance, and SBOM evidence. Any relaxation or migration requires an explicit
+policy-version change, updated gates, and corresponding verification evidence.
 
 ## Delivered Order and Next Work
 
-Phases 8–10 delivered the capability broker, enforced containment, WIT
-component runtime, shared conformance path, isolated offline component builds,
-and source/catalog/fixture/artifact-bound graduation comparison, activation,
-and rollback workflow. The recommended next sequence is:
+Phases 8–10 delivered the capability broker, enforced containment, WIT component
+runtime, shared conformance path, isolated offline component builds, and
+digest-bound graduation comparison, activation, and rollback. PR #256 completes
+the planned Phase 11 experimental componentization path, Phase 12 release and
+operations gates, and Phase 13 SDK typing surface. After merge, follow-on work is
+normal maintenance: policy-version migrations, new schema constructs, expanded
+platform wheels, and performance-budget changes must land with their generated
+surfaces and verification evidence.
 
-1. Complete release signing, provenance, SBOM, and dependency-policy gates.
-2. Establish cold/warm performance budgets and mixed-provider soak coverage.
-3. Publish migration and operator recovery documentation.
-4. Evaluate the optional `componentize-py` experiment without weakening the
-   verified graduation path.
-
-The persistent runner and generation boundary are load-bearing. Do not bypass
-them to begin component or graduation work.
+The persistent runner, generation boundary, and stable graduation path remain
+load-bearing. Experimental componentization must not bypass them.
 
 ## Verification Baseline
 

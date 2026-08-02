@@ -47,16 +47,19 @@
   ],
   "license": "MIT",
   "mcpName": "ai.dinglebear/soma",
-  "name": "soma-rmcp",
+  "name": "@dinglebear/soma",
   "repository": {
-    "directory": "packages/soma-rmcp",
     "type": "git",
-    "url": "git+https://github.com/dinglebear-ai/soma.git"
+    "url": "git+https://github.com/dinglebear-ai/soma.git",
+    "directory": "packages/soma-rmcp"
   },
-  "version": "0.7.0",
+  "version": "0.8.0",
   "scripts": {
     "prepack": "node scripts/sync-readme.js",
     "check": "node --check bin/soma-rmcp.js && node --check scripts/sync-readme.js && node --check scripts/check-package.js && node scripts/check-package.js",
     "prepublishOnly": "node scripts/check-package.js --release"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

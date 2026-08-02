@@ -41,12 +41,23 @@ services:
       - path: .env
         required: false
     environment:
+      SOMA_HOME: /data
+      SOMA_PROVIDER_DIR: /data/providers
+      SOMA_PYTHON_RUNNER_MODE: persistent
+      # Drop-in Python providers are trusted application code in this sample.
+      # Brokered mode additionally requires delegated cgroup v2 configuration.
+      SOMA_PYTHON_EXECUTION_PROFILE: trusted
       SOMA_MCP_HOST: 0.0.0.0
+      # Local-runtime providers require a trusted transport boundary. Publish
+      # only to host loopback and put an authenticating proxy in front.
       SOMA_NOAUTH: "true"
     ports:
-      - "${SOMA_MCP_HOST_PORT:-40060}:40060/tcp"
+      # Override SOMA_MCP_PUBLISH_HOST in the project .env for a trusted
+      # Tailscale bind; loopback remains the safe default.
+      - "${SOMA_MCP_PUBLISH_HOST:-127.0.0.1}:${SOMA_MCP_HOST_PORT:-40060}:40060/tcp"
     volumes:
       - ${HOME}/.soma:/data
+      - ${HOME}/.soma/providers:/data/providers:ro
     cap_drop:
       - ALL
     security_opt:

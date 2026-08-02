@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Soma MCP REST API",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Generated OpenAPI schema for Soma's direct REST surface. Auth modes: loopback/trusted-gateway deployments may have no local auth; mounted bearer mode uses SOMA_MCP_TOKEN; OAuth mode uses bearer JWTs. REST actions require their action-specific scopes when auth is mounted.",
     "contact": {
       "name": "dinglebear.ai",
@@ -2022,8 +2022,8 @@
     "preferred_rest_style": "direct_routes",
     "binary": "soma",
     "server_binary": "soma",
-    "node_package": "soma-rmcp",
-    "oci_image": "ghcr.io/dinglebear-ai/soma:0.7.0",
+    "node_package": "@dinglebear/soma",
+    "oci_image": "ghcr.io/dinglebear-ai/soma:0.8.0",
     "mcp_registry": "server.json",
     "provider_directory_env": "SOMA_PROVIDER_DIR",
     "auth_modes": [

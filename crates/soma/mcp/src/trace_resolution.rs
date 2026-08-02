@@ -6,7 +6,7 @@
 //! HTTP header values are never parsed, joined, counted, or logged. Only safe
 //! presence booleans are recorded.
 
-use rmcp::model::Meta;
+use rmcp::model::MetaObject;
 use rmcp_traces::{BAGGAGE_KEY, TRACEPARENT_KEY, TRACESTATE_KEY, TraceSummary, TraceTrust};
 use soma_config::TraceHeaderMode;
 use soma_domain::TraceContext;
@@ -22,7 +22,7 @@ pub(crate) struct TraceResolution {
 }
 
 impl TraceResolution {
-    pub(crate) fn from_meta_only(meta: &Meta) -> Self {
+    pub(crate) fn from_meta_only(meta: &MetaObject) -> Self {
         let extraction = soma_mcp_server::trace::extract_trace_meta(meta, TraceTrust::Untrusted);
         Self {
             trace_context: trace_context_from_raw_fields(extraction.raw_fields),
@@ -33,7 +33,7 @@ impl TraceResolution {
 }
 
 #[cfg(test)]
-pub(crate) fn trace_context_from_meta(meta: &Meta) -> Option<TraceContext> {
+pub(crate) fn trace_context_from_meta(meta: &MetaObject) -> Option<TraceContext> {
     let extraction = soma_mcp_server::trace::extract_trace_meta(meta, TraceTrust::Untrusted);
     trace_context_from_raw_fields(extraction.raw_fields)
 }
@@ -48,7 +48,7 @@ fn trace_context_from_raw_fields(
     })
 }
 
-pub(crate) fn meta_has_any_trace_key(meta: &Meta) -> bool {
+pub(crate) fn meta_has_any_trace_key(meta: &MetaObject) -> bool {
     meta.get(TRACEPARENT_KEY).is_some()
         || meta.get(TRACESTATE_KEY).is_some()
         || meta.get(BAGGAGE_KEY).is_some()
@@ -56,7 +56,7 @@ pub(crate) fn meta_has_any_trace_key(meta: &Meta) -> bool {
 
 pub(crate) fn resolve_trace_resolution(
     mode: TraceHeaderMode,
-    meta: &Meta,
+    meta: &MetaObject,
     headers: Option<&::http::HeaderMap>,
 ) -> TraceResolution {
     match mode {
@@ -70,7 +70,7 @@ pub(crate) fn resolve_trace_resolution(
 #[cfg(feature = "http")]
 fn resolve_trusted(
     mode: TraceHeaderMode,
-    meta: &Meta,
+    meta: &MetaObject,
     headers: Option<&::http::HeaderMap>,
 ) -> TraceResolution {
     if meta_has_any_trace_key(meta) {
@@ -119,7 +119,7 @@ fn trace_context_from_http_extraction(
 #[cfg(not(feature = "http"))]
 fn resolve_trusted(
     _mode: TraceHeaderMode,
-    meta: &Meta,
+    meta: &MetaObject,
     _headers: Option<&::http::HeaderMap>,
 ) -> TraceResolution {
     TraceResolution::from_meta_only(meta)

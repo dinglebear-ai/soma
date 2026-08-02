@@ -67,7 +67,11 @@ pub(crate) fn generate_docs() -> Result<()> {
 
 pub(crate) fn check_docs() -> Result<()> {
     run_cmd("python3", &["scripts/generate-docs.py", "--check"])
-        .context("generated docs are stale; run `cargo xtask generate-docs`")
+        .context("generated docs are stale; run `cargo xtask generate-docs`")?;
+    run_cmd("python3", &["scripts/check-python-platform-policy.py"])
+        .context("Python platform policy check failed")?;
+    run_cmd("python3", &["scripts/python-platform-gates.py"])
+        .context("Python platform performance gate failed")
 }
 
 pub(crate) fn check_stale_claims() -> Result<()> {

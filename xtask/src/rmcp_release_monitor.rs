@@ -207,7 +207,7 @@ fn build_monitor_report(
 /// Strips the comparator from a cargo version requirement so it can be parsed
 /// as a concrete `Version`.
 ///
-/// The workspace pins rmcp exactly (`rmcp = { version = "=3.0.0-beta.2" }`),
+/// The workspace pins rmcp exactly (`rmcp = { version = "=3.1.0" }`),
 /// and `detect_current_rmcp_version` returns that requirement verbatim.
 /// `semver::Version::parse` rejects the leading `=`, so the monitor could
 /// never read an exactly-pinned workspace.

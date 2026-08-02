@@ -17,7 +17,7 @@ use soma_provider_core::{
 };
 use tokio::time::timeout;
 use wasmtime::{
-    Config, Engine, Instance, Module, Store, StoreLimits, StoreLimitsBuilder,
+    Cache, CacheConfig, Config, Engine, Instance, Module, Store, StoreLimits, StoreLimitsBuilder,
     component::{Component, Linker},
 };
 
@@ -51,6 +51,78 @@ use runtime_support::{
 };
 
 const MAX_WASM_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
+const DEFAULT_ARTIFACT_COMPILE_TIMEOUT_SECS: u64 = 30;
+const COMPONENTIZE_ARTIFACT_COMPILE_TIMEOUT_SECS: u64 = 600;
+const COMPONENTIZE_MARKER_NAME: &[u8] = b"soma.componentize-py.v1";
+const VERIFY_MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024;
+const VERIFY_MAX_TABLE_ELEMENTS: usize = 10_000;
+const VERIFY_MAX_INSTANCES: usize = 16;
+const WASMTIME_CACHE_FILE_COUNT_SOFT_LIMIT: u64 = 256;
+const WASMTIME_CACHE_BYTES_SOFT_LIMIT: u64 = 2_147_483_648;
+
+/// Append Soma's deterministic experimental componentize marker custom section.
+pub fn mark_componentize_artifact(bytes: &mut Vec<u8>) -> Result<(), String> {
+    if bytes.len() < 8 || &bytes[..4] != b"\0asm" {
+        return Err("componentize artifact is not a WebAssembly binary".to_owned());
+    }
+    let marker = componentize_marker_section()?;
+    if bytes.ends_with(&marker) {
+        return Ok(());
+    }
+    if bytes.len().saturating_add(marker.len()) > MAX_WASM_ARTIFACT_BYTES {
+        return Err(format!(
+            "marked componentize artifact exceeds {MAX_WASM_ARTIFACT_BYTES} bytes"
+        ));
+    }
+    bytes.extend_from_slice(&marker);
+    Ok(())
+}
+
+/// Return whether a WebAssembly artifact carries Soma's componentize marker.
+#[must_use]
+pub fn is_componentize_artifact(bytes: &[u8]) -> bool {
+    componentize_marker_section()
+        .map(|marker| bytes.ends_with(&marker))
+        .unwrap_or(false)
+}
+
+fn artifact_compile_timeout(bytes: &[u8]) -> Duration {
+    let seconds = if is_componentize_artifact(bytes) {
+        COMPONENTIZE_ARTIFACT_COMPILE_TIMEOUT_SECS
+    } else {
+        DEFAULT_ARTIFACT_COMPILE_TIMEOUT_SECS
+    };
+    Duration::from_secs(seconds)
+}
+
+fn componentize_marker_section() -> Result<Vec<u8>, String> {
+    let name_len = u32::try_from(COMPONENTIZE_MARKER_NAME.len())
+        .map_err(|_| "componentize marker name is too large".to_owned())?;
+    let mut body = Vec::with_capacity(COMPONENTIZE_MARKER_NAME.len() + 5);
+    push_u32_leb(&mut body, name_len);
+    body.extend_from_slice(COMPONENTIZE_MARKER_NAME);
+    let body_len = u32::try_from(body.len())
+        .map_err(|_| "componentize marker section is too large".to_owned())?;
+    let mut section = Vec::with_capacity(body.len() + 6);
+    section.push(0);
+    push_u32_leb(&mut section, body_len);
+    section.extend_from_slice(&body);
+    Ok(section)
+}
+
+fn push_u32_leb(output: &mut Vec<u8>, mut value: u32) {
+    loop {
+        let mut byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value != 0 {
+            byte |= 0x80;
+        }
+        output.push(byte);
+        if value == 0 {
+            break;
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct WasmProvider {
@@ -64,6 +136,7 @@ struct PreparedWasmProvider {
     runtime: Arc<WasmRuntime>,
     artifact: Arc<WasmArtifact>,
     digest: String,
+    componentize: bool,
 }
 
 impl WasmProvider {
@@ -71,11 +144,14 @@ impl WasmProvider {
         let runtime = shared_wasm_runtime().and_then(|runtime| {
             let bytes = read_artifact(&path)?;
             let digest = artifact_digest(&bytes);
-            let artifact = runtime.artifact(&bytes, Instant::now() + Duration::from_secs(30))?;
+            let componentize = is_componentize_artifact(&bytes);
+            let artifact =
+                runtime.artifact(&bytes, Instant::now() + artifact_compile_timeout(&bytes))?;
             Ok(PreparedWasmProvider {
                 runtime,
                 artifact,
                 digest,
+                componentize,
             })
         });
         Self {
@@ -133,7 +209,8 @@ impl Provider for WasmProvider {
                 .with_source(source.clone())
                 .with_phase("input-serialization")
         })?;
-        let limits = WasmRuntimeLimits::from_tool(&tool);
+        let limits =
+            WasmRuntimeLimits::from_tool(&tool).with_componentize_minimums(prepared.componentize);
         if input.len() > limits.max_input_bytes {
             return Err(ProviderError::validation(
                 provider,
@@ -308,12 +385,28 @@ fn shared_wasm_runtime() -> Result<Arc<WasmRuntime>, String> {
         .clone()
 }
 
+fn wasmtime_cache_config() -> CacheConfig {
+    let mut config = CacheConfig::new();
+    config
+        .with_file_count_soft_limit(WASMTIME_CACHE_FILE_COUNT_SOFT_LIMIT)
+        .with_files_total_size_soft_limit(WASMTIME_CACHE_BYTES_SOFT_LIMIT)
+        .with_file_count_limit_percent_if_deleting(75)
+        .with_files_total_size_limit_percent_if_deleting(75);
+    config
+}
+
+fn wasmtime_cache() -> Result<Cache, String> {
+    Cache::new(wasmtime_cache_config())
+        .map_err(|error| format!("failed to initialize Wasmtime cache: {error}"))
+}
+
 impl WasmRuntime {
     fn new() -> Result<Self, String> {
         let mut config = Config::new();
         config.consume_fuel(true);
         config.epoch_interruption(true);
         config.wasm_component_model(true);
+        config.cache(Some(wasmtime_cache()?));
         let engine = Engine::new(&config).map_err(|error| error.to_string())?;
         let ticker = EpochTicker::start(engine.clone())?;
         Ok(Self {
@@ -342,22 +435,25 @@ impl WasmRuntime {
     fn verify_prepared_component(
         &self,
         artifact: &Arc<WasmArtifact>,
+        componentize: bool,
         deadline: Instant,
     ) -> Result<(), String> {
-        let _execution = acquire_execution(deadline, 16 * 1024 * 1024)?;
+        let limits = WasmRuntimeLimits {
+            timeout_ms: 1_000,
+            max_input_bytes: 0,
+            max_output_bytes: 0,
+            fuel: 100_000,
+            max_memory_bytes: VERIFY_MAX_MEMORY_BYTES,
+            max_table_elements: VERIFY_MAX_TABLE_ELEMENTS,
+            max_instances: VERIFY_MAX_INSTANCES,
+        }
+        .with_componentize_minimums(componentize);
+        let _execution = acquire_execution(deadline, limits.max_memory_bytes)?;
         let WasmArtifact::Component(component) = artifact.as_ref() else {
             return Err("artifact is core Wasm, not a component".to_owned());
         };
         let mut store = self.store(
-            WasmRuntimeLimits {
-                timeout_ms: 1_000,
-                max_input_bytes: 0,
-                max_output_bytes: 0,
-                fuel: 100_000,
-                max_memory_bytes: 16 * 1024 * 1024,
-                max_table_elements: 1_000,
-                max_instances: 8,
-            },
+            limits,
             &soma_provider_core::HostCapabilities::default(),
             &soma_provider_core::ProviderInvocationContext {
                 request_id: "component-verification".to_owned(),
@@ -380,10 +476,12 @@ impl WasmRuntime {
 
     #[cfg(test)]
     fn verify_component(&self, bytes: &[u8], deadline: Instant) -> Result<(), String> {
+        let componentize = is_componentize_artifact(bytes);
         let artifact = self.artifact(bytes, deadline)?;
-        self.verify_prepared_component(&artifact, deadline)
+        self.verify_prepared_component(&artifact, componentize, deadline)
     }
 
+    #[cfg(test)]
     fn run(
         &self,
         path: &std::path::Path,
@@ -529,7 +627,7 @@ fn run_component_wasm(
         .map_err(|_| "component input must be UTF-8 JSON".to_owned())?;
     let (result,) = invoke
         .call(&mut *store, (input,))
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| format!("{error:#}"))?;
     let output = result.map_err(|error| format!("component provider failed: {error}"))?;
     if output.len() > limits.max_output_bytes {
         return Err(format!(

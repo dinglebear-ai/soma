@@ -257,12 +257,14 @@ fn rest_params(action: &SomaAction) -> Value {
             source,
             component,
             fixtures,
+            wheelhouse,
         } => json!({
             "operation": operation,
             "workspace": workspace,
             "source": source,
             "component": component,
             "fixtures": fixtures,
+            "wheelhouse": wheelhouse,
         }),
         SomaAction::Status
         | SomaAction::PythonEnvironmentStatus

@@ -36,11 +36,18 @@ pub(super) fn compile_artifact(
     if Instant::now() >= deadline {
         return Err("WASM compilation deadline expired".to_owned());
     }
-    let artifact = wasmtime::component::Component::from_binary(&runtime.engine, bytes)
-        .map(WasmArtifact::Component)
-        .or_else(|_| wasmtime::Module::from_binary(&runtime.engine, bytes).map(WasmArtifact::Core))
-        .map(Arc::new)
-        .map_err(|error| error.to_string())?;
+    let artifact = match bytes.get(..8) {
+        Some(b"\0asm\x01\0\0\0") => wasmtime::Module::from_binary(&runtime.engine, bytes)
+            .map(WasmArtifact::Core)
+            .map_err(|error| error.to_string())?,
+        Some(b"\0asm\x0d\0\x01\0") => {
+            wasmtime::component::Component::from_binary(&runtime.engine, bytes)
+                .map(WasmArtifact::Component)
+                .map_err(|error| error.to_string())?
+        }
+        _ => return Err("artifact has an unsupported WebAssembly binary header".to_owned()),
+    };
+    let artifact = Arc::new(artifact);
     if Instant::now() >= deadline {
         return Err("WASM compilation exceeded its deadline".to_owned());
     }

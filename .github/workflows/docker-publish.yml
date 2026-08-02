@@ -57,7 +57,7 @@ jobs:
       image: ghcr.io/dinglebear-ai/soma
       release-tag: ${{ needs.validate.outputs.version }}
       dockerfile: config/Dockerfile
-      smoke-command: docker run --rm "$IMAGE_REF" --help
+      smoke-command: docker run --rm --entrypoint sh "$IMAGE_REF" -c 'command -v bwrap >/dev/null && command -v prlimit >/dev/null && python3 -I -c "import soma_provider.runner"' && docker run --rm "$IMAGE_REF" --help
       cache-scope: soma-container-release
     secrets:
       REGISTRY_USERNAME: ${{ github.actor }}

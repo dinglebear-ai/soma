@@ -28,7 +28,7 @@ unless Jacob asks for that variant by name.
 | Default branch | `main` |
 | Former names | `rmcp-template`, then `rtemplate-mcp` — both GitHub names now redirect here. Fix any local remote still pointing at `jmagar/*`. |
 | Workspace | 35 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `crates/integrations/*`, `apps/soma`, `packages/python`, plus `xtask`. Note `apps/web` and `apps/palette` are **not** cargo members — they are frontend assets. |
-| rmcp pin | `rmcp = { version = "=3.0.0-beta.2", default-features = false }` — an **exact** pin in `[workspace.dependencies]`, deliberately duplicated on the `rmcp-client` alias entry (`Cargo.toml:81`) because TOML cannot cross-reference. Bump both together. |
+| rmcp pin | `rmcp = { version = "=3.1.0", default-features = false }` — an **exact** pin in `[workspace.dependencies]`, deliberately duplicated on the `rmcp-client` alias entry (`Cargo.toml:81`) because TOML cannot cross-reference. Bump both together. |
 
 `crates/soma/*` is product code (this server). `crates/shared/*` is reusable
 engine code (auth, gateway, mcp client/server/proxy, provider adapters,

@@ -42,8 +42,9 @@ WORKDIR /app
 
 # Install build dependencies.
 # pkg-config and libssl-dev are needed for openssl-sys (used by reqwest/lab-auth).
+# libseccomp-dev links the Linux containment backend used by Python providers.
 # CUSTOMIZE: Add other system deps your crates need (e.g. libpq-dev for postgres).
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y pkg-config libssl-dev libseccomp-dev && rm -rf /var/lib/apt/lists/*
 
 # ── Dependency caching layer ──────────────────────────────────────────────────
 # Copy only Cargo manifests first and build a stub binary. This lets Docker/
@@ -58,6 +59,7 @@ COPY packages/ packages/
 COPY xtask/ xtask/
 COPY docs/generated/openapi.json docs/generated/openapi.json
 COPY docs/contracts/provider-manifest.schema.json docs/contracts/provider-manifest.schema.json
+COPY wit/ wit/
 # Embed the Next.js static export built in the web stage.
 COPY --from=web /app/apps/web/out/ apps/web/out/
 
@@ -71,8 +73,9 @@ RUN --mount=type=cache,id=soma-cargo-registry,target=/usr/local/cargo/registry,s
     cp target/release/soma /usr/local/bin/soma
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
-# Minimal Debian image — no Rust toolchain, no build tools.
-# Only ca-certificates (for TLS) and curl (for HEALTHCHECK).
+# Minimal Debian image — no Rust toolchain or build tools.
+# Includes Python 3.11 for ambient drop-in Python providers, plus the TLS and
+# health-check utilities required by the server.
 # Pinned to bookworm-slim 2026-05-15 — update quarterly with:
 #   docker pull debian:bookworm-slim
 #   docker inspect --format '{{index .RepoDigests 0}}' debian:bookworm-slim
@@ -82,13 +85,23 @@ FROM debian:bookworm-slim
 #   ca-certificates — TLS certificate verification for outbound HTTPS calls
 #   curl            — used by HEALTHCHECK
 #   gosu            — privilege drop in entrypoint.sh (exec as UID 1000:1000)
+#   libseccomp2     — seccomp filter runtime for brokered Python execution
+#   bubblewrap      — mount/user namespace boundary for brokered Python workers
+#   util-linux      — provides prlimit for brokered worker resource ceilings
+#   python3         — ambient interpreter for dependency-free .py providers
 #
 # CUSTOMIZE: Add other runtime libraries your binary needs (e.g. libssl1.1 if not
 #           statically linked). Alpine users: replace gosu with su-exec and update
 #           entrypoint.sh accordingly.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl gosu && \
+    apt-get install -y --no-install-recommends ca-certificates curl gosu libseccomp2 bubblewrap util-linux python3 && \
     rm -rf /var/lib/apt/lists/*
+
+# Persistent ambient workers run with `python3 -I`, so the dependency-free
+# runner must live in the interpreter's system path rather than PYTHONPATH.
+RUN mkdir -p /usr/lib/python3/dist-packages/soma_provider
+COPY packages/python/python/soma_provider/*.py /usr/lib/python3/dist-packages/soma_provider/
+RUN python3 -I -c 'import soma_provider.runner'
 
 # CUSTOMIZE: Replace "soma" with your binary name in both COPY and target path.
 COPY --from=builder /usr/local/bin/soma /usr/local/bin/soma

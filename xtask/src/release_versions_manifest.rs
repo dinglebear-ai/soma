@@ -50,7 +50,7 @@ pub(super) fn validate_manifest(manifest: &Manifest) -> Result<()> {
 
 fn validate_version_file(component: &Component, field: &str, file: &VersionFile) -> Result<()> {
     match file.kind {
-        VersionKind::CargoPackage | VersionKind::CargoLockPackage => {
+        VersionKind::CargoPackage | VersionKind::CargoLockPackage | VersionKind::PyProject => {
             if file.package.as_deref().unwrap_or("").trim().is_empty() {
                 bail!(
                     "{} {field} {} {:?} requires package",
@@ -59,9 +59,9 @@ fn validate_version_file(component: &Component, field: &str, file: &VersionFile)
                     file.kind
                 );
             }
-            if file.json_pointer.is_some() {
+            if file.json_pointer.is_some() || file.variable.is_some() {
                 bail!(
-                    "{} {field} {} {:?} must not set json_pointer",
+                    "{} {field} {} {:?} must not set json_pointer/variable",
                     component.id,
                     file.path,
                     file.kind
@@ -71,9 +71,9 @@ fn validate_version_file(component: &Component, field: &str, file: &VersionFile)
         VersionKind::JsonVersion
         | VersionKind::OciIdentifierVersion
         | VersionKind::NpmIdentifierVersion => {
-            if file.package.is_some() {
+            if file.package.is_some() || file.variable.is_some() {
                 bail!(
-                    "{} {field} {} {:?} must not set package",
+                    "{} {field} {} {:?} must not set package/variable",
                     component.id,
                     file.path,
                     file.kind
@@ -89,10 +89,28 @@ fn validate_version_file(component: &Component, field: &str, file: &VersionFile)
                 );
             }
         }
-        VersionKind::ChangelogHeading | VersionKind::JsonNoVersion => {
+        VersionKind::PythonAssignment => {
+            if file.variable.as_deref().unwrap_or("").trim().is_empty() {
+                bail!(
+                    "{} {field} {} {:?} requires variable",
+                    component.id,
+                    file.path,
+                    file.kind
+                );
+            }
             if file.package.is_some() || file.json_pointer.is_some() {
                 bail!(
                     "{} {field} {} {:?} must not set package/json_pointer",
+                    component.id,
+                    file.path,
+                    file.kind
+                );
+            }
+        }
+        VersionKind::ChangelogHeading | VersionKind::JsonNoVersion => {
+            if file.package.is_some() || file.json_pointer.is_some() || file.variable.is_some() {
+                bail!(
+                    "{} {field} {} {:?} must not set package/json_pointer/variable",
                     component.id,
                     file.path,
                     file.kind
@@ -108,4 +126,5 @@ fn same_version_file(left: &VersionFile, right: &VersionFile) -> bool {
         && left.path == right.path
         && left.package == right.package
         && left.json_pointer == right.json_pointer
+        && left.variable == right.variable
 }
