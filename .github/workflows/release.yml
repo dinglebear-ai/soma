@@ -253,8 +253,6 @@ jobs:
       cache-dependency-path: packages/soma-rmcp/package.json
       install-command: "true"
       verify-command: node scripts/sync-readme.js && npm test && npm run check
-    secrets:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── Upload GitHub Release assets ─────────────────────────────────────────────
   release:
