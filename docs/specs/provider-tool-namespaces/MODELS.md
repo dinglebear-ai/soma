@@ -68,8 +68,7 @@ argv: ["nexus", "repos", "--repo", "soma"]
 
 ProviderCliInvocation {
   id: ProviderToolId { provider: "nexus", tool: "repos" },
-  params: { "repo": "soma" },
-  compatibility: Canonical
+  params: { "repo": "soma" }
 }
 ```
 
@@ -133,8 +132,7 @@ The following object is `CallToolResult.structuredContent`:
     "items": []
   },
   "request_id": "req_01",
-  "progress": [],
-  "warnings": []
+  "progress": []
 }
 ```
 
@@ -178,21 +176,9 @@ content-type: application/json
     "items": []
   },
   "request_id": "req_01",
-  "progress": [],
-  "warnings": []
+  "progress": []
 }
 ```
-
-The v1 `/v1/tools/repos` compatibility route preserves its existing envelope
-during the migration and carries HTTP deprecation metadata:
-
-```http
-Deprecation: @1785542400
-Link: </docs/migrations/provider-tool-namespaces>; rel="deprecation"; type="text/html"
-Sunset: Sat, 01 Aug 2027 00:00:00 GMT
-```
-
-Dates are examples; release automation records the actual values.
 
 ## Live OpenAPI Operation
 
@@ -226,8 +212,8 @@ another deterministic injective encoding or stable digest suffix.
 
 ## Provider Discovery
 
-`GET /v1/providers` exposes identity, semantics, schemas, concrete routes,
-aliases, compatibility state, and generation:
+`GET /v1/providers` exposes identity, schemas, concrete routes, aliases, and
+generation:
 
 ```json
 {
@@ -237,7 +223,7 @@ aliases, compatibility state, and generation:
   "providers": [
     {
       "name": "nexus",
-      "manifest_semantics": "v2-namespaced",
+      "manifest_version": 2,
       "tools": [
         {
           "name": "repos",
@@ -245,7 +231,6 @@ aliases, compatibility state, and generation:
           "display_name": "nexus.repos",
           "input_schema": { "type": "object" },
           "output_schema": { "type": "object" },
-          "compatibility": { "legacy_surfaces": [] },
           "surfaces": {
             "cli": {
               "command": ["nexus", "repos"],
@@ -319,45 +304,6 @@ The provisional file stem is diagnostic, not confirmed API identity.
   "remediation": "Run `soma nexus --help` or inspect GET /v1/providers."
 }
 ```
-
-## Legacy Success Warning
-
-```json
-{
-  "code": "legacy_flat_action",
-  "surface": "mcp",
-  "legacy_name": "repos",
-  "message": "Provider-less action `repos` is deprecated; use `nexus.repos`.",
-  "canonical_provider": "nexus",
-  "canonical_tool": "repos"
-}
-```
-
-Warnings never include credentials or raw input values.
-
-## Surface-Specific Ambiguity
-
-If `nexus.status` and `weather.status` are both MCP-exposed, a provider-less MCP
-`status` fails:
-
-```json
-{
-  "kind": "provider_tool_error",
-  "schema_version": 1,
-  "code": "ambiguous_legacy_mcp_action",
-  "surface": "mcp",
-  "legacy_name": "status",
-  "message": "Provider-less MCP action `status` is ambiguous.",
-  "retryable": false,
-  "candidates": [
-    { "provider": "nexus", "tool": "status" },
-    { "provider": "weather", "tool": "status" }
-  ]
-}
-```
-
-The same spelling may still resolve uniquely on CLI if only one provider
-declares it as a v1 CLI command. Candidates are sorted deterministically.
 
 ## Refresh Event
 

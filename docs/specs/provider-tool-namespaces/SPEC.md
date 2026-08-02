@@ -33,7 +33,8 @@ allowed, that can execute the wrong behavior.
 3. Permit the same tool name in different providers.
 4. Preserve concise first-party commands and REST routes as explicit product
    projections.
-5. Give version 1 manifests and callers a bounded, observable migration path.
+5. Make manifest v2 and namespaced dispatch a clean cutover without flat
+   provider compatibility paths.
 6. Apply the model uniformly to static Rust, JSON, TypeScript, Python,
    LangChain, LlamaIndex, WASM, OpenAPI, and upstream MCP providers.
 7. Preserve immutable generation, containment, authorization, confirmation,
@@ -80,10 +81,10 @@ size budgets provide operational bounds without changing identifier validity.
 - Manifest-backed providers must declare it.
 - Decorated Python v2 providers use
   `provider(manifest_version=2, name="...")`.
-- During compatibility, omitting `manifest_version` in the Python SDK means v1;
-  the authoring version is distinct from the runner protocol, decorator
-  metadata schema, native ABI, and componentization schema versions.
-- Legacy Python files without an explicit name infer one from the normalized
+- The Python SDK emits manifest v2. The authoring version is distinct from the
+  runner protocol, decorator metadata schema, native ABI, and componentization
+  schema versions.
+- Python files without an explicit name infer one from the normalized
   file stem during contained runtime discovery.
 - A source filename that differs from an explicit provider name produces a
   bounded `provider_filename_mismatch` warning. Moving a file does not change
@@ -103,8 +104,8 @@ kind `static-rust`. Namespaced dispatch deliberately migrates its provider name
 to `soma` while retaining its kind. Generated reports, skills, fixtures,
 fingerprints, and reserved-name diagnostics migrate with it.
 
-Drop-in providers cannot claim `soma`, `static-rust` during its compatibility
-reservation, or any top-level token owned by the CLI parser. The reserved set
+Drop-in providers cannot claim `soma` or any top-level token owned by the CLI
+parser. The reserved set
 is generated from one shared policy source rather than duplicated examples.
 It includes product commands such as `greet`, `echo`, `status`, `help`,
 `serve`, `mcp`, `doctor`, `watch`, `setup`, `package`, `providers`, `tools`,
@@ -126,34 +127,16 @@ Provider manifest schema version 2 establishes namespaced semantics:
 - Generic REST exposure is derived from provider and tool identity.
 - MCP action metadata contains both provider and action.
 
-The Rust implementation keeps one `ProviderManifest` data model and derives a
-small `ProviderManifestSemantics::{V1Flat,V2Namespaced}` policy. The JSON Schema
-uses mutually exclusive `oneOf` branches with required `schema_version` const
-discriminators. It does not create parallel v1/v2 Rust object graphs.
-
-Version 1 manifests continue loading for at least one published compatibility
-release. The host converts them to canonical identities internally and exposes
-their old entry points only through surface-specific compatibility resolvers.
-V2 providers never acquire implicit global aliases.
+The Rust implementation keeps one `ProviderManifest` data model whose
+`schema_version` must be `2`. Manifest v1 is rejected with a clear unsupported
+version error. Providers never acquire implicit global aliases.
 
 ## Registry and Snapshot Semantics
 
 The primary index is `ProviderToolId -> RegisteredTool`. Canonical REST requests
 extract the pair from the path and use this index directly; no derived canonical
 route entry is required. Separate indexes exist for provider-local CLI names,
-custom REST overlays, and each legacy surface.
-
-Legacy compatibility is surface-specific:
-
-```text
-legacy_cli_command  flat command or alias -> Unique | Ambiguous
-legacy_mcp_action   flat action            -> Unique | Ambiguous
-legacy_rest_action  flat action            -> Unique | Ambiguous
-```
-
-This prevents a CLI alias from making a distinct MCP/REST action falsely
-ambiguous. Compatibility indexes include only tools exposed on that surface
-and only v1 spellings.
+and custom REST overlays. No flat provider-name resolver is built.
 
 Custom REST route validation compares exact method/path and normalized route
 shape, detects static shadowing of captures, rejects equivalent templates with
@@ -219,10 +202,7 @@ Requirements:
 - Tool commands and aliases are unique only inside the provider.
 - Built-in commands keep their existing short grammar while resolving
   internally to `soma.*`.
-- A v1 flat command/alias may remain for the compatibility release only when
-  the CLI-specific resolver is unique.
-- Human deprecation warnings go to stderr. JSON output remains parseable and
-  contains structured warnings.
+- Provider-local aliases are resolved only after selecting the provider.
 - Destructive prompts name `provider.tool`, never only the local tool segment.
 
 Help is internally consistent within the snapshot used to render it. A later
@@ -296,16 +276,12 @@ not rely on request bodies; inputs use declared path/query mappings. Body-based
 tools use POST, PUT, or PATCH.
 
 Canonical routes and v2 custom routes return the identity-bearing v2 envelope.
-Legacy `/v1/tools/{action}`, v1 custom routes, and existing first-party direct
-routes preserve their current response shape during compatibility. REST legacy
-responses carry `Deprecation`, a deprecation-documentation `Link`, and `Sunset`
-once a removal date is known. OpenAPI marks compatibility operations
-`deprecated: true`.
+Soma does not expose `/v1/tools/{action}` for provider tools. Existing
+first-party direct routes may remain deliberate projections of built-in
+`soma.*` identities and preserve their documented response shapes.
 
 REST status mapping is centralized: malformed identity/input is `400`, unknown
-provider/tool is `404`, ambiguous legacy resolution is `409`, authorization is
-`401/403` under existing policy, and a future bounded removal diagnostic may
-use `410` only if the removal epic explicitly chooses it.
+provider/tool is `404`, and authorization is `401/403` under existing policy.
 
 ## Palette, Web, Clients, and Paging
 
@@ -353,11 +329,10 @@ MCP uses its adapter discriminators inside `structuredContent`:
 
 Errors contain `provider` and `tool` when known; MCP may also include `action`.
 Lookup errors distinguish unknown provider, unknown tool in a known provider,
-ambiguous surface-specific legacy names, and stale confirmation.
+and stale confirmation.
 
 Logs, traces, metrics, authz/capability decisions, refresh events, and warnings
-carry both fields but never raw inputs or secrets. Legacy-use counters are
-bounded by surface plus canonical provider/tool, never request or actor IDs.
+carry both fields but never raw inputs or secrets.
 
 ## Collision Rules
 
@@ -371,43 +346,36 @@ bounded by surface plus canonical provider/tool, never request or actor IDs.
 - A custom route shadowed by infrastructure or canonical routes: reject.
 - Canonical routes derive directly from unique typed identity.
 - A drop-in provider using a reserved built-in/root namespace: reject.
-- A legacy spelling mapping to multiple tools on that same surface: mark
-  ambiguous and do not choose a winner.
 
 ## Discovery and Generated Artifacts
 
 Provider inspection, capabilities, OpenAPI, CLI/Palette/web catalogs,
 plugin/skill generation, refresh events, and registry fingerprints include
 canonical identity. Discovery includes manifest semantics, input/output schema,
-surface mappings, aliases, compatibility state, generation, and fingerprint.
+surface mappings, aliases, generation, and fingerprint.
 
 It exposes both the conceptual canonical URL template and each concrete loaded
 URL. Generated outputs sort identities deterministically without reordering the
 live catalog presentation unless explicitly intended.
 
-## Compatibility and Removal
+## Cutover Policy
 
-Compatibility begins in the first published Soma release containing manifest
-v2 and canonical dispatch (release N). It remains throughout N and is removed
-no earlier than a later breaking release after all of these are true:
+The first published Soma release containing namespaced dispatch accepts
+manifest v2 provider catalogs and canonical provider/tool calls only. The
+implementation migrates all in-repository manifests, examples, generated
+artifacts, SDK output, and built-in identities in the same change. Manifest v1
+and flat provider CLI/MCP/REST calls fail clearly; Soma does not add temporary
+resolvers, deprecation headers, telemetry, or a later removal phase for them.
 
-1. A compatible `soma-provider` SDK capable of explicit v2 authoring is
-   published.
-2. New host + old SDK, new host + new SDK, and old host + new SDK failure
-   behavior are tested and documented.
-3. At least one compatibility release has elapsed.
-4. Bounded per-surface legacy metrics meet the recorded adoption threshold.
-5. Migration documentation and a removal version/date are published.
-
-Removal is tracked in a separate epic so it cannot block or accidentally ship
-with the compatibility implementation.
+Concise first-party commands and direct routes are retained only when explicitly
+listed as product projections of built-in `soma.*` identities.
 
 ## Nexus Trial Boundary
 
 Nexus has two layers:
 
 1. Deterministic fixture-backed provider tests prove manifest v2 and normalized
-   CLI/MCP/REST/Palette identity, output, error, warning, paging, and hot-reload
+   CLI/MCP/REST/Palette identity, output, error, paging, and hot-reload
    behavior in CI with no network or lab dependency.
 2. An opt-in trusted-local live smoke may query repositories, shares, services,
    keys, nginx, Docker, and Incus through narrow collector interfaces. It is
@@ -428,7 +396,7 @@ collectors.
   use one final registered entry and generation lease.
 - A refresh between confirmation preflight and execution cannot reuse stale
   confirmation against a changed target.
-- Unknown provider/tool and ambiguous per-surface legacy errors are stable.
+- Unknown provider/tool errors are stable.
 - Successful schema swaps emit one tools-list-changed notification; rejected
   swaps retain the prior snapshot and emit none.
 - Non-executing inspection states its Python visibility limits and agrees with

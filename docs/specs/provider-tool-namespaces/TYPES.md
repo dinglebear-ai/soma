@@ -53,22 +53,15 @@ impl ProviderToolId {
 retaining distinct public types and error codes. `ProviderId` must receive the
 same serde hardening; current transparent deserialization is not sufficient.
 
-## Manifest Semantics
+## Manifest Version
 
 ```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProviderManifestSemantics {
-    V1Flat,
-    V2Namespaced,
-}
-
 impl ProviderManifest {
-    pub fn semantics(&self) -> Result<ProviderManifestSemantics, ProviderValidationError>;
+    pub fn require_namespaced_v2(&self) -> Result<(), ProviderValidationError>;
 }
 ```
 
-One `ProviderManifest` structure represents both versions. `RegisteredTool`
-retains semantics so response/compatibility projections do not guess later.
+`ProviderManifest` rejects every schema version except v2 at validation.
 
 ## Registered Tool
 
@@ -76,7 +69,6 @@ retains semantics so response/compatibility projections do not guess later.
 #[derive(Clone)]
 pub struct RegisteredTool {
     id: ProviderToolId,
-    semantics: ProviderManifestSemantics,
     tool: ToolSpec,
     input_validator: Arc<jsonschema::Validator>,
     output_validator: Option<Arc<jsonschema::Validator>>,
@@ -86,7 +78,6 @@ impl RegisteredTool {
     pub fn id(&self) -> &ProviderToolId;
     pub fn provider_id(&self) -> &ProviderId;
     pub fn tool_id(&self) -> &ToolId;
-    pub fn semantics(&self) -> ProviderManifestSemantics;
     pub fn spec(&self) -> &ToolSpec;
 }
 ```
@@ -124,14 +115,7 @@ pub enum RestRouteSegment {
     CatchAll,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegacyToolResolution {
-    Unique(ProviderToolId),
-    Ambiguous(Vec<ProviderToolId>),
-}
 ```
-
-Ambiguous vectors are sorted for diagnostics and never used to pick a winner.
 
 ## Registry Indexes
 
@@ -142,9 +126,6 @@ pub struct ProviderIndexes {
     cli: BTreeMap<CliToolKey, ProviderToolId>,
     custom_rest: BTreeMap<CustomRestRouteKey, ProviderToolId>,
     custom_rest_shapes: BTreeMap<RestRouteShapeKey, ProviderToolId>,
-    legacy_cli_commands: BTreeMap<String, LegacyToolResolution>,
-    legacy_mcp_actions: BTreeMap<String, LegacyToolResolution>,
-    legacy_rest_actions: BTreeMap<String, LegacyToolResolution>,
     primitives: BTreeMap<String, PrimitiveKind>,
 }
 
@@ -159,9 +140,6 @@ impl ProviderIndexes {
         &self,
         key: &CustomRestRouteKey,
     ) -> Option<&ProviderToolId>;
-    pub fn legacy_cli_command(&self, command: &str) -> Option<&LegacyToolResolution>;
-    pub fn legacy_mcp_action(&self, action: &str) -> Option<&LegacyToolResolution>;
-    pub fn legacy_rest_action(&self, action: &str) -> Option<&LegacyToolResolution>;
 }
 ```
 
@@ -238,38 +216,6 @@ Preflight does not contain a `DispatchLease`. Final preparation re-resolves the
 identity, validates any proof, then acquires the lease. The exact visibility of
 private fields may vary, but the lifetime boundary is normative.
 
-## Legacy Request Types
-
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum LegacyProviderSurface {
-    Cli,
-    Mcp,
-    Rest,
-}
-
-#[derive(Debug, Clone)]
-pub struct LegacyProviderToolRequest {
-    pub surface: LegacyProviderSurface,
-    pub flat_name: String,
-    pub params: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProviderSurfaceWarning {
-    pub code: String,
-    pub surface: LegacyProviderSurface,
-    pub legacy_name: String,
-    pub message: String,
-    pub canonical_provider: ProviderId,
-    pub canonical_tool: ToolId,
-}
-```
-
-Compatibility resolution is an explicit application policy call. Canonical
-requests never execute a "try canonical, then flat" fallback.
-
 ## Results and Refresh Events
 
 ```rust
@@ -281,8 +227,6 @@ pub struct ProviderToolResultEnvelope {
     pub output: serde_json::Value,
     pub request_id: String,
     pub progress: Vec<ProviderProgressEvent>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub warnings: Vec<ProviderSurfaceWarning>,
 }
 
 #[derive(Debug, Clone, Serialize)]

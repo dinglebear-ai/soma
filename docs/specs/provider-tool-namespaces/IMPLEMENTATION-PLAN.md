@@ -15,7 +15,7 @@ scope: "product"
 Replace globally flat provider-tool dispatch with canonical
 `ProviderToolId { provider, tool }` across provider-core, application policy,
 CLI, MCP, REST/OpenAPI, clients, Palette, web, discovery, paging, refresh
-events, generated artifacts, Python authoring, and compatibility behavior.
+events, generated artifacts, and Python authoring.
 
 The implementation must preserve containment, auth, confirmation, capability
 policy, immutable generations, validation, response limits, and thin surface
@@ -28,11 +28,12 @@ collectors are considered.
 The plan was revalidated against current code and authoritative standards. The
 following facts drive the revised work:
 
-- Provider-core indexes tools globally by `tool.name`; CLI aliases may differ
-  from tool names, so compatibility must be surface-specific.
+- Provider-core indexes tools globally by `tool.name`; provider-local indexes
+  must replace those flat keys.
 - Soma's built-in provider is currently named `static-rust`, not `soma`.
 - Python catalog construction hard-codes manifest v1 in the SDK, embedded
-  bridge, native path, and tests; non-executing inspection skips `.py` files.
+  bridge, native path, and tests; all must cut over to v2 together, while
+  non-executing inspection continues to skip `.py` execution.
 - Product Python operations and MCP elicitation special cases branch on action
   alone.
 - Confirmation preflight and final execution currently perform separate flat
@@ -46,8 +47,8 @@ following facts drive the revised work:
   paths to publish fixed per-tool schemas and identity extensions.
 - `.github/workflows/ci.yml` currently has no native Windows job, and
   `packages/python/**` is not classified into the relevant PR CI paths.
-- Soma and `soma-provider` are separately released components; compatibility
-  removal cannot be part of this implementation epic.
+- Soma and `soma-provider` are separately released components; their v2
+  releases must be coordinated because the host will not accept manifest v1.
 
 Primary standards:
 
@@ -58,21 +59,18 @@ Primary standards:
 - [OpenAPI 3.1.1 Operation Object](https://spec.openapis.org/oas/v3.1.1.html#operation-object)
 - [OpenAPI path templating](https://spec.openapis.org/oas/v3.1.1.html#path-templating)
 - [Axum routing rules](https://docs.rs/axum/latest/axum/struct.Router.html#method.route)
-- [HTTP Deprecation header](https://www.rfc-editor.org/rfc/rfc9745.html)
-- [HTTP Sunset header](https://www.rfc-editor.org/rfc/rfc8594.html)
 
 ## Locked Policy Decisions
 
 1. Canonical identity is a validated typed pair; display IDs are never parsed.
 2. Built-in provider name migrates `static-rust` -> `soma`; kind remains
    `static-rust`.
-3. Manifest v2 is a semantic policy over one Rust manifest model.
-4. Python v2 authoring is explicit during compatibility, for example
-   `provider(manifest_version=2, ...)`; unrelated schema/protocol/ABI versions
-   are not bulk-bumped.
+3. Manifest v2 is the only accepted provider-manifest version after cutover.
+4. Python authoring emits v2; unrelated schema/protocol/ABI versions are not
+   bulk-bumped.
 5. Non-executing Python inspection reports runtime validation required rather
    than pretending to discover arbitrary decorators.
-6. CLI, MCP, and REST have independent v1 compatibility indexes.
+6. CLI, MCP, and REST do not provide flat provider fallback indexes.
 7. Final execution uses one prepared entry/lease; interactive preflight does
    not hold the lease and stale confirmation is rejected.
 8. Soma keeps its hand-written CLI parser unless a separate measured decision
@@ -83,14 +81,15 @@ Primary standards:
     in scope.
 11. Nexus default CI is deterministic and fixture-backed. Live lab smoke is
     opt-in, trusted-local, read-only, and separately authorized.
-12. Compatibility removal is a separate post-release/adoption-gated epic.
+12. Existing built-in concise commands/direct routes remain explicit
+    projections of `soma.*`, not compatibility fallbacks.
 
 ## Work Graph
 
 ```text
 Research/design revision
         |
-Migration policy + CI routing
+Cutover policy + CI routing
         |
 Core identity/indexes/layout validation
         |
@@ -108,9 +107,7 @@ Application prepared dispatch + confirmation
                             |
               Full Linux + native Windows CI
                             |
-                 Compatibility release N
-
-Separate future epic after adoption gate: remove v1/flat compatibility
+                    Namespaced release
 ```
 
 Lavra is configured for at most three parallel implementation agents. The four
@@ -127,7 +124,7 @@ in two batches of at most three workers.
 - `docs/CI.md`
 - `docs/WINDOWS-RUNNER.md`
 - `release/components.toml`
-- Beads `rmcp-template-ob48`, children, and removal epic
+- Beads `rmcp-template-ob48` and children
 
 ### Work
 
@@ -139,9 +136,9 @@ in two batches of at most three workers.
    every Windows-proof claim. The locked choice is to restore it.
 4. Keep the stable aggregate `CI Gate` dependent on the Windows result when
    relevant paths change.
-5. Record that `soma` and `soma-provider` release separately and define the
-   host/SDK matrix before v2 emission changes.
-6. Confirm no implementation child depends on compatibility removal.
+5. Coordinate the `soma` and `soma-provider` release boundary so the host and
+   SDK cut over to v2 together, and document clear failure behavior for
+   mismatched versions.
 
 ### Tests
 
@@ -149,7 +146,7 @@ in two batches of at most three workers.
   Palette, web, docs-only, and workflow-only changes.
 - Workflow-shape tests prove native Windows is real, not cross-compilation.
 - `cargo xtask changed-paths` results match the intended job matrix.
-- `bd swarm validate rmcp-template-ob48` is acyclic and excludes removal work.
+- `bd swarm validate rmcp-template-ob48` is acyclic.
 
 ## Phase 1: Core Identity and Pure Layout Validation
 
@@ -169,22 +166,20 @@ in two batches of at most three workers.
 1. Add `ToolId` and `ProviderToolId` with shared grammar and validating serde
    (`TryFrom<String>` or manual `Deserialize`). Harden
    `ProviderId` deserialization at the same boundary.
-2. Change `RegisteredTool` to own canonical identity and manifest semantics.
+2. Change `RegisteredTool` to own canonical identity.
 3. Replace the global tool map with
    `BTreeMap<ProviderToolId, RegisteredTool>`.
 4. Add provider-local CLI keys and custom REST exact/shape keys. Keep HTTP
    methods as validated strings/newtypes in transport-neutral provider-core.
-5. Add independent legacy CLI command, MCP action, and REST action indexes.
-   Populate them only from v1 tools exposed on each surface.
-6. Make canonical REST lookup use the primary tool map directly; do not store a
+5. Make canonical REST lookup use the primary tool map directly; do not store a
    redundant derived route entry.
-7. Expose a pure catalog layout/index validator that live registry and
+6. Expose a pure catalog layout/index validator that live registry and
    non-executing inspection can share for statically available catalogs.
-8. Normalize route shapes and detect equivalent captures, static shadowing,
+7. Normalize route shapes and detect equivalent captures, static shadowing,
    catch-all overlap, infrastructure routes, and canonical-route collisions
    before router construction.
-9. Change refresh diff primitives from flat strings to sorted identities.
-10. Preserve fingerprinting through a canonicalized complete-catalog
+8. Change refresh diff primitives from flat strings to sorted identities.
+9. Preserve fingerprinting through a canonicalized complete-catalog
     representation. Test existing overlay sensitivity before adding new state.
 
 ### Tests
@@ -193,16 +188,14 @@ in two batches of at most three workers.
 - Same-provider duplicate fails with `duplicate_provider_tool`.
 - Invalid IDs fail constructors, JSON deserialization, path parsing,
   and manifest validation with the same stable codes.
-- V1 tool `weather_current` with CLI command `weather` and alias `wx` builds the
-  correct independent compatibility maps.
-- A CLI alias collision does not make an MCP/REST action ambiguous.
+- Provider-local commands and aliases resolve only inside their provider.
 - Route templates differing only in capture names fail before Axum; static
   shadow, encoded separator/dot, catch-all, and wrong-method fixtures exist.
 - Adding `alpha.status` while retaining `beta.status` appears in refresh diffs.
 - Fingerprints are registration-order independent and surface-overlay changes
   invalidate them.
 - Scale fixture (minimum 100 providers x 20 tools) measures snapshot build,
-  lookup, compatibility-map build, and deterministic serialization.
+  lookup and deterministic serialization.
 
 ### Verification
 
@@ -239,40 +232,36 @@ cargo clippy -p soma-provider-core --all-targets --all-features -- -D warnings
 
 ### Work
 
-1. Accept manifest versions `1 | 2` in one typed model; derive semantic policy.
-2. Change the checked JSON Schema to mutually exclusive const-discriminated
-   v1/v2 branches. Use Draft 2020-12 deliberately; use
-   `unevaluatedProperties: false` when closing composed schemas.
-3. Preserve v1 flat spellings before normalizing tool identity.
-4. For v2, treat CLI command/aliases as local and move reserved-root validation
+1. Require manifest version `2` in the typed model and checked JSON Schema;
+   reject v1 with `unsupported_provider_manifest_version`.
+2. Use Draft 2020-12 deliberately and `unevaluatedProperties: false` when
+   closing composed schemas.
+3. Treat CLI command/aliases as local and move reserved-root validation
    to provider names. Generate the reserved set from one shared parser policy.
-5. Migrate built-in catalog provider name to `soma`, keep kind `static-rust`,
+4. Migrate built-in catalog provider name to `soma`, keep kind `static-rust`,
    and update reports, skills, fixtures, errors, authz tests, and fingerprints.
-6. Add explicit Python `manifest_version` authoring metadata without changing
+5. Set Python authoring output to manifest v2 without changing
    the meaning of runner protocol/native/decorator/component schema versions.
-7. During compatibility, existing Python authoring defaults to v1; new Nexus
-   examples opt into v2. Document the future default-change boundary.
-8. Update pure Python runtime, embedded bridge, native binding, generated
+6. Update pure Python runtime, embedded bridge, native binding, generated
    models/stubs, installed-wheel verification, componentization assets, and
    versioned release metadata together.
-9. Keep non-executing `.py` inspection non-executing. Report
+7. Keep non-executing `.py` inspection non-executing. Report
    `python_runtime_validation_required`, optionally reserve provisional file
    stem, and direct users to contained validation.
-10. Live one-shot and persistent discovery must verify explicit provider name,
-    semantics, source/catalog digest, and all collisions before publication.
+8. Live one-shot and persistent discovery must verify provider name, manifest
+   version, source/catalog digest, and all collisions before publication.
 
 ### Tests
 
-- V1/v2 schema branches are exclusive and reject missing/unknown versions.
+- Manifest schema accepts v2 and rejects v1, missing, and unknown versions.
 - Rust schema, docs schema, Python models, generated stubs, and fixtures agree.
-- V1 global CLI spellings remain compatibility-only; v2 local `help`/`status`
-  are valid under a non-reserved provider.
+- Provider-local `help`/`status` are valid under a non-reserved provider.
 - Every parser-owned top-level token is rejected as a provider name.
 - Built-in identity is `soma` in catalogs while kind/auth safety remains
   `static-rust`.
-- Python old SDK metadata -> v1; explicit new authoring -> v2; old host + v2
-  fails with a clear unsupported-version error.
-- Python one-shot and persistent catalogs produce the same identity/semantics.
+- Python SDK/runtime/bridge/native paths all emit and accept v2; mismatched old
+  host or SDK combinations fail with a clear unsupported-version error.
+- Python one-shot and persistent catalogs produce the same identity/version.
 - Non-executing lint never imports Python and reports its visibility limit.
 - Filename mismatch, Windows separators/case, Unicode, uppercase, `%2F`, `%2e`,
   and invalid percent encoding have fixtures.
@@ -308,8 +297,7 @@ cargo xtask check-docs
 2. Distinguish core `ProviderInvocation` from application
    `PreparedProviderExecution`; retain principal, auth mode, limits,
    confirmation, trace, request, progress, snapshot, entry, provider, and lease.
-3. Add an explicit `LegacyProviderToolRequest { surface, flat_name, params }`.
-   Canonical calls never attempt legacy fallback.
+3. Reject provider calls that do not carry canonical provider/tool identity.
 4. Branch Python control-plane actions only on full built-in identities.
 5. Implement snapshot-bound preflight without a generation lease.
 6. Bind confirmation proof to identity, snapshot, and destructive metadata;
@@ -320,7 +308,7 @@ cargo xtask check-docs
 8. Do not hold registry locks during provider work.
 9. Centralize stable errors and REST status mappings.
 10. Emit success/failure/authz/capability/confirmation/refresh telemetry with
-    provider/tool, bounded legacy counters, and no raw params/secrets.
+    provider/tool and no raw params/secrets.
 11. Preserve Python candidate digest/fingerprint checks, immutable generations,
     rollback, drain, cancellation, and last-valid-snapshot behavior.
 
@@ -328,7 +316,7 @@ cargo xtask check-docs
 
 - Dynamic `nexus.python_worker_cancel` never invokes the Soma control plane.
 - Unknown provider differs from unknown tool in known provider.
-- Each legacy surface independently returns unique/ambiguous results.
+- Provider-less provider calls fail without attempting a flat fallback.
 - Refresh between preflight and dispatch: unchanged target succeeds; changed
   safe->destructive or provider/tool policy returns stale confirmation.
 - Confirmation cannot be reused across two providers with local `delete`.
@@ -369,19 +357,17 @@ cargo xtask check-architecture
 5. Change management testing to
    `soma providers test PROVIDER TOOL [--json JSON]`.
 6. Parse provider-local aliases only within the selected namespace.
-7. Route old root commands/aliases only through the v1 CLI compatibility map.
-8. Prompt using `provider.tool`; carry snapshot-bound proof into final dispatch.
-9. Emit one human deprecation warning on stderr and structured JSON warnings
-   without contaminating machine stdout.
+7. Prompt using `provider.tool`; carry snapshot-bound proof into final dispatch.
 
 ### Tests
 
 - Nexus happy paths via flags and `--json`.
 - Provider help, tool help, missing tool, missing provider, provider beginning
   `-`, all reserved roots, and same alias in two providers.
-- V1 command != tool and v1 alias warnings/ambiguity.
+- Flat provider tool commands are rejected; provider-local aliases work only
+  beneath their provider namespace.
 - Same local destructive name in two providers prompts full identity.
-- `--json` golden stdout and human stderr warnings on Linux and Windows.
+- `--json` golden stdout remains parseable on Linux and Windows.
 
 ### Verification
 
@@ -422,14 +408,14 @@ cargo test -p soma --test cli_parse --test provider_cli
    validators; reject normalized overlaps before router construction.
 5. Generate one concrete live OpenAPI path per loaded provider tool with full
    schemas, concrete identity extensions, and collision-safe operation ID.
-6. Mark the legacy flat route deprecated and emit RFC 9745 `Deprecation`,
-   `Link rel=deprecation`, and RFC 8594 `Sunset` when scheduled.
+6. Do not register the flat provider route `/v1/tools/{action}`.
 7. Enforce path/query mappings for GET/HEAD/DELETE; reject body-dependent
    overlays on those methods.
-8. Define response compatibility exactly: v2 canonical/custom routes use the
-   identity envelope; v1 custom/flat and existing direct product routes retain
-   current shapes during compatibility.
-9. Update Rust client canonical method signatures and explicit legacy methods.
+8. Canonical/custom provider routes use the identity envelope; existing direct
+   product routes retain their documented shapes as explicit `soma.*`
+   projections.
+9. Update Rust client canonical method signatures and remove flat provider
+   methods.
 10. Update generated TypeScript client, web Tool Runner composite keys/routes,
     embedded mirror, tests, and package documentation atomically.
 11. Cache generated OpenAPI once per immutable registry snapshot.
@@ -437,12 +423,12 @@ cargo test -p soma --test cli_parse --test provider_cli
 ### Tests
 
 - Two provider `status` tools have distinct canonical routes and web entries.
-- Generic/custom route parity and v1 envelope compatibility.
+- Generic/custom route parity and explicit built-in direct-route behavior.
 - Decoded segment attack fixtures and normalized route overlap/shadow cases.
 - OpenAPI validates: unique operation IDs, concrete extensions, per-tool
-  schemas, deprecated legacy operation, no illegal GET-body contract.
+  schemas, no flat provider operation, and no illegal GET-body contract.
 - Operation-ID collision cases such as `a_b.c` vs `a.b_c` remain unique.
-- Rust/TypeScript clients call the correct route and decode v1/v2 envelopes.
+- Rust/TypeScript clients call the canonical route and decode its envelope.
 - Web source and embedded mirror generation/check are current.
 - OpenAPI generation/size is measured at the 2,000-tool scale fixture.
 
@@ -568,9 +554,9 @@ cargo test -p soma-palette --all-features
 
 ### Work
 
-1. Emit deterministic discovery with identity, manifest semantics, input/output
-   schema, CLI/MCP/REST/Palette projections, aliases, compatibility state,
-   generation, and fingerprint.
+1. Emit deterministic discovery with identity, manifest version, input/output
+   schema, CLI/MCP/REST/Palette projections, aliases, generation, and
+   fingerprint.
 2. Expose canonical REST template plus concrete loaded URLs.
 3. Update generated provider surfaces, skills, plugin package metadata, web,
    clients, package READMEs, and docs to composite identity.
@@ -579,7 +565,7 @@ cargo test -p soma-palette --all-features
 5. Keep collectors behind narrow interfaces. Default fixtures contain no real
    hosts, keys, proxy secrets, or network calls.
 6. Normalize parity at the application result level, then assert each adapter's
-   own envelope/discriminators/warnings/paging independently.
+   own envelope/discriminators/paging independently.
 7. Exercise Nexus through CLI, canonical REST, mcporter MCP, and Palette in both
    Python one-shot and persistent modes.
 8. Hot reload adds/removes a tool; invalid namespace collision retains the
@@ -588,14 +574,14 @@ cargo test -p soma-palette --all-features
    redaction aware, prefers Labby for lab access, and never runs in default CI.
 10. Extend performance policy beyond pure Python function calls to registry
     build, schema generation, persistent supervisor, and cross-surface routing.
-11. Publish migration docs, compatibility start release N, SDK version floor,
-    deprecation link, future removal gate, and bounded legacy metrics.
+11. Publish cutover docs identifying the coordinated Soma/SDK version floor,
+    unsupported v1 behavior, and intentional built-in projections.
 
 ### Tests
 
 - Generated artifacts and schema/docs freshness are deterministic.
 - Fixture Nexus normalized parity includes success, unknown tool, validation,
-  warning, paging, and identity.
+  paging, and identity.
 - One-shot/persistent output and hot-reload semantics agree.
 - No lab-specific collector code enters static provider or scaffold paths.
 - Live smoke is opt-in and redacts key/nginx-sensitive material.
@@ -603,7 +589,7 @@ cargo test -p soma-palette --all-features
 - Scale budgets cover snapshot build, tools/list schema build/bytes, OpenAPI
   build/bytes, and warm canonical lookup.
 
-## Phase 6: Full Verification and Compatibility Release
+## Phase 6: Full Verification and Namespaced Release
 
 ### Local Gates
 
@@ -628,10 +614,10 @@ git diff --check
 |---|---|
 | Linux Rust | Full workspace/xtask gates on self-hosted runner. |
 | Native Windows | Parser/path/serde/provider-core/application/CLI/MCP/Python package and selected end-to-end tests on `windows-latest`. |
-| Python one-shot | V1 + explicit v2 discovery, collision, invocation, and parity. |
+| Python one-shot | V2 discovery, collision, invocation, and parity; v1 rejection. |
 | Python persistent | Same plus generation swap, cancel/drain/rollback, list-changed. |
 | MCP stdio + HTTP | Negotiation, pair schemas, text/structured parity, paging, errors. |
-| REST | Canonical/custom/legacy/direct envelope and deprecation behavior. |
+| REST | Canonical/custom provider envelope and explicit built-in direct routes. |
 | Palette/web/client | Duplicate local names remain distinct and executable. |
 | Container | Full binary CLI + canonical REST + mcporter MCP Nexus fixture. |
 | Performance | Registry/schema/OpenAPI/supervisor/cross-surface regression budgets. |
@@ -646,30 +632,25 @@ git diff --check
 - Full identity appears in logs/errors without payload or credential leakage.
 - Nexus fixture parity is green; live lab smoke is reported separately and is
   not used to mask deterministic failures.
-- Release notes record compatibility release N and published SDK version.
+- Release notes record the clean cutover and coordinated SDK version floor.
 
 ## Rollout and Rollback
 
-1. Ship host support that accepts v1 and v2 before requiring SDK v2 output.
-2. Publish the Python SDK with explicit v2 authoring and retain v1 default
-   during the compatibility release.
-3. Preserve old-host + new-SDK failure as a clear unsupported manifest version;
-   do not silently reinterpret v2 as flat.
-4. On registry refresh failure, retain the previous immutable generation and
+1. Ship the manifest-v2 host and Python SDK as a coordinated cutover; do not
+   add v1 loading or flat provider dispatch.
+2. Preserve host/SDK mismatch failures as clear unsupported manifest-version
+   errors; do not silently reinterpret identities.
+3. On registry refresh failure, retain the previous immutable generation and
    emit no tools-list-changed notification.
-5. If canonical routes regress after release, operators may remain on v1
-   compatibility paths while a fix ships; do not disable canonical identity or
-   weaken collision checks.
-6. Record legacy-use metrics per surface/canonical target with bounded
-   cardinality and no user/request/parameter data.
-7. Hand removal to the separate adoption-gated epic only after the published
-   release and SDK/version-matrix/telemetry conditions are met.
+4. If canonical routes regress after release, roll back the coordinated
+   release or fix forward; do not introduce a hidden flat fallback or weaken
+   collision checks.
 
 ## Completion Criteria
 
 - Canonical pair identity is the only internal execution key.
 - Duplicate local tool names work on every provider execution surface.
-- Legacy behavior is isolated per surface and observable.
+- Manifest v1 and flat provider dispatch are absent.
 - Confirmation cannot be replayed across identity or policy changes.
 - Python v2 authoring, built-in migration, and inspection limits are explicit.
 - Pair-specific MCP schemas and concrete OpenAPI operations are truthful.
@@ -677,4 +658,3 @@ git diff --check
   identity.
 - Linux and native Windows CI, deterministic Nexus parity, one-shot/persistent
   Python, and full-binary smoke pass.
-- Compatibility removal remains open in its separate post-release epic.

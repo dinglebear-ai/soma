@@ -22,22 +22,18 @@ The key words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are normative.
 5. Tool names MUST be unique within their provider and MAY repeat across
    providers.
 6. Provider/tool deserialization MUST enforce the constructor grammar.
-7. Drop-in providers MUST NOT claim `soma`, the compatibility-reserved
-   `static-rust`, or a parser-owned top-level namespace.
+7. Drop-in providers MUST NOT claim `soma` or a parser-owned top-level
+   namespace.
 
 ## Manifest Semantics
 
-1. Manifest schema v1 and v2 MUST be distinguished by required, mutually
-   exclusive `schema_version` const branches.
-2. One Rust manifest model MAY represent both versions; semantic behavior MUST
-   be explicit as `V1Flat` or `V2Namespaced`.
-3. V2 CLI commands/aliases MUST be provider-local.
-4. V1 surface spellings MUST be recorded before normalization.
-5. The Python authoring API MUST select manifest v2 explicitly during the
-   compatibility window. Provider manifest version MUST NOT be confused with
-   runner protocol, decorator metadata, native ABI, or component schema
-   versions.
-6. The built-in provider name MUST migrate from `static-rust` to `soma` while
+1. Provider manifests MUST declare `schema_version: 2`; manifest v1 MUST be
+   rejected as unsupported.
+2. CLI commands and aliases MUST be provider-local.
+3. The Python authoring API MUST emit manifest v2. Provider manifest version
+   MUST NOT be confused with runner protocol, decorator metadata, native ABI,
+   or component schema versions.
+4. The built-in provider name MUST migrate from `static-rust` to `soma` while
    its provider kind remains `static-rust`.
 
 ## Registry Construction
@@ -48,9 +44,6 @@ The registry MUST build these logical indexes atomically with each snapshot:
 tools               ProviderToolId -> RegisteredTool
 cli                 (provider, local command) -> ProviderToolId
 custom_rest         (method, path) -> ProviderToolId
-legacy_cli_command  flat command/alias -> Unique | Ambiguous
-legacy_mcp_action   flat action         -> Unique | Ambiguous
-legacy_rest_action  flat action         -> Unique | Ambiguous
 ```
 
 The canonical REST route MUST extract `ProviderToolId` and use `tools`
@@ -106,10 +99,9 @@ NOT maintain a second manually synchronized fingerprint inventory.
 - Reserved provider names MUST come from one shared policy source.
 - Provider/tool help MUST use one immutable snapshot, without claiming a later
   command observes the same generation.
-- V2 aliases MUST remain provider-local. New global aliases MUST NOT be added.
+- Aliases MUST remain provider-local. Global provider-tool aliases MUST NOT be
+  added.
 - Built-in CLI commands MAY remain top-level projections of `soma.*` identities.
-- Human legacy warnings MUST go to stderr. Machine output MUST remain parseable
-  and expose structured warnings.
 
 ## MCP
 
@@ -141,12 +133,12 @@ NOT maintain a second manually synchronized fingerprint inventory.
 - A custom route MAY use another method/path and MUST resolve to the same
   canonical identity.
 - GET, HEAD, and DELETE custom routes MUST NOT depend on request-body semantics.
-- V2 canonical/custom routes MUST return the identity-bearing v2 envelope.
-- V1 custom, flat compatibility, and existing first-party direct routes MUST
-  preserve their documented response shape during compatibility.
+- Canonical/custom provider routes MUST return the identity-bearing envelope.
+- Flat `/v1/tools/{action}` provider routes MUST NOT be exposed.
+- Existing first-party direct routes MAY remain explicit projections of
+  built-in `soma.*` identities and preserve their documented response shape.
 - REST status mapping MUST be centralized: invalid identity/input `400`,
-  unknown provider/tool `404`, ambiguous legacy name `409`, and auth according
-  to existing `401/403` policy.
+  unknown provider/tool `404`, and auth according to existing `401/403` policy.
 
 ## OpenAPI
 
@@ -159,15 +151,14 @@ NOT maintain a second manually synchronized fingerprint inventory.
   or stable collision suffix; naive underscore concatenation is forbidden.
 - Any templated path documented as an Operation MUST declare every path
   parameter with `in: path` and `required: true`.
-- Compatibility operations MUST set `deprecated: true`.
 
 ## Palette, Web, and Clients
 
 - Palette catalog, schema lookup, confirmation, and execution DTOs MUST carry
   provider and tool separately.
 - Web/client action keys and deduplication MUST use canonical identity.
-- Rust and generated TypeScript clients MUST call canonical routes for v2
-  tools and retain explicit compatibility methods only for v1 callers.
+- Rust and generated TypeScript clients MUST call canonical provider/tool
+  routes.
 - Embedded/mirrored web assets and their source MUST update atomically through
   the existing generation path.
 
@@ -183,26 +174,16 @@ NOT maintain a second manually synchronized fingerprint inventory.
 - Static manifest/provider kinds MUST produce matching non-executing and live
   collision outcomes for every statically visible rule.
 
-## Compatibility
+## Cutover
 
-During the compatibility release:
-
-1. Version 1 manifests MUST load through explicit semantic normalization.
-2. Each legacy CLI/MCP/REST resolver MAY dispatch only its own `Unique` entry.
-3. `Ambiguous` MUST fail without load-order, provider-kind, or lexical
-   tie-breaking.
-4. Successful legacy calls MUST name the canonical replacement in a structured
-   warning.
-5. REST MUST emit `Deprecation` and a `rel="deprecation"` documentation link;
-   it MUST emit `Sunset` once a removal date is known.
-6. V2 providers MUST NOT acquire implicit global aliases.
-7. Legacy-use metrics MUST be bounded by surface and canonical identity and
-   MUST NOT include users, requests, parameters, or secrets.
-
-Removal MUST be a separately tracked breaking release after at least one
-published Soma compatibility release, a compatible published Python SDK,
-host/SDK version-matrix proof, migration documentation, and an adoption-metric
-gate. It MUST NOT be required to close the implementation epic.
+1. Namespaced dispatch MUST ship as a clean cutover.
+2. Manifest v1 and provider-less flat CLI, MCP, and REST calls MUST NOT be
+   accepted by the namespaced implementation.
+3. All in-repository manifests, SDK output, examples, generated artifacts, and
+   built-in identities MUST migrate in the same change.
+4. Unsupported manifest versions and non-canonical calls MUST fail clearly.
+5. Explicit built-in concise commands and direct routes are product APIs, not
+   provider compatibility fallbacks.
 
 ## Stable Error Codes
 
@@ -219,10 +200,7 @@ gate. It MUST NOT be required to close the implementation epic.
 | `shadowed_rest_route` | Custom route is unreachable behind a reserved route. |
 | `unknown_provider` | No provider exists in the active snapshot. |
 | `unknown_provider_tool` | Provider exists but does not contain the tool. |
-| `ambiguous_legacy_cli_command` | Flat CLI spelling maps to multiple CLI tools. |
-| `ambiguous_legacy_mcp_action` | Provider-less MCP action maps to multiple tools. |
-| `ambiguous_legacy_rest_action` | Flat REST action maps to multiple tools. |
-| `legacy_action_removed` | Caller uses compatibility after removal. |
+| `unsupported_provider_manifest_version` | Provider manifest is not schema v2. |
 | `provider_filename_mismatch` | Explicit provider identity differs from source stem. |
 | `python_runtime_validation_required` | Non-executing inspection cannot confirm Python catalog. |
 | `stale_provider_confirmation` | Target/policy changed after preflight confirmation. |
@@ -239,5 +217,5 @@ gate. It MUST NOT be required to close the implementation epic.
   provider identity.
 - Logs/traces/events include provider and tool when known and exclude raw
   arguments and secrets.
-- Canonical dispatch, compatibility dispatch, discovery, and generated outputs
-  all resolve through the same immutable registry semantics.
+- Canonical dispatch, discovery, and generated outputs all resolve through the
+  same immutable registry semantics.
