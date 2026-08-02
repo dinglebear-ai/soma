@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.8.1](https://github.com/dinglebear-ai/soma/compare/v0.8.0...v0.8.1) (2026-08-02)
+
+
+### Fixed
+
+* address PR 267 deployment and conformance review ([#273](https://github.com/dinglebear-ai/soma/issues/273)) ([6e82d1d](https://github.com/dinglebear-ai/soma/commit/6e82d1dcac39edea993e9f0379ff69e0abab025e))
+* **ci:** restore shared reusable workflow resolution ([#274](https://github.com/dinglebear-ai/soma/issues/274)) ([e7db46e](https://github.com/dinglebear-ai/soma/commit/e7db46e7184bf1b9cf56062092e6804f1d661dfd))
+* **wasm:** honor artifact verification budget ([#277](https://github.com/dinglebear-ai/soma/issues/277)) ([2270475](https://github.com/dinglebear-ai/soma/commit/2270475a77a71502f2c2807c3018b6bcb19188b2))
+
 ## [0.8.0](https://github.com/dinglebear-ai/soma/compare/v0.7.0...v0.8.0) (2026-07-31)
 
 
