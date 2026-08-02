@@ -171,9 +171,8 @@ fn native_builds_are_release_only_and_github_hosted() {
         release.contains("release:\n    types: [published]")
             && release.contains("workflow_dispatch:")
             && release.contains("tag_name:")
-            && release.contains(
-                "ref: refs/tags/${{ github.event.release.tag_name || inputs.tag_name }}"
-            )
+            && release
+                .contains("ref: refs/tags/${{ github.event.release.tag_name || inputs.tag_name }}")
             && !release.contains("self-hosted"),
         "heavy native builds must use published releases or an explicit immutable-tag recovery on GitHub-hosted runners"
     );
@@ -224,9 +223,8 @@ fn artifact_workflows_run_from_published_releases() {
         release.contains("workflow_dispatch:")
             && release.contains("tag_name:")
             && release.contains("release_ref=refs/tags/${tag}")
-            && release.contains(
-                "checkout-ref: ${{ needs.validate-release-tag.outputs.release_ref }}"
-            ),
+            && release
+                .contains("checkout-ref: ${{ needs.validate-release-tag.outputs.release_ref }}"),
         "the binary release workflow must support only explicit immutable-tag recovery"
     );
     assert!(
