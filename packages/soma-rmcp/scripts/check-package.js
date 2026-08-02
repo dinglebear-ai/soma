@@ -123,6 +123,7 @@ function checkMetadata() {
     "scoped npm package must publish with public access",
   );
   assert(packageJson.version, "package.json must include version");
+  assert(packageJson.binaryVersion === packageJson.version, "package.json binaryVersion must match version");
   assert(packageJson.description, "package.json must include description");
   assert(packageJson.license, "package.json must include license");
   assert(packageJson.author && packageJson.author.name === "dinglebear.ai", "package.json author must be dinglebear.ai");
@@ -159,11 +160,13 @@ function checkMetadata() {
     assert(Array.isArray(packageJson.keywords) && packageJson.keywords.includes(keyword), `package keywords must include ${keyword}`);
   }
 
-  for (const field of ["bin/", "scripts/", "README.md", "LICENSE*", "package.json"]) {
+  for (const field of ["bin/", "lib/", "scripts/", "README.md", "LICENSE*", "package.json"]) {
     assert(Array.isArray(packageJson.files) && packageJson.files.includes(field), `package files must include ${field}`);
   }
 
   assert(packageJson.scripts && packageJson.scripts.prepack === "node scripts/sync-readme.js", "package prepack must sync README/LICENSE files");
+  assert(packageJson.scripts && packageJson.scripts.postinstall === "node scripts/install.js", "package postinstall must install the verified native binary");
+  assert(packageJson.scripts && packageJson.scripts.test === "node --test", "package test must run the launcher test suite");
   assert(packageJson.scripts && packageJson.scripts.prepublishOnly === "node scripts/check-package.js --release", "package prepublishOnly must run the release gate");
   assert(packageJson.scripts && packageJson.scripts.check && packageJson.scripts.check.includes("node scripts/check-package.js"), "package check must run the package verifier");
 }
@@ -277,17 +280,11 @@ function checkInstalledBins(installRoot) {
   assert(fs.existsSync(installedPackageRoot), "tarball install must create package under node_modules");
 
   const env = { ...process.env };
-  if (packageJson.name === expectedPackageName) {
-    const fakeBinary = path.join(installRoot, "fake-soma");
-    writeSmokeBinary(fakeBinary);
-    env.SOMA_BIN = fakeBinary;
-  } else {
-    const platformPath = path.join(installedPackageRoot, "lib", "platform.js");
-    assert(fs.existsSync(platformPath), "downloaded-binary packages must include lib/platform.js");
-    if (fs.existsSync(platformPath)) {
-      const platform = require(platformPath);
-      writeSmokeBinary(platform.binaryPath());
-    }
+  const platformPath = path.join(installedPackageRoot, "lib", "platform.js");
+  assert(fs.existsSync(platformPath), "downloaded-binary packages must include lib/platform.js");
+  if (fs.existsSync(platformPath)) {
+    const platform = require(platformPath);
+    writeSmokeBinary(platform.binaryPath());
   }
 
   for (const [name, relative] of Object.entries(packageJson.bin || {})) {

@@ -79,13 +79,23 @@
         },
         {
           "type": "json",
+          "path": "packages/soma-rmcp/package.json",
+          "jsonpath": "$.binaryVersion"
+        },
+        {
+          "type": "json",
           "path": "server.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
           "path": "server.json",
-          "jsonpath": "$.packages[0].version"
+          "jsonpath": "$.packages[1].version"
+        },
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$._meta['io.modelcontextprotocol.registry/publisher-provided'].distribution.npm"
         },
         {
           "type": "json",

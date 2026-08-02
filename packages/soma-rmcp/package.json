@@ -16,6 +16,7 @@
   },
   "files": [
     "bin/",
+    "lib/",
     "scripts/",
     "README.md",
     "LICENSE*",
@@ -56,10 +57,13 @@
   "version": "0.8.1",
   "scripts": {
     "prepack": "node scripts/sync-readme.js",
-    "check": "node --check bin/soma-rmcp.js && node --check scripts/sync-readme.js && node --check scripts/check-package.js && node scripts/check-package.js",
-    "prepublishOnly": "node scripts/check-package.js --release"
+    "check": "node --check bin/soma-rmcp.js && node --check scripts/install.js && node --check lib/platform.js && node --check scripts/sync-readme.js && node --check scripts/check-package.js && node scripts/check-package.js",
+    "prepublishOnly": "node scripts/check-package.js --release",
+    "postinstall": "node scripts/install.js",
+    "test": "node --test"
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "binaryVersion": "0.8.1"
 }

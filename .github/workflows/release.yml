@@ -252,7 +252,7 @@ jobs:
       working-directory: packages/soma-rmcp
       cache-dependency-path: packages/soma-rmcp/package.json
       install-command: "true"
-      verify-command: node scripts/sync-readme.js && npm run check
+      verify-command: node scripts/sync-readme.js && npm test && npm run check
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
