@@ -21,6 +21,7 @@ SKIP_PARTS = {
     "node_modules",
     ".next",
     "out",
+    "crates/synapse/import",
     "docs/sessions",
     "docs/references",
 }

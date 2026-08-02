@@ -89,7 +89,7 @@ jobs:
     name: Actionlint and ShellCheck
     needs: [changes]
     if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@364993bc854c4feb82cb26917e741fd6465cd47a
+    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       actionlint-version: v1.7.12
       shell-globs: .github/scripts/**/*.sh
@@ -232,7 +232,7 @@ jobs:
     name: Frontend checks
     needs: [changes]
     if: ${{ (needs.changes.outputs.web == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.mcp == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@364993bc854c4feb82cb26917e741fd6465cd47a
+    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       node-version: "22"
       pnpm-version: "10"
@@ -261,18 +261,19 @@ jobs:
           docker run --rm --entrypoint sh soma:container-smoke \
             -c 'command -v bwrap >/dev/null && command -v prlimit >/dev/null && python3 -I -c "import soma_provider.runner"'
           data_dir="${RUNNER_TEMP}/soma-container-smoke"
-          mkdir -p "${data_dir}/providers"
-          cp examples/providers/python/async_provider.py "${data_dir}/providers/async_provider.py"
+          provider_dir="${RUNNER_TEMP}/soma-container-providers"
+          mkdir -p "${data_dir}" "${provider_dir}"
+          cp examples/providers/python/async_provider.py "${provider_dir}/async_provider.py"
           container_id="$(docker run --detach --rm \
             -e SOMA_HOME=/data \
-            -e SOMA_PROVIDER_DIR=/data/providers \
+            -e SOMA_PROVIDER_DIR=/providers \
             -e SOMA_PYTHON_RUNNER_MODE=persistent \
             -e SOMA_PYTHON_EXECUTION_PROFILE=trusted \
             -e SOMA_MCP_HOST=0.0.0.0 \
             -e SOMA_NOAUTH=true \
             -p 127.0.0.1::40060 \
             -v "${data_dir}:/data" \
-            -v "${data_dir}/providers:/data/providers:ro" \
+            -v "${provider_dir}:/providers:ro" \
             soma:container-smoke)"
           trap 'docker rm --force "${container_id}" >/dev/null 2>&1 || true' EXIT
           port="$(docker port "${container_id}" 40060/tcp | sed -n 's/.*://p')"
@@ -286,9 +287,9 @@ jobs:
             "http://127.0.0.1:${port}/v1/tools/delayed_echo" | grep -Fq 'before'
 
           cp examples/providers/python/decorated_context.py \
-            "${data_dir}/providers/async_provider.py.next"
-          mv "${data_dir}/providers/async_provider.py.next" \
-            "${data_dir}/providers/async_provider.py"
+            "${provider_dir}/async_provider.py.next"
+          mv "${provider_dir}/async_provider.py.next" \
+            "${provider_dir}/async_provider.py"
           for _ in $(seq 1 50); do
             if curl -fsS \
               -H 'Content-Type: application/json' \
@@ -499,7 +500,7 @@ jobs:
     name: Cargo Deny
     needs: [changes]
     if: ${{ needs.changes.outputs.security == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@364993bc854c4feb82cb26917e741fd6465cd47a
+    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       toolchain: "1.97.1"
       cargo-deny-version: "0.19.8"

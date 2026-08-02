@@ -243,5 +243,5 @@ fn parse_error(message: &str) -> InfraError {
 }
 
 #[cfg(test)]
-#[path = "compose_tests.rs"]
+#[path = "compose_parse_tests.rs"]
 mod tests;

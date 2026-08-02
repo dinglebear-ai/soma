@@ -707,6 +707,9 @@ fn run_ascii_checker(repo_root: &Path) -> Result<()> {
             "*.py",
             ":!:docs/references/**",
             ":!:docs/sessions/**",
+            // Keep this list aligned with scripts::run_ascii_check. The locked
+            // Synapse donor snapshot intentionally contains Unicode UI glyphs.
+            ":!:crates/synapse/import/**",
         ],
     )?;
     let mut files: Vec<String> = output

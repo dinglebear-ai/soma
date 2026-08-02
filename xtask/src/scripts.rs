@@ -180,6 +180,9 @@ pub fn run_ascii_check(args: &[String]) -> Result<()> {
         "*.py",
         ":!:docs/references/**",
         ":!:docs/sessions/**",
+        // The locked Synapse donor snapshot intentionally contains Unicode
+        // status glyphs. Its bytes are verified by check-synapse-product-import.
+        ":!:crates/synapse/import/**",
     ])?;
     let files: Vec<String> = output
         .lines()

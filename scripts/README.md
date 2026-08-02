@@ -61,7 +61,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `generate-synapse-canonical-classifications.py` | Python contract tool | `just synapse-canonical-contract-check`, `just synapse-canonical-contract-generate` | Generates and validates the digest-bound canonical `OperationSpec` registry, including mutation safety, target kinds, lifecycle support, retry/idempotency, versioned parameter/result schema IDs, stable diagnostic codes, evidence, and backend capability requirements. |
 | `generate-operation-surface-contracts.py` | Python contract tool | `just operation-surface-contracts-check`, `just operation-surface-contracts-generate` | Generates 59 closed canonical parameter schemas and the complete 33-code projection table for CLI exits, HTTP statuses, MCP error codes, event severity, retry, and terminal semantics. |
 | `generate-operation-result-contracts.py` | Python contract tool | `just operation-result-contracts-check`, `just operation-result-contracts-generate` | Generates 59 closed canonical result payload schemas across 13 normalized output families, including bounded text/artifact, command, fanout, transfer, diff, metrics, status, mutation, and inventory shapes. |
-| `check-synapse-product-import.py` | Python import contract | `just synapse-product-import-check` | Proves the temporary `crates/synapse/import` subtree is byte-for-byte identical to the locked donor commit, preserves the donor commit as an ancestor, contains exactly 386 tracked files, resolves only the `synapse` and `xtask` packages, and remains outside Soma's root Cargo workspace. |
+| `check-synapse-product-import.py` | Python import contract | `just synapse-product-import-check` | Proves the temporary `crates/synapse/import` subtree matches the reviewed tree locked beside the donor provenance, contains exactly 386 tracked files, resolves only the `synapse` and `xtask` packages, and remains outside Soma's root Cargo workspace. |
 | `generate-unify-manifest.py` | Python package tool | `just unify-manifest-check`, `just unify-manifest-generate` | Generates and validates `docs/unify/MANIFEST.yaml` plus `CHECKSUMS.sha256` from the pinned donor lock and current package files. Requires PyYAML. |
 | `check-coupled-files.sh` | Bash wrapper | `cargo xtask check-coupled-files`, `just coupled-files-check`, CI | Delegates to xtask to warn when files that usually change together drift, such as script edits without `scripts/README.md` updates. |
 | `refresh-docs.sh` | Bash wrapper | `cargo xtask refresh-docs`, `just refresh-docs*` | Delegates to xtask to refresh ignored protocol, SDK, Claude Code, and mcporter references under `docs/references/`. |
@@ -380,7 +380,9 @@ cargo xtask check-stale-claims
 
 Scans non-generated source/docs for Soma claims that should not reappear,
 such as stale old local-port examples, old MCP port defaults, or explicit
-plugin manifest `version` fields.
+plugin manifest `version` fields. The locked Synapse import snapshot under
+`crates/synapse/import` is excluded because its product-specific and historical
+claims must remain byte-for-byte identical to the reviewed import-tree lock.
 
 ### `check-plugin-hook-contract.py`
 
