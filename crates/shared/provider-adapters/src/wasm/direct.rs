@@ -58,8 +58,10 @@ pub async fn invoke_component_artifact_async(
 ) -> Result<Value, String> {
     let bytes = read_artifact(path)?;
     let componentize = is_componentize_artifact(&bytes);
-    let prepared =
-        prepare_component_artifact_before(path, Instant::now() + artifact_compile_timeout(&bytes))?;
+    let prepared = prepare_component_artifact_bytes_before(
+        &bytes,
+        Instant::now() + artifact_compile_timeout(&bytes),
+    )?;
     let limits = conformance_limits(componentize);
     invoke_prepared_component_artifact_before_async(
         &prepared,
@@ -96,9 +98,16 @@ pub fn prepare_component_artifact_before(
     deadline: Instant,
 ) -> Result<PreparedComponentArtifact, String> {
     let bytes = read_artifact(path)?;
-    let componentize = is_componentize_artifact(&bytes);
+    prepare_component_artifact_bytes_before(&bytes, deadline)
+}
+
+fn prepare_component_artifact_bytes_before(
+    bytes: &[u8],
+    deadline: Instant,
+) -> Result<PreparedComponentArtifact, String> {
+    let componentize = is_componentize_artifact(bytes);
     let runtime = shared_wasm_runtime()?;
-    let artifact = runtime.artifact(&bytes, deadline)?;
+    let artifact = runtime.artifact(bytes, deadline)?;
     if !matches!(artifact.as_ref(), WasmArtifact::Component(_)) {
         return Err("artifact is core Wasm, not a component".to_owned());
     }
@@ -154,7 +163,11 @@ pub async fn invoke_prepared_component_artifact_before_async(
 /// Validate that `path` contains a component-model artifact.
 pub fn verify_component_artifact(path: &std::path::Path) -> Result<(), String> {
     let bytes = read_artifact(path)?;
-    verify_component_artifact_before(path, Instant::now() + artifact_compile_timeout(&bytes))
+    let deadline = Instant::now() + artifact_compile_timeout(&bytes);
+    let prepared = prepare_component_artifact_bytes_before(&bytes, deadline)?;
+    prepared
+        .runtime
+        .verify_prepared_component(&prepared.artifact, prepared.componentize, deadline)
 }
 
 /// Validate a component-model artifact within an existing absolute deadline.
