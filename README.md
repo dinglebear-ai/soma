@@ -106,9 +106,11 @@ not turn provider manifests into an unrestricted remote execution boundary.
 
 ## Install
 
-Use the npm launcher when an MCP client expects an `npx` command. The package is
-a launcher for the Rust binary; install `soma` first or set `SOMA_BIN` to its
-absolute path.
+Use the npm launcher when an MCP client expects an `npx` command. During
+`postinstall`, the package downloads the matching Linux/x64 or Windows/x64
+release archive, verifies its `SHA256SUMS` entry and GitHub build attestation,
+and installs the native binary inside the package. GitHub CLI 2.68 or newer is
+required for provenance verification.
 
 ```bash
 npx -y @dinglebear/soma mcp
