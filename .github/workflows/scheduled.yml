@@ -158,16 +158,40 @@ jobs:
       # dookie↔runner sharing silently splits.
       - name: kache key lockstep probe (dookie ↔ runners)
         if: always()
+        env:
+          KACHE_S3_ACCESS_KEY: ${{ secrets.KACHE_S3_ACCESS_KEY }}
+          KACHE_S3_SECRET_KEY: ${{ secrets.KACHE_S3_SECRET_KEY }}
+          KACHE_S3_ENDPOINT: https://s3.tootie.tv
+          KACHE_S3_BUCKET: kache
+          KACHE_S3_OBJECT: rust/_lockstep/key-probe-reference.txt
         run: |
           set -euo pipefail
-          ref=/home/runner/kache-remote/key-probe-reference.txt
-          if [ ! -r "$ref" ]; then
-            echo "no dookie reference at $ref — skipping lockstep check"
-            exit 0
-          fi
+          [ -n "$KACHE_S3_ACCESS_KEY" ] && [ -n "$KACHE_S3_SECRET_KEY" ] || {
+            echo "::error::Kache MinIO credentials are unavailable; lockstep verification cannot run"
+            exit 1
+          }
+          curl --help all 2>/dev/null | grep -q -- '--aws-sigv4' || {
+            echo "::error::curl lacks --aws-sigv4 support"
+            exit 1
+          }
+          ref="$RUNNER_TEMP/key-probe-reference.txt"
+          url="${KACHE_S3_ENDPOINT%/}/${KACHE_S3_BUCKET}/${KACHE_S3_OBJECT}"
+          curl \
+            --silent --show-error --fail \
+            --connect-timeout 5 --max-time 30 \
+            --retry 3 --retry-all-errors \
+            --aws-sigv4 aws:amz:us-east-1:s3 \
+            --user "$KACHE_S3_ACCESS_KEY:$KACHE_S3_SECRET_KEY" \
+            --output "$ref" \
+            "$url"
+          [ -s "$ref" ] || {
+            echo "::error::Dookie lockstep reference downloaded from MinIO is empty"
+            exit 1
+          }
           kache purge --crate-name kache_key_probe >/dev/null 2>&1 || true
           cargo build --quiet --manifest-path ci/kache-key-probe/Cargo.toml --target-dir /tmp/key-probe-target
-          key="$(kache list kache_key_probe | grep -m1 'Cache key' | awk '{print $3}')"
+          list_output="$(kache list kache_key_probe)"
+          key="$(printf '%s\n' "$list_output" | awk '/Cache key/{print $3; exit}')"
           exp="$(cut -d' ' -f1 "$ref")"
           echo "runner key: $key"
           echo "dookie ref: $(cat "$ref")"
