@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dinglebear.ai/soma/operations/operation-diagnostic-projections.schema.json",
+  "title": "Operation Diagnostic Surface Projections",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "classification_sha256", "projection_sha256", "mapping_count", "mappings"],
+  "properties": {
+    "format_version": {"const": 1},
+    "classification_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "projection_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "mapping_count": {"const": 33},
+    "mappings": {
+      "type": "array", "minItems": 33, "maxItems": 33,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["code", "category", "cli_exit_code", "http_status", "mcp_error_code", "event_severity", "retry", "terminal"],
+        "properties": {
+          "code": {"$ref": "operation-contract.schema.json#/$defs/diagnosticCode"},
+          "category": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "cli_exit_code": {"type": "integer", "minimum": 0, "maximum": 125},
+          "http_status": {"type": "integer", "minimum": 100, "maximum": 599},
+          "mcp_error_code": {"type": "integer", "minimum": -32800, "maximum": 0},
+          "event_severity": {"enum": ["info", "warning", "error"]},
+          "retry": {"enum": ["never", "safe", "conditional"]},
+          "terminal": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

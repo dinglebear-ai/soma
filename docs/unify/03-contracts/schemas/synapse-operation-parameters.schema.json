@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dinglebear.ai/soma/operations/synapse-operation-parameters.schema.json",
+  "title": "Synapse Canonical Operation Parameter Schemas",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "classification_sha256", "excluded_surface_fields", "parameter_schema_sha256", "schema_count", "schemas"],
+  "properties": {
+    "format_version": {"const": 1},
+    "classification_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "excluded_surface_fields": {"type": "array", "uniqueItems": true, "items": {"enum": ["action", "format", "response_format", "subaction"]}},
+    "parameter_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "schema_count": {"const": 59},
+    "schemas": {
+      "type": "array", "minItems": 59, "maxItems": 59,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operation_name", "schema_id", "schema"],
+        "properties": {
+          "operation_name": {"$ref": "operation-contract.schema.json#/$defs/operationName"},
+          "schema_id": {"$ref": "operation-contract.schema.json#/$defs/schemaId"},
+          "schema": {"type": "object"}
+        }
+      }
+    }
+  }
+}

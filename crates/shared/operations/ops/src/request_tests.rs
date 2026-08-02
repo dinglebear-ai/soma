@@ -27,6 +27,7 @@ impl OperationDefinition for Restart {
             CapabilitySupport::Optional,
             CapabilitySupport::Optional,
             CapabilitySupport::Required,
+            CapabilitySupport::Unsupported,
         )
         .with_retry(RetryClass::Safe, true)
     }

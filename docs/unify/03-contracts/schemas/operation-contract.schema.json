@@ -75,27 +75,46 @@
       "pattern": "^[A-Za-z0-9._:/#-]+$"
     },
     "targetKind": {
-      "enum": [
-        "host",
-        "docker_engine",
-        "container",
-        "compose_project",
-        "filesystem_path",
-        "process",
-        "log_source",
-        "zfs_pool",
-        "zfs_dataset",
-        "zfs_snapshot",
-        "incus_server",
-        "incus_instance",
-        "extension"
+      "oneOf": [
+        {
+          "enum": [
+            "host",
+            "docker_daemon",
+            "container",
+            "compose_project",
+            "incus_server",
+            "incus_instance",
+            "image",
+            "network",
+            "storage_pool",
+            "storage_volume",
+            "file",
+            "process",
+            "log_source",
+            "zfs_pool",
+            "zfs_dataset",
+            "zfs_snapshot"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "$ref": "#/$defs/operationName"
+            }
+          }
+        }
       ]
     },
     "support": {
       "enum": [
-        "required",
-        "supported",
-        "not_supported"
+        "unsupported",
+        "optional",
+        "required"
       ]
     },
     "donor": {
@@ -159,55 +178,50 @@
       "additionalProperties": false,
       "required": [
         "name",
-        "contract_version",
-        "summary",
-        "domain",
+        "schema_version",
+        "parameter_schema",
+        "result_schema",
+        "diagnostic_codes",
         "target_kind",
         "access",
         "risk",
         "reversibility",
+        "required",
+        "required_any",
+        "planning",
+        "progress",
+        "cancellation",
+        "verification",
+        "fanout",
         "retry",
-        "idempotency",
-        "parameter_schema",
-        "result_schema",
-        "capabilities",
-        "backend_capabilities",
-        "evidence_kinds",
-        "redaction_profile",
-        "implementation_refs",
-        "test_refs"
+        "idempotent",
+        "evidence",
+        "requirements"
       ],
       "properties": {
         "name": {
           "$ref": "#/$defs/operationName"
         },
-        "contract_version": {
-          "$ref": "#/$defs/semver"
+        "schema_version": {
+          "type": "integer",
+          "minimum": 1
         },
-        "summary": {
-          "$ref": "#/$defs/text"
+        "parameter_schema": {
+          "$ref": "#/$defs/schemaId"
         },
-        "domain": {
-          "enum": [
-            "ops",
-            "fleet",
-            "docker",
-            "container",
-            "compose",
-            "host",
-            "filesystem",
-            "process",
-            "logs",
-            "zfs",
-            "transfer",
-            "incus"
-          ]
+        "result_schema": {
+          "$ref": "#/$defs/schemaId"
+        },
+        "diagnostic_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/diagnosticCode"
+          }
         },
         "target_kind": {
           "$ref": "#/$defs/targetKind"
-        },
-        "target_resolver": {
-          "$ref": "#/$defs/text"
         },
         "access": {
           "enum": [
@@ -230,65 +244,58 @@
             "irreversible"
           ]
         },
+        "required": {
+          "$ref": "#/$defs/parameterGroup"
+        },
+        "required_any": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/parameterGroup"
+          }
+        },
+        "planning": {
+          "$ref": "#/$defs/support"
+        },
+        "progress": {
+          "$ref": "#/$defs/support"
+        },
+        "cancellation": {
+          "$ref": "#/$defs/support"
+        },
+        "verification": {
+          "$ref": "#/$defs/support"
+        },
+        "fanout": {
+          "$ref": "#/$defs/support"
+        },
         "retry": {
           "enum": [
             "never",
             "safe",
-            "safe_with_idempotency",
-            "caller_decides"
+            "conditional"
           ]
         },
-        "idempotency": {
-          "enum": [
-            "not_applicable",
-            "optional",
-            "required"
-          ]
+        "idempotent": {
+          "type": "boolean"
         },
-        "parameter_schema": {
-          "$ref": "#/$defs/schemaRef"
-        },
-        "result_schema": {
-          "$ref": "#/$defs/schemaRef"
-        },
-        "capabilities": {
-          "$ref": "#/$defs/capabilities"
-        },
-        "backend_capabilities": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/text"
-          }
-        },
-        "evidence_kinds": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/text"
-          }
-        },
-        "redaction_profile": {
-          "$ref": "#/$defs/text"
-        },
-        "deprecated": {
-          "type": "boolean",
-          "default": false
-        },
-        "implementation_refs": {
+        "evidence": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/text"
+            "$ref": "#/$defs/evidenceKind"
           }
         },
-        "test_refs": {
+        "requirements": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/text"
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 256,
+            "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$"
           }
         }
       }
@@ -446,6 +453,62 @@
           }
         }
       }
+    },
+    "schemaId": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^schema\\.operations\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){1,7}\\.(?:parameters|result)\\.v[1-9][0-9]*$"
+    },
+    "diagnosticCode": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+$"
+    },
+    "parameterGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        }
+      }
+    },
+    "evidenceKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "runtime_state",
+            "logs",
+            "configuration",
+            "artifact",
+            "diff",
+            "metrics"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "$ref": "#/$defs/operationName"
+            }
+          }
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,338 @@
+{
+  "format_version": 1,
+  "classification_sha256": "d7ebb3bfba204301bb3bc3406721f920a3b06cb1af395baff88fcf2d84ea5021",
+  "mapping_count": 33,
+  "mappings": [
+    {
+      "code": "authorization.denied",
+      "category": "authorization",
+      "cli_exit_code": 3,
+      "http_status": 403,
+      "mcp_error_code": -32001,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "authorization.expired",
+      "category": "authorization",
+      "cli_exit_code": 3,
+      "http_status": 401,
+      "mcp_error_code": -32001,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "authorization.required",
+      "category": "authorization",
+      "cli_exit_code": 3,
+      "http_status": 401,
+      "mcp_error_code": -32001,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "backend.unavailable",
+      "category": "unavailable",
+      "cli_exit_code": 6,
+      "http_status": 503,
+      "mcp_error_code": -32003,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "capability.unsupported",
+      "category": "unsupported",
+      "cli_exit_code": 2,
+      "http_status": 422,
+      "mcp_error_code": -32002,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "command.failed",
+      "category": "backend",
+      "cli_exit_code": 9,
+      "http_status": 500,
+      "mcp_error_code": -32603,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "command.rejected",
+      "category": "input",
+      "cli_exit_code": 2,
+      "http_status": 400,
+      "mcp_error_code": -32602,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "docker.conflict",
+      "category": "conflict",
+      "cli_exit_code": 5,
+      "http_status": 409,
+      "mcp_error_code": -32009,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "docker.not_found",
+      "category": "not_found",
+      "cli_exit_code": 4,
+      "http_status": 404,
+      "mcp_error_code": -32004,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "docker.unavailable",
+      "category": "unavailable",
+      "cli_exit_code": 6,
+      "http_status": 503,
+      "mcp_error_code": -32003,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "filesystem.not_found",
+      "category": "not_found",
+      "cli_exit_code": 4,
+      "http_status": 404,
+      "mcp_error_code": -32004,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "filesystem.path_denied",
+      "category": "authorization",
+      "cli_exit_code": 3,
+      "http_status": 403,
+      "mcp_error_code": -32001,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "filesystem.too_large",
+      "category": "limit",
+      "cli_exit_code": 2,
+      "http_status": 413,
+      "mcp_error_code": -32012,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "fleet.empty",
+      "category": "empty",
+      "cli_exit_code": 0,
+      "http_status": 200,
+      "mcp_error_code": 0,
+      "event_severity": "info",
+      "retry": "never",
+      "terminal": false
+    },
+    {
+      "code": "fleet.unavailable",
+      "category": "unavailable",
+      "cli_exit_code": 6,
+      "http_status": 503,
+      "mcp_error_code": -32003,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "host.not_found",
+      "category": "not_found",
+      "cli_exit_code": 4,
+      "http_status": 404,
+      "mcp_error_code": -32004,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "host.unreachable",
+      "category": "unavailable",
+      "cli_exit_code": 6,
+      "http_status": 503,
+      "mcp_error_code": -32003,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "internal.failure",
+      "category": "internal",
+      "cli_exit_code": 9,
+      "http_status": 500,
+      "mcp_error_code": -32603,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "logs.truncated",
+      "category": "truncated",
+      "cli_exit_code": 0,
+      "http_status": 206,
+      "mcp_error_code": 0,
+      "event_severity": "warning",
+      "retry": "never",
+      "terminal": false
+    },
+    {
+      "code": "logs.unavailable",
+      "category": "unavailable",
+      "cli_exit_code": 6,
+      "http_status": 503,
+      "mcp_error_code": -32003,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "mutation.uncertain",
+      "category": "uncertain",
+      "cli_exit_code": 10,
+      "http_status": 202,
+      "mcp_error_code": -32010,
+      "event_severity": "warning",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "operation.cancelled",
+      "category": "cancelled",
+      "cli_exit_code": 8,
+      "http_status": 499,
+      "mcp_error_code": -32800,
+      "event_severity": "warning",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "operation.timeout",
+      "category": "timeout",
+      "cli_exit_code": 7,
+      "http_status": 504,
+      "mcp_error_code": -32008,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "output.truncated",
+      "category": "truncated",
+      "cli_exit_code": 0,
+      "http_status": 206,
+      "mcp_error_code": 0,
+      "event_severity": "warning",
+      "retry": "never",
+      "terminal": false
+    },
+    {
+      "code": "plan.required",
+      "category": "input",
+      "cli_exit_code": 2,
+      "http_status": 400,
+      "mcp_error_code": -32602,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "plan.stale",
+      "category": "conflict",
+      "cli_exit_code": 5,
+      "http_status": 409,
+      "mcp_error_code": -32009,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "product.unavailable",
+      "category": "unavailable",
+      "cli_exit_code": 6,
+      "http_status": 503,
+      "mcp_error_code": -32003,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    },
+    {
+      "code": "request.invalid",
+      "category": "input",
+      "cli_exit_code": 2,
+      "http_status": 400,
+      "mcp_error_code": -32602,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "target.not_found",
+      "category": "not_found",
+      "cli_exit_code": 4,
+      "http_status": 404,
+      "mcp_error_code": -32004,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "verification.failed",
+      "category": "verification",
+      "cli_exit_code": 11,
+      "http_status": 422,
+      "mcp_error_code": -32011,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "verification.inconclusive",
+      "category": "verification",
+      "cli_exit_code": 0,
+      "http_status": 202,
+      "mcp_error_code": 0,
+      "event_severity": "warning",
+      "retry": "conditional",
+      "terminal": false
+    },
+    {
+      "code": "zfs.not_found",
+      "category": "not_found",
+      "cli_exit_code": 4,
+      "http_status": 404,
+      "mcp_error_code": -32004,
+      "event_severity": "error",
+      "retry": "never",
+      "terminal": true
+    },
+    {
+      "code": "zfs.unavailable",
+      "category": "unavailable",
+      "cli_exit_code": 6,
+      "http_status": 503,
+      "mcp_error_code": -32003,
+      "event_severity": "error",
+      "retry": "conditional",
+      "terminal": true
+    }
+  ],
+  "projection_sha256": "87d9be437bf7a0ac8a21ac32e03e852a98d6ba30591c2ad6009e570cd35fafaa"
+}

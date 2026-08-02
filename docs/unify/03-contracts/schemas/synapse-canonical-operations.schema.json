@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dinglebear.ai/soma/operations/synapse-canonical-operations.schema.json",
+  "title": "Synapse Canonical Operation Classification Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format_version",
+    "legacy_semantic_sha256",
+    "classification_sha256",
+    "operation_count",
+    "operations"
+  ],
+  "properties": {
+    "format_version": {
+      "const": 1
+    },
+    "legacy_semantic_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "classification_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "operation_count": {
+      "const": 59
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 59,
+      "maxItems": 59,
+      "items": {
+        "$ref": "operation-contract.schema.json#/$defs/operationSpec"
+      }
+    }
+  }
+}

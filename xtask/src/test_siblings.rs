@@ -149,6 +149,8 @@ const CHECKED_SRC_ROOTS: &[&str] = &[
     "crates/shared/mcp/server/src",
     "crates/shared/observability/src",
     "crates/shared/openapi/src",
+    "crates/shared/operations/fleet/src",
+    "crates/shared/operations/infra/src",
     "crates/shared/operations/ops/src",
     "crates/shared/provider-guest/src",
     "crates/soma/api/src",
@@ -159,6 +161,7 @@ const CHECKED_SRC_ROOTS: &[&str] = &[
     "crates/soma/mcp/src",
     "crates/soma/palette/src",
     "crates/soma/web/src",
+    "crates/synapse/application/src",
 ];
 
 /// Source trees deliberately *not* checked, each with the reason.
