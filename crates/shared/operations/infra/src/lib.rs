@@ -10,18 +10,25 @@
 mod compose;
 mod compose_parse;
 mod docker;
+mod docker_provider;
 mod docker_telemetry;
 #[cfg(feature = "bollard-driver")]
 mod docker_telemetry_map;
 mod error;
 mod filesystem;
+mod filesystem_query;
 mod host;
+mod host_system;
+#[cfg(feature = "process-driver")]
+mod host_system_parse;
 mod logs;
 mod process;
 mod zfs;
 
 #[cfg(feature = "bollard-driver")]
 mod bollard_driver;
+#[cfg(feature = "remote-bollard")]
+mod bollard_provider;
 #[cfg(feature = "bollard-driver")]
 mod bollard_telemetry;
 #[cfg(feature = "bollard-driver")]
@@ -31,6 +38,10 @@ mod linux_filesystem;
 #[cfg(feature = "process-driver")]
 mod process_compose;
 #[cfg(feature = "process-driver")]
+mod process_filesystem;
+#[cfg(feature = "process-driver")]
+mod process_host_system;
+#[cfg(feature = "process-driver")]
 mod process_logs;
 #[cfg(feature = "process-driver")]
 mod process_process;
@@ -39,15 +50,18 @@ mod process_zfs;
 
 #[cfg(feature = "bollard-driver")]
 pub use bollard_driver::BollardReadClient;
+#[cfg(feature = "remote-bollard")]
+pub use bollard_provider::BollardClientProvider;
 pub use compose::{
     ComposeConfig, ComposeInspector, ComposeLogRequest, ComposeLogs, ComposeProject,
     ComposeProjectRef, ComposeServiceConfig, ComposeServiceStatus, ComposeStatus,
 };
 pub use docker::{
-    ContainerInspect, ContainerListOptions, ContainerReader, ContainerState, ContainerSummary,
-    DockerReadClient, DockerSystemInfo, DockerSystemReader, ImageListOptions, ImageReader,
+    ContainerInspect, ContainerListOptions, ContainerProcessTable, ContainerReader, ContainerState,
+    ContainerSummary, DockerSystemInfo, DockerSystemReader, ImageListOptions, ImageReader,
     ImageSummary, NetworkReader, NetworkSummary, VolumeReader, VolumeSummary,
 };
+pub use docker_provider::{DockerClientProvider, DockerReadClient};
 pub use docker_telemetry::{
     ContainerLogOptions, ContainerLogs, ContainerStatsSnapshot, DockerDiskUsage, DockerLogStream,
     DockerTelemetryReader, DockerUsageCategory,
@@ -56,9 +70,17 @@ pub use error::{InfraError, InfraResult};
 pub use filesystem::{
     FileHash, FileKind, FileMetadata, FilePreview, FileReadPolicy, FilesystemInspector,
 };
+pub use filesystem_query::{
+    FileFindRequest, FileSearch, FileTail, FileTailRequest, FilesystemQueryInspector, PathRead,
+    PathReadRequest,
+};
 pub use host::{
     HostIdentity, HostInspectRequest, HostInspection, HostInspector, HostLoadAverage, HostMemory,
     LinuxCommandHostInspector,
+};
+pub use host_system::{
+    DoctorCheck, DoctorReport, FilesystemUsage, HostSystemInspector, MountInfo, NetworkAddress,
+    NetworkInterface, PortInfo, PortListRequest, PortProtocol, ServiceListRequest, ServiceStatus,
 };
 #[cfg(all(feature = "linux-filesystem", target_os = "linux"))]
 pub use linux_filesystem::LinuxFilesystemInspector;
@@ -69,6 +91,10 @@ pub use logs::{
 pub use process::{ProcessInspector, ProcessListRequest, ProcessRow, ProcessSnapshot, ProcessSort};
 #[cfg(feature = "process-driver")]
 pub use process_compose::CommandComposeInspector;
+#[cfg(feature = "process-driver")]
+pub use process_filesystem::CommandFilesystemQueryInspector;
+#[cfg(feature = "process-driver")]
+pub use process_host_system::CommandHostSystemInspector;
 #[cfg(feature = "process-driver")]
 pub use process_logs::CommandLogReader;
 #[cfg(feature = "process-driver")]
