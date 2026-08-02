@@ -15,6 +15,7 @@ jobs:
     name: Fleet Policy
     uses: dinglebear-ai/workflows/.github/workflows/fleet-policy.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
     with:
+      allow-hosted-fast: true
       release-file-regex: '(^|/)(release|docker-publish|python-wheels)\.ya?ml$'
 
   contract:

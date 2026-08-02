@@ -109,6 +109,23 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
 }
 
 #[test]
+fn hosted_container_smoke_is_explicitly_allowed_by_fleet_policy() {
+    let ci = include_str!("../../../.github/workflows/ci.yml");
+    let fleet_policy = include_str!("../../../.github/workflows/fleet-policy.yml");
+    let container_smoke = workflow_job_block(ci, "container-smoke");
+    let policy = workflow_job_block(fleet_policy, "policy");
+
+    assert!(
+        container_smoke.contains("runs-on: ubuntu-24.04"),
+        "production container smoke must retain a hosted Docker runner"
+    );
+    assert!(
+        policy.contains("allow-hosted-fast: true"),
+        "fleet policy must explicitly allow the hosted production container smoke"
+    );
+}
+
+#[test]
 fn ci_runs_release_version_gate_before_merge() {
     let workflow = include_str!("../../../.github/workflows/ci.yml");
     let soma = workflow_job_block(workflow, "soma");
