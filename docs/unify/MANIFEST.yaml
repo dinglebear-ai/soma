@@ -138,8 +138,8 @@ files:
   sha256: c84049d26600b70e4bf8540cdce1a96b4f6d4818f2062e1ce58cc9368ebdf7e2
   type: md
 - path: 02-crates/specs/soma-fleet.md
-  bytes: 5577
-  sha256: c8ed6db3c7ebfe0b07b12ff9f3031977599493cc54088ca4bf4bf605cdf71c61
+  bytes: 5573
+  sha256: da4e2dda9399b508339b687b6c0f35c8bb8f9ec4c742f3ad4e531d1cc512909d
   type: md
 - path: 02-crates/specs/soma-graph.md
   bytes: 3453

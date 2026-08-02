@@ -7,8 +7,8 @@ status: implemented
 
 # soma-fleet
 
-**Path:** `crates/shared/operations/fleet`  
-**Layer:** shared  
+**Path:** `crates/shared/operations/fleet`
+**Layer:** shared
 **Package status:** private during extraction
 
 ## Purpose
