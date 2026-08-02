@@ -282,6 +282,10 @@ synapse-compat-check:
 fleet-check:
     cargo test -p soma-fleet --all-features
 
+# Validate read-only infrastructure contracts and optional drivers
+infra-check:
+    cargo test -p soma-infra --all-features
+
 # Validate the docs/unify package manifest and checksums
 unify-manifest-check:
     python3 scripts/generate-unify-manifest.py check
