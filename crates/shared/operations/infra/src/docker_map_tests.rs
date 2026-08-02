@@ -65,3 +65,48 @@ fn required_image_and_volume_identifiers_are_enforced() {
     assert!(map_image(&host(), &json!({"RepoTags": ["soma:latest"]})).is_err());
     assert!(map_volume(&host(), &json!({"Driver": "local"})).is_err());
 }
+
+#[test]
+fn image_network_and_volume_fields_map_successfully() {
+    let image = map_image(
+        &host(),
+        &json!({
+            "Id": "sha256:1",
+            "RepoTags": ["soma:latest"],
+            "RepoDigests": ["soma@sha256:1"],
+            "Created": 1,
+            "Size": 2,
+            "Containers": 3
+        }),
+    )
+    .unwrap();
+    assert_eq!(image.id, "sha256:1");
+    assert_eq!(image.repo_tags, vec!["soma:latest"]);
+
+    let network = map_network(
+        &host(),
+        &json!({
+            "Id": "net1",
+            "Name": "default",
+            "Driver": "bridge",
+            "Internal": false,
+            "Attachable": true
+        }),
+    )
+    .unwrap();
+    assert_eq!(network.name.as_deref(), Some("default"));
+    assert_eq!(network.internal, Some(false));
+
+    let volume = map_volume(
+        &host(),
+        &json!({
+            "Name": "data",
+            "Driver": "local",
+            "Mountpoint": "/var/lib/docker/volumes/data",
+            "Scope": "local"
+        }),
+    )
+    .unwrap();
+    assert_eq!(volume.name, "data");
+    assert_eq!(volume.driver, "local");
+}
