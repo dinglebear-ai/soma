@@ -1,41 +1,49 @@
 # soma-infra
 
-`soma-infra` is the product-neutral, read-only infrastructure engine above `soma-fleet`. It provides typed host, Docker, Compose, and filesystem inspection contracts without owning Synapse routing, product authorization, configuration precedence, or surface formatting.
+`soma-infra` is the product-neutral infrastructure engine above `soma-fleet`. It provides typed read contracts plus verified mutation coordinators without owning Synapse routing, product authorization, configuration precedence, or surface formatting.
 
-## Current read surface
+## Read surface
 
-- host identity, uptime, memory, and load through a fleet command executor;
-- Docker daemon, disk-usage, container, image, network, volume, logs, and one-shot stats reads through segregated traits;
-- local and strict-SSH Bollard clients bound to one host topology revision;
-- Compose project listing, status, normalized configuration, and bounded logs through discrete `docker compose` arguments;
-- typed process snapshots with allowlisted sort fields and local filters;
-- bounded syslog, journal, dmesg, and auth-log reads with validated journal filters;
-- ZFS pool, dataset, and snapshot tables with validated targets and types;
-- Linux filesystem stat, bounded preview, and SHA-256 hashing through descriptor-confined `openat2`;
-- local and remote file, directory, tree, find, and tail queries through descriptor-walking helpers;
-- host services, network, mounts, listening ports, filesystem usage, and doctor checks.
+- host identity, uptime, resources, services, network, mounts, ports, filesystem usage, and doctor checks;
+- Docker daemon, disk usage, containers, images, networks, volumes, logs, stats, and container process tables;
+- local and strict-SSH Bollard clients bound to one exact host topology revision;
+- Compose discovery, status, normalized configuration, and bounded logs;
+- typed processes, system logs, and ZFS tables;
+- descriptor-confined local and remote file, directory, tree, find, tail, stat, preview, and hash operations.
+
+## Mutation surface
+
+The first mutation slice adds:
+
+- explicit `MutationFailure` values that retain `NotSent`, `Sent`, or `Unknown` backend send state;
+- bounded postcondition verification policies;
+- verified container `start`, `stop`, `restart`, `pause`, and `resume`;
+- verified Compose `up -d` and `restart`;
+- local and strict-SSH Docker mutation clients;
+- process-backed Compose mutation commands with discrete argv.
+
+The shared crate does not authorize mutations. Product runtimes must bind a deterministic plan, authorization evidence, exact target, and topology revision before invoking these drivers.
 
 ## Feature flags
 
-- `process-driver`: command-backed Compose, process, log, and ZFS support;
-- `bollard-driver`: local Docker API reads;
+- `process-driver`: command-backed Compose, process, log, ZFS, and Compose mutation support;
+- `bollard-driver`: local Docker reads and container lifecycle mutations;
 - `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
 
-The default build exposes only neutral models and traits.
+The default build exposes neutral models, traits, coordinators, and deterministic validation without concrete drivers.
 
 ## Safety invariants
 
-- all results carry host identity and exact topology revision;
+- all target-specific results carry host identity and exact topology revision;
 - no shell command strings are constructed;
-- Compose config paths are absolute and normalized;
-- filesystem reads are restricted to explicit roots and reject symlinks, magic links, and traversal;
-- preview and hash byte ceilings are explicit;
+- filesystem reads remain descriptor-confined beneath explicit roots;
 - Docker clients reject host or topology revision drift;
-- cancellation is propagated through fleet commands and Docker API calls;
+- mutation cancellation and timeout preserve uncertainty after the backend send boundary;
+- a successful backend call is not reported as mutation success until an independent read verifies the postcondition;
+- already-satisfied container states return verified no-op outcomes without a backend send;
+- Compose success requires a nonempty service set with every reported service running, healthy, and exit code zero;
 - SDK-specific Bollard types never cross the public API.
-
-Mutations, product policy, continuous streaming, and product surface wiring remain outside this shared crate. Canonical Synapse reads now consume this complete read surface directly.
 
 ## Verification
 

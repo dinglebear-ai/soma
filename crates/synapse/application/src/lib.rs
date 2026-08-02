@@ -1,7 +1,7 @@
 //! Canonical product application runtime for Synapse.
 //!
 //! The crate owns the checked-in operation catalog, optional historical request
-//! bindings, and direct execution of canonical read operations through
+//! bindings, all canonical reads, and plan-bound verified mutation execution through
 //! `soma-fleet` and `soma-infra`. It does not depend on the imported donor workspace.
 
 #![forbid(unsafe_code)]
@@ -13,6 +13,10 @@ mod catalog_validation;
 mod diagnostic;
 mod error;
 mod execution_error;
+mod mutation_admission;
+mod mutation_compose;
+mod mutation_result;
+mod mutation_runtime;
 mod normalize;
 mod runtime;
 mod runtime_docker;
@@ -30,6 +34,7 @@ pub use catalog::SynapseCatalog;
 pub use diagnostic::DiagnosticProjection;
 pub use error::CompatibilityError;
 pub use execution_error::ExecutionError;
+pub use mutation_runtime::{SynapseMutationPorts, SynapseMutationRuntime};
 pub use normalize::NormalizedOperationRequest;
 pub use runtime::{SynapseReadPorts, SynapseReadRuntime};
 pub use schema::OperationSchemaContract;

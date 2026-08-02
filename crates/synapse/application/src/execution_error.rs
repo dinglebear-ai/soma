@@ -15,9 +15,44 @@ pub enum ExecutionError {
     /// Infrastructure driver failed.
     #[error(transparent)]
     Infra(#[from] soma_infra::InfraError),
-    /// The operation exists but is not a read operation handled by this runtime.
-    #[error("canonical read runtime cannot execute {0}")]
+    /// Operation plan construction or fingerprint validation failed.
+    #[error(transparent)]
+    Plan(#[from] soma_ops::PlanError),
+    /// Product authorization evidence did not match the mutation request.
+    #[error(transparent)]
+    Authorization(#[from] soma_ops::AuthorizationError),
+    /// Canonical operation result construction failed.
+    #[error(transparent)]
+    Result(#[from] soma_ops::ResultError),
+    /// Canonical target construction failed.
+    #[error(transparent)]
+    Target(#[from] soma_ops::TargetRefError),
+    /// Infrastructure mutation failed before a terminal result could be built.
+    #[error(transparent)]
+    Mutation(#[from] soma_infra::MutationFailure),
+    /// The operation exists but is not handled by this runtime.
+    #[error("canonical runtime cannot execute {0}")]
     UnsupportedOperation(OperationName),
+    /// Supplied plan does not match the exact operation, context, target, or topology.
+    #[error("mutation plan mismatch: {0}")]
+    PlanMismatch(String),
+    /// An idempotent mutation omitted its required idempotency key.
+    #[error("idempotent mutation requires an idempotency key")]
+    MissingIdempotencyKey,
+    /// Synapse policy requires explicit confirmation for disruptive mutations.
+    #[error("disruptive mutation requires a confirmation reference")]
+    ConfirmationRequired,
+    /// A required product mutation port was not configured.
+    #[error("{domain} mutation port is unavailable for host {host}")]
+    MutationPortUnavailable {
+        /// Mutation domain.
+        domain: &'static str,
+        /// Host identity.
+        host: String,
+    },
+    /// The mutation deadline passed before admission.
+    #[error("mutation deadline has passed")]
+    DeadlineExceeded,
     /// No host was supplied and no unambiguous default could be selected.
     #[error("operation requires an explicit host because the topology has multiple candidates")]
     HostRequired,

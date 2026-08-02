@@ -283,11 +283,16 @@ synapse-canonical-read-check:
     cargo test -p soma-infra --all-features
     cargo test -p synapse-application
 
+# Validate canonical read and implemented mutation operations
+synapse-mutation-check:
+    cargo test -p soma-infra --all-features
+    cargo test -p synapse-application
+
 # Validate neutral fleet contracts and all optional drivers
 fleet-check:
     cargo test -p soma-fleet --all-features
 
-# Validate read-only infrastructure contracts and optional drivers
+# Validate infrastructure read, mutation, and optional driver contracts
 infra-check:
     cargo test -p soma-infra --all-features
 

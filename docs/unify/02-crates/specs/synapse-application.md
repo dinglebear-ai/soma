@@ -13,9 +13,9 @@ status: implemented
 
 ## Purpose
 
-`synapse-application` owns Synapse's checked-in operation catalog and canonical product runtime. It validates canonical requests, resolves hosts from `soma-fleet`, delegates all read operations to `soma-infra`, and validates canonical results before returning JSON.
+`synapse-application` owns Synapse's checked-in operation catalog and canonical product runtimes. It validates canonical requests, resolves immutable fleet targets, delegates typed work to `soma-infra`, and validates canonical results before returning them.
 
-There are no external Synapse consumers requiring historical response compatibility. Legacy Flux and Scout bindings remain only as optional request aliases and characterization data. The runtime does not rebuild legacy JSON or Markdown output.
+There are no external Synapse consumers requiring historical result compatibility. Flux and Scout bindings remain optional request aliases and characterization data only. The runtime does not rebuild legacy JSON or Markdown output.
 
 The crate does not depend on `crates/synapse/import`, RMCP, Axum, Clap, a database, or environment configuration.
 
@@ -29,43 +29,66 @@ At compile time the crate embeds and cross-validates:
 - 59 closed result schemas;
 - 33 diagnostic surface mappings.
 
-Classification digests, schema identities, required fields, alternative groups, binding keys, and diagnostic coverage are checked together when the catalog is constructed.
-
 ## Public boundary
 
-- `SynapseCatalog`
-- `SynapseReadPorts`
-- `SynapseReadRuntime`
-- `ExecutionError`
-- `NormalizedOperationRequest`
-- `OperationSchemaContract`
-- `DiagnosticProjection`
-- historical binding types for optional request aliases
+- `SynapseCatalog`;
+- `SynapseReadPorts` and `SynapseReadRuntime`;
+- `SynapseMutationPorts` and `SynapseMutationRuntime`;
+- `ExecutionError`;
+- `NormalizedOperationRequest`;
+- `OperationSchemaContract`;
+- `DiagnosticProjection`;
+- historical binding types for optional request aliases.
 
-## Canonical execution flow
+## Canonical read flow
 
-1. Resolve a canonical operation and reject non-read operations before parameter processing.
-2. Validate canonical parameters against the checked-in Draft 2020-12 schema.
+1. Reject non-read operations before parameter processing.
+2. Validate canonical parameters against the checked-in schema.
 3. Resolve the target from an immutable fleet topology snapshot.
 4. Delegate to typed `soma-infra` ports with deadlines and cancellation.
-5. Normalize the typed result into its canonical result family.
-6. Validate the result against the checked-in canonical result schema.
+5. Normalize into the canonical result family.
+6. Validate the result schema.
 7. Return canonical JSON directly.
 
-Historical Flux and Scout requests may still normalize into this flow, but requested presentation fields do not control result rendering.
+All 35 canonical read operations execute through this path.
 
-## Implemented reads
+## Canonical mutation flow
 
-The runtime executes all 35 canonical read operations across product help, Docker, containers, host inspection, Compose, fleet topology, filesystem, processes, ZFS, and operating-system logs.
+1. Validate the canonical mutation and parameters.
+2. Resolve the exact host and topology revision.
+3. Build a deterministic `OperationPlan` with target, change, step, verification strategy, and rollback guidance.
+4. Require an exact plan fingerprint, operation identity, target binding, topology revision, authorization scope, expiry, and confirmation reference.
+5. Require an idempotency key when the canonical operation contract declares idempotency.
+6. Execute through a mutation-capable `soma-infra` port.
+7. Preserve `NotSent`, `Sent`, or `Unknown` backend send state.
+8. Verify the postcondition through a separate read operation.
+9. Build and validate a canonical `OperationResult` with retry policy, verification, diagnostics, and recovery guidance.
 
-The remaining 24 mutation operations fail closed with `UnsupportedOperation` until the canonical mutation framework supplies planning, authorization evidence, send state, verification, and recovery semantics.
+## Implemented mutations
+
+Seven of the 21 canonical mutations are implemented:
+
+- `container.start`;
+- `container.stop`;
+- `container.restart`;
+- `container.pause`;
+- `container.resume`;
+- `compose.up`;
+- `compose.restart`.
+
+Container mutations verify through `container.inspect`. Compose mutations verify through `compose.status`. Already-satisfied container states return a verified no-op without sending a mutation.
+
+The remaining fourteen mutations fail closed with `UnsupportedOperation`. Later slices must add operation-specific planning and verification before they become executable.
 
 ## Verification
 
-- embedded counts: 59 operations, 59 bindings, 33 diagnostics;
-- all 35 canonical read operations execute through mock ports and validate against their result schemas;
-- mutation operations are rejected before parameter validation or driver access;
-- generated historical Flux and Scout input schemas remain closed;
-- no result projector or Markdown renderer remains;
-- no imported donor dependency exists;
-- strict Clippy, warning-free rustdoc, sibling tests, and architecture gates pass.
+- all 35 canonical reads execute and validate their result schemas;
+- all seven implemented mutations plan, authorize, execute, and verify;
+- stale topology, wrong target, expired authorization, missing confirmation, and missing idempotency fail before mutation send;
+- cancellation before admission is `NotSent`;
+- uncertain Docker failures remain `Unknown` and become failed terminal results;
+- backend success plus failed postcondition verification is reported as failure;
+- Compose command arguments are discrete and shell-free;
+- generated historical input schemas remain closed;
+- no legacy result projector or imported donor dependency exists;
+- strict Clippy, warning-free rustdoc, sibling tests, architecture, and pattern gates pass.
