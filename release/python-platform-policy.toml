@@ -1,6 +1,6 @@
 schema_version = 1
 componentize_py_version = "0.25.0"
-wasmtime_version = "46.0.2"
+wasmtime_version = "47.0.2"
 python_requires = ">=3.11"
 trusted_publishing = true
 require_sha256 = true
