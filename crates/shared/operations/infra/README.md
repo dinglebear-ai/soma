@@ -17,14 +17,16 @@
 
 ## Mutation surface
 
-The first mutation slice adds:
+The mutation surface includes:
 
 - explicit `MutationFailure` values that retain `NotSent`, `Sent`, or `Unknown` backend send state;
 - bounded postcondition verification policies;
 - verified container `start`, `stop`, `restart`, `pause`, and `resume`;
 - verified Compose `up -d` and `restart`;
 - verified Docker, container-image, and Compose image pulls;
-- canonical bounded progress events whose delivery failures do not rewrite execution truth;
+- context-bound verified Docker and Compose image builds;
+- descriptor-confined context fingerprints with explicit root, file-count, and byte ceilings;
+- canonical bounded phase progress and build logs whose delivery failures do not rewrite execution truth;
 - OCI artifact references and local image-ID/digest verification;
 - local and strict-SSH Docker mutation clients;
 - process-backed Compose mutation commands with discrete argv.
@@ -33,7 +35,7 @@ The shared crate does not authorize mutations. Product runtimes must bind a dete
 
 ## Feature flags
 
-- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, and Compose pull support;
+- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, and image-build support;
 - `bollard-driver`: local Docker reads, container lifecycle mutations, and image-pull streams;
 - `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
@@ -55,6 +57,9 @@ The default build exposes neutral models, traits, coordinators, and deterministi
 - Compose success requires a nonempty service set with every reported service running, healthy, and exit code zero;
 - image pulls verify that requested references resolve to local content identities after stream completion;
 - Compose pulls verify every selected configured service image;
+- image builds re-fingerprint every context immediately before send and reject source drift as `NotSent`;
+- build contexts reject symlinks and special files and bind relative paths, modes, sizes, and content into SHA-256;
+- Docker and Compose builds verify each requested output tag through the local image store;
 - progress sink failures remain bounded metadata and never change backend send or verification truth;
 - SDK-specific Bollard types never cross the public API.
 

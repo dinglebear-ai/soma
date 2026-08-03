@@ -18,7 +18,7 @@ layer = "shared"
 
 [features]
 default = []
-process-driver = ["tokio/io-util", "tokio/process"]
+process-driver = ["soma-fleet/process-driver", "tokio/io-util", "tokio/process"]
 bollard-driver = ["dep:bollard", "dep:futures-util"]
 remote-bollard = ["bollard-driver", "soma-fleet/openssh-driver"]
 linux-filesystem = ["dep:rustix"]

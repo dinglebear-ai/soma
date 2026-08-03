@@ -1,7 +1,7 @@
 ---
 title: "soma-infra"
 created: 2026-08-01
-updated: 2026-08-02
+updated: 2026-08-03
 status: implemented
 ---
 
@@ -90,6 +90,16 @@ Optional external drivers:
 - independent Docker image-store verification of IDs, tags, and digests;
 - OCI artifact references and runtime-state evidence at the product result boundary.
 
+### Artifact builds
+
+- `BuildContextPolicy`, `BuildContextInspector`, and deterministic `BuildContextFingerprint`;
+- descriptor-walking local or SSH context hashing with `O_NOFOLLOW` on every path segment;
+- explicit context roots plus file-count and byte ceilings;
+- `ImageBuildMutator`, `ImageBuildEngine`, `ComposeBuildMutator`, and `ComposeBuildEngine`;
+- shell-free Docker and Compose build commands with bounded logs and phase progress;
+- exact context-digest binding at plan and pre-send execution boundaries;
+- independent output-tag verification with OCI artifact and source-context evidence.
+
 ## Security properties
 
 1. Every target-specific model is bound to a host and exact topology revision.
@@ -115,17 +125,21 @@ Optional external drivers:
 21. Pull streams emit canonical bounded progress while retaining progress-delivery failures separately from execution truth.
 22. Docker and container pulls verify local image IDs, tags, and digests after stream completion.
 23. Compose pulls resolve the configured service-image set before send and verify every selected image afterward.
-24. Destructive operations, arbitrary command execution, file transfer, image deletion, pruning, builds, and Compose down remain outside this slice.
+24. Build contexts reject symlinks, special files, root escapes, and configured file or byte ceiling violations.
+25. Build plans bind the exact source-context SHA-256 and output image artifact set.
+26. Build execution re-fingerprints contexts before send and verifies every output tag afterward.
+27. Destructive operations, arbitrary command execution, file transfer, image deletion, pruning, and Compose down remain outside this slice.
 
 ## Current Synapse adoption
 
-The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Ten of the 21 canonical mutations are now delegated:
+The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Twelve of the 21 canonical mutations are now delegated:
 
 - `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
 - `compose.up` and `compose.restart`;
-- `docker.pull`, `container.pull`, and `compose.pull`.
+- `docker.pull`, `container.pull`, and `compose.pull`;
+- `docker.build` and `compose.build`.
 
-Pull plans bind the exact authorized image artifact set. Pull execution emits canonical progress, verifies local content identities, and returns OCI artifact references plus runtime-state evidence. Eleven canonical mutations remain fail-closed.
+Pull plans bind exact image artifacts. Build plans bind exact context SHA-256 values and output tags. Execution emits canonical progress, preserves bounded logs, rechecks source contexts before send, verifies local output identities, and returns OCI artifact plus source-context evidence. Nine canonical mutations remain fail-closed.
 
 ## Verification
 
@@ -136,6 +150,7 @@ Required gates:
 - lifecycle no-op, sent, unknown, cancelled, timeout, and failed-verification tests;
 - Compose discrete-argv and nonzero-exit tests;
 - pull progress, delivery-failure, image-reference drift, and artifact-verification tests;
+- build-context determinism, symlink rejection, context drift, bounded argv/logs, and output-verification tests;
 - stale-host and revision-bound client tests;
 - filesystem traversal and symlink rejection;
 - workspace sibling, architecture, pattern, and product-leakage checks.
