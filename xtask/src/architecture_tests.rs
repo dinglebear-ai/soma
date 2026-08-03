@@ -113,10 +113,29 @@ fn standalone_product_composes_its_own_crates_and_shared_engines() {
     let failures = failures(vec![
         pkg("soma-ops", "crates/shared/operations/ops", "shared", vec![]),
         pkg(
+            "soma-fleet",
+            "crates/shared/operations/fleet",
+            "shared",
+            vec![dep("soma-ops", "crates/shared/operations/ops")],
+        ),
+        pkg(
+            "soma-infra",
+            "crates/shared/operations/infra",
+            "shared",
+            vec![
+                dep("soma-ops", "crates/shared/operations/ops"),
+                dep("soma-fleet", "crates/shared/operations/fleet"),
+            ],
+        ),
+        pkg(
             "synapse-application",
             "crates/synapse/application",
             "product-application",
-            vec![],
+            vec![
+                dep("soma-ops", "crates/shared/operations/ops"),
+                dep("soma-fleet", "crates/shared/operations/fleet"),
+                dep("soma-infra", "crates/shared/operations/infra"),
+            ],
         ),
         pkg(
             "synapse",

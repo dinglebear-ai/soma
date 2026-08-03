@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-description = "Product-neutral read-only host, Docker, Compose, and filesystem infrastructure engines"
+description = "Product-neutral read-only infrastructure engines for hosts, Docker, Compose, filesystems, logs, processes, and ZFS"
 homepage.workspace = true
 license = "MIT"
 repository.workspace = true
@@ -20,10 +20,12 @@ layer = "shared"
 default = []
 process-driver = ["tokio/io-util", "tokio/process"]
 bollard-driver = ["dep:bollard", "dep:futures-util"]
+remote-bollard = ["bollard-driver", "soma-fleet/openssh-driver"]
 linux-filesystem = ["dep:rustix"]
 
 [dependencies]
 async-trait = "0.1"
+base64 = "0.22"
 bollard = { version = "0.21", optional = true }
 futures-util = { version = "0.3", optional = true }
 serde = { version = "1", features = ["derive"] }

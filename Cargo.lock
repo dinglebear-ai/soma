@@ -6015,6 +6015,7 @@ name = "soma-infra"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "bollard",
  "futures-util",
  "rustix 1.1.4",
@@ -6532,11 +6533,18 @@ dependencies = [
 name = "synapse-application"
 version = "0.6.2"
 dependencies = [
+ "async-trait",
+ "chrono",
  "jsonschema",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "soma-fleet",
+ "soma-infra",
  "soma-ops",
  "thiserror 2.0.19",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

@@ -1,11 +1,16 @@
 use std::collections::HashMap;
 use std::future::Future;
+use std::path::Path;
+#[cfg(feature = "remote-bollard")]
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use bollard::Docker;
 use bollard::query_parameters::{
-    ListContainersOptions, ListImagesOptions, ListNetworksOptions, ListVolumesOptions,
+    ListContainersOptions, ListImagesOptions, ListNetworksOptions, ListVolumesOptions, TopOptions,
 };
+use bollard::{API_DEFAULT_VERSION, Docker};
+#[cfg(feature = "remote-bollard")]
+use soma_fleet::{ForwardedUnixSocket, OpenSshConnection};
 use soma_fleet::{HostEndpoint, HostId, HostRecord, TopologyRevision};
 use tokio_util::sync::CancellationToken;
 
@@ -14,19 +19,25 @@ use crate::docker_map::{
     map_volume, parse_error,
 };
 use crate::{
-    ContainerInspect, ContainerListOptions, ContainerReader, ContainerSummary, DockerSystemInfo,
-    DockerSystemReader, ImageListOptions, ImageReader, ImageSummary, InfraError, InfraResult,
-    NetworkReader, NetworkSummary, VolumeReader, VolumeSummary,
+    ContainerInspect, ContainerListOptions, ContainerProcessTable, ContainerReader,
+    ContainerSummary, DockerSystemInfo, DockerSystemReader, ImageListOptions, ImageReader,
+    ImageSummary, InfraError, InfraResult, NetworkReader, NetworkSummary, VolumeReader,
+    VolumeSummary,
 };
 
 const MAX_LIST_ITEMS: usize = 10_000;
 const MAX_LIST_ITEM_JSON_BYTES: usize = 256 * 1024;
+const CLIENT_TIMEOUT_SECONDS: u64 = 120;
 
 /// Local Bollard implementation of the neutral Docker read contracts.
 pub struct BollardReadClient {
     docker: Docker,
     host: HostId,
     revision: TopologyRevision,
+    #[cfg(feature = "remote-bollard")]
+    _connection: Option<Arc<OpenSshConnection>>,
+    #[cfg(feature = "remote-bollard")]
+    forward: Option<ForwardedUnixSocket>,
 }
 
 impl BollardReadClient {
@@ -44,7 +55,51 @@ impl BollardReadClient {
             docker,
             host: host.id().clone(),
             revision: host.revision().clone(),
+            #[cfg(feature = "remote-bollard")]
+            _connection: None,
+            #[cfg(feature = "remote-bollard")]
+            forward: None,
         })
+    }
+
+    /// Connects to a remote Docker Unix socket through a strict OpenSSH forward.
+    #[cfg(feature = "remote-bollard")]
+    pub async fn connect_remote(
+        connection: Arc<OpenSshConnection>,
+        host: &HostRecord,
+        remote_socket: &Path,
+        cancellation: &CancellationToken,
+    ) -> InfraResult<Self> {
+        if !matches!(host.endpoint(), HostEndpoint::Ssh(_)) {
+            return Err(InfraError::UnsupportedTarget {
+                domain: "docker",
+                host: host.id().clone(),
+            });
+        }
+        let forward =
+            ForwardedUnixSocket::open(&connection, host, remote_socket, cancellation).await?;
+        let docker = Docker::connect_with_socket(
+            forward.path().to_string_lossy().as_ref(),
+            CLIENT_TIMEOUT_SECONDS,
+            API_DEFAULT_VERSION,
+        )
+        .map_err(|error| InfraError::Docker(error.to_string()))?;
+        Ok(Self {
+            docker,
+            host: host.id().clone(),
+            revision: host.revision().clone(),
+            _connection: Some(connection),
+            forward: Some(forward),
+        })
+    }
+
+    /// Explicitly closes an owned remote forward when present.
+    #[cfg(feature = "remote-bollard")]
+    pub async fn close(mut self) -> InfraResult<()> {
+        if let Some(forward) = self.forward.take() {
+            forward.close().await?;
+        }
+        Ok(())
     }
 
     pub(crate) fn validate_host(&self, host: &HostRecord) -> InfraResult<()> {
@@ -129,6 +184,29 @@ impl ContainerReader for BollardReadClient {
         let row = cancellable(cancellation, self.docker.inspect_container(container, None)).await?;
         let value = serde_json::to_value(row).map_err(|error| parse_error(error.to_string()))?;
         map_container_inspect(host, &value)
+    }
+
+    async fn top_container(
+        &self,
+        host: &HostRecord,
+        container: &str,
+        cancellation: &CancellationToken,
+    ) -> InfraResult<ContainerProcessTable> {
+        self.validate_host(host)?;
+        validate_identifier("container", container)?;
+        let response = cancellable(
+            cancellation,
+            self.docker
+                .top_processes(container, Some(TopOptions::default())),
+        )
+        .await?;
+        Ok(ContainerProcessTable {
+            host: host.id().clone(),
+            topology_revision: host.revision().clone(),
+            container: container.to_owned(),
+            titles: response.titles.unwrap_or_default(),
+            processes: response.processes.unwrap_or_default(),
+        })
     }
 }
 

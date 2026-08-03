@@ -1,0 +1,27 @@
+use super::*;
+
+#[test]
+fn service_and_port_requests_are_bounded() {
+    let deadline = Timestamp::from_unix_millis(100);
+    let service = ServiceListRequest::new(deadline)
+        .with_service("ssh")
+        .unwrap()
+        .with_state("active")
+        .unwrap();
+    assert_eq!(service.service(), Some("ssh"));
+    assert_eq!(service.state(), Some("active"));
+    assert!(
+        ServiceListRequest::new(deadline)
+            .with_service("bad\0name")
+            .is_err()
+    );
+
+    let ports = PortListRequest::new(deadline)
+        .with_protocol(PortProtocol::Tcp)
+        .with_page(10, 50)
+        .unwrap();
+    assert_eq!(ports.protocol(), Some(PortProtocol::Tcp));
+    assert_eq!(ports.offset(), 10);
+    assert_eq!(ports.limit(), 50);
+    assert!(PortListRequest::new(deadline).with_page(0, 0).is_err());
+}

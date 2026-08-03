@@ -86,7 +86,7 @@ impl FileReadPolicy {
         self.max_hash_bytes
     }
 
-    #[cfg(any(feature = "linux-filesystem", test))]
+    #[cfg(any(feature = "linux-filesystem", feature = "process-driver", test))]
     pub(crate) fn resolve(&self, path: &Path) -> InfraResult<(PathBuf, PathBuf)> {
         let path = validate_absolute_path(path.to_path_buf())?;
         let root = self
