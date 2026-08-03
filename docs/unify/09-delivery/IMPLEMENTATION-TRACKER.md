@@ -72,7 +72,7 @@ No generic `in_progress`.
 | product-family | 14 | `feat/mutation-foundation` | `feat/synapse-canonical-cutover` | `~/workspace/soma/.worktrees/mutation-foundation` | Plan-bound verified container and Compose mutation foundation | #290 | parity_verifying |
 | product-family | 15 | `feat/mutation-artifacts` | `feat/mutation-foundation` | `~/workspace/soma/.worktrees/mutation-artifacts` | Progress-aware verified Docker, container, and Compose image pulls | #293 | parity_verifying |
 | product-family | 16 | `feat/mutation-builds` | `feat/mutation-artifacts` | `~/workspace/soma/.worktrees/mutation-builds` | Context-bound verified Docker and Compose image builds | #295 | parity_verifying |
-| product-family | 17 | `feat/mutation-recreate` | `feat/mutation-builds` | `~/workspace/soma/.worktrees/mutation-recreate` | Configuration-bound verified container and Compose replacements | pending | parity_verifying |
+| product-family | 17 | `feat/mutation-recreate` | `feat/mutation-builds` | `~/workspace/soma/.worktrees/mutation-recreate` | Configuration-bound verified container and Compose replacements | #314 | parity_verifying |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
