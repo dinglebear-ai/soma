@@ -66,21 +66,22 @@ All 35 canonical read operations execute through this path.
 
 ## Implemented mutations
 
-Twelve of the 21 canonical mutations are implemented:
+Fourteen of the 21 canonical mutations are implemented:
 
 - `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
 - `compose.up` and `compose.restart`;
 - `docker.pull`, `container.pull`, and `compose.pull`;
-- `docker.build` and `compose.build`.
+- `docker.build` and `compose.build`;
+- `container.recreate` and `compose.recreate`.
 
-Container lifecycle operations verify through `container.inspect`. Compose lifecycle operations verify through `compose.status`. Pull operations bind exact image references and verify IDs/tags/digests through `docker.images`. Build operations bind exact source-context SHA-256 values and output tags, re-fingerprint immediately before send, preserve bounded build logs and phase progress, and verify output identities through `docker.images`. OCI artifact, runtime-state, and source-context evidence are attached to successful artifact operations. Already-satisfied container states return a verified no-op without sending a mutation.
+Container lifecycle operations verify through `container.inspect`. Compose lifecycle operations verify through `compose.status`. Pull operations bind exact image references and verify IDs/tags/digests through `docker.images`. Build operations bind source-context SHA-256 values and output tags and verify output identities. Replacement operations bind full container configuration or normalized Compose config/status fingerprints, recheck them before send, and attach diff plus runtime-state evidence. Already-satisfied lifecycle states still return verified no-op results without mutation send.
 
-The remaining nine mutations fail closed with `UnsupportedOperation`.
+The remaining seven mutations fail closed with `UnsupportedOperation`.
 
 ## Verification
 
 - all 35 canonical reads execute and validate their result schemas;
-- all twelve implemented mutations plan, authorize, execute, and verify;
+- all fourteen implemented mutations plan, authorize, execute, and verify;
 - stale topology, wrong target, expired authorization, missing confirmation, and missing idempotency fail before mutation send;
 - cancellation before admission is `NotSent`;
 - uncertain Docker failures remain `Unknown` and become failed terminal results;
@@ -92,6 +93,10 @@ The remaining nine mutations fail closed with `UnsupportedOperation`.
 - build plans bind exact source-context digests and reject context drift before send;
 - Docker and Compose build commands use discrete argv, bounded logs, and retry-never execution;
 - successful builds carry OCI artifact and source-context evidence;
+- replacement plans bind configuration digests and container pull choice or complete Compose service pre-state;
+- container replacement preserves the donor configuration surface and records destructive stage progress;
+- Compose replacement uses shell-free force-recreate and verifies the exact healthy service set;
+- successful replacements carry diff and runtime-state evidence with explicit recovery guidance;
 - generated historical input schemas remain closed;
 - no legacy result projector or imported donor dependency exists;
 - strict Clippy, warning-free rustdoc, sibling tests, architecture, and pattern gates pass.
