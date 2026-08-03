@@ -182,7 +182,7 @@ fn canonical_progress_event(
     .into_iter()
     .flatten()
     .collect::<Vec<_>>()
-    .join(" · ");
+    .join(" | ");
     if !message.is_empty() {
         event = event.with_message(bounded_message(&message))?;
     }
