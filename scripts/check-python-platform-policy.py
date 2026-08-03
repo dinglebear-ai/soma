@@ -114,7 +114,7 @@ def main() -> int:
         fail("only the package itself may be editable")
     provenance = "actions/attest-build-provenance@e3fe62ef559997059fe8380e7d2b4c909e2d65f4"
     sbom = "actions/attest-sbom@5729fe4dc697fb7538e4e94fd44d040aac1367b2"
-    require_text(ROOT / ".github/workflows/python-wheels.yml", ["pypa/gh-action-pypi-publish@c1b34028248d0c9f7d90fe29fef2122e2276ff6f", provenance, sbom, "environment: pypi", "attestations: true", "soma-provider.cdx.json", "SHA256SUMS"])
+    require_text(ROOT / ".github/workflows/python-wheels.yml", ["pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33", provenance, sbom, "environment: pypi", "attestations: true", "soma-provider.cdx.json", "SHA256SUMS"])
     require_text(ROOT / ".github/workflows/release.yml", [provenance, sbom, "soma-provider-v${python_version}", "soma-release.cdx.json", "SHA256SUMS"])
     require_text(
         ROOT / ".github/workflows/python-platform-soak.yml",
