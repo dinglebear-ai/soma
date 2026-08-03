@@ -22,6 +22,9 @@ mod mutation_dispatch;
 mod mutation_pull;
 mod mutation_pull_execute;
 mod mutation_pull_result;
+mod mutation_recreate;
+mod mutation_recreate_execute;
+mod mutation_recreate_result;
 mod mutation_result;
 mod mutation_runtime;
 mod normalize;
@@ -41,7 +44,9 @@ pub use catalog::SynapseCatalog;
 pub use diagnostic::DiagnosticProjection;
 pub use error::CompatibilityError;
 pub use execution_error::ExecutionError;
-pub use mutation_runtime::{SynapseBuildPorts, SynapseMutationPorts, SynapseMutationRuntime};
+pub use mutation_runtime::{
+    SynapseBuildPorts, SynapseMutationPorts, SynapseMutationRuntime, SynapseRecreatePorts,
+};
 pub use normalize::NormalizedOperationRequest;
 pub use runtime::{SynapseReadPorts, SynapseReadRuntime};
 pub use schema::OperationSchemaContract;
@@ -52,6 +57,9 @@ mod mutation_pull_test_compose;
 #[cfg(test)]
 #[path = "../tests/support/mutation_pull_support.rs"]
 mod mutation_pull_test_support;
+#[cfg(test)]
+#[path = "../tests/support/mutation_recreate_support.rs"]
+mod mutation_recreate_test_support;
 #[cfg(test)]
 mod runtime_test_docker;
 #[cfg(test)]

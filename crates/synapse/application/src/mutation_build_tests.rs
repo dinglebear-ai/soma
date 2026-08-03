@@ -110,6 +110,7 @@ fn runtime(
             image: image_builder,
             compose: compose_builder,
         }),
+        recreate: None,
     })
 }
 
