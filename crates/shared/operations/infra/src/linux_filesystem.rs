@@ -211,7 +211,9 @@ fn hash_reader(
         bytes_hashed = next_bytes;
         hasher.update(&buffer[..read]);
     }
-    Ok((format!("{:x}", hasher.finalize()), bytes_hashed))
+    let digest = hasher.finalize();
+    let digest = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    Ok((digest, bytes_hashed))
 }
 
 struct BoundFile {

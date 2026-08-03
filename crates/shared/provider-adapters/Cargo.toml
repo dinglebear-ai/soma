@@ -32,7 +32,7 @@ gateway = ["dep:rmcp", "dep:reqwest", "dep:rustls", "dep:url", "dep:tokio", "dep
 [dependencies]
 async-trait = "0.1"
 atomicwrites = "0.4"
-base64 = "0.22"
+base64 = "0.23"
 fs2 = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -41,13 +41,13 @@ soma-provider-core = { workspace = true }
 thiserror = "2"
 toml = "1.1"
 tracing = "0.1"
-getrandom = { version = "0.3", optional = true }
+getrandom = { version = "0.4", optional = true }
 tempfile = { version = "3", optional = true }
 
 # ai-sdk / python / sidecar / wasm
 tokio = { version = "1", features = ["io-util", "net", "process", "rt", "sync", "time"], optional = true }
-wasmtime = { version = "46.0.2", default-features = false, features = ["anyhow", "cache", "component-model", "cranelift", "runtime", "std"], optional = true }
-wasmtime-wasi = { version = "46.0.2", default-features = false, features = ["p2"], optional = true }
+wasmtime = { version = "47.0.2", default-features = false, features = ["anyhow", "cache", "component-model", "cranelift", "runtime", "std"], optional = true }
+wasmtime-wasi = { version = "47.0.2", default-features = false, features = ["p2"], optional = true }
 
 # codemode bridge
 soma-codemode = { workspace = true, optional = true }

@@ -84,7 +84,10 @@ fn canonicalize(value: &Value) -> Value {
 fn semantic_digest(value: &Value) -> String {
     let canonical = canonicalize(value);
     let encoded = serde_json::to_vec(&canonical).expect("serialize canonical semantic fixture");
-    format!("{:x}", Sha256::digest(encoded))
+    Sha256::digest(encoded)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn assert_unique_non_empty(values: &[String], label: &str) {

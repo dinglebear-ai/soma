@@ -107,7 +107,8 @@ impl TopologyRevision {
     /// Derives a deterministic revision from canonical topology material.
     #[must_use]
     pub fn from_material(material: impl AsRef<[u8]>) -> Self {
-        Self(format!("{:x}", Sha256::digest(material.as_ref())))
+        let digest = Sha256::digest(material.as_ref());
+        Self(digest.iter().map(|byte| format!("{byte:02x}")).collect())
     }
 
     /// Returns the lowercase SHA-256 revision.
