@@ -32,7 +32,7 @@ gateway = ["dep:rmcp", "dep:reqwest", "dep:rustls", "dep:url", "dep:tokio", "dep
 [dependencies]
 async-trait = "0.1"
 atomicwrites = "0.4"
-base64 = "0.22"
+base64 = "0.23"
 fs2 = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
