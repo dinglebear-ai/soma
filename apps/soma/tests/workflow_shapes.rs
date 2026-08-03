@@ -39,7 +39,7 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
     const WORKFLOW_PREFIX: &str = "dinglebear-ai/workflows/.github/workflows/";
     const FLEET_REVISION: &str = "ac57c3208cf92d71c5971bb936df51c400cb1ccf";
     // npm publication needs token-mode support added after the fleet revision.
-    const NPM_PUBLISH_REVISION: &str = "a5937b60b317abed7e757737d95ad003fac2bfb0";
+    const NPM_PUBLISH_REVISION: &str = "64d705af6e164aac58d507df6fb2f6bdc8a4d22d";
     // Native wheels need platform-specific cibuildwheel architecture names.
     const PYTHON_WHEELS_REVISION: &str = "eadba32f019e984b26d93c807ef72e5094df2876";
     let workflow_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -266,7 +266,7 @@ fn artifact_workflows_run_from_published_releases() {
     let npm = workflow_job_block(&release, "npm");
     assert!(
         npm.contains("needs: [validate-release-tag, release]")
-            && npm.contains("npm-trusted-publish.yml@a5937b60b317abed7e757737d95ad003fac2bfb0"),
+            && npm.contains("npm-trusted-publish.yml@64d705af6e164aac58d507df6fb2f6bdc8a4d22d"),
         "npm publish must wait for artifacts and use the fleet source of truth"
     );
     assert!(
