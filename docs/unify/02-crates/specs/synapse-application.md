@@ -1,7 +1,7 @@
 ---
 title: "synapse-application"
 created: 2026-08-01
-updated: 2026-08-02
+updated: 2026-08-03
 status: implemented
 ---
 
@@ -66,20 +66,21 @@ All 35 canonical read operations execute through this path.
 
 ## Implemented mutations
 
-Ten of the 21 canonical mutations are implemented:
+Twelve of the 21 canonical mutations are implemented:
 
 - `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
 - `compose.up` and `compose.restart`;
-- `docker.pull`, `container.pull`, and `compose.pull`.
+- `docker.pull`, `container.pull`, and `compose.pull`;
+- `docker.build` and `compose.build`.
 
-Container lifecycle operations verify through `container.inspect`. Compose lifecycle operations verify through `compose.status`. Pull operations bind the exact image references during planning, emit canonical progress, and verify IDs/tags/digests through `docker.images`. OCI artifact references and runtime-state evidence are attached to successful pull results. Already-satisfied container states return a verified no-op without sending a mutation.
+Container lifecycle operations verify through `container.inspect`. Compose lifecycle operations verify through `compose.status`. Pull operations bind exact image references and verify IDs/tags/digests through `docker.images`. Build operations bind exact source-context SHA-256 values and output tags, re-fingerprint immediately before send, preserve bounded build logs and phase progress, and verify output identities through `docker.images`. OCI artifact, runtime-state, and source-context evidence are attached to successful artifact operations. Already-satisfied container states return a verified no-op without sending a mutation.
 
-The remaining eleven mutations fail closed with `UnsupportedOperation`.
+The remaining nine mutations fail closed with `UnsupportedOperation`.
 
 ## Verification
 
 - all 35 canonical reads execute and validate their result schemas;
-- all ten implemented mutations plan, authorize, execute, and verify;
+- all twelve implemented mutations plan, authorize, execute, and verify;
 - stale topology, wrong target, expired authorization, missing confirmation, and missing idempotency fail before mutation send;
 - cancellation before admission is `NotSent`;
 - uncertain Docker failures remain `Unknown` and become failed terminal results;
@@ -88,6 +89,9 @@ The remaining eleven mutations fail closed with `UnsupportedOperation`.
 - container and Compose image-reference drift is rejected before pull send;
 - progress delivery failure is retained separately and cannot rewrite mutation truth;
 - successful pulls carry OCI artifact and runtime-state evidence;
+- build plans bind exact source-context digests and reject context drift before send;
+- Docker and Compose build commands use discrete argv, bounded logs, and retry-never execution;
+- successful builds carry OCI artifact and source-context evidence;
 - generated historical input schemas remain closed;
 - no legacy result projector or imported donor dependency exists;
 - strict Clippy, warning-free rustdoc, sibling tests, architecture, and pattern gates pass.
