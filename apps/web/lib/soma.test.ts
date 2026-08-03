@@ -76,6 +76,31 @@ describe("normalizeApiBaseUrl", () => {
   });
 });
 
+describe("generated Python lifecycle actions", () => {
+  it("preserves numeric and boolean parameter types through dispatch coercion", () => {
+    const action = REST_ACTIONS.find((item) => item.id === "python_environment_prune");
+
+    expect(action).toBeDefined();
+    if (!action) throw new Error("python_environment_prune action should exist");
+    expect(action.params.map((param) => [param.name, param.type])).toEqual([
+      ["stale_before_unix_seconds", "number"],
+      ["max_entries", "number"],
+      ["confirm", "checkbox"],
+    ]);
+    expect(
+      coerceParamValues(action, {
+        stale_before_unix_seconds: "1700000000",
+        max_entries: "100",
+        confirm: "true",
+      }),
+    ).toEqual({
+      stale_before_unix_seconds: 1700000000,
+      max_entries: 100,
+      confirm: true,
+    });
+  });
+});
+
 describe("provider catalog conversion", () => {
   const inspection: ProviderInspection = {
     schema_version: 1,

@@ -20,6 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # and 6.2 "From soma-contracts"; PR 13). crates/soma/contracts itself was
 # deleted in PR 19 once every consumer was repointed at the new locations.
 ACTION_RS = ROOT / "crates/soma/domain/src/actions.rs"
+ACTION_MODULE_RS = {
+    "python": ROOT / "crates/soma/domain/src/actions_python.rs",
+}
 CONFIG_RS = ROOT / "crates/soma/config/src/config.rs"
 ENV_REGISTRY_RS = ROOT / "crates/soma/config/src/env_registry.rs"
 ENV_DOC = ROOT / "docs/ENV.md"
@@ -56,6 +59,7 @@ class Action:
     cost: str
     params: list[Param]
     returns: str
+    cli_usage: str | None
 
 
 @dataclass(frozen=True)
@@ -111,60 +115,118 @@ def option_string_field(block: str, field: str) -> str | None:
 
 
 def parse_params(text: str) -> dict[str, list[Param]]:
-    groups: dict[str, list[Param]] = {"&[]": []}
+    groups: dict[str, list[Param]] = {"[]": []}
     pattern = re.compile(r"const\s+(\w+_PARAMS):\s*&\[ParamSpec\]\s*=\s*&\[(.*?)\];", re.S)
-    for name, body in pattern.findall(text):
-        params = []
-        for block in re.findall(r"ParamSpec\s*\{(.*?)\}", body, re.S):
-            params.append(
-                Param(
-                    name=string_field(block, "name"),
-                    ty=param_type_field(block, "ty"),
-                    required=bool_field(block, "required"),
-                    description=string_field(block, "description"),
+    bodies = dict(pattern.findall(text))
+
+    def resolve(name: str, stack: tuple[str, ...] = ()) -> list[Param]:
+        if name in groups:
+            return groups[name]
+        if name in stack:
+            raise RuntimeError(f"cyclic ParamSpec group: {' -> '.join((*stack, name))}")
+        body = bodies.get(name)
+        if body is None:
+            raise RuntimeError(f"unknown ParamSpec group: {name}")
+
+        entries: list[tuple[int, Param]] = []
+        for match in re.finditer(r"ParamSpec\s*\{(.*?)\}", body, re.S):
+            block = match.group(1)
+            entries.append(
+                (
+                    match.start(),
+                    Param(
+                        name=string_field(block, "name"),
+                        ty=param_type_field(block, "ty"),
+                        required=bool_field(block, "required"),
+                        description=string_field(block, "description"),
+                    ),
                 )
             )
-        groups[name] = params
+        for match in re.finditer(r"(\w+_PARAMS)\[(\d+)\]", body):
+            referenced = resolve(match.group(1), (*stack, name))
+            index = int(match.group(2))
+            if index >= len(referenced):
+                raise RuntimeError(
+                    f"ParamSpec index {index} is out of range for {match.group(1)}"
+                )
+            entries.append((match.start(), referenced[index]))
+
+        groups[name] = [param for _, param in sorted(entries, key=lambda entry: entry[0])]
+        return groups[name]
+
+    for name in bodies:
+        resolve(name)
     return groups
+
+
+def parse_action(block: str, params: dict[str, list[Param]]) -> Action:
+    name = string_field(block, "name")
+    scope_expr = re.search(r"required_scope:\s*([^,\n]+)", block)
+    transport_expr = re.search(r"transport:\s*ActionTransport::(\w+)", block)
+    cost_expr = re.search(r"cost:\s*ActionCost::(\w+)", block)
+    params_expr = re.search(r"params:\s*([^,\n]+)", block)
+    if not (scope_expr and transport_expr and cost_expr and params_expr):
+        raise RuntimeError(f"incomplete ActionSpec for {name}")
+    scope_raw = scope_expr.group(1).strip()
+    if scope_raw == "None":
+        scope = None
+    elif scope_raw == "Some(READ_SCOPE)":
+        scope = "soma:read"
+    elif scope_raw == "Some(WRITE_SCOPE)":
+        scope = "soma:write"
+    else:
+        scope = "soma:__deny__"
+    param_key = params_expr.group(1).strip().removeprefix("&")
+    if param_key not in params:
+        raise RuntimeError(f"unknown ParamSpec group {param_key} for action {name}")
+    cli_usage_match = re.search(r'cli:\s*Some\(CliSpec\s*\{.*?usage:\s*"([^"]+)"', block, re.S)
+    if cli_usage_match is None:
+        cli_usage_match = re.search(r'cli:\s*cli\(\s*"[^"]+",\s*"([^"]+)"', block, re.S)
+    return Action(
+        name=name,
+        description=string_field(block, "description"),
+        scope=scope,
+        transport=transport_expr.group(1),
+        rest_method=option_string_field(block, "rest_method"),
+        rest_path=option_string_field(block, "rest_path"),
+        cost=cost_expr.group(1).lower(),
+        params=params[param_key],
+        returns=string_field(block, "returns"),
+        cli_usage=cli_usage_match.group(1) if cli_usage_match else None,
+    )
 
 
 def parse_actions() -> list[Action]:
     text = read(ACTION_RS)
-    params = parse_params(text)
     action_block = text.split("pub const ACTION_SPECS", 1)[1].split("];", 1)[0]
-    actions = []
-    for block in re.findall(r"ActionSpec\s*\{(.*?)\}", action_block, re.S):
-        name = string_field(block, "name")
-        scope_expr = re.search(r"required_scope:\s*([^,\n]+)", block)
-        transport_expr = re.search(r"transport:\s*ActionTransport::(\w+)", block)
-        cost_expr = re.search(r"cost:\s*ActionCost::(\w+)", block)
-        params_expr = re.search(r"params:\s*([^,\n]+)", block)
-        if not (scope_expr and transport_expr and cost_expr and params_expr):
-            raise RuntimeError(f"incomplete ActionSpec for {name}")
-        scope_raw = scope_expr.group(1).strip()
-        if scope_raw == "None":
-            scope = None
-        elif scope_raw == "Some(READ_SCOPE)":
-            scope = "soma:read"
-        elif scope_raw == "Some(WRITE_SCOPE)":
-            scope = "soma:write"
-        else:
-            scope = "soma:__deny__"
-        param_key = params_expr.group(1).strip().removeprefix("&")
-        actions.append(
-            Action(
-                name=name,
-                description=string_field(block, "description"),
-                scope=scope,
-                transport=transport_expr.group(1),
-                rest_method=option_string_field(block, "rest_method"),
-                rest_path=option_string_field(block, "rest_path"),
-                cost=cost_expr.group(1).lower(),
-                params=params.get(param_key, []),
-                returns=string_field(block, "returns"),
+    entries: list[tuple[int, Action]] = []
+
+    params = parse_params(text)
+    for match in re.finditer(r"ActionSpec\s*\{(.*?)\}", action_block, re.S):
+        entries.append((match.start(), parse_action(match.group(1), params)))
+
+    module_actions: dict[str, dict[str, Action]] = {}
+    for module, path in ACTION_MODULE_RS.items():
+        module_text = read(path)
+        module_params = parse_params(module_text)
+        module_actions[module] = {
+            match.group(1): parse_action(match.group(2), module_params)
+            for match in re.finditer(
+                r"(?:pub\(super\)\s+)?const\s+(\w+):\s*ActionSpec\s*=\s*ActionSpec\s*\{(.*?)\};",
+                module_text,
+                re.S,
             )
-        )
-    return actions
+        }
+
+    for match in re.finditer(r"(?m)^\s*(\w+)::(\w+),\s*$", action_block):
+        module, constant = match.groups()
+        try:
+            action = module_actions[module][constant]
+        except KeyError as error:
+            raise RuntimeError(f"unresolved ActionSpec reference: {module}::{constant}") from error
+        entries.append((match.start(), action))
+
+    return [action for _, action in sorted(entries, key=lambda entry: entry[0])]
 
 
 def split_args(call: str) -> list[str]:
@@ -692,7 +754,14 @@ def ts_value(value: object, indent: int = 0, key: str | None = None) -> str:
 def action_example(action: Action) -> dict[str, object]:
     params: dict[str, object] = {}
     for param in action.params:
-        params[param.name] = "Alice" if param.name == "name" else "Hello!"
+        if param.name == "name":
+            params[param.name] = "Alice"
+        elif param.ty == "integer":
+            params[param.name] = 100
+        elif param.ty == "boolean":
+            params[param.name] = True
+        else:
+            params[param.name] = "Hello!"
     return {"action": action.name, "params": params}
 
 
@@ -729,8 +798,26 @@ def render_web_actions() -> str:
                     {
                         "name": param.name,
                         "label": param.name.replace("_", " ").title(),
-                        "type": "text",
-                        "placeholder": "Alice" if param.name == "name" else "Hello!",
+                        "type": (
+                            "number"
+                            if param.ty in {"integer", "number"}
+                            else "checkbox"
+                            if param.ty == "boolean"
+                            else "text"
+                        ),
+                        **(
+                            {
+                                "placeholder": (
+                                    "Alice"
+                                    if param.name == "name"
+                                    else "100"
+                                    if param.ty in {"integer", "number"}
+                                    else "Hello!"
+                                )
+                            }
+                            if param.ty != "boolean"
+                            else {}
+                        ),
                         "required": param.required,
                         "description": param.description,
                     }
@@ -938,15 +1025,11 @@ def params_summary(action: Action) -> str:
 
 
 def cli_command(action: Action) -> str:
-    commands = {
-        "greet": "soma greet [--name N]",
-        "echo": "soma echo --message <msg>",
-        "status": "soma status",
-        "help": "soma --help",
-    }
     if action.transport != "Any":
         return "_MCP-only_"
-    return commands.get(action.name, f"soma {action.name.replace('_', '-')}")
+    if action.cli_usage is None:
+        raise RuntimeError(f"REST action {action.name} is missing its canonical CLI usage")
+    return action.cli_usage
 
 
 def action_table_markdown() -> str:

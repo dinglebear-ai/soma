@@ -55,7 +55,7 @@ walkdir = "2"
 # codex-schema: exact port of build_combined_schema.py's tokenization regex
 # `[A-Z]?[a-z0-9]+|[A-Z]+(?=[A-Z]|$)`, which needs lookahead the `regex`
 # crate doesn't support.
-fancy-regex = "0.18"
+fancy-regex = "0.19"
 # codex-schema bisect: programmatically drives typify (same version/feature
 # flags as crates/shared/codex-app-server-client/build.rs) to detect the specific
 # typify-0.7.0 merge.rs panic while binary-searching for the culprit schema.

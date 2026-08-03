@@ -78,7 +78,10 @@ fn canonical_json(value: &Value, output: &mut String) {
 fn digest(value: &Value) -> String {
     let mut canonical = String::new();
     canonical_json(value, &mut canonical);
-    format!("{:x}", Sha256::digest(canonical.as_bytes()))
+    Sha256::digest(canonical.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn count_field(operations: &[Value], field: &str) -> BTreeMap<String, usize> {

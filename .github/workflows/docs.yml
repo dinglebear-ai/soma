@@ -9,10 +9,10 @@
 # `pages: write` / `id-token: write` permissions stay scoped to this file
 # only. ci.yml retains the tighter `contents: read`.
 #
-# Branch-protection note (this is a private repo): the `rustdoc` job is
-# path-skipped for non-Rust changes. Require the aggregate `Docs` status
-# check rather than this individual job — same pattern as the `CI Gate` /
-# `MSRV Gate` aggregates documented in CLAUDE.md.
+# Branch-protection note: this workflow is path-filtered and has no
+# always-present aggregate job. Do not require the individual `Build rustdoc`
+# job or a nonexistent `Docs` context. The required `CI Gate` runs the same
+# strict rustdoc check through `cargo xtask ci`.
 # =============================================================================
 
 name: Docs
