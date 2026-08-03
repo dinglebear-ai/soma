@@ -8,7 +8,10 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+mod build_context;
 mod compose;
+mod compose_build;
+mod compose_build_engine;
 mod compose_mutation;
 mod compose_parse;
 mod compose_pull;
@@ -27,6 +30,8 @@ mod host;
 mod host_system;
 #[cfg(feature = "process-driver")]
 mod host_system_parse;
+mod image_build;
+mod image_build_engine;
 mod image_pull;
 mod image_pull_engine;
 mod logs;
@@ -50,7 +55,11 @@ mod docker_map;
 #[cfg(all(feature = "linux-filesystem", target_os = "linux"))]
 mod linux_filesystem;
 #[cfg(feature = "process-driver")]
+mod process_build_context;
+#[cfg(feature = "process-driver")]
 mod process_compose;
+#[cfg(feature = "process-driver")]
+mod process_compose_build;
 #[cfg(feature = "process-driver")]
 mod process_compose_mutation;
 #[cfg(feature = "process-driver")]
@@ -59,6 +68,8 @@ mod process_compose_pull;
 mod process_filesystem;
 #[cfg(feature = "process-driver")]
 mod process_host_system;
+#[cfg(feature = "process-driver")]
+mod process_image_build;
 #[cfg(feature = "process-driver")]
 mod process_logs;
 #[cfg(feature = "process-driver")]
@@ -70,10 +81,16 @@ mod process_zfs;
 pub use bollard_driver::BollardReadClient;
 #[cfg(feature = "remote-bollard")]
 pub use bollard_provider::BollardClientProvider;
+pub use build_context::{BuildContextFingerprint, BuildContextInspector, BuildContextPolicy};
 pub use compose::{
     ComposeConfig, ComposeInspector, ComposeLogRequest, ComposeLogs, ComposeProject,
     ComposeProjectRef, ComposeServiceConfig, ComposeServiceStatus, ComposeStatus,
 };
+pub use compose_build::{
+    ComposeBuildArtifact, ComposeBuildMutator, ComposeBuildOutcome, ComposeBuildReceipt,
+    ComposeBuildRequest, ComposeBuiltImage, resolve_compose_build_context,
+};
+pub use compose_build_engine::{ComposeBuildEngine, ComposeBuildServices};
 pub use compose_mutation::{
     ComposeMutationAction, ComposeMutationClient, ComposeMutationEngine, ComposeMutationOutcome,
     ComposeMutationReceipt, ComposeMutationRequest, ComposeMutator,
@@ -115,6 +132,8 @@ pub use host_system::{
     DoctorCheck, DoctorReport, FilesystemUsage, HostSystemInspector, MountInfo, NetworkAddress,
     NetworkInterface, PortInfo, PortListRequest, PortProtocol, ServiceListRequest, ServiceStatus,
 };
+pub use image_build::{ImageBuildMutator, ImageBuildOutcome, ImageBuildReceipt, ImageBuildRequest};
+pub use image_build_engine::{ImageBuildEngine, ImageBuildServices};
 pub use image_pull::{
     DockerArtifactClient, DockerArtifactClientProvider, ImageIdentity, ImagePullMutator,
     ImagePullOutcome, ImagePullProgressFrame, ImagePullReceipt, ImagePullRequest,
@@ -130,11 +149,17 @@ pub use logs::{
 pub use mutation::{MutationFailure, MutationResult, MutationVerification};
 pub use process::{ProcessInspector, ProcessListRequest, ProcessRow, ProcessSnapshot, ProcessSort};
 #[cfg(feature = "process-driver")]
+pub use process_build_context::CommandBuildContextInspector;
+#[cfg(feature = "process-driver")]
 pub use process_compose::CommandComposeInspector;
+#[cfg(feature = "process-driver")]
+pub use process_compose_build::CommandComposeBuildMutator;
 #[cfg(feature = "process-driver")]
 pub use process_filesystem::CommandFilesystemQueryInspector;
 #[cfg(feature = "process-driver")]
 pub use process_host_system::CommandHostSystemInspector;
+#[cfg(feature = "process-driver")]
+pub use process_image_build::CommandImageBuildMutator;
 #[cfg(feature = "process-driver")]
 pub use process_logs::CommandLogReader;
 #[cfg(feature = "process-driver")]

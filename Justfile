@@ -283,7 +283,7 @@ synapse-canonical-read-check:
     cargo test -p soma-infra --all-features
     cargo test -p synapse-application
 
-# Validate canonical reads, verified lifecycle mutations, and artifact pulls
+# Validate canonical reads, verified lifecycle, pull, and build mutations
 synapse-mutation-check:
     cargo test -p soma-infra --all-features
     cargo test -p synapse-application

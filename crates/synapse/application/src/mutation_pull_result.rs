@@ -178,7 +178,7 @@ impl SynapseMutationRuntime {
     }
 }
 
-fn add_image_evidence(
+pub(crate) fn add_image_evidence(
     result: OperationResult,
     host: &str,
     image: &ImageIdentity,
@@ -196,7 +196,7 @@ fn add_image_evidence(
         .with_evidence(EvidenceRef::new("runtime_state", uri)?))
 }
 
-fn verification_diagnostic(
+pub(crate) fn verification_diagnostic(
     status: VerificationStatus,
     message: String,
     next_action: &str,

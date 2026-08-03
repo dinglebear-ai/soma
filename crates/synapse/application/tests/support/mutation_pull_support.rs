@@ -226,6 +226,7 @@ pub(crate) fn runtime(
             Arc::new(FakeArtifactProvider(client)) as Arc<dyn DockerArtifactClientProvider>
         }),
         compose_pull: compose.map(|client| client as Arc<dyn ComposePullClient>),
+        builds: None,
     })
 }
 
