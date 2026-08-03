@@ -37,7 +37,7 @@ fn workflow_job_block(workflow: &str, job_name: &str) -> String {
 #[test]
 fn shared_workflow_callers_use_approved_reachable_revisions() {
     const WORKFLOW_PREFIX: &str = "dinglebear-ai/workflows/.github/workflows/";
-    const FLEET_REVISION: &str = "d1a41a7af9c41189e0f1062234364f5814bda99d";
+    const FLEET_REVISION: &str = "ac57c3208cf92d71c5971bb936df51c400cb1ccf";
     // npm publication needs token-mode support added after the fleet revision.
     const NPM_PUBLISH_REVISION: &str = "64d705af6e164aac58d507df6fb2f6bdc8a4d22d";
     // Native wheels need platform-specific cibuildwheel architecture names.
@@ -290,7 +290,7 @@ fn artifact_workflows_run_from_published_releases() {
         "the product-specific MCP Registry publication must remain in Soma"
     );
     assert!(
-        docker.contains("hosted-container-release.yml@d1a41a7af9c41189e0f1062234364f5814bda99d"),
+        docker.contains("hosted-container-release.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf"),
         "container publication must use the pinned fleet workflow"
     );
 }
