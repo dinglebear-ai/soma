@@ -41,7 +41,7 @@ soma-provider-core = { workspace = true }
 thiserror = "2"
 toml = "1.1"
 tracing = "0.1"
-getrandom = { version = "0.3", optional = true }
+getrandom = { version = "0.4", optional = true }
 tempfile = { version = "3", optional = true }
 
 # ai-sdk / python / sidecar / wasm

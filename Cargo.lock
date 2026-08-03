@@ -6192,7 +6192,7 @@ dependencies = [
  "atomicwrites",
  "base64 0.22.1",
  "fs2",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "libseccomp",
  "nix",
  "pep440_rs",
