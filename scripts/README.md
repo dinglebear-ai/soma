@@ -44,6 +44,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `bump-version.sh` | Bash wrapper | `cargo xtask bump-version soma <major|minor|patch>` | Thin wrapper for the xtask version bumper. |
 | `check-version-sync.sh` | Bash wrapper | `cargo xtask check-version-sync` | Thin wrapper for the xtask manifest-backed version sync gate. |
 | `check-dependency-updates.sh` | Bash wrapper | `cargo xtask check-dependency-updates`, `just deps-check` | Delegates to xtask for a read-only dependency drift report using `cargo update --dry-run` plus optional crates.io latest-version checks. |
+| `check-python-platform-policy.py` | Python policy gate | `cargo xtask check-docs`, CI | Verifies the Python provider remains x86_64-only across Linux, macOS, and Windows and that its release workflow pins the approved OIDC PyPI publisher, provenance, SBOM, checksum, and recovery contracts. |
 | `check-blob-size.py` | Python wrapper | `cargo xtask check-blob-size`, `just blob-size-check`, CI | Delegates to xtask to block changed git blobs above the configured size budget unless allowlisted. |
 | `blob-size-allowlist.txt` | Data | used by `check-blob-size.py` | Allowlist patterns for intentional large artifacts. |
 
@@ -324,6 +325,18 @@ Generates `docs/generated/openapi.json` for Soma REST API surface:
 
 The version comes from `Cargo.toml`. The REST action enum is derived from
 `crates/soma/domain/src/actions.rs`, excluding MCP-only actions.
+
+### `check-python-platform-policy.py`
+
+```bash
+python3 scripts/check-python-platform-policy.py
+```
+
+Validates the Python provider's release policy across packaging metadata,
+workflows, and documentation. The gate requires x86_64 wheels for Linux,
+macOS, and Windows; rejects ARM/AArch64/QEMU release contracts; and keeps the
+approved OIDC PyPI publisher SHA aligned with `.github/workflows/python-wheels.yml`
+alongside provenance, SBOM, checksum, and immutable-tag recovery requirements.
 
 ### `check-readme-guide.py`
 
