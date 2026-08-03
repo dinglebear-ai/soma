@@ -13,77 +13,77 @@ status: implemented
 
 ## Purpose
 
-`soma-infra` owns typed infrastructure semantics above `soma-fleet`. It converts bounded host and Docker transports into stable host, Docker, Compose, and filesystem read models.
+`soma-infra` owns typed infrastructure semantics above `soma-fleet`. It converts bounded local, SSH, Docker, Compose, filesystem, process, log, and ZFS transports into stable models and verified mutation outcomes.
 
-It does not own product configuration, environment loading, authorization scopes, Flux/Scout routing, CLI/MCP/REST formatting, or operation policy.
+It does not own product configuration, environment loading, authorization scopes, Flux/Scout routing, confirmation UX, or CLI/MCP/REST formatting.
 
 ## Dependencies
 
 Required internal dependencies:
 
-- `soma-ops` for cross-process timestamps and operation vocabulary;
-- `soma-fleet` for host identity, topology revision, cancellation, and command execution.
+- `soma-ops` for timestamps, mutation send state, and verification vocabulary;
+- `soma-fleet` for host identity, topology revision, cancellation, command execution, strict SSH, and forwarding.
 
 Optional external drivers:
 
-- Bollard for local Docker reads;
-- strict OpenSSH Unix-socket forwarding for remote Docker reads;
+- Bollard for local and forwarded Docker access;
+- strict OpenSSH Unix-socket forwarding for remote Docker access;
 - Rustix `openat2` for Linux descriptor-confined filesystem access.
 
-## Public contracts
+## Read contracts
 
-### Host
+### Host and operating system
 
-- `HostInspectRequest`;
-- `HostInspection`;
-- `HostIdentity`;
-- `HostMemory`;
-- `HostLoadAverage`;
-- `HostInspector`;
-- `CommandHostInspector`.
+- `HostInspector` and `HostSystemInspector`;
+- identity, uptime, memory, load, services, interfaces, mounts, ports, filesystem usage, and doctor reports.
 
-### Docker
+### Docker and containers
 
-- `DockerSystemReader`;
-- `ContainerReader`;
-- `ImageReader`;
-- `NetworkReader`;
-- `VolumeReader`;
-- `DockerReadClient`;
-- `DockerTelemetryReader`;
-- neutral daemon, disk-usage, container, image, network, volume, log, and one-shot stats models;
-- optional `BollardReadClient`.
+- segregated system, container, image, network, volume, and telemetry readers;
+- local and strict-SSH `BollardReadClient` instances bound to exact host revisions;
+- bounded logs, one-shot statistics, disk usage, inspection, and process tables.
 
 ### Compose
 
-- `ComposeProjectRef`;
-- `ComposeProject`;
-- `ComposeStatus`;
-- `ComposeConfig`;
-- `ComposeLogRequest`;
-- `ComposeLogs`;
-- `ComposeInspector`;
-- optional `CommandComposeInspector`.
+- project discovery, status, configuration, and bounded logs;
+- `CommandComposeInspector` with discrete `docker compose` arguments.
 
-### Process, logs, and ZFS
+### Filesystem, processes, logs, and ZFS
 
-- `ProcessListRequest`, `ProcessSnapshot`, and `ProcessInspector`;
-- `LogReadRequest`, `JournalFilters`, `LogRead`, and `LogReader`;
-- `ZfsPoolRequest`, `ZfsDatasetRequest`, `ZfsSnapshotRequest`, `ZfsTable`, and `ZfsInspector`;
-- optional fleet-backed command drivers for each domain.
+- explicit read-root policies;
+- descriptor-confined stat, preview, hash, file, directory, tree, find, and tail operations;
+- typed process snapshots;
+- validated syslog, journal, kernel, and authentication-log reads;
+- ZFS pool, dataset, and snapshot tables.
 
-### Filesystem
+## Mutation contracts
 
-- `FileReadPolicy`;
-- `FileMetadata`;
-- `FilePreview`;
-- `FileHash`;
-- `FilesystemInspector`;
-- optional `LinuxFilesystemInspector`.
+### Common mutation semantics
+
+- `MutationFailure` preserves `MutationSendState` and the underlying infrastructure error;
+- `MutationVerificationPolicy` bounds verification attempts and delays;
+- cancellation or timeout before a backend call is `NotSent`;
+- cancellation, timeout, or connection failure after the send boundary is conservatively `Unknown` unless the backend response proves `Sent`;
+- backend acceptance and postcondition verification remain separate facts.
+
+### Container lifecycle
+
+- `ContainerLifecycleMutator` and `ContainerLifecycleEngine`;
+- start, stop, restart, pause, and resume;
+- exact host/revision-bound local or remote Bollard clients;
+- already-satisfied states produce verified no-op outcomes;
+- independent `container.inspect` reads verify the requested runtime state.
+
+### Compose lifecycle
+
+- `ComposeMutator` and `ComposeMutationEngine`;
+- `compose up -d` and `compose restart`;
+- shell-free process-backed commands;
+- independent Compose status reads verify a nonempty service set in running, healthy, zero-exit state.
 
 ## Security properties
 
-1. Every result is bound to a host and topology revision.
+1. Every target-specific model is bound to a host and exact topology revision.
 2. Host and Compose commands use discrete argv values through `soma-fleet`.
 3. Compose project and service identifiers are bounded and validated before spawn.
 4. Linux filesystem reads use `openat2` with `BENEATH`, `NO_SYMLINKS`, and `NO_MAGICLINKS`.
@@ -100,35 +100,33 @@ Optional external drivers:
 15. Journal unit and time values reject option smuggling before argv construction.
 16. Process sorting and ZFS dataset types are allowlisted.
 17. dmesg permission failures return structured operator guidance.
-18. No mutation operation is exposed by this slice.
+18. Product authorization is deliberately absent from this shared crate.
+19. Mutation drivers preserve whether a backend call was not sent, sent, or uncertain.
+20. A successful backend response is not promoted to mutation success until a separate read verifies the postcondition.
+21. Destructive operations, arbitrary command execution, file transfer, image deletion, pruning, and Compose down remain outside this slice.
 
-## Initial donor disposition
+## Current Synapse adoption
 
-This slice begins extraction of:
+The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. The first mutation slice additionally delegates seven of the 21 canonical mutations:
 
-- `flux_service/host*`;
-- read-only `docker_client` and `flux_service` Docker paths;
-- `flux_service/compose*` read paths;
-- `secure_path.rs` and Scout filesystem reads;
-- container logs/stats and Docker data-usage reads;
-- Compose log reads;
-- Scout process, operating-system log, and ZFS reads.
+- `container.start`;
+- `container.stop`;
+- `container.restart`;
+- `container.pause`;
+- `container.resume`;
+- `compose.up`;
+- `compose.restart`.
 
-The imported donor remains unchanged as historical source material. The canonical Synapse read runtime now delegates all 35 read operations to `soma-fleet` and `soma-infra`; no legacy result projection is retained. Mutations remain the next execution layer.
+Fourteen canonical mutations remain fail-closed until later slices add their operation-specific planning, send-state, verification, and recovery semantics.
 
 ## Verification
 
 Required gates:
 
 - default and all-feature unit tests;
-- process-backed host and Compose conformance;
-- Docker SDK-shaped mapper fixtures;
-- filesystem traversal and symlink rejection;
-- preview truncation and hash ceiling tests;
-- cancellation and non-zero command failure tests;
-- process/ZFS parser and discrete-argv tests;
-- journal option-smuggling and file-fallback tests;
-- Docker usage/stat mapper and one-shot telemetry tests;
 - strict Clippy and warning-free rustdoc;
-- workspace sibling and architecture checks;
-- no product or surface dependency leakage.
+- lifecycle no-op, sent, unknown, cancelled, timeout, and failed-verification tests;
+- Compose discrete-argv and nonzero-exit tests;
+- stale-host and revision-bound client tests;
+- filesystem traversal and symlink rejection;
+- workspace sibling, architecture, pattern, and product-leakage checks.

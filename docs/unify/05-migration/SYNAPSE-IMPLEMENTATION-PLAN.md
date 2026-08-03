@@ -188,7 +188,7 @@ Implementation record: the first `soma-infra` slice defines neutral read-only ho
 
 The read-expansion slice adds Docker disk usage, one-shot bounded container logs and statistics, Compose logs, typed process snapshots, validated syslog/journal/dmesg/auth reads, and structured ZFS pool, dataset, and snapshot tables. Command-backed reads preserve discrete argv, local filtering, cancellation, byte ceilings, allowlisted process sorts and ZFS types, journal option-smuggling defenses, and structured dmesg permission diagnostics.
 
-The canonical-cutover slice completes remote Docker composition, descriptor-confined local/remote file, tree, find, and tail queries, remaining host-system reads, and container process tables. `SynapseReadRuntime` executes all 35 read operations through typed ports and validates every result against the checked-in canonical result schema. The legacy result projector is deleted. The remaining 24 operations are mutations and fail closed until the mutation framework is implemented.
+The canonical-cutover slice completes remote Docker composition, descriptor-confined local/remote file, tree, find, and tail queries, remaining host-system reads, and container process tables. `SynapseReadRuntime` executes all 35 read operations through typed ports and validates every result against the checked-in canonical result schema. The legacy result projector is deleted. The catalog contains 21 mutation operations, all of which fail closed until an operation-specific mutation path is implemented.
 
 ### PR 7: mutation framework and infrastructure mutations
 
@@ -220,6 +220,8 @@ Migration order:
 Destructive and privileged operations require plans and cannot be exposed by embedded Soma until product policy explicitly enables them.
 
 Exit: each mutation has plan, authorization, send-state, verification, cancellation, and failure-injection tests, including the case where the backend succeeded but verification or event delivery failed.
+
+Implementation record: the mutation-foundation slice reuses `soma-ops` deterministic plans, authorization evidence, idempotency, send-state, retry, and verification contracts. `soma-infra` adds conservative mutation failures plus bounded postcondition coordinators. Synapse now plans and executes seven operations: container start, stop, restart, pause, and resume, plus Compose up and restart. Plans bind operation identity, target, topology revision, verification strategy, rollback guidance, authorization expiry, confirmation, and idempotency where declared. Container outcomes verify with `container.inspect`; Compose outcomes verify with `compose.status`. Cancellation and timeout before send are `NotSent`; uncertainty after the send boundary remains `Unknown`; backend acceptance without a verified postcondition is a failed terminal result. Fourteen mutations remain fail-closed. Operation-event delivery, destructive operations, exec, transfer, image deletion, prune, Compose down/recreate, build/pull, and other privileged actions remain later slices.
 
 ### PR 8: standalone Synapse cutover
 
