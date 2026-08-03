@@ -1,0 +1,40 @@
+use super::*;
+
+#[test]
+fn log_options_validate_bounds_streams_and_time_order() {
+    let options = ContainerLogOptions::default()
+        .with_lines(250)
+        .unwrap()
+        .with_stream(DockerLogStream::Stderr)
+        .with_since(100)
+        .unwrap()
+        .with_until(200)
+        .unwrap()
+        .with_grep("error")
+        .unwrap();
+    assert_eq!(options.lines(), 250);
+    assert_eq!(options.stream(), DockerLogStream::Stderr);
+    assert_eq!(options.since_unix_seconds(), Some(100));
+    assert_eq!(options.until_unix_seconds(), Some(200));
+    assert_eq!(options.grep(), Some("error"));
+    assert!(ContainerLogOptions::default().with_lines(0).is_err());
+    assert!(ContainerLogOptions::default().with_lines(5001).is_err());
+    assert!(
+        ContainerLogOptions::default()
+            .with_grep("bad\0grep")
+            .is_err()
+    );
+    assert!(
+        ContainerLogOptions::default()
+            .with_since(200)
+            .unwrap()
+            .with_until(100)
+            .is_err()
+    );
+}
+
+#[test]
+fn usage_categories_default_to_zero() {
+    assert_eq!(DockerUsageCategory::default().count, 0);
+    assert_eq!(DockerUsageCategory::default().size_bytes, 0);
+}

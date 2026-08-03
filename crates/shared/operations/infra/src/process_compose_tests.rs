@@ -30,6 +30,7 @@ impl CommandExecutor for MockExecutor {
             args if args.iter().any(|value| value == "config") => {
                 r#"{"services":{"api":{"image":"soma:latest"}},"networks":{},"volumes":{}}"#
             }
+            args if args.iter().any(|value| value == "logs") => "api | ready\napi | serving\n",
             _ => panic!("unexpected args: {:?}", request.args()),
         };
         Ok(CommandOutput::new(
@@ -81,6 +82,23 @@ async fn driver_uses_discrete_compose_arguments_and_parses_results() {
         .unwrap();
     assert_eq!(config.services["api"].image.as_deref(), Some("soma:latest"));
 
+    let logs = inspector
+        .logs(
+            &host(),
+            &project,
+            &ComposeLogRequest::new(deadline())
+                .with_lines(25)
+                .unwrap()
+                .with_since("-1h")
+                .unwrap()
+                .with_service("api")
+                .unwrap(),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(logs.lines, vec!["api | ready", "api | serving"]);
+
     let calls = executor.calls.lock().unwrap();
     assert_eq!(
         calls[1],
@@ -108,6 +126,24 @@ async fn driver_uses_discrete_compose_arguments_and_parses_results() {
             "config",
             "--format",
             "json"
+        ]
+    );
+    assert_eq!(
+        calls[3],
+        vec![
+            "compose",
+            "-f",
+            "/srv/soma/compose.yaml",
+            "--project-name",
+            "soma",
+            "logs",
+            "--no-color",
+            "--tail",
+            "25",
+            "--since",
+            "-1h",
+            "--",
+            "api",
         ]
     );
 }

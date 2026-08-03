@@ -182,7 +182,9 @@ For each slice:
 
 Exit: standalone Synapse delegates every migrated read to `soma-infra`, and embedded Soma can execute the same read through an operations port without importing Synapse.
 
-Implementation record: the first `soma-infra` slice now defines neutral read-only host, Docker, Compose, and filesystem contracts. Host and Compose reads execute through `soma-fleet` with discrete argv and bounded output. The optional Bollard adapter is local-only, bound to one host topology revision, and maps generated SDK models into stable neutral types. Linux filesystem stat, preview, and SHA-256 hashing reuse the donor's `openat2` confinement with explicit roots, `BENEATH`, `NO_SYMLINKS`, `NO_MAGICLINKS`, preview limits, and hash ceilings. Mutations, streaming logs/stats, process/log/ZFS reads, remote Docker composition, and Synapse cutover remain outside this PR.
+Implementation record: the first `soma-infra` slice defines neutral read-only host, Docker, Compose, and filesystem contracts. Host and Compose reads execute through `soma-fleet` with discrete argv and bounded output. The optional Bollard adapter is local-only, bound to one host topology revision, and maps generated SDK models into stable neutral types. Linux filesystem stat, preview, and SHA-256 hashing reuse the donor's `openat2` confinement with explicit roots, `BENEATH`, `NO_SYMLINKS`, `NO_MAGICLINKS`, preview limits, and hash ceilings.
+
+The read-expansion slice adds Docker disk usage, one-shot bounded container logs and statistics, Compose logs, typed process snapshots, validated syslog/journal/dmesg/auth reads, and structured ZFS pool, dataset, and snapshot tables. Command-backed reads preserve discrete argv, local filtering, cancellation, byte ceilings, allowlisted process sorts and ZFS types, journal option-smuggling defenses, and structured dmesg permission diagnostics. Mutations, continuous streaming, filesystem list/tail, remote Docker composition, donor differential projection, and Synapse cutover remain outside this PR.
 
 ### PR 7: mutation framework and infrastructure mutations
 

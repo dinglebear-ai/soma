@@ -302,12 +302,22 @@ pub trait VolumeReader: Send + Sync {
 
 /// Complete neutral Docker read surface.
 pub trait DockerReadClient:
-    DockerSystemReader + ContainerReader + ImageReader + NetworkReader + VolumeReader
+    DockerSystemReader
+    + ContainerReader
+    + ImageReader
+    + NetworkReader
+    + VolumeReader
+    + crate::DockerTelemetryReader
 {
 }
 
 impl<T> DockerReadClient for T where
-    T: DockerSystemReader + ContainerReader + ImageReader + NetworkReader + VolumeReader
+    T: DockerSystemReader
+        + ContainerReader
+        + ImageReader
+        + NetworkReader
+        + VolumeReader
+        + crate::DockerTelemetryReader
 {
 }
 

@@ -6016,6 +6016,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bollard",
+ "futures-util",
  "rustix 1.1.4",
  "serde",
  "serde_json",

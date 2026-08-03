@@ -5,7 +5,7 @@
 ## Current read surface
 
 - Linux host identity, uptime, memory, and load through a fleet command executor;
-- Docker daemon, container, image, network, and volume reads through segregated traits;
+- Docker daemon, disk-usage, container, image, network, volume, logs, and one-shot stats reads through segregated traits;
 - optional local Bollard driver bound to one host topology revision;
 - Compose project listing, status, and normalized configuration through discrete `docker compose` arguments;
 - Linux filesystem stat, bounded preview, and SHA-256 hashing through descriptor-confined `openat2`.

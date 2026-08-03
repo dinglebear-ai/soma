@@ -1,0 +1,70 @@
+use super::*;
+
+#[test]
+fn requests_validate_line_counts_grep_and_journal_filters() {
+    let deadline = Timestamp::from_unix_millis(100);
+    assert!(
+        LogReadRequest::new(LogSource::Syslog, deadline)
+            .with_lines(0)
+            .is_err()
+    );
+    assert!(
+        LogReadRequest::new(LogSource::Syslog, deadline)
+            .with_lines(501)
+            .is_err()
+    );
+    assert!(
+        LogReadRequest::new(LogSource::Syslog, deadline)
+            .with_grep("bad\0grep")
+            .is_err()
+    );
+
+    let filters = JournalFilters::default()
+        .with_unit("soma.service")
+        .unwrap()
+        .with_priority(JournalPriority::Warning)
+        .with_since("-1h")
+        .unwrap()
+        .with_until("2026-08-01 19:00:00")
+        .unwrap();
+    let request = LogReadRequest::new(LogSource::Journal, deadline)
+        .with_journal_filters(filters)
+        .unwrap();
+    assert_eq!(request.journal().unit(), Some("soma.service"));
+    assert_eq!(request.journal().priority(), Some(JournalPriority::Warning));
+    assert_eq!(request.journal().priority().unwrap().as_arg(), "warning");
+    assert!(JournalFilters::default().with_unit("--boot").is_err());
+    assert!(
+        JournalFilters::default()
+            .with_since("--output=json")
+            .is_err()
+    );
+    assert!(
+        LogReadRequest::new(LogSource::Syslog, deadline)
+            .with_journal_filters(JournalFilters::default())
+            .is_err()
+    );
+}
+
+#[test]
+fn filtered_tail_applies_grep_before_tail_and_reports_truncation() {
+    let raw = "one info
+two error
+three info
+four error
+";
+    let (lines, truncated) = filtered_tail(raw, Some("error"), 1);
+    assert_eq!(lines, vec!["four error"]);
+    assert!(truncated);
+
+    let (lines, truncated) = filtered_tail(raw, None, 10);
+    assert_eq!(lines.len(), 4);
+    assert!(!truncated);
+}
+
+#[test]
+fn relative_times_allow_negative_numeric_forms_only() {
+    assert!(JournalFilters::default().with_since("-30m").is_ok());
+    assert!(JournalFilters::default().with_since("-boot").is_err());
+    assert!(JournalFilters::default().with_since("").is_err());
+}

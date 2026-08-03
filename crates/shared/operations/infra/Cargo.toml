@@ -19,12 +19,13 @@ layer = "shared"
 [features]
 default = []
 process-driver = ["tokio/io-util", "tokio/process"]
-bollard-driver = ["dep:bollard"]
+bollard-driver = ["dep:bollard", "dep:futures-util"]
 linux-filesystem = ["dep:rustix"]
 
 [dependencies]
 async-trait = "0.1"
 bollard = { version = "0.21", optional = true }
+futures-util = { version = "0.3", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
