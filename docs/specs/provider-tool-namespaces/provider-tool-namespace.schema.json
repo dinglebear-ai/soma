@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dinglebear.ai/schemas/provider-tool-namespace.schema.json",
+  "title": "Soma Provider Tool Namespace Models",
+  "description": "Canonical provider/tool identity, invocation, result, confirmation, and error models.",
+  "oneOf": [
+    { "$ref": "#/$defs/providerToolId" },
+    { "$ref": "#/$defs/invocation" },
+    { "$ref": "#/$defs/result" },
+    { "$ref": "#/$defs/confirmationProof" },
+    { "$ref": "#/$defs/providerToolError" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z](?:[a-z0-9]|[-_][a-z0-9])*$",
+      "minLength": 1
+    },
+    "providerToolId": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tool"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tool", "params"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" },
+        "params": { "type": "object" }
+      }
+    },
+    "progressEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current"],
+      "properties": {
+        "current": { "type": "integer", "minimum": 0 },
+        "total": { "type": ["integer", "null"], "minimum": 0 },
+        "message": { "type": ["string", "null"], "maxLength": 1024 }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tool", "output", "request_id", "progress"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" },
+        "output": true,
+        "request_id": { "type": "string", "minLength": 1 },
+        "progress": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/progressEvent" },
+          "maxItems": 256
+        }
+      }
+    },
+    "confirmationProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "tool",
+        "snapshot_id",
+        "destructive",
+        "confirmed"
+      ],
+      "properties": {
+        "provider": { "$ref": "#/$defs/identifier" },
+        "tool": { "$ref": "#/$defs/identifier" },
+        "snapshot_id": { "type": "string", "minLength": 1 },
+        "destructive": { "type": "boolean" },
+        "confirmed": { "type": "boolean" }
+      }
+    },
+    "providerToolError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schema_version", "code", "message", "retryable"],
+      "properties": {
+        "kind": { "const": "provider_tool_error" },
+        "schema_version": { "const": 1 },
+        "code": {
+          "enum": [
+            "invalid_provider_name",
+            "invalid_tool_name",
+            "reserved_provider_namespace",
+            "duplicate_provider_name",
+            "duplicate_provider_tool",
+            "duplicate_provider_cli_command",
+            "duplicate_rest_route",
+            "ambiguous_rest_route_shape",
+            "shadowed_rest_route",
+            "unknown_provider",
+            "unknown_provider_tool",
+            "unsupported_provider_manifest_version",
+            "provider_filename_mismatch",
+            "python_runtime_validation_required",
+            "stale_provider_confirmation"
+          ]
+        },
+        "provider": {
+          "oneOf": [
+            { "$ref": "#/$defs/identifier" },
+            { "type": "null" }
+          ]
+        },
+        "tool": {
+          "oneOf": [
+            { "$ref": "#/$defs/identifier" },
+            { "type": "null" }
+          ]
+        },
+        "action": {
+          "oneOf": [
+            { "$ref": "#/$defs/identifier" },
+            { "type": "null" }
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 },
+        "retryable": { "type": "boolean" },
+        "remediation": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": { "const": "unknown_provider" }
+            },
+            "required": ["code"]
+          },
+          "then": {
+            "required": ["provider"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "unknown_provider_tool",
+                  "stale_provider_confirmation"
+                ]
+              }
+            },
+            "required": ["code"]
+          },
+          "then": {
+            "required": ["provider", "tool"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": { "const": "stale_provider_confirmation" }
+            },
+            "required": ["code"]
+          },
+          "then": {
+            "properties": {
+              "retryable": { "const": true }
+            }
+          },
+          "else": {
+            "properties": {
+              "retryable": { "const": false }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
