@@ -138,7 +138,7 @@ jobs:
           MCP_REGISTRY_DOMAIN: ${{ vars.MCP_REGISTRY_DOMAIN }}
         run: |
           test -n "$MCP_PRIVATE_KEY"
-          test -n "$MCP_REGISTRY_DOMAIN"
+          test "$MCP_REGISTRY_DOMAIN" = dinglebear.ai
           ./mcp-publisher login dns \
             --domain "$MCP_REGISTRY_DOMAIN" \
             --private-key "$MCP_PRIVATE_KEY"
