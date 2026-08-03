@@ -54,7 +54,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 |---|---|---|---|
 | `check-schema-docs.py` | Python wrapper | `cargo xtask check-schema-docs`, `just schema-docs`, `just schema-docs-check`, CI | Delegates to xtask to generate/check `docs/MCP_SCHEMA.md` and related action references from the canonical action specs. |
 | `check-openapi.py` | Python wrapper | `cargo xtask check-openapi`, `just openapi`, `just openapi-check`, CI | Delegates to xtask to generate/check `docs/generated/openapi.json` for the REST API surface. |
-| `generate-docs.py` | Python | `cargo xtask generate-docs`, `cargo xtask check-docs`, CI | Generates/checks volatile docs and metadata from the service-owned `ACTION_SPECS`, `ENV_KEY_SPECS`, and typed config defaults, including immutable Python environment keys and examples. |
+| `generate-docs.py` | Python | `cargo xtask generate-docs`, `cargo xtask check-docs`, CI | Generates/checks volatile docs and metadata from the service-owned `ACTION_SPECS` (including modular Python lifecycle specs), `ENV_KEY_SPECS`, and typed config defaults. |
 | `check-stale-claims.py` | Python | `cargo xtask check-stale-claims`, CI | Fails when known stale hardcoded Soma claims reappear. |
 | `check-readme-guide.py` | Python | `python3 scripts/check-readme-guide.py README.md` | Audits RMCP READMEs against `docs/RMCP_README_GUIDE.md` structural invariants before fleet alignment. |
 | `check-scaffold-intent-contract.py` | Python wrapper | `cargo xtask check-scaffold-intent-contract`, `just scaffold-contract-check`, CI | Delegates to xtask to validate the scaffold intent JSON schema and checked-in examples without third-party packages. |
@@ -96,7 +96,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | File | Type | Entry points | What it does |
 |---|---|---|---|
 | `ci/changed_paths.py` | Python | `scripts/ci/pre_push.py`, future CI routing | Classifies changed paths into coarse categories such as rust, web, docker, MCP, release, security, and Soma; keep its path taxonomy in parity with `cargo xtask changed-paths`. |
-| `ci/pre_push.py` | Python | `lefthook` pre-push, `just pre-push`, `just pre-push-plan` | Runs a path-aware local pre-push plan. Full local validation is opt-in with `SOMA_FULL_PRE_PUSH=1` or `just pre-push-full`. |
+| `ci/pre_push.py` | Python | `lefthook` pre-push, `just pre-push`, `just pre-push-plan` | Runs a path-aware local pre-push plan. Full mode prepares and tests the Python SDK before nextest, matching hosted CI ordering; opt in with `SOMA_FULL_PRE_PUSH=1` or `just pre-push-full`. |
 | `with_timeout.sh` | Bash | `lefthook.yml` | Applies a wall-clock budget to local hook commands so one check cannot stall commits indefinitely. |
 | `check_lefthook_pre_commit_speed.py` | Python | `lefthook.yml`, `just lefthook-speed-check`, CI | Fails if the pre-commit stage grows workspace-scale cargo/test/build commands. |
 | `block-env-commits.sh` | Bash wrapper | `cargo xtask block-env-commits`, lefthook pre-commit | Delegates to xtask to prevent staged `.env*` secret files from being committed, except `.env.example`. |
@@ -376,6 +376,12 @@ Generates volatile docs and metadata from canonical Rust specs:
 - `apps/web/lib/generated-actions.ts`
 - `docs/generated/plugin-settings.md`
 - `docs/generated/scripts-index.md`
+
+The action parser expands module-qualified entries in `ACTION_SPECS`, currently
+the Python lifecycle constants in `actions_python.rs`, and resolves reused
+parameter groups in source order. Unresolved action or parameter references
+fail closed instead of silently disappearing from web, README, and plugin-skill
+output.
 
 The checker fails when any generated file drifts. Env var descriptions,
 defaults, and placeholders (including per-provider OAuth vars like

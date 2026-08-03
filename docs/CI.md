@@ -54,7 +54,6 @@ and `release`. The routing is intentionally conservative:
 - workflow changes (`.github/**`, `xtask/src/ci_paths.rs`,
   `xtask/src/main.rs`, or this doc) enable every key
 - `workflow_dispatch` and an empty changed-file set enable every key
-- Rust or web changes also enable native artifact checks
 - Rust changes, Docker/config/script changes, and web changes enable container smoke
 - low-risk Markdown docs, session notes, and agent-skill changes can skip secret scanning
 
@@ -65,19 +64,16 @@ intentionally skipped" into one predictable status. Soma is public, so verify
 the live settings through the branch-protection API. The strict required contexts
 are `Repository Contract`, `CI Gate`, and `MSRV Gate`.
 
-Path classifiers, aggregate gates, and Linux jobs use the self-hosted Unraid
-runner pool (`runs-on: [self-hosted, unraid]`, see `docs/LINUX-RUNNER.md`).
-The native Windows job uses GitHub-hosted Windows
-(`runs-on: windows-latest`, see `docs/WINDOWS-RUNNER.md`). Linux Rust builds
-route through kache and its shared filesystem remote; the native Windows
-job runs Cargo without a compile wrapper.
+Path classifiers, aggregate gates, and Linux Rust jobs use the self-hosted
+`ci-pool-rust` runner pool (see `docs/LINUX-RUNNER.md`) and route builds through
+kache. PR CI currently has no native Windows job; native artifacts are built by
+the release workflow on GitHub-hosted runners after a release is published.
 
 Self-hosted jobs, including `changes`, `ci-gate`, `MSRV Changes`, and
 `MSRV Gate`, use a same-repository job guard. Pushes, schedules, manual runs,
 and same-repo PRs can use the Unraid runners; fork PRs do not allocate them.
-The hosted Windows job still depends on the self-hosted `changes` and
-`frontend-assets` jobs, so add a complete GitHub-hosted fork fallback before
-accepting outside PRs that need CI feedback.
+Add a complete GitHub-hosted fork fallback before accepting outside PRs that
+need CI feedback.
 
 Jobs:
 - `changes`: classifies changed files into CI routing categories
@@ -86,11 +82,9 @@ Jobs:
 - `architecture`: `cargo xtask check-architecture`; runs beside clippy and nextest and is enforced by `CI Gate`
 - `clippy`: `cargo clippy -- -D warnings`
 - `test`: builds the stdio binary, runs `cargo nextest run --profile ci`, and uploads the JUnit report
-- `frontend-assets`: `pnpm install --frozen-lockfile`, `pnpm audit`, `pnpm lint`, `pnpm typecheck`, `pnpm build`
-- `build-linux`: native Linux release build, uploads `soma-linux-x86_64`
-- `build-windows`: native build and test on `windows-latest`, uploads `soma-windows-x86_64`
+- `frontend-assets`: frozen install, lint, typecheck, `pnpm test` (including action/OpenAPI parity), and `pnpm build`; package audit is disabled in this job
 - `mcp-smoke`: starts the HTTP MCP server and runs the mcporter smoke suite
-- `container-smoke`: validates compose files and builds the Docker image
+- `container-smoke`: builds the production image on hosted Ubuntu and proves a dropped-in Python provider works in the running container
 - `toml`: `taplo check`
 - `lefthook-speed`: keeps pre-commit hooks staged-only and fast
 - `soma`: generated docs, plugin layout, scaffold, release-version, blob, coupled-file, ASCII, and TypeScript REST client sync (`cargo xtask check-ts-client --check`) gates
@@ -98,13 +92,8 @@ Jobs:
 - `gitleaks`: secret scanning
 - `ci-gate`: single aggregate status for branch protection
 
-The Linux and Windows build jobs are PR-time artifact checks. They prove the
-binary compiles natively before a release tag exists and give reviewers a
-downloadable artifact for manual smoke testing.
-
-The Windows job builds on GitHub-hosted native Windows and sets explicit
-portable CPU flags so artifacts remain broadly compatible. See
-`docs/WINDOWS-RUNNER.md` for the hosted-runner flow and smoke process.
+Published releases build Linux and Windows artifacts on GitHub-hosted runners.
+See `docs/WINDOWS-RUNNER.md` for the release-runner flow and smoke process.
 
 ### `.github/workflows/msrv.yml`
 

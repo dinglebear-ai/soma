@@ -239,7 +239,7 @@ jobs:
       working-directory: apps/web
       lockfile-path: apps/web/pnpm-lock.yaml
       audit-command: ""
-      test-command: ""
+      test-command: pnpm test
       build-command: pnpm build
       timeout-minutes: 20
 

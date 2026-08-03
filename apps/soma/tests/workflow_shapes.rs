@@ -162,6 +162,17 @@ fn ci_runs_release_version_gate_before_merge() {
 }
 
 #[test]
+fn frontend_ci_runs_the_web_contract_tests() {
+    let workflow = include_str!("../../../.github/workflows/ci.yml");
+    let frontend = workflow_job_block(workflow, "frontend-assets");
+
+    assert!(
+        frontend.contains("test-command: pnpm test"),
+        "frontend CI must run the action and OpenAPI parity tests, not only build assets"
+    );
+}
+
+#[test]
 fn native_builds_are_release_only_and_github_hosted() {
     let ci = include_str!("../../../.github/workflows/ci.yml");
     let release = include_str!("../../../.github/workflows/release.yml");

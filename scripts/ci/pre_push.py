@@ -106,6 +106,12 @@ def command_plan(paths: list[str], categories: dict[str, bool], full: bool) -> l
         plan.append(("web-check", "pnpm -C apps/web validate"))
 
     if full:
+        plan.extend(
+            [
+                ("python-tests", "just test-python"),
+                ("python-package", "just test-python-package"),
+            ]
+        )
         plan.append(("full-nextest", "cargo nextest run --profile ci"))
     elif categories["rust"] or categories["mcp"]:
         plan.append(("focused-nextest", "cargo nextest run --profile ci --lib --bins --tests"))

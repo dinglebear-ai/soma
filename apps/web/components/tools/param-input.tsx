@@ -26,6 +26,18 @@ export function ParamInput({
   onChange,
   required,
 }: ParamInputProps) {
+  if (type === "checkbox") {
+    return (
+      <Input
+        id={id}
+        type="checkbox"
+        checked={value === "true"}
+        required={required}
+        onChange={(e) => onChange(String(e.target.checked))}
+      />
+    );
+  }
+
   return (
     <Input
       id={id}

@@ -16,7 +16,7 @@ export const WEB_APP_CONFIG = {
 export type ActionParam = {
   name: string;
   label: string;
-  type: "text" | "number";
+  type: "text" | "number" | "checkbox";
   placeholder?: string;
   required: boolean;
   description: string;
@@ -163,7 +163,12 @@ export function coerceParamValues(
   for (const param of action.params) {
     const value = paramValues[param.name];
     if (!value?.trim()) continue;
-    params[param.name] = param.type === "number" ? Number(value) : value.trim();
+    params[param.name] =
+      param.type === "number"
+        ? Number(value)
+        : param.type === "checkbox"
+          ? value === "true"
+          : value.trim();
   }
   return params;
 }
@@ -224,9 +229,10 @@ function paramsFromSchema(schema: unknown): ActionParam[] {
   });
 }
 
-function inputTypeFromSchema(schema: Record<string, unknown>): "text" | "number" {
+function inputTypeFromSchema(schema: Record<string, unknown>): "text" | "number" | "checkbox" {
   const type = Array.isArray(schema.type) ? schema.type[0] : schema.type;
-  return type === "integer" || type === "number" ? "number" : "text";
+  if (type === "integer" || type === "number") return "number";
+  return type === "boolean" ? "checkbox" : "text";
 }
 
 function placeholderFromSchema(schema: Record<string, unknown>): string | undefined {
