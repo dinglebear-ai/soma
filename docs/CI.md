@@ -61,10 +61,9 @@ and `release`. The routing is intentionally conservative:
 For branch protection, require stable aggregate gates (`CI Gate` and `MSRV Gate`)
 rather than individual path-skipped jobs. GitHub reports skipped jobs
 inconsistently as required checks; the aggregate gates turn "passed or
-intentionally skipped" into one predictable status. Branch-protection lookup is
-not available for this private repo without GitHub Pro or making the repo
-public, so treat the live repository settings as manual state and keep docs
-focused on the required check names.
+intentionally skipped" into one predictable status. Soma is public, so verify
+the live settings through the branch-protection API. The strict required contexts
+are `Repository Contract`, `CI Gate`, and `MSRV Gate`.
 
 Path classifiers, aggregate gates, and Linux jobs use the self-hosted Unraid
 runner pool (`runs-on: [self-hosted, unraid]`, see `docs/LINUX-RUNNER.md`).
@@ -241,9 +240,10 @@ Two jobs:
 Actions". Until that's set, the `pages` job will fail with a Pages-not-enabled
 error; the `rustdoc` build+gate still works on its own.
 
-**Branch protection:** this is a private repo and `rustdoc` is path-skipped,
-so require the aggregate `Docs` status check (not the individual job) — same
-pattern as the `CI Gate` / `MSRV Gate` aggregates.
+**Branch protection:** the standalone workflow is path-filtered and does not
+currently expose an always-present aggregate `Docs` job. Do not require the
+individual `Build rustdoc` job or a nonexistent `Docs` context. The required
+`CI Gate` includes the workspace's strict rustdoc gate through `cargo xtask ci`.
 
 Locally, the same gate is `just doc-check` (which runs `cargo xtask doc
 --strict`). `cargo xtask ci` includes it as step `[4/15]`.
