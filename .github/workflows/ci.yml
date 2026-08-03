@@ -89,7 +89,7 @@ jobs:
     name: Actionlint and ShellCheck
     needs: [changes]
     if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
+    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       actionlint-version: v1.7.12
       shell-globs: .github/scripts/**/*.sh
@@ -99,7 +99,7 @@ jobs:
     name: Fast Rust
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
+    uses: dinglebear-ai/workflows/.github/workflows/fast-rust.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       toolchain: "1.97.1"
       timeout-minutes: 35
@@ -232,7 +232,7 @@ jobs:
     name: Frontend checks
     needs: [changes]
     if: ${{ (needs.changes.outputs.web == 'true' || needs.changes.outputs.native == 'true' || needs.changes.outputs.mcp == 'true') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
+    uses: dinglebear-ai/workflows/.github/workflows/fast-pnpm.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       node-version: "22"
       pnpm-version: "10"
@@ -500,7 +500,7 @@ jobs:
     name: Cargo Deny
     needs: [changes]
     if: ${{ needs.changes.outputs.security == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@d1a41a7af9c41189e0f1062234364f5814bda99d
+    uses: dinglebear-ai/workflows/.github/workflows/rust-security.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
     with:
       toolchain: "1.97.1"
       cargo-deny-version: "0.19.8"
