@@ -177,6 +177,8 @@ fn mutation_runtime(hosts: Arc<MutableHosts>, client: Arc<FakeDocker>) -> Synaps
             hosts,
             docker: Arc::new(FakeProvider { client }),
             compose: None,
+            artifacts: None,
+            compose_pull: None,
         },
         soma_infra::ContainerLifecycleEngine::new(
             MutationVerificationPolicy::new(1, Duration::ZERO).unwrap(),

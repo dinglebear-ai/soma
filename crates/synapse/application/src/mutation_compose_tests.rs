@@ -178,6 +178,8 @@ fn runtime(compose: Option<Arc<dyn ComposeMutationClient>>) -> SynapseMutationRu
             hosts: Arc::new(StaticHosts(TopologySnapshot::new([host()]).unwrap())),
             docker: Arc::new(UnusedDocker),
             compose,
+            artifacts: None,
+            compose_pull: None,
         },
         ContainerLifecycleEngine::default(),
         ComposeMutationEngine::new(MutationVerificationPolicy::new(1, Duration::ZERO).unwrap()),

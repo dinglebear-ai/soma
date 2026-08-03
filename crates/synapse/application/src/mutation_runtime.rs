@@ -3,8 +3,9 @@ use std::sync::Arc;
 use serde_json::Value;
 use soma_fleet::{HostId, HostRecord, HostRepository};
 use soma_infra::{
-    ComposeMutationClient, ComposeMutationEngine, ContainerLifecycleAction,
-    ContainerLifecycleEngine, ContainerLifecycleRequest, DockerMutationClientProvider,
+    ComposeMutationClient, ComposeMutationEngine, ComposePullClient, ComposePullEngine,
+    ContainerLifecycleAction, ContainerLifecycleEngine, ContainerLifecycleRequest,
+    DockerArtifactClientProvider, DockerMutationClientProvider, ImagePullEngine,
 };
 use soma_ops::{
     AccessClass, AuthorizationEvidence, OperationContext, OperationName, OperationPlan, PlanStep,
@@ -23,8 +24,12 @@ pub struct SynapseMutationPorts {
     pub hosts: Arc<dyn HostRepository>,
     /// Host-bound Docker mutation client provider.
     pub docker: Arc<dyn DockerMutationClientProvider>,
-    /// Optional Compose mutation client.
+    /// Optional Compose lifecycle mutation client.
     pub compose: Option<Arc<dyn ComposeMutationClient>>,
+    /// Optional Docker artifact mutation client provider.
+    pub artifacts: Option<Arc<dyn DockerArtifactClientProvider>>,
+    /// Optional Compose artifact mutation client.
+    pub compose_pull: Option<Arc<dyn ComposePullClient>>,
 }
 
 /// Canonical Synapse mutation planner and executor.
@@ -33,6 +38,8 @@ pub struct SynapseMutationRuntime {
     pub(crate) ports: SynapseMutationPorts,
     lifecycle: ContainerLifecycleEngine,
     pub(crate) compose: ComposeMutationEngine,
+    pub(crate) image_pull: ImagePullEngine,
+    pub(crate) compose_pull: ComposePullEngine,
 }
 
 impl SynapseMutationRuntime {
@@ -44,6 +51,8 @@ impl SynapseMutationRuntime {
             ports,
             lifecycle: ContainerLifecycleEngine::default(),
             compose: ComposeMutationEngine::default(),
+            image_pull: ImagePullEngine,
+            compose_pull: ComposePullEngine,
         }
     }
 
@@ -68,61 +77,12 @@ impl SynapseMutationRuntime {
             ports,
             lifecycle,
             compose,
+            image_pull: ImagePullEngine,
+            compose_pull: ComposePullEngine,
         }
     }
 
-    /// Builds a deterministic, topology-bound plan for a supported mutation.
-    pub async fn plan(
-        &self,
-        operation: &OperationName,
-        parameters: &Value,
-        context: &OperationContext,
-    ) -> Result<OperationPlan, ExecutionError> {
-        if lifecycle_action(operation).is_ok() {
-            self.plan_container(operation, parameters, context).await
-        } else if crate::mutation_compose::compose_action(operation).is_ok() {
-            self.plan_compose(operation, parameters, context).await
-        } else {
-            Err(ExecutionError::UnsupportedOperation(operation.clone()))
-        }
-    }
-
-    /// Executes one supported mutation after exact plan and authorization admission.
-    pub async fn execute(
-        &self,
-        operation: &OperationName,
-        parameters: &Value,
-        context: &OperationContext,
-        plan: &OperationPlan,
-        authorization: &AuthorizationEvidence,
-        cancellation: &CancellationToken,
-    ) -> Result<soma_ops::OperationResult, ExecutionError> {
-        if lifecycle_action(operation).is_ok() {
-            self.execute_container(
-                operation,
-                parameters,
-                context,
-                plan,
-                authorization,
-                cancellation,
-            )
-            .await
-        } else if crate::mutation_compose::compose_action(operation).is_ok() {
-            self.execute_compose(
-                operation,
-                parameters,
-                context,
-                plan,
-                authorization,
-                cancellation,
-            )
-            .await
-        } else {
-            Err(ExecutionError::UnsupportedOperation(operation.clone()))
-        }
-    }
-
-    async fn plan_container(
+    pub(crate) async fn plan_container(
         &self,
         operation: &OperationName,
         parameters: &Value,
@@ -164,7 +124,7 @@ impl SynapseMutationRuntime {
         .map_err(ExecutionError::from)
     }
 
-    async fn execute_container(
+    pub(crate) async fn execute_container(
         &self,
         operation: &OperationName,
         parameters: &Value,
@@ -250,7 +210,8 @@ impl SynapseMutationRuntime {
             .ok_or_else(|| crate::CompatibilityError::UnknownOperation(operation.clone()))?;
         if spec.access() != AccessClass::Mutation
             || (lifecycle_action(operation).is_err()
-                && crate::mutation_compose::compose_action(operation).is_err())
+                && crate::mutation_compose::compose_action(operation).is_err()
+                && !crate::mutation_pull::pull_operation(operation))
         {
             return Err(ExecutionError::UnsupportedOperation(operation.clone()));
         }

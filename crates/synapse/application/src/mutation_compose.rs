@@ -175,15 +175,18 @@ pub(crate) fn compose_action(
     }
 }
 
-fn compose_target(host: &HostRecord, project: &str) -> Result<TargetRef, ExecutionError> {
+pub(crate) fn compose_target(
+    host: &HostRecord,
+    project: &str,
+) -> Result<TargetRef, ExecutionError> {
     TargetRef::new(TargetKind::ComposeProject, project)?
         .with_host(host.id().to_string())?
         .with_revision(host.revision().to_string())
         .map_err(ExecutionError::from)
 }
 
-async fn resolve_project(
-    client: &dyn soma_infra::ComposeMutationClient,
+pub(crate) async fn resolve_project(
+    client: &dyn soma_infra::ComposeInspector,
     host: &HostRecord,
     project_name: &str,
     deadline: Timestamp,

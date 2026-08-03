@@ -255,7 +255,7 @@ impl SynapseMutationRuntime {
     }
 }
 
-fn mutation_output(
+pub(crate) fn mutation_output(
     operation: &OperationName,
     changed: bool,
     summary: String,
