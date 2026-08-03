@@ -23,6 +23,9 @@ The first mutation slice adds:
 - bounded postcondition verification policies;
 - verified container `start`, `stop`, `restart`, `pause`, and `resume`;
 - verified Compose `up -d` and `restart`;
+- verified Docker, container-image, and Compose image pulls;
+- canonical bounded progress events whose delivery failures do not rewrite execution truth;
+- OCI artifact references and local image-ID/digest verification;
 - local and strict-SSH Docker mutation clients;
 - process-backed Compose mutation commands with discrete argv.
 
@@ -30,8 +33,8 @@ The shared crate does not authorize mutations. Product runtimes must bind a dete
 
 ## Feature flags
 
-- `process-driver`: command-backed Compose, process, log, ZFS, and Compose mutation support;
-- `bollard-driver`: local Docker reads and container lifecycle mutations;
+- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, and Compose pull support;
+- `bollard-driver`: local Docker reads, container lifecycle mutations, and image-pull streams;
 - `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
 
@@ -50,6 +53,9 @@ The default build exposes neutral models, traits, coordinators, and deterministi
 - a successful backend call is not reported as mutation success until an independent read verifies the postcondition;
 - already-satisfied container states return verified no-op outcomes without a backend send;
 - Compose success requires a nonempty service set with every reported service running, healthy, and exit code zero;
+- image pulls verify that requested references resolve to local content identities after stream completion;
+- Compose pulls verify every selected configured service image;
+- progress sink failures remain bounded metadata and never change backend send or verification truth;
 - SDK-specific Bollard types never cross the public API.
 
 ## Verification

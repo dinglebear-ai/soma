@@ -7,8 +7,8 @@ use soma_fleet::{ConnectionPool, HostEndpoint, HostId, HostRecord, OpenSshConnec
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    BollardReadClient, DockerClientProvider, DockerMutationClient, DockerMutationClientProvider,
-    DockerReadClient, InfraError, InfraResult,
+    BollardReadClient, DockerArtifactClient, DockerArtifactClientProvider, DockerClientProvider,
+    DockerMutationClient, DockerMutationClientProvider, DockerReadClient, InfraError, InfraResult,
 };
 
 const DEFAULT_REMOTE_SOCKET: &str = "/var/run/docker.sock";
@@ -84,6 +84,26 @@ impl DockerMutationClientProvider for BollardClientProvider {
         host: &HostRecord,
         cancellation: &CancellationToken,
     ) -> InfraResult<Arc<dyn DockerMutationClient>> {
+        match self.plan(host)? {
+            SocketPlan::Local => Ok(Arc::new(BollardReadClient::connect_local(host)?)),
+            SocketPlan::Remote(socket) => {
+                let connection = self.pool.get_or_connect(host, cancellation).await?;
+                Ok(Arc::new(
+                    BollardReadClient::connect_remote(connection, host, socket, cancellation)
+                        .await?,
+                ))
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl DockerArtifactClientProvider for BollardClientProvider {
+    async fn artifact_client(
+        &self,
+        host: &HostRecord,
+        cancellation: &CancellationToken,
+    ) -> InfraResult<Arc<dyn DockerArtifactClient>> {
         match self.plan(host)? {
             SocketPlan::Local => Ok(Arc::new(BollardReadClient::connect_local(host)?)),
             SocketPlan::Remote(socket) => {

@@ -11,6 +11,8 @@
 mod compose;
 mod compose_mutation;
 mod compose_parse;
+mod compose_pull;
+mod compose_pull_engine;
 mod container_mutation;
 mod container_mutation_engine;
 mod docker;
@@ -25,13 +27,18 @@ mod host;
 mod host_system;
 #[cfg(feature = "process-driver")]
 mod host_system_parse;
+mod image_pull;
+mod image_pull_engine;
 mod logs;
 mod mutation;
 mod process;
+mod progress_sink;
 mod zfs;
 
 #[cfg(feature = "bollard-driver")]
 mod bollard_driver;
+#[cfg(feature = "bollard-driver")]
+mod bollard_image_pull;
 #[cfg(feature = "bollard-driver")]
 mod bollard_mutation;
 #[cfg(feature = "remote-bollard")]
@@ -46,6 +53,8 @@ mod linux_filesystem;
 mod process_compose;
 #[cfg(feature = "process-driver")]
 mod process_compose_mutation;
+#[cfg(feature = "process-driver")]
+mod process_compose_pull;
 #[cfg(feature = "process-driver")]
 mod process_filesystem;
 #[cfg(feature = "process-driver")]
@@ -69,6 +78,11 @@ pub use compose_mutation::{
     ComposeMutationAction, ComposeMutationClient, ComposeMutationEngine, ComposeMutationOutcome,
     ComposeMutationReceipt, ComposeMutationRequest, ComposeMutator,
 };
+pub use compose_pull::{
+    ComposePullClient, ComposePullMutator, ComposePullOutcome, ComposePullReceipt,
+    ComposePullRequest, ComposePulledImage,
+};
+pub use compose_pull_engine::ComposePullEngine;
 pub use container_mutation::{
     ContainerLifecycleAction, ContainerLifecycleMutator, ContainerLifecycleOutcome,
     ContainerLifecycleRequest, ContainerMutationReceipt, DockerMutationClient,
@@ -101,6 +115,12 @@ pub use host_system::{
     DoctorCheck, DoctorReport, FilesystemUsage, HostSystemInspector, MountInfo, NetworkAddress,
     NetworkInterface, PortInfo, PortListRequest, PortProtocol, ServiceListRequest, ServiceStatus,
 };
+pub use image_pull::{
+    DockerArtifactClient, DockerArtifactClientProvider, ImageIdentity, ImagePullMutator,
+    ImagePullOutcome, ImagePullProgressFrame, ImagePullReceipt, ImagePullRequest,
+    canonical_image_reference,
+};
+pub use image_pull_engine::ImagePullEngine;
 #[cfg(all(feature = "linux-filesystem", target_os = "linux"))]
 pub use linux_filesystem::LinuxFilesystemInspector;
 pub use logs::{
@@ -121,6 +141,7 @@ pub use process_logs::CommandLogReader;
 pub use process_process::CommandProcessInspector;
 #[cfg(feature = "process-driver")]
 pub use process_zfs::CommandZfsInspector;
+pub use progress_sink::MutationProgressReporter;
 pub use zfs::{
     ZfsDatasetRequest, ZfsDatasetType, ZfsInspector, ZfsPoolRequest, ZfsSnapshotRequest, ZfsTable,
 };
