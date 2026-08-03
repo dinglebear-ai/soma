@@ -81,6 +81,15 @@ Optional external drivers:
 - shell-free process-backed commands;
 - independent Compose status reads verify a nonempty service set in running, healthy, zero-exit state.
 
+### Artifact pulls
+
+- `ImagePullMutator`, `ImagePullEngine`, and host-bound `DockerArtifactClientProvider`;
+- `ComposePullMutator` and `ComposePullEngine`;
+- canonical `ProgressEvent` delivery through an object-safe reporter;
+- bounded retained progress and delivery-error metadata;
+- independent Docker image-store verification of IDs, tags, and digests;
+- OCI artifact references and runtime-state evidence at the product result boundary.
+
 ## Security properties
 
 1. Every target-specific model is bound to a host and exact topology revision.
@@ -92,21 +101,20 @@ Optional external drivers:
 7. Product authorization is deliberately absent from this shared crate.
 8. Mutation drivers preserve whether a backend call was not sent, sent, or uncertain.
 9. A successful backend response is not promoted to mutation success until a separate read verifies the postcondition.
-10. Destructive operations, arbitrary command execution, file transfer, image deletion, pruning, and Compose down remain outside this slice.
+10. Pull streams emit canonical bounded progress while retaining progress-delivery failures separately from execution truth.
+11. Docker and container pulls verify local image IDs, tags, and digests after stream completion.
+12. Compose pulls resolve the configured service-image set before send and verify every selected image afterward.
+13. Destructive operations, arbitrary command execution, file transfer, image deletion, pruning, builds, and Compose down remain outside this slice.
 
 ## Current Synapse adoption
 
-The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. The first mutation slice additionally delegates seven of the 21 canonical mutations:
+The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Ten of the 21 canonical mutations are now delegated:
 
-- `container.start`;
-- `container.stop`;
-- `container.restart`;
-- `container.pause`;
-- `container.resume`;
-- `compose.up`;
-- `compose.restart`.
+- `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
+- `compose.up` and `compose.restart`;
+- `docker.pull`, `container.pull`, and `compose.pull`.
 
-Fourteen canonical mutations remain fail-closed until later slices add their operation-specific planning, send-state, verification, and recovery semantics.
+Pull plans bind the exact authorized image artifact set. Pull execution emits canonical progress, verifies local content identities, and returns OCI artifact references plus runtime-state evidence. Eleven canonical mutations remain fail-closed.
 
 ## Verification
 
@@ -116,6 +124,7 @@ Required gates:
 - strict Clippy and warning-free rustdoc;
 - lifecycle no-op, sent, unknown, cancelled, timeout, and failed-verification tests;
 - Compose discrete-argv and nonzero-exit tests;
+- pull progress, delivery-failure, image-reference drift, and artifact-verification tests;
 - stale-host and revision-bound client tests;
 - filesystem traversal and symlink rejection;
 - workspace sibling, architecture, pattern, and product-leakage checks.

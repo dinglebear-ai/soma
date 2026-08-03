@@ -15,6 +15,10 @@ mod error;
 mod execution_error;
 mod mutation_admission;
 mod mutation_compose;
+mod mutation_dispatch;
+mod mutation_pull;
+mod mutation_pull_execute;
+mod mutation_pull_result;
 mod mutation_result;
 mod mutation_runtime;
 mod normalize;
@@ -39,6 +43,12 @@ pub use normalize::NormalizedOperationRequest;
 pub use runtime::{SynapseReadPorts, SynapseReadRuntime};
 pub use schema::OperationSchemaContract;
 
+#[cfg(test)]
+#[path = "../tests/support/mutation_pull_compose.rs"]
+mod mutation_pull_test_compose;
+#[cfg(test)]
+#[path = "../tests/support/mutation_pull_support.rs"]
+mod mutation_pull_test_support;
 #[cfg(test)]
 mod runtime_test_docker;
 #[cfg(test)]

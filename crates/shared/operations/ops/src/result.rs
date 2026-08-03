@@ -530,6 +530,12 @@ impl OperationResult {
         &self.diagnostics
     }
 
+    /// Returns captured evidence references.
+    #[must_use]
+    pub fn evidence(&self) -> &[EvidenceRef] {
+        &self.evidence
+    }
+
     /// Returns verification when performed.
     #[must_use]
     pub fn verification(&self) -> Option<&VerificationResult> {

@@ -66,29 +66,28 @@ All 35 canonical read operations execute through this path.
 
 ## Implemented mutations
 
-Seven of the 21 canonical mutations are implemented:
+Ten of the 21 canonical mutations are implemented:
 
-- `container.start`;
-- `container.stop`;
-- `container.restart`;
-- `container.pause`;
-- `container.resume`;
-- `compose.up`;
-- `compose.restart`.
+- `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
+- `compose.up` and `compose.restart`;
+- `docker.pull`, `container.pull`, and `compose.pull`.
 
-Container mutations verify through `container.inspect`. Compose mutations verify through `compose.status`. Already-satisfied container states return a verified no-op without sending a mutation.
+Container lifecycle operations verify through `container.inspect`. Compose lifecycle operations verify through `compose.status`. Pull operations bind the exact image references during planning, emit canonical progress, and verify IDs/tags/digests through `docker.images`. OCI artifact references and runtime-state evidence are attached to successful pull results. Already-satisfied container states return a verified no-op without sending a mutation.
 
-The remaining fourteen mutations fail closed with `UnsupportedOperation`. Later slices must add operation-specific planning and verification before they become executable.
+The remaining eleven mutations fail closed with `UnsupportedOperation`.
 
 ## Verification
 
 - all 35 canonical reads execute and validate their result schemas;
-- all seven implemented mutations plan, authorize, execute, and verify;
+- all ten implemented mutations plan, authorize, execute, and verify;
 - stale topology, wrong target, expired authorization, missing confirmation, and missing idempotency fail before mutation send;
 - cancellation before admission is `NotSent`;
 - uncertain Docker failures remain `Unknown` and become failed terminal results;
 - backend success plus failed postcondition verification is reported as failure;
 - Compose command arguments are discrete and shell-free;
+- container and Compose image-reference drift is rejected before pull send;
+- progress delivery failure is retained separately and cannot rewrite mutation truth;
+- successful pulls carry OCI artifact and runtime-state evidence;
 - generated historical input schemas remain closed;
 - no legacy result projector or imported donor dependency exists;
 - strict Clippy, warning-free rustdoc, sibling tests, architecture, and pattern gates pass.
