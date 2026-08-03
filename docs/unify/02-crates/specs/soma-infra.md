@@ -100,6 +100,17 @@ Optional external drivers:
 - exact context-digest binding at plan and pre-send execution boundaries;
 - independent output-tag verification with OCI artifact and source-context evidence.
 
+### Replacement mutations
+
+- `ContainerRecreateInspector`, `ContainerRecreateMutator`, and `ContainerRecreateEngine`;
+- a driver-native SHA-256 over replacement-relevant Docker configuration without leaking Bollard models;
+- optional image pull plus stop, remove, create, and start stages with conservative post-send uncertainty;
+- recreation preserves image, environment, command, entrypoint, labels, working directory, user, volumes, host configuration, and network attachments;
+- `ComposeRecreateMutator` and `ComposeRecreateEngine`;
+- normalized Compose configuration plus service pre-state fingerprinting;
+- shell-free `compose up -d --force-recreate` with bounded output;
+- independent verification of the exact configured running, healthy, zero-exit service set.
+
 ## Security properties
 
 1. Every target-specific model is bound to a host and exact topology revision.
@@ -128,18 +139,22 @@ Optional external drivers:
 24. Build contexts reject symlinks, special files, root escapes, and configured file or byte ceiling violations.
 25. Build plans bind the exact source-context SHA-256 and output image artifact set.
 26. Build execution re-fingerprints contexts before send and verifies every output tag afterward.
-27. Destructive operations, arbitrary command execution, file transfer, image deletion, pruning, and Compose down remain outside this slice.
+27. Container recreate plans bind the exact replacement configuration digest and image-pull choice.
+28. Container recreate rechecks the digest immediately before removal and records the furthest completed destructive stage.
+29. Compose recreate plans bind normalized configuration and service pre-state, then verify the exact healthy post-state.
+30. Arbitrary command execution, file transfer, image deletion, pruning, and Compose down remain outside this slice.
 
 ## Current Synapse adoption
 
-The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Twelve of the 21 canonical mutations are now delegated:
+The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Fourteen of the 21 canonical mutations are now delegated:
 
 - `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
 - `compose.up` and `compose.restart`;
 - `docker.pull`, `container.pull`, and `compose.pull`;
-- `docker.build` and `compose.build`.
+- `docker.build` and `compose.build`;
+- `container.recreate` and `compose.recreate`.
 
-Pull plans bind exact image artifacts. Build plans bind exact context SHA-256 values and output tags. Execution emits canonical progress, preserves bounded logs, rechecks source contexts before send, verifies local output identities, and returns OCI artifact plus source-context evidence. Nine canonical mutations remain fail-closed.
+Pull plans bind exact image artifacts. Build plans bind exact context SHA-256 values and output tags. Replacement plans bind exact configuration and service pre-state digests. Execution rechecks mutable inputs before send and independently verifies image identities, replacement containers, or Compose service sets. Seven canonical mutations remain fail-closed.
 
 ## Verification
 
@@ -151,6 +166,7 @@ Required gates:
 - Compose discrete-argv and nonzero-exit tests;
 - pull progress, delivery-failure, image-reference drift, and artifact-verification tests;
 - build-context determinism, symlink rejection, context drift, bounded argv/logs, and output-verification tests;
+- replacement fingerprint drift, pull-choice binding, partial-stage, force-recreate argv, and post-state verification tests;
 - stale-host and revision-bound client tests;
 - filesystem traversal and symlink rejection;
 - workspace sibling, architecture, pattern, and product-leakage checks.
