@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.9.0](https://github.com/dinglebear-ai/soma/compare/v0.8.2...v0.9.0) (2026-08-03)
+
+
+### Added
+
+* **infra:** add verified artifact pulls ([#293](https://github.com/dinglebear-ai/soma/issues/293)) ([190e06f](https://github.com/dinglebear-ai/soma/commit/190e06fe97264faee9707ef8f4e94d5bd45bc91c))
+* **infra:** add verified image builds ([#295](https://github.com/dinglebear-ai/soma/issues/295)) ([857099d](https://github.com/dinglebear-ai/soma/commit/857099df9d0c5a3d798ea6f34c5016f77b71c8ba))
+* **infra:** add verified mutation foundation ([#290](https://github.com/dinglebear-ai/soma/issues/290)) ([82ecd6c](https://github.com/dinglebear-ai/soma/commit/82ecd6c84dccd8cfaaa0f5e375e81ae1ae64461c))
+* **infra:** expand read-only telemetry engines ([#272](https://github.com/dinglebear-ai/soma/issues/272)) ([f21162b](https://github.com/dinglebear-ai/soma/commit/f21162b865e8df92fed29e06e476377fc5b70178))
+* **synapse:** cut reads over to canonical runtime ([#284](https://github.com/dinglebear-ai/soma/issues/284)) ([c22d9cc](https://github.com/dinglebear-ai/soma/commit/c22d9cc749e53ef777e19a1c8ffe127bf16f5efc))
+
+
+### Fixed
+
+* **ci:** isolate component release pipelines ([#287](https://github.com/dinglebear-ai/soma/issues/287)) ([5d6410d](https://github.com/dinglebear-ai/soma/commit/5d6410d87ae5b3653e45beb8b37c6dcdea8b9b4b))
+* **ci:** pin token-free npm publisher ([#291](https://github.com/dinglebear-ai/soma/issues/291)) ([c4b70b1](https://github.com/dinglebear-ai/soma/commit/c4b70b171cec1b64ada964834fbc6edc00ac5156))
+* **ci:** preserve existing Kache config ([#275](https://github.com/dinglebear-ai/soma/issues/275)) ([d10c8b3](https://github.com/dinglebear-ai/soma/commit/d10c8b316f495954a975a349933bd23ba6f0fda6))
+* **deps:** resolve Dependabot advisories ([#294](https://github.com/dinglebear-ai/soma/issues/294)) ([d0ad3e0](https://github.com/dinglebear-ai/soma/commit/d0ad3e04b559c70cf3b763f97188f558dee38f95))
+* merge platform wheel artifacts for publish ([#285](https://github.com/dinglebear-ai/soma/issues/285)) ([9559dca](https://github.com/dinglebear-ai/soma/commit/9559dca289419b31dc82ccb7f196a37448cbc460))
+* pin corrected native wheel workflow ([#283](https://github.com/dinglebear-ai/soma/issues/283)) ([af927b7](https://github.com/dinglebear-ai/soma/commit/af927b780cc8cb807cd52b0f7492ff0ce2e7c019))
+* **release:** publish MCP metadata with dinglebear.ai ([cce2bc7](https://github.com/dinglebear-ai/soma/commit/cce2bc7cede7c52c703eee678fe19a1190440631))
+* resume provider releases from immutable tags ([#286](https://github.com/dinglebear-ai/soma/issues/286)) ([8ce46db](https://github.com/dinglebear-ai/soma/commit/8ce46dbc3fe0559bf6dcf71ebb0186364f84568b))
+* use OIDC-capable PyPI publisher ([#288](https://github.com/dinglebear-ai/soma/issues/288)) ([eb5df82](https://github.com/dinglebear-ai/soma/commit/eb5df82c0331a603107305b2aad3be2710024862))
+
 ## [0.8.2](https://github.com/dinglebear-ai/soma/compare/v0.8.1...v0.8.2) (2026-08-02)
 
 ### Fixed
