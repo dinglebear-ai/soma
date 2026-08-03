@@ -70,7 +70,7 @@ No generic `in_progress`.
 | product-family | 12 | `feat/infra-read-expansion` | `feat/infra-foundation` | `~/workspace/soma/.worktrees/infra-read-expansion` | Docker telemetry, Compose logs, process, OS logs, and ZFS reads | #272 | parity_verifying |
 | product-family | 13 | `feat/synapse-canonical-cutover` | `feat/infra-read-expansion` | `~/workspace/soma/.worktrees/synapse-canonical-cutover` | Complete canonical read runtime, remote Docker/filesystem reads, and legacy result projector removal | #284 | parity_verifying |
 | product-family | 14 | `feat/mutation-foundation` | `feat/synapse-canonical-cutover` | `~/workspace/soma/.worktrees/mutation-foundation` | Plan-bound verified container and Compose mutation foundation | #290 | parity_verifying |
-| product-family | 15 | `feat/mutation-artifacts` | `feat/mutation-foundation` | `~/workspace/soma/.worktrees/mutation-artifacts` | Progress-aware verified Docker, container, and Compose image pulls | pending | parity_verifying |
+| product-family | 15 | `feat/mutation-artifacts` | `feat/mutation-foundation` | `~/workspace/soma/.worktrees/mutation-artifacts` | Progress-aware verified Docker, container, and Compose image pulls | #293 | parity_verifying |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
