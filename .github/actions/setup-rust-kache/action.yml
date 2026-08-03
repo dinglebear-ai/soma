@@ -155,7 +155,7 @@ runs:
         # An existing config may belong to a persistent host or to the farm
         # image. Never overwrite it from a job: doing so can silently strip the
         # host's remote and daemon lifetime settings after the workflow exits.
-        if [ -s "$config_file" ]; then
+        if [ -f "$config_file" ] && [ -r "$config_file" ] && [ -s "$config_file" ]; then
           echo "existing kache config present - leaving it alone"
           configured_store="$(
             sed -n 's/^[[:space:]]*local_store[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
@@ -209,7 +209,9 @@ runs:
         set -euo pipefail
         daemon_is_running() {
           local status
-          status="$(kache daemon status 2>&1)"
+          if ! status="$(kache daemon status 2>&1)"; then
+            return 1
+          fi
           grep -q "Daemon:" <<< "$status" && ! grep -q "not running" <<< "$status"
         }
 
