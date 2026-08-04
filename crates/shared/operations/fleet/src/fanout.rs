@@ -95,6 +95,12 @@ impl<T, E> TargetOutcome<T, E> {
     pub fn kind(&self) -> &TargetOutcomeKind<T, E> {
         &self.kind
     }
+
+    /// Consumes the outcome into its stable index, host, and terminal kind.
+    #[must_use]
+    pub fn into_parts(self) -> (usize, HostId, TargetOutcomeKind<T, E>) {
+        (self.index, self.host, self.kind)
+    }
 }
 
 /// Complete stable-order fanout report.
@@ -108,6 +114,12 @@ impl<T, E> FanoutReport<T, E> {
     #[must_use]
     pub fn outcomes(&self) -> &[TargetOutcome<T, E>] {
         &self.outcomes
+    }
+
+    /// Consumes the report and returns outcomes in original target order.
+    #[must_use]
+    pub fn into_outcomes(self) -> Vec<TargetOutcome<T, E>> {
+        self.outcomes
     }
 
     /// Returns successful target count.
@@ -183,15 +195,40 @@ impl FanoutScheduler {
         F: Fn(HostRecord, CancellationToken) -> Fut + Send + Sync,
         Fut: Future<Output = Result<T, E>> + Send,
     {
+        self.run_with_payload(
+            targets.into_iter().map(|host| (host, ())).collect(),
+            cancellation,
+            move |host, (), child| operation(host, child),
+        )
+        .await
+    }
+
+    /// Executes one operation for every host/payload pair with bounded concurrency.
+    ///
+    /// Payloads remain paired with their original target index, allowing callers
+    /// to fan out distinct requests to the same host without key-based races.
+    pub async fn run_with_payload<P, T, E, F, Fut>(
+        &self,
+        targets: Vec<(HostRecord, P)>,
+        cancellation: CancellationToken,
+        operation: F,
+    ) -> FanoutReport<T, E>
+    where
+        P: Send,
+        T: Send,
+        E: Send,
+        F: Fn(HostRecord, P, CancellationToken) -> Fut + Send + Sync,
+        Fut: Future<Output = Result<T, E>> + Send,
+    {
         let operation = Arc::new(operation);
         let timeout = self.policy.per_target_timeout;
         let mut outcomes = stream::iter(targets.into_iter().enumerate())
-            .map(|(index, host)| {
+            .map(|(index, (host, payload))| {
                 let operation = Arc::clone(&operation);
                 let child = cancellation.child_token();
                 async move {
                     let host_id = host.id().clone();
-                    let future = operation(host, child.clone());
+                    let future = operation(host, payload, child.clone());
                     let kind = tokio::select! {
                         () = child.cancelled() => TargetOutcomeKind::Cancelled,
                         result = tokio::time::timeout(timeout, future) => match result {

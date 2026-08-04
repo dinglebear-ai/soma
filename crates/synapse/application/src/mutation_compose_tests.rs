@@ -182,6 +182,7 @@ fn runtime(compose: Option<Arc<dyn ComposeMutationClient>>) -> SynapseMutationRu
             compose_pull: None,
             builds: None,
             recreate: None,
+            exec: None,
         },
         ContainerLifecycleEngine::default(),
         ComposeMutationEngine::new(MutationVerificationPolicy::new(1, Duration::ZERO).unwrap()),

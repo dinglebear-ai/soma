@@ -5,10 +5,10 @@ use soma_fleet::{HostId, HostRecord, HostRepository};
 use soma_infra::{
     BuildContextInspector, ComposeBuildEngine, ComposeBuildMutator, ComposeMutationClient,
     ComposeMutationEngine, ComposePullClient, ComposePullEngine, ComposeRecreateClient,
-    ComposeRecreateEngine, ContainerLifecycleAction, ContainerLifecycleEngine,
-    ContainerLifecycleRequest, ContainerRecreateClientProvider, ContainerRecreateEngine,
-    DockerArtifactClientProvider, DockerMutationClientProvider, ImageBuildEngine,
-    ImageBuildMutator, ImagePullEngine,
+    ComposeRecreateEngine, ContainerExecClientProvider, ContainerLifecycleAction,
+    ContainerLifecycleEngine, ContainerLifecycleRequest, ContainerRecreateClientProvider,
+    ContainerRecreateEngine, DockerArtifactClientProvider, DockerMutationClientProvider,
+    HostExecMutator, ImageBuildEngine, ImageBuildMutator, ImagePullEngine,
 };
 use soma_ops::{
     AccessClass, AuthorizationEvidence, OperationContext, OperationName, OperationPlan, PlanStep,
@@ -39,6 +39,16 @@ pub struct SynapseRecreatePorts {
     pub compose: Arc<dyn ComposeRecreateClient>,
 }
 
+/// Product-owned bounded execution ports.
+pub struct SynapseExecPorts {
+    /// Host-bound Docker exec client provider.
+    pub containers: Arc<dyn ContainerExecClientProvider>,
+    /// Allowlisted descriptor-bound host command driver.
+    pub hosts: Arc<dyn HostExecMutator>,
+    /// Maximum in-flight fanout targets.
+    pub max_fanout_concurrency: usize,
+}
+
 /// Product-owned ports used by canonical Synapse mutations.
 pub struct SynapseMutationPorts {
     /// Fleet topology source.
@@ -55,6 +65,8 @@ pub struct SynapseMutationPorts {
     pub builds: Option<SynapseBuildPorts>,
     /// Optional destructive replacement ports.
     pub recreate: Option<SynapseRecreatePorts>,
+    /// Optional bounded execution ports.
+    pub exec: Option<SynapseExecPorts>,
 }
 
 /// Canonical Synapse mutation planner and executor.
@@ -250,7 +262,8 @@ impl SynapseMutationRuntime {
                 && crate::mutation_compose::compose_action(operation).is_err()
                 && !crate::mutation_pull::pull_operation(operation)
                 && !crate::mutation_build::build_operation(operation)
-                && !crate::mutation_recreate::recreate_operation(operation))
+                && !crate::mutation_recreate::recreate_operation(operation)
+                && !crate::mutation_exec::exec_operation(operation))
         {
             return Err(ExecutionError::UnsupportedOperation(operation.clone()));
         }
