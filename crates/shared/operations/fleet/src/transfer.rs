@@ -130,6 +130,18 @@ impl TransferReceipt {
         self.bytes
     }
 
+    /// Returns the source SHA-256 when recorded.
+    #[must_use]
+    pub fn source_sha256(&self) -> Option<&str> {
+        self.source_sha256.as_deref()
+    }
+
+    /// Returns the destination SHA-256 when recorded.
+    #[must_use]
+    pub fn destination_sha256(&self) -> Option<&str> {
+        self.destination_sha256.as_deref()
+    }
+
     /// Returns whether source and destination digests match.
     #[must_use]
     pub fn verified(&self) -> bool {
