@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use soma_fleet::{HostId, HostRecord, TopologyRevision};
 use soma_ops::{MutationSendState, OperationId, OperationName, Timestamp};
 use tokio_util::sync::CancellationToken;
@@ -104,7 +103,7 @@ impl ImageRemovalFingerprint {
                 message: error.to_string(),
             }
         })?;
-        let sha256 = format!("{:x}", Sha256::digest(material));
+        let sha256 = crate::mutation::sha256_hex(&material);
         Ok(Self {
             reference,
             identity,
@@ -161,7 +160,7 @@ impl DockerPruneFingerprint {
             domain: "docker-cleanup",
             message: error.to_string(),
         })?;
-        self.sha256 = format!("{:x}", Sha256::digest(material));
+        self.sha256 = crate::mutation::sha256_hex(&material);
         Ok(self)
     }
 }
