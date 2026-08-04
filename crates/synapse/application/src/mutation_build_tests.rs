@@ -111,6 +111,7 @@ fn runtime(
             compose: compose_builder,
         }),
         recreate: None,
+        exec: None,
     })
 }
 
