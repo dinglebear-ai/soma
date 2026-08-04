@@ -145,11 +145,10 @@ fn ensure_named_file((root, relative): (PathBuf, PathBuf)) -> InfraResult<(PathB
 
 #[cfg(any(feature = "process-driver", test))]
 pub(crate) fn identity_from_bytes(path: &Path, bytes: &[u8]) -> TransferFileIdentity {
-    use sha2::{Digest, Sha256};
     TransferFileIdentity {
         path: path.to_path_buf(),
         bytes: bytes.len() as u64,
-        sha256: format!("{:x}", Sha256::digest(bytes)),
+        sha256: crate::mutation::sha256_hex(bytes),
     }
 }
 
