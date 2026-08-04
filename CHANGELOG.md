@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [Unreleased]
+
+### Changed
+
+* **ci:** pin the shared Rust cache action to upstream Kache 0.13.0 so hosted and self-hosted jobs use the same daemon protocol and S3 cache epoch
+
 ## [0.9.0](https://github.com/dinglebear-ai/soma/compare/v0.8.2...v0.9.0) (2026-08-03)
 
 
