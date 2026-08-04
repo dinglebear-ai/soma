@@ -138,7 +138,7 @@ fn append_patch(patch: &mut String, prefix: &str, line: &str) {
     }
 }
 
-fn digest(value: &[u8]) -> String {
+pub(crate) fn digest(value: &[u8]) -> String {
     Sha256::digest(value)
         .iter()
         .map(|byte| format!("{byte:02x}"))
