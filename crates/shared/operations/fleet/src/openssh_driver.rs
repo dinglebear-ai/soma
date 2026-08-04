@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -105,12 +106,27 @@ impl CommandExecutor for OpenSshDriver {
         let mut command = session.arc_command(request.program().to_owned());
         command.args(request.args());
         command
+            .stdin(if request.stdin().is_some() {
+                openssh::Stdio::piped()
+            } else {
+                openssh::Stdio::null()
+            })
             .stdout(openssh::Stdio::piped())
             .stderr(openssh::Stdio::piped());
         let mut child = command.spawn().await.map_err(|error| FleetError::Command {
             host: host.id().clone(),
             message: format!("OpenSSH spawn failed: {error}"),
         })?;
+        let input = match request.stdin() {
+            Some(bytes) => Some((
+                child.stdin().take().ok_or_else(|| FleetError::Command {
+                    host: host.id().clone(),
+                    message: "OpenSSH stdin pipe unavailable".into(),
+                })?,
+                bytes.to_vec(),
+            )),
+            None => None,
+        };
         let stdout = child.stdout().take().ok_or_else(|| FleetError::Command {
             host: host.id().clone(),
             message: "OpenSSH stdout pipe unavailable".into(),
@@ -128,7 +144,17 @@ impl CommandExecutor for OpenSshDriver {
                 )
                 .map_err(openssh::Error::ChildIo)
             };
-            let (status, (stdout, stderr)) = tokio::try_join!(child.wait(), streams)?;
+            let input = async move {
+                if let Some((mut stdin, bytes)) = input {
+                    stdin
+                        .write_all(&bytes)
+                        .await
+                        .map_err(openssh::Error::ChildIo)?;
+                    stdin.shutdown().await.map_err(openssh::Error::ChildIo)?;
+                }
+                Ok::<_, openssh::Error>(())
+            };
+            let (status, (stdout, stderr), ()) = tokio::try_join!(child.wait(), streams, input)?;
             Ok::<_, openssh::Error>((status, stdout, stderr))
         };
         let mut completion = Box::pin(completion);
