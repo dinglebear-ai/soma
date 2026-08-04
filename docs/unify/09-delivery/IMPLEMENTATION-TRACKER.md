@@ -75,6 +75,7 @@ No generic `in_progress`.
 | product-family | 17 | `feat/mutation-recreate` | `feat/mutation-builds` | `~/workspace/soma/.worktrees/mutation-recreate` | Configuration-bound verified container and Compose replacements | #314 | parity_verifying |
 | product-family | 18 | `feat/mutation-exec` | `feat/mutation-recreate` | `~/workspace/soma/.worktrees/mutation-exec` | Bounded container, host, and stable partial fanout execution mutations | #317 | parity_verifying |
 | product-family | 19 | `feat/mutation-final` | `feat/mutation-exec` | `~/workspace/soma/.worktrees/mutation-final` | Verified Docker cleanup, Compose teardown, and digest-bound file transfer; completes 59/59 canonical operations | #319 | parity_verifying |
+| product-family | 20 | `feat/synapse-standalone-cutover` | `feat/mutation-final` | `~/workspace/soma/.worktrees/synapse-standalone-cutover` | Native standalone CLI, REST, HTTP/stdio MCP, authorization, activity, OpenAPI, and packaging over the complete engine | pending | parity_verifying |
 
 Every additional row in a stack must use the branch immediately above it as its PR base until the lower PR merges and the stack is restacked.
 
