@@ -54,3 +54,15 @@ fn prune_fingerprint_sorts_candidate_sets() {
     assert_eq!(fp.images, ["z"]);
     assert_eq!(fp.sha256.len(), 64);
 }
+
+#[test]
+fn cleanup_fingerprints_use_sha2_011_compatible_lowercase_hex() {
+    let identity = ImageIdentity {
+        id: "sha256:image".into(),
+        repo_tags: vec!["app:v1".into()],
+        repo_digests: vec!["app@sha256:digest".into()],
+    };
+    let fingerprint = ImageRemovalFingerprint::new("app:v1", identity).unwrap();
+    assert_eq!(fingerprint.sha256.len(), 64);
+    assert!(fingerprint.sha256.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')));
+}
