@@ -550,8 +550,8 @@ files:
   sha256: 7683039a2b5f63310830d3e13d9f52c32a9b2ded2499d26c776722e1f7691baa
   type: md
 - path: 09-delivery/IMPLEMENTATION-TRACKER.md
-  bytes: 10789
-  sha256: 47566592d318036051028a84a74195afad36a52f4f8b11a143936d88ff375420
+  bytes: 10786
+  sha256: 1735f6313f26693f1674954c04aedcd8a4f39e00f6a02ced2a12101a2a939e82
   type: md
 - path: 09-delivery/OPEN-DECISIONS.md
   bytes: 1994
