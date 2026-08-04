@@ -123,3 +123,43 @@ async fn cancellation_accounts_for_inflight_and_queued_targets() {
     assert_eq!(report.cancelled_count(), 5);
     assert_eq!(report.success_count(), 0);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn payload_fanout_preserves_duplicate_host_requests_by_index() {
+    let host = HostRecord::new(HostId::new("same").unwrap(), HostEndpoint::Local);
+    let scheduler = FanoutScheduler::new(FanoutPolicy::new(2, Duration::from_secs(1)).unwrap());
+    let report = scheduler
+        .run_with_payload(
+            vec![(host.clone(), "first"), (host, "second")],
+            CancellationToken::new(),
+            |_host, payload, _| async move { Ok::<_, ()>(payload) },
+        )
+        .await;
+
+    assert_eq!(report.outcomes().len(), 2);
+    assert!(matches!(
+        report.outcomes()[0].kind(),
+        TargetOutcomeKind::Succeeded("first")
+    ));
+    assert!(matches!(
+        report.outcomes()[1].kind(),
+        TargetOutcomeKind::Succeeded("second")
+    ));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn fanout_report_can_be_consumed_without_cloning_results() {
+    let scheduler = FanoutScheduler::new(FanoutPolicy::new(1, Duration::from_secs(1)).unwrap());
+    let report = scheduler
+        .run(
+            targets(1),
+            CancellationToken::new(),
+            |_host, _| async move { Ok::<_, String>(String::from("owned")) },
+        )
+        .await;
+    let outcomes = report.into_outcomes();
+    assert!(matches!(
+        &outcomes[0].kind,
+        TargetOutcomeKind::Succeeded(value) if value == "owned"
+    ));
+}
