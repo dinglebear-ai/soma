@@ -208,3 +208,14 @@ async fn absent_execution_ports_fail_closed_before_send() {
         ExecutionError::MutationPortUnavailable { domain: "exec", .. }
     ));
 }
+
+#[test]
+fn execution_digest_is_sha2_011_compatible() {
+    let digest = super::digest(&serde_json::json!({"command": ["true"]})).unwrap();
+    assert_eq!(digest.len(), 64);
+    assert!(
+        digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    );
+}
