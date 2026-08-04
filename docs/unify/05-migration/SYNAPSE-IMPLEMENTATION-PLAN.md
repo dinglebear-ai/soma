@@ -249,6 +249,8 @@ Deliverables:
 - activity, status, readiness, and observability remain product-owned;
 - old service implementations are removed after canonical coverage and driver conformance are proven.
 
+The native `apps/synapse` product composes every concrete fleet and infrastructure port over one topology snapshot. Canonical CLI, REST, HTTP MCP, and stdio MCP surfaces expose all 59 operations; optional Flux and Scout aliases normalize requests only. Mutations use exact plans, product-issued authorization, CLI/REST confirmation, or bounded MCP elicitation requiring both explicit affirmations. Health, readiness, status, bounded activity, bearer protection, and catalog-derived OpenAPI remain product-owned. The binary has no dependency on the imported donor workspace.
+
 Exit: Synapse's complete test suite, destructive smoke suite, MCPorter suite, OpenAPI drift check, CLI snapshots, npm wrapper tests, and release packaging pass with no donor engine path remaining.
 
 ### PR 9: Soma embedded operations

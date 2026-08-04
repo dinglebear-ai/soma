@@ -1,0 +1,40 @@
+[server]
+bind = "127.0.0.1:40070"
+# Protect /operations, /activity, /openapi.json, /v1/*, and /mcp.
+# Health, readiness, and status remain unauthenticated.
+api_token = "replace-with-a-long-random-token"
+# False requires CLI --yes, REST confirmed=true, or successful MCP elicitation.
+allow_mutations = false
+request_timeout_secs = 30
+authorization_ttl_secs = 60
+default_host = "local"
+max_fanout_concurrency = 8
+
+[[hosts]]
+id = "local"
+read_roots = ["/srv", "/var/log"]
+build_roots = ["/srv/build"]
+transfer_source_roots = ["/srv/export"]
+transfer_destination_roots = ["/srv/import"]
+labels = ["local"]
+
+[hosts.endpoint]
+kind = "local"
+
+[[hosts]]
+id = "tootie"
+read_roots = ["/mnt/user", "/mnt/cache", "/var/log"]
+build_roots = ["/mnt/cache/compose"]
+transfer_source_roots = ["/mnt/user"]
+transfer_destination_roots = ["/mnt/user"]
+labels = ["unraid", "docker"]
+docker_socket = "/var/run/docker.sock"
+
+[hosts.endpoint]
+kind = "ssh"
+host = "tootie"
+port = 22
+user = "root"
+identity_file = "/home/synapse/.ssh/id_ed25519"
+config_file = "/home/synapse/.ssh/config"
+known_hosts_file = "/home/synapse/.ssh/known_hosts"

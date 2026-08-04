@@ -141,6 +141,7 @@ fn filename(path: &Path) -> String {
 /// looked.
 const CHECKED_SRC_ROOTS: &[&str] = &[
     "apps/soma/src",
+    "apps/synapse/src",
     "crates/shared/codemode/src",
     "crates/shared/incus-client/src",
     "crates/shared/mcp/client/src",
