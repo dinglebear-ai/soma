@@ -18,6 +18,7 @@ mod compose_pull;
 mod compose_pull_engine;
 mod compose_recreate;
 mod compose_recreate_engine;
+mod container_exec;
 mod container_mutation;
 mod container_mutation_engine;
 mod container_recreate;
@@ -31,6 +32,10 @@ mod error;
 mod filesystem;
 mod filesystem_query;
 mod host;
+mod host_exec;
+mod host_exec_argv;
+mod host_exec_many;
+mod host_exec_policy;
 mod host_system;
 #[cfg(feature = "process-driver")]
 mod host_system_parse;
@@ -46,6 +51,8 @@ mod zfs;
 
 #[cfg(feature = "bollard-driver")]
 mod bollard_driver;
+#[cfg(feature = "bollard-driver")]
+mod bollard_exec;
 #[cfg(feature = "bollard-driver")]
 mod bollard_image_pull;
 #[cfg(feature = "bollard-driver")]
@@ -74,6 +81,8 @@ mod process_compose_pull;
 mod process_compose_recreate;
 #[cfg(feature = "process-driver")]
 mod process_filesystem;
+#[cfg(feature = "process-driver")]
+mod process_host_exec;
 #[cfg(feature = "process-driver")]
 mod process_host_system;
 #[cfg(feature = "process-driver")]
@@ -114,6 +123,9 @@ pub use compose_recreate::{
     compose_recreate_fingerprint,
 };
 pub use compose_recreate_engine::ComposeRecreateEngine;
+pub use container_exec::{
+    ContainerExecClientProvider, ContainerExecMutator, ContainerExecReceipt, ContainerExecRequest,
+};
 pub use container_mutation::{
     ContainerLifecycleAction, ContainerLifecycleMutator, ContainerLifecycleOutcome,
     ContainerLifecycleRequest, ContainerMutationReceipt, DockerMutationClient,
@@ -148,6 +160,11 @@ pub use host::{
     HostIdentity, HostInspectRequest, HostInspection, HostInspector, HostLoadAverage, HostMemory,
     LinuxCommandHostInspector,
 };
+pub use host_exec::{HostExecCommand, HostExecMutator, HostExecReceipt, HostExecRequest};
+pub use host_exec_many::{
+    HostExecManyEngine, HostExecManyOutcome, HostExecTargetResult, HostExecTargetStatus,
+};
+pub use host_exec_policy::HostExecPolicy;
 pub use host_system::{
     DoctorCheck, DoctorReport, FilesystemUsage, HostSystemInspector, MountInfo, NetworkAddress,
     NetworkInterface, PortInfo, PortListRequest, PortProtocol, ServiceListRequest, ServiceStatus,
@@ -176,6 +193,8 @@ pub use process_compose::CommandComposeInspector;
 pub use process_compose_build::CommandComposeBuildMutator;
 #[cfg(feature = "process-driver")]
 pub use process_filesystem::CommandFilesystemQueryInspector;
+#[cfg(feature = "process-driver")]
+pub use process_host_exec::CommandHostExec;
 #[cfg(feature = "process-driver")]
 pub use process_host_system::CommandHostSystemInspector;
 #[cfg(feature = "process-driver")]

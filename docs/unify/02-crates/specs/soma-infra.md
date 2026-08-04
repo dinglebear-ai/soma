@@ -111,6 +111,15 @@ Optional external drivers:
 - shell-free `compose up -d --force-recreate` with bounded output;
 - independent verification of the exact configured running, healthy, zero-exit service set.
 
+### Bounded execution
+
+- `ContainerExecRequest`, `ContainerExecMutator`, and host-bound `ContainerExecClientProvider`;
+- direct non-TTY Docker exec argv with separate 96 KiB stdout and stderr ceilings plus inspected exit status;
+- `HostExecCommand`, `HostExecPolicy`, and `CommandHostExec`;
+- a fixed read-oriented command allowlist with typed option grammars and helper-executing option rejection;
+- explicit per-host read roots, `O_NOFOLLOW` descriptor traversal, inherited `/proc/self/fd` operands, and descriptor-bound working directories;
+- `HostExecManyEngine` with bounded concurrency, deterministic target order, conservative aggregate send state, partial results, and a bounded aggregate output envelope.
+
 ## Security properties
 
 1. Every target-specific model is bound to a host and exact topology revision.
@@ -142,19 +151,23 @@ Optional external drivers:
 27. Container recreate plans bind the exact replacement configuration digest and image-pull choice.
 28. Container recreate rechecks the digest immediately before removal and records the furthest completed destructive stage.
 29. Compose recreate plans bind normalized configuration and service pre-state, then verify the exact healthy post-state.
-30. Arbitrary command execution, file transfer, image deletion, pruning, and Compose down remain outside this slice.
+30. Container exec uses direct argv without a shell or TTY, crosses the uncertain send boundary only at `start_exec`, and inspects the final exit status.
+31. Host exec admits only the fixed read-oriented command set and typed options; filesystem operands and working directories are descriptor-bound beneath explicit roots.
+32. Host fanout preserves deterministic target order, retains every partial result, bounds concurrency and aggregate output, and requires replanning unresolved targets rather than blind batch retry.
+33. File transfer, image deletion, pruning, and Compose down remain outside this slice.
 
 ## Current Synapse adoption
 
-The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Fourteen of the 21 canonical mutations are now delegated:
+The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Seventeen of the 21 canonical mutations are now delegated:
 
 - `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
 - `compose.up` and `compose.restart`;
 - `docker.pull`, `container.pull`, and `compose.pull`;
 - `docker.build` and `compose.build`;
-- `container.recreate` and `compose.recreate`.
+- `container.recreate` and `compose.recreate`;
+- `container.exec`, `host.exec`, and `host.exec_many`.
 
-Pull plans bind exact image artifacts. Build plans bind exact context SHA-256 values and output tags. Replacement plans bind exact configuration and service pre-state digests. Execution rechecks mutable inputs before send and independently verifies image identities, replacement containers, or Compose service sets. Seven canonical mutations remain fail-closed.
+Pull plans bind exact image artifacts. Build plans bind exact context SHA-256 values and output tags. Replacement plans bind exact configuration and service pre-state digests. Execution plans bind direct argv, users, working directories, timeouts, topology revisions, and normalized fanout target order without fabricating unsupported verification. Four canonical mutations remain fail-closed.
 
 ## Verification
 
@@ -167,6 +180,7 @@ Required gates:
 - pull progress, delivery-failure, image-reference drift, and artifact-verification tests;
 - build-context determinism, symlink rejection, context drift, bounded argv/logs, and output-verification tests;
 - replacement fingerprint drift, pull-choice binding, partial-stage, force-recreate argv, and post-state verification tests;
+- direct container argv, pre/post-start send-state, descriptor-bound host operands, symlink escape rejection, nonzero exits, bounded output, and stable partial fanout tests;
 - stale-host and revision-bound client tests;
 - filesystem traversal and symlink rejection;
 - workspace sibling, architecture, pattern, and product-leakage checks.
