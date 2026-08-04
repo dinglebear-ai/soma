@@ -4,9 +4,11 @@ use serde_json::Value;
 use soma_fleet::{HostId, HostRecord, HostRepository};
 use soma_infra::{
     BuildContextInspector, ComposeBuildEngine, ComposeBuildMutator, ComposeMutationClient,
-    ComposeMutationEngine, ComposePullClient, ComposePullEngine, ContainerLifecycleAction,
-    ContainerLifecycleEngine, ContainerLifecycleRequest, DockerArtifactClientProvider,
-    DockerMutationClientProvider, ImageBuildEngine, ImageBuildMutator, ImagePullEngine,
+    ComposeMutationEngine, ComposePullClient, ComposePullEngine, ComposeRecreateClient,
+    ComposeRecreateEngine, ContainerLifecycleAction, ContainerLifecycleEngine,
+    ContainerLifecycleRequest, ContainerRecreateClientProvider, ContainerRecreateEngine,
+    DockerArtifactClientProvider, DockerMutationClientProvider, ImageBuildEngine,
+    ImageBuildMutator, ImagePullEngine,
 };
 use soma_ops::{
     AccessClass, AuthorizationEvidence, OperationContext, OperationName, OperationPlan, PlanStep,
@@ -29,6 +31,14 @@ pub struct SynapseBuildPorts {
     pub compose: Arc<dyn ComposeBuildMutator>,
 }
 
+/// Product-owned replacement ports.
+pub struct SynapseRecreatePorts {
+    /// Host-bound container replacement client provider.
+    pub containers: Arc<dyn ContainerRecreateClientProvider>,
+    /// Compose force-recreate client.
+    pub compose: Arc<dyn ComposeRecreateClient>,
+}
+
 /// Product-owned ports used by canonical Synapse mutations.
 pub struct SynapseMutationPorts {
     /// Fleet topology source.
@@ -43,6 +53,8 @@ pub struct SynapseMutationPorts {
     pub compose_pull: Option<Arc<dyn ComposePullClient>>,
     /// Optional privileged build ports.
     pub builds: Option<SynapseBuildPorts>,
+    /// Optional destructive replacement ports.
+    pub recreate: Option<SynapseRecreatePorts>,
 }
 
 /// Canonical Synapse mutation planner and executor.
@@ -55,6 +67,8 @@ pub struct SynapseMutationRuntime {
     pub(crate) compose_pull: ComposePullEngine,
     pub(crate) image_build: ImageBuildEngine,
     pub(crate) compose_build: ComposeBuildEngine,
+    pub(crate) container_recreate: ContainerRecreateEngine,
+    pub(crate) compose_recreate: ComposeRecreateEngine,
 }
 
 impl SynapseMutationRuntime {
@@ -70,6 +84,8 @@ impl SynapseMutationRuntime {
             compose_pull: ComposePullEngine,
             image_build: ImageBuildEngine,
             compose_build: ComposeBuildEngine,
+            container_recreate: ContainerRecreateEngine,
+            compose_recreate: ComposeRecreateEngine,
         }
     }
 
@@ -98,6 +114,8 @@ impl SynapseMutationRuntime {
             compose_pull: ComposePullEngine,
             image_build: ImageBuildEngine,
             compose_build: ComposeBuildEngine,
+            container_recreate: ContainerRecreateEngine,
+            compose_recreate: ComposeRecreateEngine,
         }
     }
 
@@ -231,7 +249,8 @@ impl SynapseMutationRuntime {
             || (lifecycle_action(operation).is_err()
                 && crate::mutation_compose::compose_action(operation).is_err()
                 && !crate::mutation_pull::pull_operation(operation)
-                && !crate::mutation_build::build_operation(operation))
+                && !crate::mutation_build::build_operation(operation)
+                && !crate::mutation_recreate::recreate_operation(operation))
         {
             return Err(ExecutionError::UnsupportedOperation(operation.clone()));
         }

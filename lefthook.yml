@@ -35,7 +35,7 @@
 #   - cargo xtask patterns → full-repo contract scan; runs in CI and `just soma-check`
 #   - just synapse-product-import-check → locked donor snapshot check; runs in CI/manual only
 #   - just synapse-canonical-read-check → full infrastructure and Synapse read suites; runs in CI/manual only
-#   - just synapse-mutation-check → full lifecycle, pull, build, infrastructure, and Synapse mutation suites; CI/manual only
+#   - just synapse-mutation-check → full lifecycle, artifact, build, replacement, infrastructure, and Synapse mutation suites; CI/manual only
 #   - cargo xtask check-release-versions → PR/main release gate; runs in CI and release scripts
 #   - cargo xtask doc --strict → rustdoc -D warnings gate; runs in CI (docs.yml) and `just doc-check`
 #

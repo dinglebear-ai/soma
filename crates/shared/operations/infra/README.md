@@ -25,6 +25,7 @@ The mutation surface includes:
 - verified Compose `up -d` and `restart`;
 - verified Docker, container-image, and Compose image pulls;
 - context-bound verified Docker and Compose image builds;
+- configuration-bound verified container and Compose replacements;
 - descriptor-confined context fingerprints with explicit root, file-count, and byte ceilings;
 - canonical bounded phase progress and build logs whose delivery failures do not rewrite execution truth;
 - OCI artifact references and local image-ID/digest verification;
@@ -35,8 +36,8 @@ The shared crate does not authorize mutations. Product runtimes must bind a dete
 
 ## Feature flags
 
-- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, and image-build support;
-- `bollard-driver`: local Docker reads, container lifecycle mutations, and image-pull streams;
+- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, image build, and Compose replacement support;
+- `bollard-driver`: local Docker reads, container lifecycle and replacement mutations, and image-pull streams;
 - `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
 
@@ -60,6 +61,9 @@ The default build exposes neutral models, traits, coordinators, and deterministi
 - image builds re-fingerprint every context immediately before send and reject source drift as `NotSent`;
 - build contexts reject symlinks and special files and bind relative paths, modes, sizes, and content into SHA-256;
 - Docker and Compose builds verify each requested output tag through the local image store;
+- container replacement captures and fingerprints image, env, command, entrypoint, labels, volumes, host config, and network attachments before removal;
+- container replacement rechecks configuration immediately before destructive send and reports the furthest completed stage;
+- Compose replacement binds normalized configuration and service pre-state, then verifies the exact healthy service set after force-recreate;
 - progress sink failures remain bounded metadata and never change backend send or verification truth;
 - SDK-specific Bollard types never cross the public API.
 

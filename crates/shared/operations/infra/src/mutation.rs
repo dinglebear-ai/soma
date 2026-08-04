@@ -40,6 +40,14 @@ impl MutationFailure {
 /// Result type for infrastructure mutations.
 pub type MutationResult<T> = Result<T, MutationFailure>;
 
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 /// Stable verification detail for a mutation outcome.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MutationVerification {

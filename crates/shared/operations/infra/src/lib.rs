@@ -16,8 +16,12 @@ mod compose_mutation;
 mod compose_parse;
 mod compose_pull;
 mod compose_pull_engine;
+mod compose_recreate;
+mod compose_recreate_engine;
 mod container_mutation;
 mod container_mutation_engine;
+mod container_recreate;
+mod container_recreate_engine;
 mod docker;
 mod docker_provider;
 mod docker_telemetry;
@@ -49,6 +53,8 @@ mod bollard_mutation;
 #[cfg(feature = "remote-bollard")]
 mod bollard_provider;
 #[cfg(feature = "bollard-driver")]
+mod bollard_recreate;
+#[cfg(feature = "bollard-driver")]
 mod bollard_telemetry;
 #[cfg(feature = "bollard-driver")]
 mod docker_map;
@@ -64,6 +70,8 @@ mod process_compose_build;
 mod process_compose_mutation;
 #[cfg(feature = "process-driver")]
 mod process_compose_pull;
+#[cfg(feature = "process-driver")]
+mod process_compose_recreate;
 #[cfg(feature = "process-driver")]
 mod process_filesystem;
 #[cfg(feature = "process-driver")]
@@ -100,12 +108,24 @@ pub use compose_pull::{
     ComposePullRequest, ComposePulledImage,
 };
 pub use compose_pull_engine::ComposePullEngine;
+pub use compose_recreate::{
+    ComposeRecreateClient, ComposeRecreateFingerprint, ComposeRecreateMutator,
+    ComposeRecreateOutcome, ComposeRecreateReceipt, ComposeRecreateRequest,
+    compose_recreate_fingerprint,
+};
+pub use compose_recreate_engine::ComposeRecreateEngine;
 pub use container_mutation::{
     ContainerLifecycleAction, ContainerLifecycleMutator, ContainerLifecycleOutcome,
     ContainerLifecycleRequest, ContainerMutationReceipt, DockerMutationClient,
     DockerMutationClientProvider, MutationVerificationPolicy,
 };
 pub use container_mutation_engine::ContainerLifecycleEngine;
+pub use container_recreate::{
+    ContainerRecreateClient, ContainerRecreateClientProvider, ContainerRecreateFingerprint,
+    ContainerRecreateInspector, ContainerRecreateMutator, ContainerRecreateOutcome,
+    ContainerRecreateReceipt, ContainerRecreateRequest, ContainerRecreateStage,
+};
+pub use container_recreate_engine::ContainerRecreateEngine;
 pub use docker::{
     ContainerInspect, ContainerListOptions, ContainerProcessTable, ContainerReader, ContainerState,
     ContainerSummary, DockerSystemInfo, DockerSystemReader, ImageListOptions, ImageReader,

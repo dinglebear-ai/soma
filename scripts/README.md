@@ -103,8 +103,8 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `check-file-size.sh` | Bash wrapper | `cargo xtask check-file-size`, `just file-size-check`, lefthook pre-commit | Delegates to xtask to enforce staged source-file size budgets. |
 | `asciicheck.py` | Python wrapper | `cargo xtask asciicheck`, through `run-ascii-check.sh` | Delegates to xtask to check files for unexpected non-ASCII characters and optionally fix common smart punctuation. |
 | `run-ascii-check.sh` | Bash wrapper | `cargo xtask run-ascii-check`, `just ascii-check`, `just ascii-fix`, CI | Delegates to xtask to collect tracked text-like files and run `asciicheck.py`. |
-| `kache-gate.sh` | Bash | `.github/workflows/ci.yml` (before/after each cached build) | Fails the job when the kache compiler cache silently degrades - dead daemon, unreachable remote, or a hit rate under the configured floor. kache is fail-open, so without this a broken cache is a green, slow build. |
-| `kache-gate-selftest.sh` | Bash | `scripts/kache-gate-selftest.sh` | Proves the gate rejects a degraded build *and* passes a healthy one, plus its baseline scoping. A gate that always passes hides breakage; one that always fails gets ignored. |
+| `kache-gate.sh` | Bash | `.github/workflows/ci.yml` (before/after each cached build) | Fails the job when an expected kache compiler cache silently degrades. When setup explicitly records `KACHE_DISABLED=true` because the daemon could not be established, the gate reports the intentional no-cache fallback and lets Cargo continue directly through rustc. |
+| `kache-gate-selftest.sh` | Bash | `scripts/kache-gate-selftest.sh` | Proves strict cache degradation is rejected, explicit no-cache fallback is visible and accepted, and baseline scoping is deterministic even though daemon event reporting is asynchronous. |
 | `build-web.sh` | Bash wrapper | `cargo xtask build-web`, `just build-web` | Delegates to xtask to build the optional Next.js static web UI export. |
 | `web-watch.sh` | Bash wrapper | `cargo xtask web-watch`, `just web-watch` | Delegates to xtask to rebuild the optional web UI on changes using `watchexec`. |
 
@@ -644,7 +644,7 @@ rather than time-windowed, and stays correct if upstream later fixes `--since`.
 | `KACHE_GATE_REQUIRE_DAEMON` | `0` | `1` requires a reachable daemon. |
 | `KACHE_GATE_ROOT` | `$PWD` | Build tree to scope to. |
 
-Exit codes: `0` pass, `1` gate violation, `2` report unusable.
+Exit codes: `0` pass or explicitly declared no-cache fallback, `1` gate violation, `2` report unusable. The setup action writes `KACHE_DISABLED=true` and clears both Cargo compiler-wrapper variables only when it cannot establish a daemon after bounded retries; this fallback is logged as a warning and does not weaken strict checks when caching was successfully enabled.
 
 ### `kache-gate-selftest.sh`
 
@@ -652,8 +652,7 @@ Exit codes: `0` pass, `1` gate violation, `2` report unusable.
 scripts/kache-gate-selftest.sh
 ```
 
-Proves `kache-gate.sh` rejects a degraded build and its baseline-and-diff
-scoping works.
+Proves `kache-gate.sh` rejects a degraded build, accepts the explicit daemon-bootstrap fallback with a visible diagnostic, and keeps baseline-and-diff scoping stable. The cold probe writes unique Rust source and waits for the asynchronous daemon report before asserting hit-rate behavior.
 
 Both failure directions are tested deliberately: a gate that only ever passes
 converts "the cache broke" into "CI is green", and a gate that always fails

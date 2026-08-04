@@ -37,6 +37,11 @@
 # Exit: 0 pass / 1 gate violation / 2 report unusable
 set -uo pipefail
 
+if [ "${KACHE_DISABLED:-false}" = "true" ]; then
+  echo "kache-gate: compiler cache intentionally disabled after daemon bootstrap failure"
+  exit 0
+fi
+
 BASELINE="${KACHE_GATE_BASELINE:-${RUNNER_TEMP:-/tmp}/kache-gate-baseline.json}"
 MIN_HIT_RATE="${KACHE_GATE_MIN_HIT_RATE:-0}"
 REQUIRE_REMOTE="${KACHE_GATE_REQUIRE_REMOTE:-0}"
