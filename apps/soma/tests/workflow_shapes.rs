@@ -42,6 +42,7 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
     const NPM_PUBLISH_REVISION: &str = "64d705af6e164aac58d507df6fb2f6bdc8a4d22d";
     // Native wheels need platform-specific cibuildwheel architecture names.
     const PYTHON_WHEELS_REVISION: &str = "eadba32f019e984b26d93c807ef72e5094df2876";
+    const MCP_REGISTRY_REVISION: &str = "befa67c7b7f976235bf3fbced6ede93293a7f405";
     let workflow_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join(".github/workflows");
@@ -84,6 +85,7 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
             caller_count += 1;
             let expected_revision = match called_workflow {
                 "npm-trusted-publish.yml" => NPM_PUBLISH_REVISION,
+                "mcp-registry-publish.yml" => MCP_REGISTRY_REVISION,
                 "hosted-python-wheels.yml" => PYTHON_WHEELS_REVISION,
                 _ => FLEET_REVISION,
             };
@@ -289,16 +291,25 @@ fn artifact_workflows_run_from_published_releases() {
             && release.contains("artifacts/${{ env.BINARY_NAME }}-${{ matrix.arch }}.tar.gz",),
         "release assets must include the installer's linux-x86_64 naming convention"
     );
+    let registry =
+        normalize_workflow_newlines(include_str!("../../../.github/workflows/mcp-registry.yml"));
     assert!(
-        docker.contains("package.pop(\"version\", None)")
-            && docker.contains("package.pop(\"registryBaseUrl\", None)")
-            && docker.contains("distribution[\"ociImage\"] = image"),
-        "Docker/MCP registry workflow must emit a canonical OCI package without forbidden legacy fields"
+        !docker.contains("mcp-publisher") && !docker.contains("registry.modelcontextprotocol.io"),
+        "container publication must not duplicate the shared MCP Registry publisher"
     );
-    let registry = workflow_job_block(&docker, "registry");
     assert!(
-        registry.contains("mcp-publisher publish"),
-        "the product-specific MCP Registry publication must remain in Soma"
+        registry.contains("release:")
+            && registry.contains("types: [published]")
+            && registry.contains("workflow_dispatch:")
+            && registry.contains("expected-version:")
+            && registry.contains("manifest-path: server.json"),
+        "MCP Registry publication must support release events and explicit recovery"
+    );
+    assert!(
+        registry.contains("mcp-registry-publish.yml@befa67c7b7f976235bf3fbced6ede93293a7f405")
+            && !registry.contains("auth-method:")
+            && registry.contains("MCP_PRIVATE_KEY"),
+        "MCP Registry publication must use the pinned fleet source of truth with DNS ownership"
     );
     assert!(
         docker.contains("hosted-container-release.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf"),
