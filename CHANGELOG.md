@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **docs:** document the MinIO-only Kache remote, 80 GiB runner L1 stores, and retired NFS topology
 
+## [0.10.0](https://github.com/dinglebear-ai/soma/compare/v0.9.0...v0.10.0) (2026-08-04)
+
+
+### Added
+
+* **infra:** add verified replacement mutations ([#314](https://github.com/dinglebear-ai/soma/issues/314)) ([2ce812b](https://github.com/dinglebear-ai/soma/commit/2ce812b254db43a884d3b7748d04152acadb8a68))
+* **release:** publish canonical MCP Registry metadata ([#318](https://github.com/dinglebear-ai/soma/issues/318)) ([65671ff](https://github.com/dinglebear-ai/soma/commit/65671ffc2619862c459fb8974251eab6b2b747c9))
+
+
+### Dependencies
+
+* consolidate Dependabot updates 297-312 ([#315](https://github.com/dinglebear-ai/soma/issues/315)) ([2e99b18](https://github.com/dinglebear-ai/soma/commit/2e99b1889312bfcc080924de7b4056f4ce59898f))
 ## [0.9.0](https://github.com/dinglebear-ai/soma/compare/v0.8.2...v0.9.0) (2026-08-03)
 
 
