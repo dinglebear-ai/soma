@@ -45,11 +45,11 @@ No pool key includes secrets. Identity, config, and known-host file paths are to
 
 ## Command semantics
 
-`CommandRequest` contains an executable, discrete arguments, optional absolute local working directory, an absolute deadline, and stdout/stderr byte ceilings. Product command allowlists remain above this crate.
+`CommandRequest` contains an executable, discrete arguments, optional absolute local working directory, optional bounded stdin bytes, an absolute deadline, and stdout/stderr byte ceilings. Stdin is capped at 64 MiB and never interpreted as shell syntax. Product command allowlists remain above this crate.
 
-`LocalProcessDriver` uses `tokio::process::Command` without a shell, drains both streams to EOF while retaining bounded prefixes, kills local children on cancellation or timeout, and distinguishes pre-spawn cancellation from in-flight deadline expiry.
+`LocalProcessDriver` uses `tokio::process::Command` without a shell, writes optional stdin concurrently with draining both output streams, retains bounded prefixes, kills local children on cancellation or timeout, and distinguishes pre-spawn cancellation from in-flight deadline expiry.
 
-`OpenSshDriver` uses native multiplexing, always configures `KnownHosts::Strict`, supports explicit port/user/identity/config/known-host paths, uses owner-only control directories, passes arguments through escaped `Command::arg` semantics, rejects remote working directories instead of synthesizing shell commands, bounds output and execution permits, and invalidates sessions after transport failures.
+`OpenSshDriver` uses native multiplexing, always configures `KnownHosts::Strict`, supports explicit port/user/identity/config/known-host paths, uses owner-only control directories, passes arguments through escaped `Command::arg` semantics, writes optional bounded stdin concurrently with output draining, rejects remote working directories instead of synthesizing shell commands, bounds output and execution permits, and invalidates sessions after transport failures.
 
 OpenSSH cannot guarantee termination of a remote process when its local child handle is dropped. Cancellation or timeout after spawn therefore returns `FleetError::RemoteCommandDetached`; callers must treat the remote process as potentially still running.
 
@@ -61,7 +61,7 @@ OpenSSH cannot guarantee termination of a remote process when its local child ha
 
 `TransferRequest` uses absolute normalized source and destination paths, a hard byte ceiling, and an absolute deadline. `TransferLifecycle` exposes a cloneable observer while `TransferGuard` records chunks and terminal state. It rejects overflow, overrun, receipt mismatch, duplicate terminal transitions, and invalid failure detail. Dropping a nonterminal guard records `Abandoned`.
 
-Concrete infrastructure-aware file semantics remain in `soma-infra`; implementations consume the `FileTransfer` port and lifecycle guard.
+Concrete infrastructure-aware file semantics remain in `soma-infra`; implementations consume the `FileTransfer` port and lifecycle guard. The final Synapse transfer driver uses bounded command stdin to deliver destination bytes without ambient `scp`, shell strings, or untracked temporary files.
 
 ## Fanout semantics
 
@@ -73,6 +73,6 @@ Concrete infrastructure-aware file semantics remain in `soma-infra`; implementat
 
 ## Verification evidence
 
-The deterministic suite covers identity and forged revisions, endpoint changes, stale pooled connections, concurrent single-connect initialization, shutdown, argument injection, bounded output, local cancellation/timeout, strict OpenSSH plans, fail-closed SSH working directories, runtime/socket ownership and permissions, file/symlink rejection, transfer overrun/mismatch/cancellation/failure/abandonment, and bounded fanout with partial success, timeout, cancellation, overload prevention, stable order, duplicate-host payloads, and consuming reports.
+The deterministic suite covers identity and forged revisions, endpoint changes, stale pooled connections, concurrent single-connect initialization, shutdown, argument injection, bounded stdin/output, local cancellation/timeout, strict OpenSSH plans, fail-closed SSH working directories, runtime/socket ownership and permissions, file/symlink rejection, transfer digest exposure, overrun/mismatch/cancellation/failure/abandonment, and bounded fanout with partial success, timeout, cancellation, overload prevention, stable order, duplicate-host payloads, and consuming reports.
 
 Live SSH and host-key mismatch tests remain environment-gated product verification; deterministic tests prove the driver can construct only strict-host-key plans.

@@ -32,6 +32,14 @@ pub enum RequestError {
         /// Requested byte limit.
         bytes: usize,
     },
+    /// Command stdin exceeded the hard ceiling.
+    #[error("invalid command stdin length: {bytes} bytes; maximum is {max}")]
+    InvalidStdinLimit {
+        /// Supplied stdin bytes.
+        bytes: usize,
+        /// Hard maximum.
+        max: usize,
+    },
     /// Transfer byte bound was zero or exceeded the hard ceiling.
     #[error("invalid transfer limit {bytes}; maximum is {max}")]
     InvalidTransferLimit {
