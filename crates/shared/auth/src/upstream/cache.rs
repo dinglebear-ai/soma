@@ -257,7 +257,7 @@ impl OauthClientCache {
 
     /// Insert a pre-built `AuthClient` directly into the cache.
     ///
-    /// Test-only seam: available in `labby-auth`'s own tests and downstream
+    /// Test-only seam: available in this crate's own tests and downstream
     /// debug test builds. It is intentionally not gated by a Cargo feature so
     /// `--all-features --release` cannot expose it in production artifacts.
     #[cfg(any(test, debug_assertions))]

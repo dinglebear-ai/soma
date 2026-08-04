@@ -398,7 +398,7 @@ mod tests {
         let dir = Box::leak(Box::new(tempdir().expect("tempdir")));
         AuthState::new(AuthConfig {
             mode: AuthMode::OAuth,
-            public_url: Some(Url::parse("https://lab.example.com").expect("url")),
+            public_url: Some(Url::parse("https://app.example.com").expect("url")),
             sqlite_path: dir.path().join("auth.db"),
             key_path: dir.path().join("auth.pem"),
             bootstrap_secret: None,

@@ -46,8 +46,8 @@ async fn sqlite_store_backfills_provider_column_on_pre_migration_database() {
                 "client-1",
                 "http://127.0.0.1:7777/callback",
                 "client-state",
-                "https://lab.example.com/mcp",
-                "lab",
+                "https://app.example.com/mcp",
+                "app:read",
                 "verifier",
                 "challenge",
                 "S256",
@@ -69,7 +69,7 @@ async fn sqlite_store_backfills_provider_column_on_pre_migration_database() {
         "pre-existing row must backfill to the 'google' default"
     );
     assert_eq!(row.client_id, "client-1");
-    assert_eq!(row.resource, "https://lab.example.com/mcp");
+    assert_eq!(row.resource, "https://app.example.com/mcp");
 }
 
 /// Same regression coverage as
@@ -111,8 +111,8 @@ async fn sqlite_store_backfills_provider_column_on_pre_migration_refresh_tokens_
                 super::hash_token(plaintext_token),
                 "client-1",
                 "google-user",
-                "https://lab.example.com/mcp",
-                "lab",
+                "https://app.example.com/mcp",
+                "app:read",
                 "provider-refresh-token",
                 now,
                 now + 3600,
@@ -133,7 +133,7 @@ async fn sqlite_store_backfills_provider_column_on_pre_migration_refresh_tokens_
         "pre-existing row must backfill to the 'google' default"
     );
     assert_eq!(row.client_id, "client-1");
-    assert_eq!(row.resource, "https://lab.example.com/mcp");
+    assert_eq!(row.resource, "https://app.example.com/mcp");
 }
 
 /// Hand-writes a v4-shaped database (the schema immediately before
@@ -164,7 +164,7 @@ async fn sqlite_store_adds_a_null_client_auth_method_to_pre_v5_rows() {
         .unwrap()
         .expect("a pre-v5 refresh token must survive the migration");
     assert_eq!(refresh.client_id, "pre-v5-client");
-    assert_eq!(refresh.scope, "lab");
+    assert_eq!(refresh.scope, "app:read");
     assert_eq!(
         refresh.provider_refresh_token.as_deref(),
         Some("provider-refresh-token")
@@ -260,8 +260,8 @@ fn write_v4_database(path: &PathBuf, now: i64, plaintext_token: &str) {
             "pre-v5-client",
             "google-user",
             "http://127.0.0.1:7777/callback",
-            "https://lab.example.com/mcp",
-            "lab",
+            "https://app.example.com/mcp",
+            "app:read",
             "google",
             "challenge",
             "S256",
@@ -280,8 +280,8 @@ fn write_v4_database(path: &PathBuf, now: i64, plaintext_token: &str) {
             super::hash_token(plaintext_token),
             "pre-v5-client",
             "google-user",
-            "https://lab.example.com/mcp",
-            "lab",
+            "https://app.example.com/mcp",
+            "app:read",
             "google",
             "provider-refresh-token",
             now,

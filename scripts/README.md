@@ -44,6 +44,7 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `bump-version.sh` | Bash wrapper | `cargo xtask bump-version soma <major|minor|patch>` | Thin wrapper for the xtask version bumper. |
 | `check-version-sync.sh` | Bash wrapper | `cargo xtask check-version-sync` | Thin wrapper for the xtask manifest-backed version sync gate. |
 | `check-dependency-updates.sh` | Bash wrapper | `cargo xtask check-dependency-updates`, `just deps-check` | Delegates to xtask for a read-only dependency drift report using `cargo update --dry-run` plus optional crates.io latest-version checks. |
+| `check-soma-auth-package.sh` | Bash package gate | CI, local release verification | Packages `soma-auth`, extracts the exact `.crate`, and compiles a blank external consumer against every public feature combination. |
 | `check-python-platform-policy.py` | Python policy gate | `cargo xtask check-docs`, CI | Verifies the Python provider remains x86_64-only across Linux, macOS, and Windows and that its release workflow pins the approved OIDC PyPI publisher, provenance, SBOM, checksum, and recovery contracts. |
 | `check-blob-size.py` | Python wrapper | `cargo xtask check-blob-size`, `just blob-size-check`, CI | Delegates to xtask to block changed git blobs above the configured size budget unless allowlisted. |
 | `blob-size-allowlist.txt` | Data | used by `check-blob-size.py` | Allowlist patterns for intentional large artifacts. |
@@ -282,6 +283,18 @@ Options:
 | `--skip-search` | Skip crates.io latest-version checks. |
 | `--fail-on-updates` | Exit 1 when possible updates are detected. |
 | `-h`, `--help` | Show help. |
+
+### `check-soma-auth-package.sh`
+
+```bash
+./scripts/check-soma-auth-package.sh
+```
+
+Builds the publishable `soma-auth` archive, extracts that exact artifact outside
+the workspace, creates a blank external Cargo project, and compiles the consumer
+with no features, `http-axum`, `upstream-oauth-rmcp`, and both features together.
+This catches accidental workspace-only dependencies and package omissions before
+a crates.io release.
 
 ### `check-file-size.sh`
 

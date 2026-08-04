@@ -12,14 +12,9 @@
 //! `cimd::document::fetch_document_at`) — this module alone does not close
 //! the DNS-rebinding/proxy-interception gap by itself.
 //!
-//! Adapted (not imported — this crate has no path dependency on the
-//! sibling `lab` repo) from the equivalent guard in
-//! `labby-primitives::ssrf` and its caller,
-//! `labby-apis::acp_registry::installer`, which additionally documents and
-//! implements post-connect peer re-validation as "the load-bearing line of
-//! the SSRF TOCTOU / DNS-rebinding defense" — that additional layer is
-//! implemented in `cimd::document`, not here (this module only covers the
-//! static/pre-DNS portion of the reference's rigor).
+//! The post-connect peer validation layer lives in `cimd::document`; this
+//! module intentionally covers only the static, pre-DNS portion of the SSRF
+//! and DNS-rebinding defense.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 

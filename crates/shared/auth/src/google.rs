@@ -372,7 +372,7 @@ mod tests {
         GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
     }

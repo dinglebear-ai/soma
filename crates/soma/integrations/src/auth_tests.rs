@@ -126,6 +126,18 @@ fn applies_somas_product_auth_defaults() {
     assert_eq!(config.resource_path, "/mcp");
     assert_eq!(config.default_scope, "soma:read");
     assert!(config.enable_dynamic_registration);
+    assert!(!config.disable_static_token_with_oauth);
+    assert_eq!(config.upstream_client_name, "soma");
+    assert_eq!(config.upstream_callback_path, "/auth/upstream/callback");
+    assert_eq!(config.default_data_dir.file_name().unwrap(), ".soma");
+    assert_eq!(
+        config.static_token_scopes,
+        vec![
+            soma_domain::actions::READ_SCOPE.to_owned(),
+            soma_domain::actions::WRITE_SCOPE.to_owned(),
+            soma_domain::scopes::ADMIN_SCOPE.to_owned(),
+        ]
+    );
     assert_eq!(
         config.scopes_supported,
         vec![

@@ -207,7 +207,7 @@ impl SqliteStore {
     ///
     /// Called by `begin_authorization` after generating the authorization URL
     /// so that `complete_authorization_callback` can later look up which
-    /// `client_id` was used for this specific flow (lab-77y5.15).
+    /// `client_id` was used for this specific flow.
     pub async fn set_upstream_oauth_state_client_id(
         &self,
         upstream_name: &str,
@@ -235,7 +235,7 @@ impl SqliteStore {
     ///
     /// Returns `None` when no row matches or the row has expired. Used by
     /// `complete_authorization_callback` to recover the exact `client_id` that
-    /// was used when the authorization URL was generated (lab-77y5.15).
+    /// was used when the authorization URL was generated.
     pub async fn get_upstream_oauth_state_client_id(
         &self,
         upstream_name: &str,

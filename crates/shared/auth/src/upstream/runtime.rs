@@ -14,6 +14,7 @@ pub struct UpstreamOauthRuntime {
     pub sqlite: SqliteStore,
     pub key: EncryptionKey,
     pub redirect_uri: String,
+    pub client_name: String,
 }
 
 /// Build the upstream OAuth runtime for the upstreams that declare an `oauth`
@@ -54,13 +55,15 @@ pub async fn build_upstream_oauth_runtime(
     let sqlite = SqliteStore::open(auth_config.sqlite_path.clone())
         .await
         .context("open sqlite store for upstream oauth")?;
-    let redirect_uri = build_upstream_oauth_callback_uri(public_url)?;
+    let redirect_uri =
+        build_upstream_oauth_callback_uri(public_url, &auth_config.upstream_callback_path)?;
 
     Ok(Some(build_upstream_oauth_runtime_from_parts(
         upstreams,
         sqlite,
         key,
         redirect_uri,
+        auth_config.upstream_client_name.clone(),
     )))
 }
 
@@ -73,6 +76,7 @@ pub fn build_upstream_oauth_runtime_from_parts(
     sqlite: SqliteStore,
     key: EncryptionKey,
     redirect_uri: String,
+    client_name: String,
 ) -> UpstreamOauthRuntime {
     let managers = Arc::new(dashmap::DashMap::new());
     for upstream in upstreams.iter().filter(|upstream| upstream.oauth.is_some()) {
@@ -83,6 +87,7 @@ pub fn build_upstream_oauth_runtime_from_parts(
                 key.clone(),
                 upstream.clone(),
                 redirect_uri.clone(),
+                client_name.clone(),
             ),
         );
     }
@@ -99,19 +104,53 @@ pub fn build_upstream_oauth_runtime_from_parts(
         sqlite,
         key,
         redirect_uri,
+        client_name,
     }
 }
 
-pub fn build_upstream_oauth_callback_uri(public_url: &url::Url) -> Result<String> {
+pub fn build_upstream_oauth_callback_uri(
+    public_url: &url::Url,
+    callback_path: &str,
+) -> Result<String> {
+    anyhow::ensure!(
+        callback_path.starts_with('/'),
+        "upstream OAuth callback path must start with `/`"
+    );
     let mut redirect_uri = public_url.clone();
     let base_path = redirect_uri.path().trim_end_matches('/');
+    let callback_path = callback_path.trim_start_matches('/');
     let next_path = if base_path.is_empty() {
-        "/auth/upstream/callback".to_string()
+        format!("/{callback_path}")
     } else {
-        format!("{base_path}/auth/upstream/callback")
+        format!("{base_path}/{callback_path}")
     };
     redirect_uri.set_path(&next_path);
     redirect_uri.set_query(None);
     redirect_uri.set_fragment(None);
     Ok(redirect_uri.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_upstream_oauth_callback_uri;
+
+    #[test]
+    fn callback_uri_uses_the_consumer_supplied_path() {
+        let public_url = url::Url::parse("https://axon.example.com/base").unwrap();
+        let callback =
+            build_upstream_oauth_callback_uri(&public_url, "/oauth/upstream/complete").unwrap();
+
+        assert_eq!(
+            callback,
+            "https://axon.example.com/base/oauth/upstream/complete"
+        );
+    }
+
+    #[test]
+    fn callback_uri_rejects_relative_paths() {
+        let public_url = url::Url::parse("https://axon.example.com").unwrap();
+        let error = build_upstream_oauth_callback_uri(&public_url, "oauth/callback").unwrap_err();
+
+        assert!(error.to_string().contains("must start with `/`"));
+    }
 }

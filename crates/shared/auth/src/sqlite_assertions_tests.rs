@@ -60,7 +60,7 @@ async fn refresh_revocation_is_bound_to_authenticated_client() {
             client_id: "client-a".to_string(),
             subject: "machine".to_string(),
             resource: "https://soma.example/mcp".to_string(),
-            scope: "soma".to_string(),
+            scope: "app:read".to_string(),
             provider: "google".to_string(),
             provider_refresh_token: None,
             created_at: now,

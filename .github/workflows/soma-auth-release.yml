@@ -1,0 +1,82 @@
+name: Publish soma-auth
+
+on:
+  push:
+    tags:
+      - "soma-auth-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact soma-auth version to publish, without the v prefix"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    name: Verify soma-auth release
+    runs-on: ci-pool-rust
+    timeout-minutes: 35
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
+      - name: Validate release version
+        id: version
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          manifest_version="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(p["version"] for p in data["packages"] if p["name"] == "soma-auth"))')"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            expected_tag="soma-auth-v${manifest_version}"
+            [[ "${GITHUB_REF_NAME}" == "${expected_tag}" ]] || {
+              echo "::error::tag ${GITHUB_REF_NAME} does not match ${expected_tag}"
+              exit 1
+            }
+          else
+            [[ "${GITHUB_REF_NAME}" == "main" ]] || {
+              echo "::error::manual publishing must run from main"
+              exit 1
+            }
+            [[ "${DISPATCH_VERSION}" == "${manifest_version}" ]] || {
+              echo "::error::requested ${DISPATCH_VERSION} but manifest is ${manifest_version}"
+              exit 1
+            }
+          fi
+          echo "version=${manifest_version}" >>"${GITHUB_OUTPUT}"
+      - name: Verify changelog entry
+        run: grep -F "## [${{ steps.version.outputs.version }}]" crates/shared/auth/CHANGELOG.md
+      - name: Run release gates
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: |
+          cargo check -p soma-auth --no-default-features --locked
+          cargo check -p soma-auth --no-default-features --features http-axum --locked
+          cargo check -p soma-auth --no-default-features --features upstream-oauth-rmcp --locked
+          cargo check -p soma-auth --all-features --locked
+          cargo test -p soma-auth --all-features --locked
+          cargo doc -p soma-auth --all-features --no-deps --locked
+          ./scripts/check-soma-auth-package.sh
+          cargo publish -p soma-auth --dry-run --locked
+
+  publish:
+    name: Publish soma-auth ${{ needs.verify.outputs.version }}
+    needs: verify
+    runs-on: ci-pool-rust
+    timeout-minutes: 15
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
+      - name: Publish crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p soma-auth --locked

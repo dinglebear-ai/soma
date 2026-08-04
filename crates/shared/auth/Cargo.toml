@@ -1,19 +1,25 @@
 [package]
 name = "soma-auth"
-description = "Vendored OAuth 2.0 + JWT auth crate for soma and derived servers."
+description = "Reusable OAuth 2.1, OIDC, JWT, Axum, and upstream MCP authentication primitives."
 license = "MIT"
-version = "0.4.1"
+version = "0.5.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/soma-auth"
+readme = "README.md"
 keywords = ["oauth", "auth", "axum", "jwt", "mcp"]
 categories = ["authentication", "web-programming::http-server"]
-publish = false
+publish = ["crates-io"]
 
 [package.metadata.soma-architecture]
 layer = "shared"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 # Explicit empty default to keep Cargo feature unification a no-op for downstream consumers.
@@ -56,6 +62,10 @@ oauth2 = { version = "5.0", default-features = false, optional = true }
 workspace = true
 features = ["client", "auth", "transport-streamable-http-client-reqwest"]
 optional = true
+
+[[example]]
+name = "upstream_mcp_oauth"
+required-features = ["upstream-oauth-rmcp"]
 
 [dev-dependencies]
 rand = "0.10"

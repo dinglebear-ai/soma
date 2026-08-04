@@ -1,29 +1,48 @@
-//! Soma's product auth default mapping: the env prefix, session cookie name,
-//! supported/default scopes, and resource path that turn `soma-auth`'s
-//! generic, product-agnostic `AuthConfigBuilder` into Soma's own OAuth
-//! configuration (plan section 3.20).
-//!
-//! Moved out of `apps/soma/src/runtime.rs` (formerly the private
-//! `soma_mcp_auth_config_builder` helper) — this crate is its permanent home
-//! per PR 11's acceptance criterion that `apps/soma` constructs adapters but
-//! contains none of their implementation logic.
+//! Soma-owned product profile and configuration adapter for the reusable
+//! soma-auth crate.
 
-/// Soma's default `soma_auth::config::AuthConfigBuilder`: `SOMA_MCP` env
-/// prefix, `soma_mcp_session` cookie, the three Soma scopes, `soma:read` as
-/// default scope, `/mcp` as the OAuth resource path, and dynamic client
-/// registration enabled.
-pub fn soma_auth_config_builder() -> soma_auth::config::AuthConfigBuilder {
-    soma_auth::config::AuthConfigBuilder::new()
-        .env_prefix("SOMA_MCP")
-        .session_cookie_name("soma_mcp_session")
-        .scopes_supported(vec![
+use std::path::PathBuf;
+
+/// Soma's explicit product profile. The shared auth crate contains no Soma
+/// identity defaults; every branded value is declared here at the composition root.
+#[must_use]
+pub fn soma_auth_profile() -> soma_auth::config::AuthProfile {
+    soma_auth::config::AuthProfile {
+        env_prefix: "SOMA_MCP".to_string(),
+        default_data_dir: soma_default_auth_dir(),
+        session_cookie_name: "soma_mcp_session".to_string(),
+        scopes_supported: vec![
             soma_domain::actions::READ_SCOPE.into(),
             soma_domain::actions::WRITE_SCOPE.into(),
             soma_domain::scopes::ADMIN_SCOPE.into(),
-        ])
-        .default_scope("soma:read")
-        .resource_path("/mcp")
-        .enable_dynamic_registration(true)
+        ],
+        resource_path: "/mcp".to_string(),
+        default_scope: soma_domain::actions::READ_SCOPE.to_string(),
+        static_token_scopes: vec![
+            soma_domain::actions::READ_SCOPE.into(),
+            soma_domain::actions::WRITE_SCOPE.into(),
+            soma_domain::scopes::ADMIN_SCOPE.into(),
+        ],
+        login_path: "/auth/login".to_string(),
+        enable_dynamic_registration: true,
+        disable_static_token_with_oauth: false,
+        upstream_client_name: "soma".to_string(),
+        upstream_callback_path: "/auth/upstream/callback".to_string(),
+    }
+}
+
+/// Soma's typed auth builder with the product profile applied before env overlays.
+pub fn soma_auth_config_builder() -> soma_auth::config::AuthConfigBuilder {
+    soma_auth::config::AuthConfigBuilder::from_profile(soma_auth_profile())
+}
+
+fn soma_default_auth_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map_or_else(
+            || PathBuf::from(".soma"),
+            |home| PathBuf::from(home).join(".soma"),
+        )
 }
 
 /// Build Soma's `soma_auth::config::AuthConfig` from the typed

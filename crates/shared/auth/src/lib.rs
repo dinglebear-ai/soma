@@ -1,4 +1,9 @@
-//! Shared OAuth, token, and HTTP authorization primitives for Soma runtimes.
+//! Reusable OAuth 2.1, OIDC, JWT, HTTP authorization, token storage, and upstream MCP authentication primitives.
+//!
+//! Applications provide product identity through [`config::AuthProfile`], build typed
+//! configuration with [`config::AuthConfigBuilder`], and may optionally overlay
+//! environment-style values through [`config::EnvAuthConfigLoader`]. No Soma or
+//! Labby identity is assumed by the runtime defaults.
 
 // Render per-item feature-requirement badges when rustdoc runs on nightly with
 // `--cfg docsrs` (docs.rs posture; locally via `cargo xtask doc --docsrs-cfg`).

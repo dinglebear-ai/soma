@@ -86,7 +86,7 @@ pub(super) fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
         // This column binds the OAuth client_id used to begin a specific
         // authorization flow to the CSRF state row so that concurrent
         // `begin_authorization` calls for the same upstream+subject can each
-        // complete their own callback with the correct client_id (lab-77y5.15).
+        // complete their own callback with the correct client_id.
         add_column_if_missing(conn, "upstream_oauth_state", "dynamic_client_id", "TEXT")?;
 
         conn.execute_batch("PRAGMA user_version = 2;")

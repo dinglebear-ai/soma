@@ -118,7 +118,7 @@ mod tests {
     use super::super::authorize::tests::test_auth_state;
 
     #[tokio::test]
-    async fn authorization_server_metadata_exposes_lab_endpoints() {
+    async fn authorization_server_metadata_exposes_configured_endpoints() {
         let app = router(test_auth_state().await);
         let response = app
             .oneshot(
@@ -134,12 +134,12 @@ mod tests {
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["token_endpoint"], "https://lab.example.com/token");
+        assert_eq!(json["token_endpoint"], "https://app.example.com/token");
         // Advertised only because `/revoke` is really mounted -- see
         // `AuthorizationServerMetadata::revocation_endpoint`.
         assert_eq!(
             json["revocation_endpoint"],
-            "https://lab.example.com/revoke"
+            "https://app.example.com/revoke"
         );
         assert_eq!(json["authorization_response_iss_parameter_supported"], true);
         assert_eq!(json["client_id_metadata_document_supported"], true);
@@ -162,7 +162,7 @@ mod tests {
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["resource"], "https://lab.example.com/mcp");
+        assert_eq!(json["resource"], "https://app.example.com/mcp");
     }
 
     #[tokio::test]
@@ -189,7 +189,7 @@ mod tests {
             resource_path: "/syslog/mcp".to_string(),
             default_provider: "google".to_string(),
             // validate() requires default_scope to be listed in
-            // scopes_supported; AuthConfig::default()'s "lab" isn't in the
+            // scopes_supported; AuthConfig::default()'s "app:read" isn't in the
             // syslog-flavored scopes_supported above.
             default_scope: "syslog:read".to_string(),
             ..AuthConfig::default()

@@ -644,11 +644,11 @@ pub(crate) fn elevate_scope_for_allowed_user(scope: &str, default_scope: &str) -
     let base = default_scope.split(':').next().unwrap_or(default_scope);
     let admin_scope = format!("{base}:admin");
     let mut scopes: Vec<&str> = scope.split_whitespace().filter(|s| !s.is_empty()).collect();
-    // Always inject the default-brand admin scope (e.g. "lab:admin") for
+    // Always inject the default-brand admin scope (e.g. "app:admin") for
     // allowlisted users, even when the token is for a cross-brand protected
     // route (e.g. "mcp:read mcp:write" for a cortex endpoint).  The JWT
     // audience is still bound to the specific resource URL, so a cortex token
-    // carrying "lab:admin" cannot be presented to lab endpoints.  This lets
+    // carrying the local admin scope cannot be presented to another product's endpoints. This lets
     // authenticate_protected_route_request recognise the admin unconditionally
     // without re-reading the allowlist at request time.
     if !scopes.contains(&admin_scope.as_str()) {
@@ -868,7 +868,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=https://127.0.0.1/client.json&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=https://127.0.0.1/client.json&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1464,7 +1464,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1490,8 +1490,8 @@ pub mod tests {
                 refresh_token: "existing-refresh".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-user".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: None,
                 created_at: now_unix(),
@@ -1505,7 +1505,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1566,7 +1566,7 @@ pub mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1577,7 +1577,7 @@ pub mod tests {
         let second = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=def&scope=lab&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=def&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1593,7 +1593,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/auth/login?return_to=%2Fgateways%2F%3Ftab%3Dlab")
+                    .uri("/auth/login?return_to=%2Fgateways%2F%3Ftab%3Dapp")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1620,7 +1620,7 @@ pub mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(stored.return_to, "/gateways/?tab=lab");
+        assert_eq!(stored.return_to, "/gateways/?tab=app");
     }
 
     #[tokio::test]
@@ -1720,7 +1720,7 @@ pub mod tests {
             .iter()
             .find_map(|value| value.to_str().ok())
             .unwrap();
-        assert!(cookie.contains("lab_session="));
+        assert!(cookie.contains("auth_session="));
     }
 
     #[tokio::test]
@@ -1747,8 +1747,8 @@ pub mod tests {
                 client_id: "client".to_string(),
                 redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
                 client_state: "client-abc".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_code_verifier: "provider-verifier".to_string(),
                 code_challenge: "challenge".to_string(),
@@ -1780,7 +1780,7 @@ pub mod tests {
         let google = GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
         .with_endpoints(
@@ -1869,7 +1869,7 @@ pub mod tests {
         let google = GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
         .with_endpoints(
@@ -1929,8 +1929,8 @@ pub mod tests {
     async fn authorize_rejects_missing_or_invalid_response_type() {
         let app = router(test_auth_state_with_registered_client().await);
         for uri in [
-            "/authorize?client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256",
-            "/authorize?response_type=token&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256",
+            "/authorize?client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256",
+            "/authorize?response_type=token&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256",
         ] {
             let response = app
                 .clone()
@@ -1945,43 +1945,43 @@ pub mod tests {
     async fn validate_scope_accepts_supported_scopes_and_rejects_others() {
         let state = test_auth_state().await;
         let canonical = crate::metadata::canonical_resource_url(&state);
-        // Empty scope falls back to configured default ("lab").
+        // Empty scope falls back to configured default ("app:read").
         assert_eq!(
             super::validate_scope(&state, &canonical, "").unwrap(),
-            "lab"
+            "app:read"
         );
         // Base scope passes.
         assert_eq!(
-            super::validate_scope(&state, &canonical, "lab").unwrap(),
-            "lab"
+            super::validate_scope(&state, &canonical, "app:read").unwrap(),
+            "app:read"
         );
         // `:admin` is in `scopes_supported` by default — MCP clients can request
         // it explicitly. (Allowed-emails users also receive it implicitly via
         // elevate_scope_for_allowed_user at callback time.)
         assert_eq!(
-            super::validate_scope(&state, &canonical, "lab:admin").unwrap(),
-            "lab:admin"
+            super::validate_scope(&state, &canonical, "app:admin").unwrap(),
+            "app:admin"
         );
         // Anything not in scopes_supported is rejected.
-        let err = super::validate_scope(&state, &canonical, "lab:write").unwrap_err();
-        assert!(err.to_string().contains("lab"), "got: {err}");
+        let err = super::validate_scope(&state, &canonical, "app:write").unwrap_err();
+        assert!(err.to_string().contains("app:read"), "got: {err}");
     }
 
     #[test]
     fn elevate_scope_adds_admin_when_missing() {
         assert_eq!(
-            super::elevate_scope_for_allowed_user("lab", "lab"),
-            "lab lab:admin"
+            super::elevate_scope_for_allowed_user("app:read", "app:read"),
+            "app:read app:admin"
         );
         // Already has admin → no duplication.
         assert_eq!(
-            super::elevate_scope_for_allowed_user("lab lab:admin", "lab"),
-            "lab lab:admin"
+            super::elevate_scope_for_allowed_user("app:read app:admin", "app:read"),
+            "app:read app:admin"
         );
-        // Empty scope → just admin (rare; OAuth default normally fills `lab`).
+        // Empty scope → just admin (rare; OAuth default normally fills the configured default scope).
         assert_eq!(
-            super::elevate_scope_for_allowed_user("", "lab"),
-            "lab:admin"
+            super::elevate_scope_for_allowed_user("", "app:read"),
+            "app:admin"
         );
         // Different brand prefix (syslog, axon, etc.) uses its own default.
         assert_eq!(
@@ -1999,30 +1999,30 @@ pub mod tests {
             super::elevate_scope_for_allowed_user("syslog:read syslog:admin", "syslog:read"),
             "syslog:read syslog:admin"
         );
-        // Cross-brand: protected route token (mcp:read mcp:write) for a lab
-        // default_scope gets lab:admin injected so authenticate_protected_route_request
+        // Cross-brand: protected route token (mcp:read mcp:write) for another product
+        // default_scope gets app:admin injected so authenticate_protected_route_request
         // can recognise the admin without re-reading the allowlist.
         assert_eq!(
-            super::elevate_scope_for_allowed_user("mcp:read mcp:write", "lab"),
-            "mcp:read mcp:write lab:admin"
+            super::elevate_scope_for_allowed_user("mcp:read mcp:write", "app:read"),
+            "mcp:read mcp:write app:admin"
         );
         // Cross-brand already has admin → no duplication.
         assert_eq!(
-            super::elevate_scope_for_allowed_user("mcp:read mcp:write lab:admin", "lab"),
-            "mcp:read mcp:write lab:admin"
+            super::elevate_scope_for_allowed_user("mcp:read mcp:write app:admin", "app:read"),
+            "mcp:read mcp:write app:admin"
         );
     }
 
     #[tokio::test]
     async fn authorize_rejects_invalid_scope() {
         let app = router(test_auth_state_with_registered_client().await);
-        // `lab:write` is NOT in default scopes_supported; should be rejected.
-        // (`lab:admin` IS in scopes_supported as of 2026-05; use a different
+        // `app:write` is NOT in default scopes_supported; should be rejected.
+        // (`app:admin` IS in scopes_supported as of 2026-05; use a different
         // unsupported scope here.)
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab:write&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Awrite&code_challenge=pkce&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -2037,7 +2037,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&resource=https://other.example.com/mcp&scope=lab&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&resource=https://other.example.com/mcp&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -2056,8 +2056,8 @@ pub mod tests {
                 client_id: "client".to_string(),
                 redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
                 client_state: "client-state".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_code_verifier: "provider-verifier".to_string(),
                 code_challenge: "challenge".to_string(),
@@ -2093,7 +2093,7 @@ pub mod tests {
         let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
         AuthConfig {
             mode: AuthMode::OAuth,
-            public_url: Some(Url::parse("https://lab.example.com").unwrap()),
+            public_url: Some(Url::parse("https://app.example.com").unwrap()),
             sqlite_path: dir.path().join("auth.db"),
             key_path: dir.path().join("auth-jwt.pem"),
             bootstrap_secret: Some("bootstrap-secret".to_string()),
@@ -2158,8 +2158,8 @@ pub mod tests {
                 client_id: "client".to_string(),
                 redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
                 client_state: "client-state".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_code_verifier: "provider-verifier".to_string(),
                 code_challenge: "challenge".to_string(),
@@ -2173,7 +2173,7 @@ pub mod tests {
         let google = GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
         .with_endpoints(
@@ -2230,8 +2230,8 @@ pub mod tests {
                 client_id: "native-client".to_string(),
                 redirect_uri: native_callback_endpoint,
                 client_state: "native-client-state".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_code_verifier: "provider-verifier".to_string(),
                 code_challenge: "challenge".to_string(),
@@ -2245,7 +2245,7 @@ pub mod tests {
         let google = GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
         .with_endpoints(
@@ -2374,7 +2374,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
             let google = GoogleProvider::new(
                 "client-id".to_string(),
                 "client-secret".to_string(),
-                Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+                Url::parse("https://app.example.com/auth/google/callback").unwrap(),
             )
             .unwrap()
             .with_endpoints(
@@ -2524,8 +2524,8 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     client_id: "client".to_string(),
                     redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
                     client_state: "client-xyz".to_string(),
-                    resource: "https://lab.example.com/mcp".to_string(),
-                    scope: "lab".to_string(),
+                    resource: "https://app.example.com/mcp".to_string(),
+                    scope: "app:read".to_string(),
                     provider: "google".to_string(),
                     provider_code_verifier: "provider-verifier".to_string(),
                     code_challenge: "challenge".to_string(),
@@ -2685,8 +2685,8 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                     client_id: "client".to_string(),
                     redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
                     client_state: "client-xyz".to_string(),
-                    resource: "https://lab.example.com/mcp".to_string(),
-                    scope: "lab".to_string(),
+                    resource: "https://app.example.com/mcp".to_string(),
+                    scope: "app:read".to_string(),
                     provider: "google".to_string(),
                     provider_code_verifier: "provider-verifier".to_string(),
                     code_challenge: "challenge".to_string(),
@@ -2865,7 +2865,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256&provider=okta")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256&provider=okta")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -2906,8 +2906,8 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
                 refresh_token: "existing-google-refresh".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-user".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: None,
                 created_at: now_unix(),
@@ -2921,7 +2921,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=lab&code_challenge=pkce&code_challenge_method=S256&provider=github")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256&provider=github")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3005,7 +3005,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
         let google = GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
         .with_endpoints(
@@ -3028,7 +3028,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
         let github = GitHubProvider::new(
             "gh-client".to_string(),
             "gh-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/github/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/github/callback").unwrap(),
         )
         .unwrap()
         .with_endpoints(

@@ -383,7 +383,7 @@ async fn authorization_code_grant(
             subject_id = %fingerprint(&row.subject),
             resource = %row.resource,
             scope = %row.scope,
-            "oauth authorization_code grant issued lab access token and refresh token"
+            "oauth authorization_code grant issued local access token and refresh token"
         );
         Some(refresh_token)
     } else {
@@ -394,7 +394,7 @@ async fn authorization_code_grant(
             subject_id = %fingerprint(&row.subject),
             resource = %row.resource,
             scope = %row.scope,
-            "oauth authorization_code grant issued lab access token without refresh token"
+            "oauth authorization_code grant issued local access token without refresh token"
         );
         None
     };
@@ -505,7 +505,7 @@ async fn refresh_token_grant(
             "refresh token names provider `github`, which never issues upstream refresh \
              tokens and does not support token refresh — this refresh token row should be \
              unreachable; the underlying GitHub OAuth App requires the user to \
-             re-authenticate once their local soma-issued refresh token expires"
+             re-authenticate once their locally issued refresh token expires"
                 .to_string(),
         ));
     }
@@ -729,7 +729,7 @@ mod tests {
         let google = GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
         .with_endpoints(
@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn token_endpoint_mints_lab_jwt_and_refresh_token() {
+    async fn token_endpoint_mints_local_jwt_and_refresh_token() {
         let state = test_auth_state_with_registered_client().await;
         seed_authorization_code(&state).await;
         let app = router(state);
@@ -758,7 +758,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=lab-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
                     .unwrap(),
             )
             .await
@@ -788,7 +788,7 @@ mod tests {
         let claims = insecure_decode::<crate::jwt::AccessClaims>(access_token)
             .expect("decode access token")
             .claims;
-        assert_eq!(claims.aud, "https://lab.example.com/mcp");
+        assert_eq!(claims.aud, "https://app.example.com/mcp");
     }
 
     #[tokio::test]
@@ -805,7 +805,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=lab-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
                     .unwrap(),
             )
             .await
@@ -847,7 +847,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=lab-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
                     .unwrap()
             ),
             app.oneshot(
@@ -858,7 +858,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=lab-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
                     .unwrap()
             )
         );
@@ -882,7 +882,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=lab-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
                     .unwrap(),
             )
             .await
@@ -982,8 +982,8 @@ mod tests {
                 refresh_token: "refresh-token".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -1066,7 +1066,7 @@ mod tests {
             .expect("decode access token")
             .claims;
         assert_eq!(claims.aud, "https://mcp.example.com/syslog");
-        assert_eq!(claims.scope, "mcp:read mcp:write lab:admin");
+        assert_eq!(claims.scope, "mcp:read mcp:write app:admin");
     }
 
     #[tokio::test]
@@ -1083,7 +1083,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=lab-code&client_id=client&resource=https%3A%2F%2Fother.example.com%2Fmcp&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&resource=https%3A%2F%2Fother.example.com%2Fmcp&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
                     .unwrap(),
             )
             .await
@@ -1100,8 +1100,8 @@ mod tests {
                 refresh_token: "refresh-token".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 3600,
@@ -1164,8 +1164,8 @@ mod tests {
                 refresh_token: "refresh-token".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -1217,8 +1217,8 @@ mod tests {
                 refresh_token: "refresh-token".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: None,
                 created_at: crate::util::now_unix() - 60,
@@ -1252,12 +1252,12 @@ mod tests {
         state
             .store
             .insert_auth_code(crate::types::AuthorizationCodeRow {
-                code: "lab-code".to_string(),
+                code: "auth-code".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
                 redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 code_challenge: super::pkce_challenge("verifier"),
                 code_challenge_method: "S256".to_string(),
@@ -1274,12 +1274,12 @@ mod tests {
         state
             .store
             .insert_auth_code(crate::types::AuthorizationCodeRow {
-                code: "lab-code".to_string(),
+                code: "auth-code".to_string(),
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
                 redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 code_challenge: super::pkce_challenge("verifier"),
                 code_challenge_method: "S256".to_string(),
@@ -1302,7 +1302,7 @@ mod tests {
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
                 resource: String::new(),
-                scope: "lab".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -1356,7 +1356,7 @@ mod tests {
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
                 resource: String::new(),
-                scope: "lab".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -1396,9 +1396,9 @@ mod tests {
     #[tokio::test]
     async fn refresh_grant_elevates_stale_scope_to_admin() {
         // Simulate a refresh token that was issued before elevation was wired in,
-        // storing only the base scope ("lab") without "lab:admin".  The refresh
+        // storing only the base scope ("app:read") without "app:admin".  The refresh
         // grant must re-apply elevate_scope_for_allowed_user so the new access
-        // token carries "lab:admin".
+        // token carries "app:admin".
         let state = test_auth_state_with_mock_google().await;
         state
             .store
@@ -1407,7 +1407,7 @@ mod tests {
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
                 resource: String::new(),
-                scope: "lab".to_string(), // stale — no lab:admin
+                scope: "app:read".to_string(), // stale — no app:admin
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -1441,14 +1441,14 @@ mod tests {
             .signing_keys
             .validate_access_token_with_issuer(
                 access_token,
-                "https://lab.example.com/mcp",
-                "https://lab.example.com",
+                "https://app.example.com/mcp",
+                "https://app.example.com",
             )
             .expect("access token must be valid");
         let scopes: Vec<&str> = claims.scope.split_whitespace().collect();
         assert!(
-            scopes.contains(&"lab:admin"),
-            "elevated access token must contain lab:admin, got: {:?}",
+            scopes.contains(&"app:admin"),
+            "elevated access token must contain app:admin, got: {:?}",
             scopes
         );
     }
@@ -1463,7 +1463,7 @@ mod tests {
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
                 resource: String::new(),
-                scope: "lab".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -1518,8 +1518,8 @@ mod tests {
                 client_id: "client".to_string(),
                 subject: "github:9182310".to_string(),
                 redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "github".to_string(),
                 code_challenge: super::pkce_challenge("verifier"),
                 code_challenge_method: "S256".to_string(),
@@ -1570,8 +1570,8 @@ mod tests {
                 refresh_token: "orphaned-refresh".to_string(),
                 client_id: "client".to_string(),
                 subject: "authelia:some-user".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "authelia".to_string(),
                 provider_refresh_token: Some("upstream-refresh".to_string()),
                 created_at: crate::util::now_unix(),
@@ -1637,8 +1637,8 @@ mod tests {
                 refresh_token: "github-refresh".to_string(),
                 client_id: "client".to_string(),
                 subject: "github:9182310".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "github".to_string(),
                 provider_refresh_token: Some("hand-inserted-upstream-value".to_string()),
                 created_at: crate::util::now_unix(),
@@ -1703,7 +1703,7 @@ mod tests {
         let claims = serde_json::json!({
             "iss": client_id,
             "sub": client_id,
-            "aud": "https://lab.example.com/token",
+            "aud": "https://app.example.com/token",
             "iat": now,
             "exp": now + 120,
             "jti": jti,
@@ -1724,8 +1724,8 @@ mod tests {
             client_id: "machine".to_string(),
             client_secret: Some("machine-secret".to_string()),
             jwks: None,
-            scopes: vec!["lab".to_string()],
-            resources: vec!["https://lab.example.com/mcp".to_string()],
+            scopes: vec!["app:read".to_string()],
+            resources: vec!["https://app.example.com/mcp".to_string()],
         }
     }
 
@@ -1734,8 +1734,8 @@ mod tests {
             client_id: "assertion-machine".to_string(),
             client_secret: None,
             jwks: Some(client_assertion_jwks()),
-            scopes: vec!["lab".to_string()],
-            resources: vec!["https://lab.example.com/mcp".to_string()],
+            scopes: vec!["app:read".to_string()],
+            resources: vec!["https://app.example.com/mcp".to_string()],
         }
     }
 
@@ -1787,7 +1787,7 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK, "{json}");
-        assert_eq!(json["scope"], "lab");
+        assert_eq!(json["scope"], "app:read");
         assert!(
             json.get("refresh_token").is_none(),
             "machine grants must not mint refresh tokens: {json}"
@@ -1799,7 +1799,7 @@ mod tests {
         .claims;
         assert_eq!(claims.sub, "machine");
         assert_eq!(claims.azp, "machine");
-        assert_eq!(claims.aud, "https://lab.example.com/mcp");
+        assert_eq!(claims.aud, "https://app.example.com/mcp");
     }
 
     #[tokio::test]
@@ -1838,7 +1838,7 @@ mod tests {
         let state = machine_client_state(vec![secret_machine_client()]).await;
         let (status, json) = post_token(
             &state,
-            "grant_type=client_credentials&scope=lab%3Aadmin".to_string(),
+            "grant_type=client_credentials&scope=app%3Aadmin".to_string(),
             Some(basic_authorization("machine", "machine-secret")),
         )
         .await;
@@ -1986,7 +1986,7 @@ mod tests {
         seed_authorization_code(&state).await;
         let (status, json) = post_token(
             &state,
-            "grant_type=authorization_code&code=lab-code&client_id=client\
+            "grant_type=authorization_code&code=auth-code&client_id=client\
              &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
                 .to_string(),
             None,
@@ -2004,7 +2004,7 @@ mod tests {
         seed_authorization_code(&state).await;
         let (status, json) = post_token(
             &state,
-            "grant_type=authorization_code&code=lab-code&client_id=client&client_secret=\
+            "grant_type=authorization_code&code=auth-code&client_id=client&client_secret=\
              &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
                 .to_string(),
             None,
@@ -2020,7 +2020,7 @@ mod tests {
         seed_authorization_code(&state).await;
         let (status, json) = post_token(
             &state,
-            "grant_type=authorization_code&code=lab-code&client_id=client&client_secret=guess\
+            "grant_type=authorization_code&code=auth-code&client_id=client&client_secret=guess\
              &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
                 .to_string(),
             None,
@@ -2033,7 +2033,7 @@ mod tests {
         // must have survived the rejected attempt.
         let (status, json) = post_token(
             &state,
-            "grant_type=authorization_code&code=lab-code&client_id=client\
+            "grant_type=authorization_code&code=auth-code&client_id=client\
              &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
                 .to_string(),
             None,
@@ -2055,8 +2055,8 @@ mod tests {
                 refresh_token: "refresh-token".to_string(),
                 client_id: "ghost-client".to_string(),
                 subject: "google-subject-123".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -2149,8 +2149,8 @@ mod tests {
                 refresh_token: refresh_token.to_string(),
                 client_id: client_id.to_string(),
                 subject: "google-subject-123".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: crate::util::now_unix() - 60,
@@ -2349,8 +2349,8 @@ mod tests {
                 client_id: "client".to_string(),
                 subject: "google-subject-123".to_string(),
                 redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
-                resource: "https://lab.example.com/mcp".to_string(),
-                scope: "lab".to_string(),
+                resource: "https://app.example.com/mcp".to_string(),
+                scope: "app:read".to_string(),
                 provider: "google".to_string(),
                 code_challenge: super::pkce_challenge("verifier"),
                 code_challenge_method: "S256".to_string(),
@@ -2414,8 +2414,8 @@ mod tests {
             client_id: "client".to_string(),
             client_secret: Some("machine-secret".to_string()),
             jwks: None,
-            scopes: vec!["lab".to_string()],
-            resources: vec!["https://lab.example.com/mcp".to_string()],
+            scopes: vec!["app:read".to_string()],
+            resources: vec!["https://app.example.com/mcp".to_string()],
         }];
         let state = test_auth_state_with_config(config).await;
         seed_recorded_refresh_token(&state, "machine-shadowed-token", "client", Some("none")).await;
