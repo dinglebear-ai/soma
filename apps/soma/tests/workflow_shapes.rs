@@ -304,8 +304,8 @@ fn artifact_workflows_run_from_published_releases() {
         "MCP Registry publication must support release events and explicit recovery"
     );
     assert!(
-        registry.contains("mcp-registry-publish.yml@3302f853574ba0c669a647f66cfcacb81f529fff")
-            && registry.contains("auth-method: dns")
+        registry.contains("mcp-registry-publish.yml@befa67c7b7f976235bf3fbced6ede93293a7f405")
+            && !registry.contains("auth-method:")
             && registry.contains("MCP_PRIVATE_KEY"),
         "MCP Registry publication must use the pinned fleet source of truth with DNS ownership"
     );
