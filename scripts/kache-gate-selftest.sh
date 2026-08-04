@@ -45,6 +45,7 @@ esac
 echo "ok: gate accepted and reported the explicit no-cache fallback"
 
 cargo new --lib --quiet "$probe/cold" >/dev/null
+printf "pub fn unique_probe() -> &'static str { \"%s\" }\n" "$probe" > "$probe/cold/src/lib.rs"
 
 # --- Snapshot BEFORE the build. The gate diffs against this, because
 # `kache report --since` does not bound the event window in 0.12.0 and the
@@ -62,6 +63,16 @@ echo "ok: baseline written"
     RUSTC_WRAPPER=kache CARGO_BUILD_RUSTC_WRAPPER=kache CARGO_INCREMENTAL=0 \
     cargo build --quiet
 )
+
+# Compiler events are written asynchronously by the daemon. Wait until this
+# unique probe appears in the report instead of racing the post-build gate.
+for _ in $(seq 1 40); do
+  total="$(KACHE_CACHE_DIR="$probe/store" kache report --format json --since 24h --root "$probe/cold" 2>/dev/null \
+    | jq -r '.summary.total_crates // 0')"
+  [ "${total:-0}" -gt 0 ] && break
+  sleep 0.25
+done
+[ "${total:-0}" -gt 0 ] || fail "kache report never observed the unique cold probe"
 
 echo "--- expect REJECT: 50% floor against an all-miss build ---"
 if gate_run KACHE_GATE_MIN_HIT_RATE=50; then
