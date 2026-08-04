@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use soma_fleet::{HostId, HostRecord, TopologySnapshot};
 use soma_infra::HostExecCommand;
 use soma_ops::{
@@ -307,7 +306,7 @@ pub(crate) fn digest<T: Serialize>(value: &T) -> Result<String, ExecutionError> 
         field: "execution".into(),
         message: error.to_string(),
     })?;
-    Ok(format!("{:x}", Sha256::digest(encoded)))
+    Ok(crate::runtime_result::digest(&encoded))
 }
 
 #[cfg(test)]
