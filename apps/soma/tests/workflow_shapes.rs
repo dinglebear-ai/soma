@@ -42,6 +42,7 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
     const NPM_PUBLISH_REVISION: &str = "64d705af6e164aac58d507df6fb2f6bdc8a4d22d";
     // Native wheels need platform-specific cibuildwheel architecture names.
     const PYTHON_WHEELS_REVISION: &str = "eadba32f019e984b26d93c807ef72e5094df2876";
+    const MCP_REGISTRY_REVISION: &str = "befa67c7b7f976235bf3fbced6ede93293a7f405";
     let workflow_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join(".github/workflows");
@@ -84,6 +85,7 @@ fn shared_workflow_callers_use_approved_reachable_revisions() {
             caller_count += 1;
             let expected_revision = match called_workflow {
                 "npm-trusted-publish.yml" => NPM_PUBLISH_REVISION,
+                "mcp-registry-publish.yml" => MCP_REGISTRY_REVISION,
                 "hosted-python-wheels.yml" => PYTHON_WHEELS_REVISION,
                 _ => FLEET_REVISION,
             };
