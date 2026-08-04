@@ -1,5 +1,5 @@
 name: Setup Rust with kache
-description: Install a Rust toolchain plus a pinned kache, connect it to the shared MinIO remote, start the daemon, and print cache evidence.
+description: Install Rust plus a pinned kache, use the shared cache when healthy, and fall back to uncached compilation when daemon bootstrap fails.
 
 inputs:
   toolchain:
@@ -220,20 +220,31 @@ runs:
         # use kache daemon restart, which also clears stale daemon state.
         if command -v systemctl >/dev/null 2>&1 && systemctl --user cat kache.service >/dev/null 2>&1; then
           echo "host-managed kache.service found - using systemd"
-          systemctl --user is-active --quiet kache.service || systemctl --user start kache.service
+          systemctl --user is-active --quiet kache.service || systemctl --user start kache.service || true
         else
-          daemon_is_running || kache daemon restart
+          daemon_is_running || kache daemon restart || true
         fi
 
         for _ in $(seq 1 30); do
           daemon_is_running && break
           sleep 1
         done
-        daemon_is_running || { echo "::error::kache daemon is not answering"; kache daemon status; exit 1; }
+        if ! daemon_is_running; then
+          echo "::warning::kache daemon is not answering; continuing without a compiler cache"
+          kache daemon status || true
+          {
+            echo "KACHE_DISABLED=true"
+            echo "RUSTC_WRAPPER="
+            echo "CARGO_BUILD_RUSTC_WRAPPER="
+            echo "CARGO_INCREMENTAL=1"
+          } >> "$GITHUB_ENV"
+          exit 0
+        fi
+        echo "KACHE_DISABLED=false" >> "$GITHUB_ENV"
         kache daemon
 
     - name: Print cache evidence
-      if: inputs.enable-cache == 'true' && runner.os == 'Linux'
+      if: inputs.enable-cache == 'true' && runner.os == 'Linux' && env.KACHE_DISABLED != 'true'
       shell: bash
       run: |
         set -euo pipefail
@@ -251,7 +262,7 @@ runs:
     # baseline, `errors > 0` would go permanently red after one historical
     # store failure and `remote_hits > 0` would pass forever after one hit.
     - name: Baseline kache counters for the gate
-      if: inputs.enable-cache == 'true' && runner.os == 'Linux'
+      if: inputs.enable-cache == 'true' && runner.os == 'Linux' && env.KACHE_DISABLED != 'true'
       shell: bash
       run: |
         set -euo pipefail

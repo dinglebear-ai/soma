@@ -32,6 +32,18 @@ gate_run() {
 
 take_baseline() { GATE_ARGS=--baseline gate_run; }
 
+echo "--- expect ACCEPT: explicitly disabled cache fallback ---"
+set +e
+disabled_out="$(gate_run KACHE_DISABLED=true 2>&1)"
+disabled_rc=$?
+set -e
+[ "$disabled_rc" -eq 0 ] || fail "gate rejected the explicit no-cache fallback"
+case "$disabled_out" in
+  *"intentionally disabled"*) : ;;
+  *) fail "gate did not explain the explicit no-cache fallback" ;;
+esac
+echo "ok: gate accepted and reported the explicit no-cache fallback"
+
 cargo new --lib --quiet "$probe/cold" >/dev/null
 
 # --- Snapshot BEFORE the build. The gate diffs against this, because
@@ -46,7 +58,9 @@ echo "ok: baseline written"
 # KACHE_EVENT_ROOT pins the root stamped on events so --root matches exactly.
 (
   cd "$probe/cold"
-  KACHE_CACHE_DIR="$probe/store" KACHE_EVENT_ROOT="$probe/cold" cargo build --quiet
+  KACHE_CACHE_DIR="$probe/store" KACHE_EVENT_ROOT="$probe/cold" \
+    RUSTC_WRAPPER=kache CARGO_BUILD_RUSTC_WRAPPER=kache CARGO_INCREMENTAL=0 \
+    cargo build --quiet
 )
 
 echo "--- expect REJECT: 50% floor against an all-miss build ---"
