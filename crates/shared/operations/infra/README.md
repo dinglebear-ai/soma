@@ -26,6 +26,8 @@ The mutation surface includes:
 - verified Docker, container-image, and Compose image pulls;
 - context-bound verified Docker and Compose image builds;
 - configuration-bound verified container and Compose replacements;
+- bounded non-TTY container exec with direct argv and inspected exit status;
+- descriptor-bound allowlisted host execution plus stable partial fanout;
 - descriptor-confined context fingerprints with explicit root, file-count, and byte ceilings;
 - canonical bounded phase progress and build logs whose delivery failures do not rewrite execution truth;
 - OCI artifact references and local image-ID/digest verification;
@@ -36,8 +38,8 @@ The shared crate does not authorize mutations. Product runtimes must bind a dete
 
 ## Feature flags
 
-- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, image build, and Compose replacement support;
-- `bollard-driver`: local Docker reads, container lifecycle and replacement mutations, and image-pull streams;
+- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, image build, Compose replacement, and bounded host execution support;
+- `bollard-driver`: local Docker reads, container lifecycle, replacement, non-TTY exec mutations, and image-pull streams;
 - `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
 
@@ -64,6 +66,10 @@ The default build exposes neutral models, traits, coordinators, and deterministi
 - container replacement captures and fingerprints image, env, command, entrypoint, labels, volumes, host config, and network attachments before removal;
 - container replacement rechecks configuration immediately before destructive send and reports the furthest completed stage;
 - Compose replacement binds normalized configuration and service pre-state, then verifies the exact healthy service set after force-recreate;
+- container exec never uses a shell or TTY, crosses the uncertain send boundary only at `start_exec`, and inspects the final exit status;
+- host exec admits only a fixed read-oriented command allowlist with typed option grammars;
+- host filesystem operands and working directories are opened beneath explicit roots with `O_NOFOLLOW` and passed through inherited `/proc/self/fd` handles;
+- fanout preserves deterministic target order, retains partial results, bounds aggregate output, and never recommends blind batch retry;
 - progress sink failures remain bounded metadata and never change backend send or verification truth;
 - SDK-specific Bollard types never cross the public API.
 
