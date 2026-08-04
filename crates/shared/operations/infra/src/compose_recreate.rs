@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use soma_fleet::{HostId, HostRecord, TopologyRevision};
 use soma_ops::{MutationSendState, OperationId, OperationName, Timestamp, VerificationStatus};
 use tokio_util::sync::CancellationToken;
@@ -73,7 +72,7 @@ pub fn compose_recreate_fingerprint(
     ComposeRecreateFingerprint::new(
         config.project.clone(),
         services,
-        format!("{:x}", Sha256::digest(encoded)),
+        crate::mutation::sha256_hex(&encoded),
     )
 }
 

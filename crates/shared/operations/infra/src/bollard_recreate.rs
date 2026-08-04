@@ -8,7 +8,6 @@ use bollard::query_parameters::{
 };
 use futures_util::StreamExt;
 use serde_json::json;
-use sha2::{Digest, Sha256};
 use soma_fleet::{HostRecord, TopologyRevision};
 use soma_ops::{MutationSendState, Timestamp};
 use tokio_util::sync::CancellationToken;
@@ -163,7 +162,7 @@ fn fingerprint(
         domain: "container-recreate",
         message: error.to_string(),
     })?;
-    let sha256 = format!("{:x}", Sha256::digest(encoded));
+    let sha256 = crate::mutation::sha256_hex(&encoded);
     ContainerRecreateFingerprint::new(container, name, image, neutral.state, sha256)
 }
 
