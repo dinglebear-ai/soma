@@ -106,9 +106,22 @@ cargo run -p soma-auth --example typed_oauth
 cargo run -p soma-auth --example upstream_mcp_oauth --features upstream-oauth-rmcp
 ```
 
+## Maintainer release flow
+
+Published releases are tagged `soma-auth-vX.Y.Z` and run through the reviewer-gated `crates-io` GitHub environment. crates.io requires an API token for the first publication of a new crate, so `0.5.0` uses a one-time `CARGO_REGISTRY_TOKEN` environment secret.
+
+After the initial publication, configure crates.io Trusted Publishing with:
+
+- Repository owner: `dinglebear-ai`
+- Repository: `soma`
+- Workflow: `soma-auth-release.yml`
+- Environment: `crates-io`
+
+Then remove the bootstrap secret. The workflow automatically exchanges GitHub's OIDC identity through `rust-lang/crates-io-auth-action` and publishes with a short-lived registry token.
+
 ## Versioning
 
-The crate follows semantic versioning. Product-profile and public configuration changes are treated as public API changes. Published releases are tagged `soma-auth-vX.Y.Z` from the Soma repository.
+The crate follows semantic versioning. Product-profile and public configuration changes are treated as public API changes.
 
 ## License
 
