@@ -296,5 +296,6 @@ pub(crate) fn runtime(
             compose: compose as Arc<dyn ComposeRecreateClient>,
         }),
         exec: None,
+        final_mutations: None,
     })
 }

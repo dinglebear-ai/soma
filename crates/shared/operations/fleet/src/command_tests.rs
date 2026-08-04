@@ -28,3 +28,26 @@ fn command_transport_allows_bounded_typed_launcher_overhead() {
         })
     ));
 }
+
+#[test]
+fn command_stdin_is_optional_and_bounded() {
+    let request = CommandRequest::new(
+        "cat",
+        Vec::<String>::new(),
+        Timestamp::from_unix_millis(100),
+    )
+    .unwrap()
+    .with_stdin(b"hello".to_vec())
+    .unwrap();
+    assert_eq!(request.stdin(), Some(b"hello".as_slice()));
+    assert!(
+        CommandRequest::new(
+            "cat",
+            Vec::<String>::new(),
+            Timestamp::from_unix_millis(100),
+        )
+        .unwrap()
+        .with_stdin(vec![0; 64 * 1024 * 1024 + 1])
+        .is_err()
+    );
+}

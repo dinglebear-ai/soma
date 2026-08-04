@@ -28,6 +28,9 @@ The mutation surface includes:
 - configuration-bound verified container and Compose replacements;
 - bounded non-TTY container exec with direct argv and inspected exit status;
 - descriptor-bound allowlisted host execution plus stable partial fanout;
+- exact-identity Docker image removal and inventory-bound prune with independent absence checks;
+- configuration-bound Compose teardown with optional explicit volume removal;
+- digest-verified descriptor-confined file transfer between local or strict-SSH hosts;
 - descriptor-confined context fingerprints with explicit root, file-count, and byte ceilings;
 - canonical bounded phase progress and build logs whose delivery failures do not rewrite execution truth;
 - OCI artifact references and local image-ID/digest verification;
@@ -38,8 +41,8 @@ The shared crate does not authorize mutations. Product runtimes must bind a dete
 
 ## Feature flags
 
-- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, image build, Compose replacement, and bounded host execution support;
-- `bollard-driver`: local Docker reads, container lifecycle, replacement, non-TTY exec mutations, and image-pull streams;
+- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, image build, Compose replacement/teardown, bounded host execution, and descriptor-confined file transfer support;
+- `bollard-driver`: local Docker reads, container lifecycle, replacement, non-TTY exec, image-pull streams, image removal, and fixed-scope prune mutations;
 - `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
 
@@ -70,6 +73,12 @@ The default build exposes neutral models, traits, coordinators, and deterministi
 - host exec admits only a fixed read-oriented command allowlist with typed option grammars;
 - host filesystem operands and working directories are opened beneath explicit roots with `O_NOFOLLOW` and passed through inherited `/proc/self/fd` handles;
 - fanout preserves deterministic target order, retains partial results, bounds aggregate output, and never recommends blind batch retry;
+- image removal binds the resolved local ID/tags/digests and verifies both the requested reference and content ID are absent;
+- prune binds the exact candidate inventory, executes `all` in a fixed scope order, and verifies reported deleted identities are absent;
+- Compose down binds normalized configuration plus the complete service pre-state and verifies no services remain;
+- `remove_volumes=true` is rejected unless `force=true`;
+- file transfer binds both host revisions, source bytes/digest, destination pre-state, and destination path before send;
+- transfer source reads and destination writes walk explicit roots with `O_NOFOLLOW`, cap content at 16 MiB, and verify destination bytes and SHA-256 independently;
 - progress sink failures remain bounded metadata and never change backend send or verification truth;
 - SDK-specific Bollard types never cross the public API.
 

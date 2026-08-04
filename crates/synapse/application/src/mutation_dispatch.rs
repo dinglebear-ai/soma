@@ -26,6 +26,8 @@ impl SynapseMutationRuntime {
             self.plan_recreate(operation, parameters, context).await
         } else if crate::mutation_exec::exec_operation(operation) {
             self.plan_exec(operation, parameters, context).await
+        } else if crate::mutation_final_contract::final_operation(operation) {
+            self.plan_final(operation, parameters, context).await
         } else {
             Err(ExecutionError::UnsupportedOperation(operation.clone()))
         }
@@ -119,6 +121,16 @@ impl SynapseMutationRuntime {
             .await
         } else if crate::mutation_exec::exec_operation(operation) {
             self.execute_exec(
+                operation,
+                parameters,
+                context,
+                plan,
+                authorization,
+                cancellation,
+            )
+            .await
+        } else if crate::mutation_final_contract::final_operation(operation) {
+            self.execute_final(
                 operation,
                 parameters,
                 context,
