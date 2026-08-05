@@ -58,8 +58,8 @@
     },
     "io.modelcontextprotocol.registry/publisher-provided": {
       "distribution": {
-        "ociImage": "ghcr.io/dinglebear-ai/soma:0.9.0",
-        "npm": "@dinglebear/soma@0.9.0",
+        "ociImage": "ghcr.io/dinglebear-ai/soma:0.10.0",
+        "npm": "@dinglebear/soma@0.10.0",
         "nodePackage": "@dinglebear/soma"
       },
       "documentation": {
@@ -140,7 +140,7 @@
           "name": "RUST_LOG"
         }
       ],
-      "identifier": "ghcr.io/dinglebear-ai/soma:0.9.0",
+      "identifier": "ghcr.io/dinglebear-ai/soma:0.10.0",
       "packageArguments": [
         {
           "type": "positional",
@@ -157,7 +157,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@dinglebear/soma",
-      "version": "0.9.0",
+      "version": "0.10.0",
       "runtimeHint": "npx",
       "packageArguments": [
         {
@@ -216,6 +216,6 @@
     "url": "https://github.com/dinglebear-ai/soma"
   },
   "title": "Soma",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "websiteUrl": "https://soma.dinglebear.ai"
 }

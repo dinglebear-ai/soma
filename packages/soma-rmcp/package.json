@@ -54,7 +54,7 @@
     "url": "git+https://github.com/dinglebear-ai/soma.git",
     "directory": "packages/soma-rmcp"
   },
-  "version": "0.9.0",
+  "version": "0.10.0",
   "scripts": {
     "prepack": "node scripts/sync-readme.js",
     "check": "node --check bin/soma-rmcp.js && node --check scripts/install.js && node --check lib/platform.js && node --check scripts/sync-readme.js && node --check scripts/check-package.js && node scripts/check-package.js",
@@ -65,5 +65,5 @@
   "publishConfig": {
     "access": "public"
   },
-  "binaryVersion": "0.9.0"
+  "binaryVersion": "0.10.0"
 }
