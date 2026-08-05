@@ -2023,7 +2023,7 @@
     "binary": "soma",
     "server_binary": "soma",
     "node_package": "@dinglebear/soma",
-    "oci_image": "ghcr.io/dinglebear-ai/soma:0.9.0",
+    "oci_image": "ghcr.io/dinglebear-ai/soma:0.10.0",
     "mcp_registry": "server.json",
     "provider_directory_env": "SOMA_PROVIDER_DIR",
     "auth_modes": [
