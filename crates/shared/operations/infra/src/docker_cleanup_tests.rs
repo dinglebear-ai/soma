@@ -36,7 +36,7 @@ fn image_fingerprint_is_order_independent() {
 
 #[test]
 fn prune_fingerprint_sorts_candidate_sets() {
-    let host = HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local);
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local);
     let fp = DockerPruneFingerprint {
         host: host.id().clone(),
         topology_revision: host.revision().clone(),

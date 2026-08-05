@@ -206,10 +206,10 @@ pub(crate) fn runtime(
     transfer: Arc<FakeTransfer>,
     enabled: bool,
 ) -> SynapseMutationRuntime {
-    let dookie = crate::mutation_pull_test_support::host();
+    let devhost = HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local);
     SynapseMutationRuntime::new(SynapseMutationPorts {
         hosts: Arc::new(StaticHosts(
-            TopologySnapshot::new([dookie, source_host(), destination_host()]).unwrap(),
+            TopologySnapshot::new([devhost, source_host(), destination_host()]).unwrap(),
         )),
         docker: Arc::new(UnusedLifecycle),
         compose: None,
