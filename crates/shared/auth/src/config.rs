@@ -1196,7 +1196,16 @@ mod tests {
         assert_eq!(cfg.login_path, "/auth/login");
         assert!(!cfg.enable_dynamic_registration);
         assert!(!cfg.disable_static_token_with_oauth);
-        assert_eq!(cfg.default_data_dir, std::path::PathBuf::from(".auth"));
+        // The generic profile must not resolve the SQLite token store / JWT
+        // signing key to a bare relative path (cwd-dependent) whenever the
+        // environment offers a platform data dir or home dir to anchor on —
+        // see `config_profile::resolve_default_data_dir`.
+        if dirs::data_dir().is_none() && dirs::home_dir().is_none() {
+            assert_eq!(cfg.default_data_dir, std::path::PathBuf::from(".auth"));
+        } else {
+            assert_ne!(cfg.default_data_dir, std::path::PathBuf::from(".auth"));
+            assert!(cfg.default_data_dir.is_absolute());
+        }
         assert_eq!(cfg.upstream_client_name, "app");
         assert_eq!(cfg.upstream_callback_path, "/auth/upstream/callback");
     }

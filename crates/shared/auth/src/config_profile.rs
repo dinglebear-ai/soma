@@ -45,7 +45,7 @@ impl Default for AuthProfile {
     fn default() -> Self {
         Self {
             env_prefix: DEFAULT_ENV_PREFIX.to_string(),
-            default_data_dir: PathBuf::from(DEFAULT_DATA_DIR),
+            default_data_dir: resolve_default_data_dir(),
             session_cookie_name: DEFAULT_SESSION_COOKIE_NAME.to_string(),
             scopes_supported: vec![DEFAULT_SCOPE.to_string(), DEFAULT_ADMIN_SCOPE.to_string()],
             resource_path: DEFAULT_RESOURCE_PATH.to_string(),
@@ -57,5 +57,87 @@ impl Default for AuthProfile {
             upstream_client_name: DEFAULT_UPSTREAM_CLIENT_NAME.to_string(),
             upstream_callback_path: DEFAULT_UPSTREAM_CALLBACK_PATH.to_string(),
         }
+    }
+}
+
+/// Resolve the generic fallback data directory used by [`AuthProfile::default`]
+/// (and therefore `AuthConfigBuilder::new()`) for the SQLite token store and
+/// the Ed25519 JWT signing key.
+///
+/// A bare relative path (the literal [`DEFAULT_DATA_DIR`], e.g. `./.auth`) is
+/// cwd-dependent: the very same long-running process resolves to a different
+/// directory depending on where it happened to be launched from, which can
+/// silently split or lose the token store and signing key across restarts.
+/// This restores directory resolution to the OS/user level, matching the
+/// behavior of this crate before its data directory became configurable via
+/// [`AuthProfile`], while staying generic and dependency-light — no homelab
+/// or product-specific path is hard-coded here:
+///
+/// 1. The platform data directory (`dirs::data_dir()` — `$XDG_DATA_HOME` or
+///    `~/.local/share` on Linux, `~/Library/Application Support` on macOS,
+///    `%APPDATA%` on Windows), joined with a product-neutral subdirectory.
+/// 2. The user's home directory (`dirs::home_dir()`) joined with
+///    [`DEFAULT_DATA_DIR`], when the platform data directory is unknown but a
+///    home directory is.
+/// 3. The bare relative [`DEFAULT_DATA_DIR`], only as an absolute last resort
+///    (e.g. a minimal container with neither set).
+///
+/// Consumers embedding this crate should still normally set an explicit,
+/// product-owned directory via [`AuthProfile::default_data_dir`] rather than
+/// relying on this fallback.
+fn resolve_default_data_dir() -> PathBuf {
+    if let Some(data_dir) = dirs::data_dir() {
+        return data_dir.join(DEFAULT_DATA_DIR.trim_start_matches('.'));
+    }
+    if let Some(home) = dirs::home_dir() {
+        return home.join(DEFAULT_DATA_DIR);
+    }
+    PathBuf::from(DEFAULT_DATA_DIR)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AuthProfile, DEFAULT_DATA_DIR, PathBuf, resolve_default_data_dir};
+
+    /// Pins the resolution order documented on [`resolve_default_data_dir`]:
+    /// platform data dir, then home dir, then the bare relative path — so a
+    /// future edit can't silently reorder or drop a tier.
+    #[test]
+    fn resolve_default_data_dir_follows_documented_precedence() {
+        let expected = dirs::data_dir()
+            .map(|dir| dir.join(DEFAULT_DATA_DIR.trim_start_matches('.')))
+            .or_else(|| dirs::home_dir().map(|home| home.join(DEFAULT_DATA_DIR)))
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_DATA_DIR));
+
+        assert_eq!(resolve_default_data_dir(), expected);
+    }
+
+    /// Regression guard for the cwd-dependent bug: whenever the environment
+    /// exposes a platform data dir or a home dir (true for every real
+    /// dev/CI machine), `AuthProfile::default()` must NOT resolve the token
+    /// store and signing key to the bare relative `.auth`.
+    #[test]
+    fn default_profile_does_not_use_bare_relative_dir_when_home_is_known() {
+        if dirs::data_dir().is_none() && dirs::home_dir().is_none() {
+            // No environment information available at all (e.g. a stripped
+            // container with neither XDG nor HOME/USERPROFILE set) — the
+            // relative fallback is correct here, not a regression.
+            return;
+        }
+
+        let profile = AuthProfile::default();
+
+        assert_ne!(
+            profile.default_data_dir,
+            PathBuf::from(DEFAULT_DATA_DIR),
+            "default_data_dir must not be the bare relative path when a \
+             platform data dir or home dir is available: {:?}",
+            profile.default_data_dir
+        );
+        assert!(
+            profile.default_data_dir.is_absolute(),
+            "default_data_dir should resolve to an absolute path, got {:?}",
+            profile.default_data_dir
+        );
     }
 }
