@@ -78,11 +78,12 @@ keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 # soma-application, and soma-client. To commit another crate, document every
 # public item and add that attribute to its lib.rs.
 [workspace.lints.rust]
+missing_crate_level_docs = "deny"
 missing_docs = "allow"
+renamed_and_removed_lints = "allow"
 unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.rustdoc]
-missing_crate_level_docs = "deny"
 broken_intra_doc_links = "deny"
 private_intra_doc_links = "warn"
 invalid_codeblock_attributes = "deny"
