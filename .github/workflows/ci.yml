@@ -35,10 +35,10 @@ env:
   RUST_BACKTRACE: 1
   # Product-specific builds route through kache (RUSTC_WRAPPER, set by
   # ./.github/actions/setup-rust-kache). The LOCAL store is per-runner under
-  # $GITHUB_WORKSPACE/../.kache and must never be shared — kache's SQLite index
-  # cannot be held across containers. The SHARED surface is the filesystem
-  # remote bind-mounted at /home/runner/kache-remote. The GitHub-hosted native
-  # Windows job runs without any compile wrapper.
+  # $GITHUB_WORKSPACE/../.kache and must never be shared because kache's SQLite
+  # index cannot be held across containers. The only SHARED surface is the
+  # private MinIO prefix s3://kache/rust. The GitHub-hosted native Windows job
+  # runs without any compile wrapper.
 
 jobs:
   changes:

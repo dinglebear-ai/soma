@@ -69,12 +69,11 @@ jobs:
         run: cargo deny check all
 
   # NOTE: the kache LOCAL store is per-runner under /_work/<repo>/../.kache
-  # (never shared); the shared surface is the filesystem remote, mounted across
-  # runners and repos. Bounding it is handled where it belongs — kache's own
-  # cost-aware local GC (0.12.0) plus the weekly kache-reaper.sh cron on tootie
-  # for the never-evicting remote — NOT a CI job. A weekly `rm -rf` from inside
-  # one runner would race live builds on the other runners and delete a cache
-  # shared by every repo. The earlier store-gc job was removed for that reason.
+  # (never shared); the only shared surface is the MinIO S3 prefix
+  # s3://kache/rust. Kache 0.13.0 owns cost-aware local GC. Remote retention and
+  # capacity are Tootie/MinIO infrastructure responsibilities, NOT a CI job. A
+  # recursive delete from one runner would race live builds and remove objects
+  # shared by every repo. The earlier store-gc job remains retired.
 
   # ── kache-remote-canary: cold cross-runner proof of the shared remote ────────
   #

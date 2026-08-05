@@ -80,7 +80,7 @@ services:
       - CARGO_HOME=/home/runner/.cargo
       - RUSTUP_HOME=/home/runner/.rustup
       - KACHE_CACHE_DIR=/home/runner/_work/.kache
-      - KACHE_MAX_SIZE=40GiB
+      - KACHE_MAX_SIZE=80GiB
       - KACHE_DAEMON_IDLE_TIMEOUT=0
     env_file:
       - .env
@@ -138,12 +138,13 @@ Cargo and kache data persist under the runner appdata volume:
 - `CARGO_HOME=/home/runner/.cargo`
 - `RUSTUP_HOME=/home/runner/.rustup`
 - `KACHE_CACHE_DIR=/home/runner/_work/.kache`
-- `KACHE_MAX_SIZE=40GiB`
+- `KACHE_MAX_SIZE=80GiB`
 
 The kache LOCAL store is **per-runner and must never be shared**: kache's SQLite
 index cannot be held across containers, and a shared index degrades silently to
-uncached builds. The shared surface is the filesystem remote — see
-`~/docs/dev/toolchain/kache.md`.
+uncached builds. The only shared surface is the private MinIO S3 prefix
+`s3://kache/rust`; the retired NFS cache is not a fallback. See the fleet
+[cache ADR](https://github.com/dinglebear-ai/workflows/blob/main/docs/adr/0001-kache-minio-single-remote.md).
 
 Workflow Rust jobs set these via `.github/actions/setup-rust-kache`:
 
@@ -163,7 +164,7 @@ daemon that idled out means zero remote hits and zero uploads, silently.
 
 The persistent mounts are bounded by two guardrails:
 
-- `KACHE_MAX_SIZE=40GiB` caps each runner's local kache store.
+- `KACHE_MAX_SIZE=80GiB` caps each runner's local kache store.
 - `start.sh` prunes stale storage every time the JIT runner starts: `/tmp` and
   `_work/_temp` are cleared, old work directories are removed after 7 days,
   runner diagnostic logs after 14 days, and stale Cargo registry/git cache
@@ -177,7 +178,7 @@ old checkouts, temp files, and compile cache entries from growing without bound.
 The runner container needs:
 
 - Docker socket access for `container-smoke` and Docker publish workflows.
-- Network access to GitHub, crates.io, npm, and GHCR.
+- Network access to GitHub, crates.io, npm, GHCR, and the private MinIO endpoint.
 - A persistent `/mnt/cache/appdata/actions-runner/soma` tree.
 - `GITHUB_PAT` in the compose `.env` file for runner registration.
 

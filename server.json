@@ -74,7 +74,9 @@
       "publisher": {
         "name": "dinglebear.ai",
         "url": "https://dinglebear.ai"
-      }
+      },
+      "namespace": "ai.dinglebear",
+      "dnsDomain": "dinglebear.ai"
     }
   },
   "description": "RMCP runtime for provider-backed agents with CLI, REST, HTTP MCP, plugins, and scaffold support.",

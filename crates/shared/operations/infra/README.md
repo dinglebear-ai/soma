@@ -30,20 +30,7 @@ The mutation surface includes:
 - descriptor-bound allowlisted host execution plus stable partial fanout;
 - exact-identity Docker image removal and inventory-bound prune with independent absence checks;
 - configuration-bound Compose teardown with optional explicit volume removal;
-- digest-verified descriptor-confined file transfer between local or strict-SSH hosts;
-- descriptor-confined context fingerprints with explicit root, file-count, and byte ceilings;
-- canonical bounded phase progress and build logs whose delivery failures do not rewrite execution truth;
-- OCI artifact references and local image-ID/digest verification;
-- local and strict-SSH Docker mutation clients;
-- process-backed Compose mutation commands with discrete argv.
-
-The shared crate does not authorize mutations. Product runtimes must bind a deterministic plan, authorization evidence, exact target, and topology revision before invoking these drivers.
-
-## Feature flags
-
-- `process-driver`: command-backed Compose, process, log, ZFS, lifecycle mutation, artifact pull, context fingerprint, image build, Compose replacement/teardown, bounded host execution, and descriptor-confined file transfer support;
-- `bollard-driver`: local Docker reads, container lifecycle, replacement, non-TTY exec, image-pull streams, image removal, and fixed-scope prune mutations;
-- `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
+- digest-verified descriptor-confined file transfer between local or strict-SSH hosts;- `remote-bollard`: strict-SSH Docker Unix-socket forwarding and pooled remote clients;
 - `linux-filesystem`: Linux `openat2` filesystem inspection.
 
 The default build exposes neutral models, traits, coordinators, and deterministic validation without concrete drivers.
