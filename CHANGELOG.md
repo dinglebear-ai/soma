@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [Unreleased]
+
+### Changed
+
+* **docs:** document the MinIO-only Kache remote, 80 GiB runner L1 stores, and retired NFS topology
+
 ## [0.9.0](https://github.com/dinglebear-ai/soma/compare/v0.8.2...v0.9.0) (2026-08-03)
 
 

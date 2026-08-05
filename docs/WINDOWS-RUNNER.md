@@ -55,9 +55,10 @@ The PR-time Windows path:
 8. Builds the local-adapter and full release binaries.
 9. Uploads `target/release/soma.exe`.
 
-The native job intentionally runs Cargo without a compile wrapper. It still
-installs no compile cache: the GitHub-hosted Windows runner has no route to the shared filesystem remote on tootie, so `setup-rust-kache` is called with `enable-cache: "false"`
-and integrity checks.
+The native job intentionally runs Cargo without a compile wrapper. It installs
+no compile cache because the GitHub-hosted Windows runner has neither a route nor
+credentials for the private MinIO prefix `s3://kache/rust`. The workflow calls
+`setup-rust-kache` with `enable-cache: "false"` and keeps the integrity checks.
 
 ## Portable Windows CPU Flags
 
