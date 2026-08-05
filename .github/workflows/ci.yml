@@ -43,7 +43,13 @@ env:
 jobs:
   changes:
     name: Changes
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      ${{
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.head.repo.full_name == github.repository) &&
+        (github.event_name != 'pull_request' ||
+         !startsWith(github.head_ref, 'release-please--branches--main--components--soma'))
+      }}
     runs-on: ci-pool-rust
     timeout-minutes: 10
     outputs:
@@ -526,6 +532,65 @@ jobs:
           npm run check
           npm pack --dry-run --json
 
+  release-contract:
+    name: Release Contract
+    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--branches--main--components--soma') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify release version surfaces
+        run: |
+          set -euo pipefail
+          git diff --check
+          python3 - <<'PYTHON'
+          import json
+          import tomllib
+          from pathlib import Path
+
+          root = Path('.')
+          manifest = json.loads((root / '.release-please-manifest.json').read_text())
+          expected = manifest['.']
+          package = json.loads((root / 'packages/soma-rmcp/package.json').read_text())
+          server = json.loads((root / 'server.json').read_text())
+          openapi = json.loads((root / 'docs/generated/openapi.json').read_text())
+          cargo = tomllib.loads((root / 'apps/soma/Cargo.toml').read_text())
+          lock = tomllib.loads((root / 'Cargo.lock').read_text())
+          locked = {
+              entry['name']: entry['version']
+              for entry in lock['package']
+              if entry['name'] == 'soma'
+          }
+          npm_package = next(
+              entry for entry in server['packages']
+              if entry.get('registryType') == 'npm'
+          )
+          oci_package = next(
+              entry for entry in server['packages']
+              if entry.get('registryType') == 'oci'
+          )
+          versions = {
+              'cargo': cargo['package']['version'],
+              'cargo-lock': locked['soma'],
+              'npm': package['version'],
+              'npm-binary': package['binaryVersion'],
+              'server': server['version'],
+              'server-npm': npm_package['version'],
+              'openapi': openapi['info']['version'],
+          }
+          mismatches = {
+              name: version for name, version in versions.items()
+              if version != expected
+          }
+          assert not mismatches, mismatches
+          assert npm_package['identifier'] == '@dinglebear/soma'
+          assert oci_package['identifier'] == f'ghcr.io/dinglebear-ai/soma:{expected}'
+          fixup = (root / '.github/workflows/release-please.yml').read_text()
+          assert 'cargo xtask check-openapi --write' in fixup
+          print(f'Release contract is synchronized at {expected}.')
+          PYTHON
+
   # ── ci-gate: single required status that aggregates every job ────────────────
   # Point branch protection at THIS job ("CI Gate") instead of each job below.
   # It fails if any needed job ended in anything other than success or skipped,
@@ -547,7 +612,8 @@ jobs:
       - soma
       - audit
       - npm-launcher
-    runs-on: ci-pool-ops
+      - release-contract
+    runs-on: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--branches--main--components--soma') && 'ubuntu-24.04' || 'ci-pool-ops' }}
     timeout-minutes: 5
     steps:
       - name: Verify all required jobs passed
