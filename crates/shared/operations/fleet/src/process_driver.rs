@@ -2,6 +2,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
@@ -37,7 +38,11 @@ impl CommandExecutor for LocalProcessDriver {
         let mut command = Command::new(request.program());
         command
             .args(request.args())
-            .stdin(Stdio::null())
+            .stdin(if request.stdin().is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
@@ -48,6 +53,16 @@ impl CommandExecutor for LocalProcessDriver {
             host: host.id().clone(),
             message: format!("spawn failed: {error}"),
         })?;
+        let input = match request.stdin() {
+            Some(bytes) => Some((
+                child.stdin.take().ok_or_else(|| FleetError::Command {
+                    host: host.id().clone(),
+                    message: "stdin pipe unavailable".into(),
+                })?,
+                bytes.to_vec(),
+            )),
+            None => None,
+        };
         let stdout = child.stdout.take().ok_or_else(|| FleetError::Command {
             host: host.id().clone(),
             message: "stdout pipe unavailable".into(),
@@ -57,13 +72,24 @@ impl CommandExecutor for LocalProcessDriver {
             message: "stderr pipe unavailable".into(),
         })?;
 
+        let input = async move {
+            if let Some((mut stdin, bytes)) = input {
+                stdin.write_all(&bytes).await?;
+                stdin.shutdown().await?;
+            }
+            Ok::<_, std::io::Error>(())
+        };
         let completion = async {
-            let (status, (stdout, stderr)) = tokio::try_join!(child.wait(), async {
-                tokio::try_join!(
-                    drain_bounded(stdout, request.max_stdout_bytes()),
-                    drain_bounded(stderr, request.max_stderr_bytes())
-                )
-            })?;
+            let (status, (stdout, stderr), ()) = tokio::try_join!(
+                child.wait(),
+                async {
+                    tokio::try_join!(
+                        drain_bounded(stdout, request.max_stdout_bytes()),
+                        drain_bounded(stderr, request.max_stderr_bytes())
+                    )
+                },
+                input
+            )?;
             Ok::<_, std::io::Error>((status, stdout, stderr))
         };
 

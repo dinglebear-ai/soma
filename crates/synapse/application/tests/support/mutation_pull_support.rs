@@ -228,6 +228,8 @@ pub(crate) fn runtime(
         compose_pull: compose.map(|client| client as Arc<dyn ComposePullClient>),
         builds: None,
         recreate: None,
+        exec: None,
+        final_mutations: None,
     })
 }
 

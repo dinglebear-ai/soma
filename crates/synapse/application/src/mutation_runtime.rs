@@ -1,14 +1,10 @@
-use std::sync::Arc;
-
 use serde_json::Value;
-use soma_fleet::{HostId, HostRecord, HostRepository};
+use soma_fleet::{HostId, HostRecord};
 use soma_infra::{
-    BuildContextInspector, ComposeBuildEngine, ComposeBuildMutator, ComposeMutationClient,
-    ComposeMutationEngine, ComposePullClient, ComposePullEngine, ComposeRecreateClient,
+    ComposeBuildEngine, ComposeDownEngine, ComposeMutationEngine, ComposePullEngine,
     ComposeRecreateEngine, ContainerLifecycleAction, ContainerLifecycleEngine,
-    ContainerLifecycleRequest, ContainerRecreateClientProvider, ContainerRecreateEngine,
-    DockerArtifactClientProvider, DockerMutationClientProvider, ImageBuildEngine,
-    ImageBuildMutator, ImagePullEngine,
+    ContainerLifecycleRequest, ContainerRecreateEngine, DockerCleanupEngine, FileTransferEngine,
+    ImageBuildEngine, ImagePullEngine,
 };
 use soma_ops::{
     AccessClass, AuthorizationEvidence, OperationContext, OperationName, OperationPlan, PlanStep,
@@ -16,46 +12,11 @@ use soma_ops::{
 };
 use tokio_util::sync::CancellationToken;
 
+use crate::mutation_ports::SynapseMutationPorts;
 use crate::runtime_params::required_str;
 use crate::{ExecutionError, SynapseCatalog};
 
 pub(crate) const DEFAULT_MUTATION_DEADLINE_MS: i64 = 30_000;
-
-/// Product-owned privileged build ports.
-pub struct SynapseBuildPorts {
-    /// Descriptor-confined build-context inspector.
-    pub contexts: Arc<dyn BuildContextInspector>,
-    /// Docker image build driver.
-    pub image: Arc<dyn ImageBuildMutator>,
-    /// Compose build driver.
-    pub compose: Arc<dyn ComposeBuildMutator>,
-}
-
-/// Product-owned replacement ports.
-pub struct SynapseRecreatePorts {
-    /// Host-bound container replacement client provider.
-    pub containers: Arc<dyn ContainerRecreateClientProvider>,
-    /// Compose force-recreate client.
-    pub compose: Arc<dyn ComposeRecreateClient>,
-}
-
-/// Product-owned ports used by canonical Synapse mutations.
-pub struct SynapseMutationPorts {
-    /// Fleet topology source.
-    pub hosts: Arc<dyn HostRepository>,
-    /// Host-bound Docker mutation client provider.
-    pub docker: Arc<dyn DockerMutationClientProvider>,
-    /// Optional Compose lifecycle mutation client.
-    pub compose: Option<Arc<dyn ComposeMutationClient>>,
-    /// Optional Docker artifact mutation client provider.
-    pub artifacts: Option<Arc<dyn DockerArtifactClientProvider>>,
-    /// Optional Compose artifact mutation client.
-    pub compose_pull: Option<Arc<dyn ComposePullClient>>,
-    /// Optional privileged build ports.
-    pub builds: Option<SynapseBuildPorts>,
-    /// Optional destructive replacement ports.
-    pub recreate: Option<SynapseRecreatePorts>,
-}
 
 /// Canonical Synapse mutation planner and executor.
 pub struct SynapseMutationRuntime {
@@ -69,6 +30,9 @@ pub struct SynapseMutationRuntime {
     pub(crate) compose_build: ComposeBuildEngine,
     pub(crate) container_recreate: ContainerRecreateEngine,
     pub(crate) compose_recreate: ComposeRecreateEngine,
+    pub(crate) docker_cleanup: DockerCleanupEngine,
+    pub(crate) compose_down: ComposeDownEngine,
+    pub(crate) file_transfer: FileTransferEngine,
 }
 
 impl SynapseMutationRuntime {
@@ -86,6 +50,9 @@ impl SynapseMutationRuntime {
             compose_build: ComposeBuildEngine,
             container_recreate: ContainerRecreateEngine,
             compose_recreate: ComposeRecreateEngine,
+            docker_cleanup: DockerCleanupEngine,
+            compose_down: ComposeDownEngine,
+            file_transfer: FileTransferEngine,
         }
     }
 
@@ -116,6 +83,9 @@ impl SynapseMutationRuntime {
             compose_build: ComposeBuildEngine,
             container_recreate: ContainerRecreateEngine,
             compose_recreate: ComposeRecreateEngine,
+            docker_cleanup: DockerCleanupEngine,
+            compose_down: ComposeDownEngine,
+            file_transfer: FileTransferEngine,
         }
     }
 
@@ -250,7 +220,9 @@ impl SynapseMutationRuntime {
                 && crate::mutation_compose::compose_action(operation).is_err()
                 && !crate::mutation_pull::pull_operation(operation)
                 && !crate::mutation_build::build_operation(operation)
-                && !crate::mutation_recreate::recreate_operation(operation))
+                && !crate::mutation_recreate::recreate_operation(operation)
+                && !crate::mutation_exec::exec_operation(operation)
+                && !crate::mutation_final_contract::final_operation(operation))
         {
             return Err(ExecutionError::UnsupportedOperation(operation.clone()));
         }

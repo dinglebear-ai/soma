@@ -12,25 +12,36 @@ mod build_context;
 mod compose;
 mod compose_build;
 mod compose_build_engine;
+mod compose_down;
+mod compose_down_engine;
 mod compose_mutation;
 mod compose_parse;
 mod compose_pull;
 mod compose_pull_engine;
 mod compose_recreate;
 mod compose_recreate_engine;
+mod container_exec;
 mod container_mutation;
 mod container_mutation_engine;
 mod container_recreate;
 mod container_recreate_engine;
 mod docker;
+mod docker_cleanup;
+mod docker_cleanup_engine;
 mod docker_provider;
 mod docker_telemetry;
 #[cfg(feature = "bollard-driver")]
 mod docker_telemetry_map;
 mod error;
+mod file_transfer;
+mod file_transfer_engine;
 mod filesystem;
 mod filesystem_query;
 mod host;
+mod host_exec;
+mod host_exec_argv;
+mod host_exec_many;
+mod host_exec_policy;
 mod host_system;
 #[cfg(feature = "process-driver")]
 mod host_system_parse;
@@ -45,7 +56,11 @@ mod progress_sink;
 mod zfs;
 
 #[cfg(feature = "bollard-driver")]
+mod bollard_cleanup;
+#[cfg(feature = "bollard-driver")]
 mod bollard_driver;
+#[cfg(feature = "bollard-driver")]
+mod bollard_exec;
 #[cfg(feature = "bollard-driver")]
 mod bollard_image_pull;
 #[cfg(feature = "bollard-driver")]
@@ -67,13 +82,19 @@ mod process_compose;
 #[cfg(feature = "process-driver")]
 mod process_compose_build;
 #[cfg(feature = "process-driver")]
+mod process_compose_down;
+#[cfg(feature = "process-driver")]
 mod process_compose_mutation;
 #[cfg(feature = "process-driver")]
 mod process_compose_pull;
 #[cfg(feature = "process-driver")]
 mod process_compose_recreate;
 #[cfg(feature = "process-driver")]
+mod process_file_transfer;
+#[cfg(feature = "process-driver")]
 mod process_filesystem;
+#[cfg(feature = "process-driver")]
+mod process_host_exec;
 #[cfg(feature = "process-driver")]
 mod process_host_system;
 #[cfg(feature = "process-driver")]
@@ -99,6 +120,11 @@ pub use compose_build::{
     ComposeBuildRequest, ComposeBuiltImage, resolve_compose_build_context,
 };
 pub use compose_build_engine::{ComposeBuildEngine, ComposeBuildServices};
+pub use compose_down::{
+    ComposeDownClient, ComposeDownMutator, ComposeDownOutcome, ComposeDownReceipt,
+    ComposeDownRequest,
+};
+pub use compose_down_engine::ComposeDownEngine;
 pub use compose_mutation::{
     ComposeMutationAction, ComposeMutationClient, ComposeMutationEngine, ComposeMutationOutcome,
     ComposeMutationReceipt, ComposeMutationRequest, ComposeMutator,
@@ -114,6 +140,9 @@ pub use compose_recreate::{
     compose_recreate_fingerprint,
 };
 pub use compose_recreate_engine::ComposeRecreateEngine;
+pub use container_exec::{
+    ContainerExecClientProvider, ContainerExecMutator, ContainerExecReceipt, ContainerExecRequest,
+};
 pub use container_mutation::{
     ContainerLifecycleAction, ContainerLifecycleMutator, ContainerLifecycleOutcome,
     ContainerLifecycleRequest, ContainerMutationReceipt, DockerMutationClient,
@@ -131,12 +160,25 @@ pub use docker::{
     ContainerSummary, DockerSystemInfo, DockerSystemReader, ImageListOptions, ImageReader,
     ImageSummary, NetworkReader, NetworkSummary, VolumeReader, VolumeSummary,
 };
+pub use docker_cleanup::{
+    DockerCleanupClient, DockerCleanupClientProvider, DockerCleanupMutator, DockerPruneFingerprint,
+    DockerPruneOutcome, DockerPruneReceipt, DockerPruneRequest, DockerPruneScopeReceipt,
+    DockerPruneTarget, ImageRemovalFingerprint, ImageRemovalOutcome, ImageRemovalReceipt,
+    ImageRemovalRequest,
+};
+pub use docker_cleanup_engine::DockerCleanupEngine;
 pub use docker_provider::{DockerClientProvider, DockerReadClient};
 pub use docker_telemetry::{
     ContainerLogOptions, ContainerLogs, ContainerStatsSnapshot, DockerDiskUsage, DockerLogStream,
     DockerTelemetryReader, DockerUsageCategory,
 };
 pub use error::{InfraError, InfraResult};
+pub use file_transfer::{
+    FileTransferFingerprint, FileTransferInspector, FileTransferPathRole, FileTransferPolicy,
+    MAX_FILE_TRANSFER_BYTES, TransferFileIdentity, VerifiedFileTransferClient,
+    VerifiedFileTransferOutcome, VerifiedFileTransferRequest,
+};
+pub use file_transfer_engine::FileTransferEngine;
 pub use filesystem::{
     FileHash, FileKind, FileMetadata, FilePreview, FileReadPolicy, FilesystemInspector,
 };
@@ -148,6 +190,11 @@ pub use host::{
     HostIdentity, HostInspectRequest, HostInspection, HostInspector, HostLoadAverage, HostMemory,
     LinuxCommandHostInspector,
 };
+pub use host_exec::{HostExecCommand, HostExecMutator, HostExecReceipt, HostExecRequest};
+pub use host_exec_many::{
+    HostExecManyEngine, HostExecManyOutcome, HostExecTargetResult, HostExecTargetStatus,
+};
+pub use host_exec_policy::HostExecPolicy;
 pub use host_system::{
     DoctorCheck, DoctorReport, FilesystemUsage, HostSystemInspector, MountInfo, NetworkAddress,
     NetworkInterface, PortInfo, PortListRequest, PortProtocol, ServiceListRequest, ServiceStatus,
@@ -175,7 +222,11 @@ pub use process_compose::CommandComposeInspector;
 #[cfg(feature = "process-driver")]
 pub use process_compose_build::CommandComposeBuildMutator;
 #[cfg(feature = "process-driver")]
+pub use process_file_transfer::CommandFileTransfer;
+#[cfg(feature = "process-driver")]
 pub use process_filesystem::CommandFilesystemQueryInspector;
+#[cfg(feature = "process-driver")]
+pub use process_host_exec::CommandHostExec;
 #[cfg(feature = "process-driver")]
 pub use process_host_system::CommandHostSystemInspector;
 #[cfg(feature = "process-driver")]

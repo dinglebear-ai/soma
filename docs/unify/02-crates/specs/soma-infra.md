@@ -111,6 +111,23 @@ Optional external drivers:
 - shell-free `compose up -d --force-recreate` with bounded output;
 - independent verification of the exact configured running, healthy, zero-exit service set.
 
+### Bounded execution
+
+- `ContainerExecRequest`, `ContainerExecMutator`, and host-bound `ContainerExecClientProvider`;
+- direct non-TTY Docker exec argv with separate 96 KiB stdout and stderr ceilings plus inspected exit status;
+- `HostExecCommand`, `HostExecPolicy`, and `CommandHostExec`;
+- a fixed read-oriented command allowlist with typed option grammars and helper-executing option rejection;
+- explicit per-host read roots, `O_NOFOLLOW` descriptor traversal, inherited `/proc/self/fd` operands, and descriptor-bound working directories;
+- `HostExecManyEngine` with bounded concurrency, deterministic target order, conservative aggregate send state, partial results, and a bounded aggregate output envelope.
+
+### Cleanup, teardown, and transfer
+
+- `DockerCleanupEngine` binds one resolved image identity or one deterministic prune inventory before send;
+- Bollard image removal and fixed-order container/image/volume/network/build-cache prune drivers retain conservative send state and exact deletion receipts;
+- `ComposeDownEngine` binds normalized configuration plus the complete service pre-state and verifies no services remain after shell-free teardown;
+- `FileTransferEngine` binds both host revisions, source bytes/SHA-256, destination pre-state, and destination path;
+- `CommandFileTransfer` supports local or strict-SSH endpoints with descriptor-walking `O_NOFOLLOW` source reads and destination writes, a 16 MiB operation ceiling, lifecycle accounting, and independent destination digest verification.
+
 ## Security properties
 
 1. Every target-specific model is bound to a host and exact topology revision.
@@ -142,19 +159,28 @@ Optional external drivers:
 27. Container recreate plans bind the exact replacement configuration digest and image-pull choice.
 28. Container recreate rechecks the digest immediately before removal and records the furthest completed destructive stage.
 29. Compose recreate plans bind normalized configuration and service pre-state, then verify the exact healthy post-state.
-30. Arbitrary command execution, file transfer, image deletion, pruning, and Compose down remain outside this slice.
+30. Container exec uses direct argv without a shell or TTY, crosses the uncertain send boundary only at `start_exec`, and inspects the final exit status.
+31. Host exec admits only the fixed read-oriented command set and typed options; filesystem operands and working directories are descriptor-bound beneath explicit roots.
+32. Host fanout preserves deterministic target order, retains every partial result, bounds concurrency and aggregate output, and requires replanning unresolved targets rather than blind batch retry.
+33. Image removal plans bind the requested reference plus resolved local ID, tags, and digests; verification requires both reference and content identity absence.
+34. Prune plans bind exact candidate identities and build-cache usage; `all` executes a fixed five-scope order and verification rejects any reported identity that remains.
+35. Compose down binds normalized configuration plus the complete service set, rejects volume removal without explicit force, and verifies no services remain.
+36. File transfer binds both host revisions, source content identity, destination pre-state, and destination path before send.
+37. Transfer paths remain beneath explicit source/destination roots, reject symlink escapes with `O_NOFOLLOW`, cap content at 16 MiB, and require matching source/destination SHA-256 evidence.
 
 ## Current Synapse adoption
 
-The canonical Synapse runtime delegates all 35 read operations to `soma-fleet` and `soma-infra`. Fourteen of the 21 canonical mutations are now delegated:
+The canonical Synapse runtime delegates all 35 read operations and all 21 canonical mutations to `soma-fleet` and `soma-infra`:
 
 - `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
-- `compose.up` and `compose.restart`;
-- `docker.pull`, `container.pull`, and `compose.pull`;
-- `docker.build` and `compose.build`;
-- `container.recreate` and `compose.recreate`.
+- `compose.up`, `compose.down`, `compose.restart`, and `compose.recreate`;
+- `docker.pull`, `docker.build`, `docker.rmi`, and `docker.prune`;
+- `container.pull`, `container.recreate`, and `container.exec`;
+- `compose.pull` and `compose.build`;
+- `host.exec` and `host.exec_many`;
+- `files.transfer`.
 
-Pull plans bind exact image artifacts. Build plans bind exact context SHA-256 values and output tags. Replacement plans bind exact configuration and service pre-state digests. Execution rechecks mutable inputs before send and independently verifies image identities, replacement containers, or Compose service sets. Seven canonical mutations remain fail-closed.
+Pull plans bind exact image artifacts. Build plans bind exact context SHA-256 values and output tags. Replacement and teardown plans bind exact configuration and service pre-state digests. Execution plans bind direct argv, users, paths, timeouts, topology revisions, and normalized fanout target order. Cleanup plans bind exact image or prune inventories. Transfer plans bind both endpoints and content identities. The canonical runtime now covers all 59 operations with no fail-closed catalog gaps.
 
 ## Verification
 
@@ -167,6 +193,8 @@ Required gates:
 - pull progress, delivery-failure, image-reference drift, and artifact-verification tests;
 - build-context determinism, symlink rejection, context drift, bounded argv/logs, and output-verification tests;
 - replacement fingerprint drift, pull-choice binding, partial-stage, force-recreate argv, and post-state verification tests;
+- direct container argv, pre/post-start send-state, descriptor-bound host operands, symlink escape rejection, nonzero exits, bounded output, and stable partial fanout tests;
+- exact image-removal identity, fixed-order prune receipts, candidate drift, Compose down service-set verification, force-gated volume removal, bounded command stdin, real local file copy, digest parity, and destination symlink-escape tests;
 - stale-host and revision-bound client tests;
 - filesystem traversal and symlink rejection;
 - workspace sibling, architecture, pattern, and product-leakage checks.

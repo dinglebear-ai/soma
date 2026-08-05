@@ -19,6 +19,18 @@ mod mutation_build_execute;
 mod mutation_build_result;
 mod mutation_compose;
 mod mutation_dispatch;
+mod mutation_exec;
+mod mutation_exec_execute;
+mod mutation_exec_output;
+mod mutation_exec_result;
+mod mutation_final;
+mod mutation_final_admission;
+mod mutation_final_contract;
+mod mutation_final_execute;
+mod mutation_final_result;
+mod mutation_final_transfer_execute;
+mod mutation_final_transfer_result;
+mod mutation_ports;
 mod mutation_pull;
 mod mutation_pull_execute;
 mod mutation_pull_result;
@@ -44,13 +56,24 @@ pub use catalog::SynapseCatalog;
 pub use diagnostic::DiagnosticProjection;
 pub use error::CompatibilityError;
 pub use execution_error::ExecutionError;
-pub use mutation_runtime::{
-    SynapseBuildPorts, SynapseMutationPorts, SynapseMutationRuntime, SynapseRecreatePorts,
+pub use mutation_ports::{
+    SynapseBuildPorts, SynapseExecPorts, SynapseFinalPorts, SynapseMutationPorts,
+    SynapseRecreatePorts,
 };
+pub use mutation_runtime::SynapseMutationRuntime;
 pub use normalize::NormalizedOperationRequest;
 pub use runtime::{SynapseReadPorts, SynapseReadRuntime};
 pub use schema::OperationSchemaContract;
 
+#[cfg(test)]
+#[path = "../tests/support/mutation_exec_support.rs"]
+mod mutation_exec_test_support;
+#[cfg(test)]
+#[path = "../tests/support/mutation_final_docker_support.rs"]
+mod mutation_final_test_docker;
+#[cfg(test)]
+#[path = "../tests/support/mutation_final_io_support.rs"]
+mod mutation_final_test_io;
 #[cfg(test)]
 #[path = "../tests/support/mutation_pull_compose.rs"]
 mod mutation_pull_test_compose;

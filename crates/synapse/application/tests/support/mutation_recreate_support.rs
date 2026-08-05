@@ -295,5 +295,7 @@ pub(crate) fn runtime(
             containers: Arc::new(FakeContainerProvider(container)),
             compose: compose as Arc<dyn ComposeRecreateClient>,
         }),
+        exec: None,
+        final_mutations: None,
     })
 }

@@ -7,8 +7,10 @@ use crate::{RequestError, request::validate_absolute_path};
 
 const MAX_PROGRAM_CHARS: usize = 4096;
 const MAX_ARGUMENT_CHARS: usize = 4096;
-const MAX_ARGUMENTS: usize = 256;
+// Allows the 256 canonical command arguments plus a bounded typed-launcher prelude.
+const MAX_ARGUMENTS: usize = 320;
 const MAX_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
+const MAX_STDIN_BYTES: usize = 64 * 1024 * 1024;
 
 /// Bounded exec-style command request with no shell interpretation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,6 +18,7 @@ pub struct CommandRequest {
     program: String,
     args: Vec<String>,
     working_dir: Option<PathBuf>,
+    stdin: Option<Vec<u8>>,
     deadline: Timestamp,
     max_stdout_bytes: usize,
     max_stderr_bytes: usize,
@@ -50,6 +53,7 @@ impl CommandRequest {
             program,
             args,
             working_dir: None,
+            stdin: None,
             deadline,
             max_stdout_bytes: 256 * 1024,
             max_stderr_bytes: 256 * 1024,
@@ -62,6 +66,18 @@ impl CommandRequest {
         working_dir: impl Into<PathBuf>,
     ) -> Result<Self, RequestError> {
         self.working_dir = Some(validate_absolute_path(working_dir.into())?);
+        Ok(self)
+    }
+
+    /// Sets bounded stdin bytes delivered without shell interpretation.
+    pub fn with_stdin(mut self, stdin: Vec<u8>) -> Result<Self, RequestError> {
+        if stdin.len() > MAX_STDIN_BYTES {
+            return Err(RequestError::InvalidStdinLimit {
+                bytes: stdin.len(),
+                max: MAX_STDIN_BYTES,
+            });
+        }
+        self.stdin = Some(stdin);
         Ok(self)
     }
 
@@ -103,6 +119,12 @@ impl CommandRequest {
     #[must_use]
     pub fn working_dir(&self) -> Option<&Path> {
         self.working_dir.as_deref()
+    }
+
+    /// Returns optional bounded stdin bytes.
+    #[must_use]
+    pub fn stdin(&self) -> Option<&[u8]> {
+        self.stdin.as_deref()
     }
 
     /// Returns the request deadline.

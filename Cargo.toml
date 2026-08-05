@@ -8,6 +8,7 @@
 [workspace]
 members = [
   "apps/soma",
+  "apps/synapse",
   "crates/integrations/gotify",
   "crates/integrations/unifi",
   "crates/shared/auth",

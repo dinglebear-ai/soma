@@ -283,10 +283,17 @@ synapse-canonical-read-check:
     cargo test -p soma-infra --all-features
     cargo test -p synapse-application
 
-# Validate canonical reads plus lifecycle, artifact, build, and replacement mutations
+# Validate all 35 canonical reads and all 21 canonical mutations
 synapse-mutation-check:
     cargo test -p soma-infra --all-features
     cargo test -p synapse-application
+
+# Validate the standalone Synapse CLI, REST, HTTP MCP, and stdio MCP product
+synapse-standalone-check:
+    cargo test -p synapse --all-targets
+    cargo clippy -p synapse --all-targets -- -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc -p synapse --no-deps
+    cargo run -p synapse -- --compact operations > /dev/null
 
 # Validate neutral fleet contracts and all optional drivers
 fleet-check:
