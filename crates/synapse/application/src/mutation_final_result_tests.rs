@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn prune_counts_are_compact_and_complete() {
     let fingerprint = soma_infra::DockerPruneFingerprint {
-        host: soma_fleet::HostId::new("dookie").unwrap(),
+        host: soma_fleet::HostId::new("devhost").unwrap(),
         topology_revision: soma_fleet::HostRecord::new(
-            soma_fleet::HostId::new("dookie").unwrap(),
+            soma_fleet::HostId::new("devhost").unwrap(),
             soma_fleet::HostEndpoint::Local,
         )
         .revision()

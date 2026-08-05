@@ -66,7 +66,7 @@ async fn docker_rmi_plans_removes_and_verifies_absence() {
     let transfer = Arc::new(FakeTransfer::new());
     let runtime = final_runtime(cleanup.clone(), compose, transfer);
     let operation = op("docker.rmi");
-    let parameters = json!({"host":"dookie","image":"app:v1","force":true});
+    let parameters = json!({"host":"devhost","image":"app:v1","force":true});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -95,7 +95,7 @@ async fn docker_prune_binds_inventory_and_verifies_deleted_images() {
     let transfer = Arc::new(FakeTransfer::new());
     let runtime = final_runtime(cleanup.clone(), compose, transfer);
     let operation = op("docker.prune");
-    let parameters = json!({"host":"dookie","prune_target":"images","force":true});
+    let parameters = json!({"host":"devhost","prune_target":"images","force":true});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -127,7 +127,7 @@ async fn compose_down_binds_service_set_and_verifies_empty_status() {
     let transfer = Arc::new(FakeTransfer::new());
     let runtime = final_runtime(cleanup, compose.clone(), transfer);
     let operation = op("compose.down");
-    let parameters = json!({"host":"dookie","project":"soma"});
+    let parameters = json!({"host":"devhost","project":"soma"});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -193,13 +193,13 @@ async fn final_parameter_drift_rejects_before_destructive_send() {
         Arc::new(FakeTransfer::new()),
     );
     let operation = op("docker.rmi");
-    let parameters = json!({"host":"dookie","image":"app:v1","force":true});
+    let parameters = json!({"host":"devhost","image":"app:v1","force":true});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
         .await
         .unwrap();
-    let drifted = json!({"host":"dookie","image":"app:v2","force":true});
+    let drifted = json!({"host":"devhost","image":"app:v2","force":true});
     assert!(
         runtime
             .execute(
@@ -229,7 +229,7 @@ async fn absent_final_ports_fail_closed_before_send() {
     let error = runtime
         .plan(
             &operation,
-            &json!({"host":"dookie","image":"app:v1","force":true}),
+            &json!({"host":"devhost","image":"app:v1","force":true}),
             &context(),
         )
         .await
