@@ -52,8 +52,10 @@ fn snapshot_revision_changes_with_endpoint_material() {
         ssh("jmagar"),
     )])
     .unwrap();
-    let second =
-        TopologySnapshot::new([HostRecord::new(HostId::new("devhost").unwrap(), ssh("root"))])
-            .unwrap();
+    let second = TopologySnapshot::new([HostRecord::new(
+        HostId::new("devhost").unwrap(),
+        ssh("root"),
+    )])
+    .unwrap();
     assert_ne!(first.revision(), second.revision());
 }

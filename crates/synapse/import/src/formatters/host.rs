@@ -32,9 +32,9 @@ use crate::formatters::{format_timestamp, str_field};
 /// Hosts: 2 | Online: 1 | Offline: 1
 /// Legend: ● online  ○ offline
 ///
-/// | Host    | Status              | Containers | Running |
-/// |---------|---------------------|------------|---------|
-/// | boops   | ○ Offline (Timeout) | 0          | 0       |
+/// | Host     | Status              | Containers | Running |
+/// |----------|---------------------|------------|---------|
+/// | boops    | ○ Offline (Timeout) | 0          | 0       |
 /// | edgehost | ● Online            | 10         | 8       |
 /// ```
 pub fn render_host_status_markdown(data: &Value) -> String {

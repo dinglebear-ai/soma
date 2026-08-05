@@ -48,18 +48,18 @@ fn host_invalidation_removes_every_revision() {
 #[test]
 fn retaining_snapshot_evicts_missing_and_stale_keys() {
     let cache = ConnectionCache::new();
-    let old_dookie = ssh("devhost", "jmagar");
-    let new_dookie = ssh("devhost", "root");
+    let old_devhost = ssh("devhost", "jmagar");
+    let new_devhost = ssh("devhost", "root");
     let edgehost = local("edgehost");
-    cache.insert(&old_dookie, "old");
-    cache.insert(&new_dookie, "new");
+    cache.insert(&old_devhost, "old");
+    cache.insert(&new_devhost, "new");
     cache.insert(&edgehost, "removed-host");
 
-    let snapshot = TopologySnapshot::new([new_dookie.clone()]).unwrap();
+    let snapshot = TopologySnapshot::new([new_devhost.clone()]).unwrap();
     let removed = cache.retain_snapshot(&snapshot);
     assert_eq!(removed.len(), 2);
-    assert_eq!(cache.get(&new_dookie).as_deref(), Some(&"new"));
+    assert_eq!(cache.get(&new_devhost).as_deref(), Some(&"new"));
     assert_eq!(cache.len(), 1);
-    assert!(cache.remove(&new_dookie).is_some());
+    assert!(cache.remove(&new_devhost).is_some());
     assert!(cache.is_empty());
 }
