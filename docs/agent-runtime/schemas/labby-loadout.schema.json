@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/labby-loadout.schema.json",
+  "title": "Soma LABBY Loadout",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "soma.dev/v1alpha1" },
+    "kind": { "const": "LabbyLoadout" },
+    "metadata": { "$ref": "common.schema.json#/$defs/metadata" },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "upstreams", "tools", "mutationClass"],
+      "properties": {
+        "mode": { "enum": ["logical", "physical"] },
+        "upstreams": { "$ref": "#/$defs/selection" },
+        "tools": { "$ref": "#/$defs/selection" },
+        "snippets": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "virtualServers": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/virtualServer" }
+        },
+        "scopes": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "mutationClass": { "$ref": "common.schema.json#/$defs/mutationClass" },
+        "limits": { "$ref": "common.schema.json#/$defs/limits" },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": { "$ref": "common.schema.json#/$defs/secretRef" }
+        },
+        "subjectPolicy": { "enum": ["caller", "agent", "shared", "explicit"] },
+        "catalog": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pin": { "type": "boolean" },
+            "refresh": { "enum": ["never", "manual", "on-required-loss"] }
+          }
+        },
+        "expiresMs": { "type": "integer", "minimum": 1000, "maximum": 604800000 }
+      }
+    }
+  },
+  "$defs": {
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "deny": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      }
+    },
+    "virtualServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "tools": { "$ref": "#/$defs/selection" },
+        "prompts": { "$ref": "#/$defs/selection" },
+        "resources": { "$ref": "#/$defs/selection" },
+        "required": { "type": "boolean" }
+      }
+    }
+  }
+}

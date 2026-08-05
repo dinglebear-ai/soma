@@ -1,2 +1,8 @@
 [cargo]
-manifest-exclude = ["ci/kache-key-probe/Cargo.toml"]
+manifest-exclude = [
+  "ci/kache-key-probe/Cargo.toml",
+  "crates/shared/operations/ops/tests/fixtures/external-consumer/Cargo.toml",
+]
+
+[docs]
+frontmatter-exclude = ["docs/agent-runtime/examples/trace-service-failure.snippet.md"]

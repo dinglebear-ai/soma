@@ -57,6 +57,8 @@ Use the right layer for the job:
 | `WINDOWS-RUNNER.md` | GitHub-hosted native Windows CI and artifact checks | Windows runner image, artifacts, or native build flow changes |
 | `XTASKS.md` | `cargo xtask` automation reference | xtask commands or generated-doc gates change |
 | `MCP-REGISTRY-PUBLISH-GUIDE.md` | How to publish a derived server to the official MCP registry | The mcp-publisher CLI, registry schema, or CI publish workflow changes |
+| `AGENT-RUNTIME.md` | Stable entrypoint for Soma context manifests, snippets, agent stacks, LABBY loadouts, Incus runtimes, and lifecycle observation | The agent-runtime architecture or package status changes |
+| `agent-runtime/` | Complete proposed specs, contracts, types, models, schemas, examples, progress, and implementation plan for the post-context-v1 agent runtime | Any agent-runtime contract, baseline, schema, implementation phase, or validation evidence changes |
 | `CLAUDE.md` (this file) | Instructions for agents and contributors navigating this directory | The directory structure or doc authority changes |
 
 ---

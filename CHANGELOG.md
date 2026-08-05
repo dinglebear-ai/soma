@@ -27,12 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* **docs:** preserve the proposed agent-runtime architecture package, contracts, schemas, examples, and implementation blueprints for review
 * **ci:** validate release-please PRs with a hosted version-surface contract while preserving the full self-hosted matrix for normal changes
 * **ci:** pin the shared Rust cache action to upstream Kache 0.13.0 so hosted and self-hosted jobs use the same daemon protocol and S3 cache epoch
 * **docs:** document the MinIO-only Kache remote, 80 GiB runner L1 stores, and retired NFS topology
 
 ### Fixed
 
+* **ci:** align schema-backed documentation, isolated external-consumer fixtures, and `soma-ops` dependency pins with the fleet repository contract
 * **release:** regenerate the OpenAPI document during release-please fixups so version bumps cannot leave the generated contract stale
 * **tests:** retain a bounded provider-refresh contention test without failing when shared-runner scheduler pressure pushes legitimate preparation beyond five seconds
 
