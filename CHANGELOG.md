@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* **release:** regenerate the OpenAPI document during release-please fixups so version bumps cannot leave the generated contract stale
 * **tests:** retain a bounded provider-refresh contention test without failing when shared-runner scheduler pressure pushes legitimate preparation beyond five seconds
 
 
