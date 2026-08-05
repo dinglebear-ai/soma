@@ -9,11 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.10.0](https://github.com/dinglebear-ai/soma/compare/v0.9.0...v0.10.0) (2026-08-05)
+
+
+### Added
+
+* **infra:** add bounded execution mutations ([#317](https://github.com/dinglebear-ai/soma/issues/317)) ([f83153d](https://github.com/dinglebear-ai/soma/commit/f83153dfd6d261e3c385da7f474d3523af59a859))
+* **infra:** add verified replacement mutations ([#314](https://github.com/dinglebear-ai/soma/issues/314)) ([2ce812b](https://github.com/dinglebear-ai/soma/commit/2ce812b254db43a884d3b7748d04152acadb8a68))
+* **release:** publish canonical MCP Registry metadata ([#318](https://github.com/dinglebear-ai/soma/issues/318)) ([65671ff](https://github.com/dinglebear-ai/soma/commit/65671ffc2619862c459fb8974251eab6b2b747c9))
+
+
+### Dependencies
+
+* consolidate Dependabot updates 297-312 ([#315](https://github.com/dinglebear-ai/soma/issues/315)) ([2e99b18](https://github.com/dinglebear-ai/soma/commit/2e99b1889312bfcc080924de7b4056f4ce59898f))
+
 ## [Unreleased]
 
 ### Changed
 
+* **ci:** validate release-please PRs with a hosted version-surface contract while preserving the full self-hosted matrix for normal changes
+* **ci:** pin the shared Rust cache action to upstream Kache 0.13.0 so hosted and self-hosted jobs use the same daemon protocol and S3 cache epoch
 * **docs:** document the MinIO-only Kache remote, 80 GiB runner L1 stores, and retired NFS topology
+
+### Fixed
+
+* **release:** regenerate the OpenAPI document during release-please fixups so version bumps cannot leave the generated contract stale
+* **tests:** retain a bounded provider-refresh contention test without failing when shared-runner scheduler pressure pushes legitimate preparation beyond five seconds
+
 
 ## [0.9.0](https://github.com/dinglebear-ai/soma/compare/v0.8.2...v0.9.0) (2026-08-03)
 
