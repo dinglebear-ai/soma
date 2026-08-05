@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/context-manifest.schema.json",
+  "title": "Soma Context Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "soma.dev/v1alpha1" },
+    "kind": { "const": "Context" },
+    "metadata": { "$ref": "common.schema.json#/$defs/metadata" },
+    "spec": { "$ref": "#/$defs/spec" }
+  },
+  "$defs": {
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roots", "sources"],
+      "properties": {
+        "roots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/root" }
+        },
+        "sources": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 128,
+          "additionalProperties": { "$ref": "#/$defs/source" }
+        },
+        "graph": { "$ref": "#/$defs/graph" },
+        "views": {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": { "$ref": "common.schema.json#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/view" }
+        },
+        "prompts": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        },
+        "skills": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "policies": { "$ref": "#/$defs/policies" },
+        "budgets": { "$ref": "common.schema.json#/$defs/limits" },
+        "materializations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["manifest", "briefing", "filesystem", "mcp", "graph", "jsonl", "codemode"] }
+        }
+      }
+    },
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "enum": ["repository", "project", "service", "host", "device", "incident", "session", "entity"] },
+        "value": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "required": { "type": "boolean" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "kinds"],
+      "properties": {
+        "provider": { "enum": ["axon", "cortex", "soma"] },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "uniqueItems": true
+        },
+        "required": { "type": "boolean" },
+        "query": { "type": "object" },
+        "freshness": { "$ref": "#/$defs/freshness" },
+        "sensitivity": { "$ref": "common.schema.json#/$defs/sensitivity" }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxAgeMs": { "type": "integer", "minimum": 0, "maximum": 31536000000 },
+        "requiredRevision": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "staleAllowed": { "type": "boolean" }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "relationships": {
+          "type": "array",
+          "maxItems": 256,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "uniqueItems": true
+        },
+        "direction": { "enum": ["incoming", "outgoing", "both"] },
+        "maxDepth": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "maxEntities": { "type": "integer", "minimum": 1, "maximum": 50000 },
+        "evidenceClasses": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/evidenceClass" },
+          "uniqueItems": true
+        },
+        "hydrateEvidence": { "type": "boolean" }
+      }
+    },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "roots": { "type": "array", "items": { "$ref": "#/$defs/root" } },
+        "includeSources": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "snippets": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "timeWindowMs": { "type": "integer", "minimum": 1, "maximum": 31536000000 },
+        "budgets": { "$ref": "common.schema.json#/$defs/limits" },
+        "maxDisclosureLevel": { "enum": ["bootstrap", "orientation", "focused", "evidence", "raw", "expanded"] }
+      }
+    },
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "redactSecrets": { "type": "boolean" },
+        "repositoryScope": { "enum": ["strict", "related", "global"] },
+        "rawTranscripts": { "enum": ["deny", "restricted", "allow"] },
+        "rawAuthLogs": { "enum": ["deny", "restricted", "allow"] },
+        "preserveConflicts": { "type": "boolean" },
+        "requireCitations": { "type": "boolean" },
+        "requirePrimarySources": { "type": "boolean" },
+        "minimumSourceDiversity": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "maxSensitivity": { "$ref": "common.schema.json#/$defs/sensitivity" }
+      }
+    }
+  }
+}

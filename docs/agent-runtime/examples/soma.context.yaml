@@ -1,0 +1,133 @@
+apiVersion: soma.dev/v1alpha1
+kind: Context
+metadata:
+  name: soma-incident
+  labels:
+    repository: soma
+spec:
+  roots:
+    - kind: repository
+      value: dinglebear-ai/soma
+      required: true
+    - kind: service
+      value: soma-gateway
+      required: true
+  sources:
+    repository-knowledge:
+      provider: axon
+      kinds:
+        - repositories
+        - documentation
+        - issues
+        - pull-requests
+        - releases
+        - research-results
+      required: true
+      freshness:
+        maxAgeMs: 86400000
+        staleAllowed: false
+      sensitivity: internal
+    live-operations:
+      provider: cortex
+      kinds:
+        - ai-sessions
+        - agent-commands
+        - user-commands
+        - otlp-traces
+        - otlp-logs
+        - syslog
+        - journald
+        - dmesg
+        - docker-logs
+        - docker-events
+        - nginx-access
+        - nginx-error
+        - authelia-events
+        - unifi-events
+        - heartbeats
+        - inventory
+        - configuration
+        - incidents
+      required: true
+      freshness:
+        maxAgeMs: 60000
+        staleAllowed: false
+      sensitivity: confidential
+    soma-runtime:
+      provider: soma
+      kinds:
+        - repository-status
+        - provider-catalog
+        - gateway-catalog
+        - run-history
+        - compiled-contexts
+      required: true
+      sensitivity: internal
+  graph:
+    relationships:
+      - changed-by
+      - emitted-by
+      - runs-on
+      - worked-on
+      - matches-signature
+      - routes-to
+      - authenticated-as
+      - communicates-with
+    direction: both
+    maxDepth: 4
+    maxEntities: 5000
+    evidenceClasses:
+      - observed
+      - verified
+      - documented
+      - implemented
+      - correlated
+      - contradicted
+    hydrateEvidence: true
+  views:
+    incident:
+      description: Correlate service failures with code, deployment, auth, network, container, host, and external research evidence.
+      includeSources:
+        - repository-knowledge
+        - live-operations
+        - soma-runtime
+      snippets:
+        - trace-service-failure
+      timeWindowMs: 86400000
+      budgets:
+        maxItems: 5000
+        maxBytes: 67108864
+        maxTokens: 100000
+        maxCalls: 512
+        timeoutMs: 1200000
+      maxDisclosureLevel: raw
+  prompts:
+    orientation: apm://prompt/soma-incident-orientation
+    synthesis: apm://prompt/evidence-synthesis
+  skills:
+    - root-cause-analysis
+    - temporal-correlation
+    - evidence-grading
+  policies:
+    redactSecrets: true
+    repositoryScope: related
+    rawTranscripts: restricted
+    rawAuthLogs: restricted
+    preserveConflicts: true
+    requireCitations: true
+    requirePrimarySources: true
+    minimumSourceDiversity: 2
+    maxSensitivity: confidential
+  budgets:
+    maxItems: 10000
+    maxBytes: 134217728
+    maxTokens: 120000
+    maxCalls: 1024
+    timeoutMs: 1800000
+  materializations:
+    - manifest
+    - briefing
+    - filesystem
+    - graph
+    - jsonl
+    - codemode
