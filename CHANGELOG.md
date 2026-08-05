@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.10.0](https://github.com/dinglebear-ai/soma/compare/v0.9.0...v0.10.0) (2026-08-05)
+
+
+### Added
+
+* **infra:** add bounded execution mutations ([#317](https://github.com/dinglebear-ai/soma/issues/317)) ([f83153d](https://github.com/dinglebear-ai/soma/commit/f83153dfd6d261e3c385da7f474d3523af59a859))
+* **infra:** add verified replacement mutations ([#314](https://github.com/dinglebear-ai/soma/issues/314)) ([2ce812b](https://github.com/dinglebear-ai/soma/commit/2ce812b254db43a884d3b7748d04152acadb8a68))
+* **release:** publish canonical MCP Registry metadata ([#318](https://github.com/dinglebear-ai/soma/issues/318)) ([65671ff](https://github.com/dinglebear-ai/soma/commit/65671ffc2619862c459fb8974251eab6b2b747c9))
+
+
+### Dependencies
+
+* consolidate Dependabot updates 297-312 ([#315](https://github.com/dinglebear-ai/soma/issues/315)) ([2e99b18](https://github.com/dinglebear-ai/soma/commit/2e99b1889312bfcc080924de7b4056f4ce59898f))
+
 ## [Unreleased]
 
 ### Changed
