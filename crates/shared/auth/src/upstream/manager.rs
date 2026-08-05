@@ -59,6 +59,7 @@ pub struct UpstreamOauthManager {
     key: EncryptionKey,
     upstream: UpstreamConfig,
     redirect_uri: Arc<String>,
+    client_name: Arc<String>,
     locks: Arc<RefreshLocks>,
     /// Tracks recent refresh failures so a known-dead credential fails fast
     /// instead of hitting the authorization server on every request.
@@ -78,12 +79,14 @@ impl UpstreamOauthManager {
         key: EncryptionKey,
         upstream: UpstreamConfig,
         redirect_uri: String,
+        client_name: String,
     ) -> Self {
         Self {
             sqlite,
             key,
             upstream,
             redirect_uri: Arc::new(redirect_uri),
+            client_name: Arc::new(client_name),
             locks: Arc::new(RefreshLocks::new()),
             refresh_failures: Arc::new(RefreshFailureCache::new()),
             metadata_cache: Arc::new(RwLock::new(None)),

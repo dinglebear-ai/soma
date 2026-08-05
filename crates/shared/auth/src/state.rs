@@ -22,7 +22,7 @@ const RATE_LIMIT_RETRY_AFTER_MS: u64 = 60_000;
 
 /// Hard cap on distinct per-IP buckets held in memory. Without a cap an
 /// attacker rotating IPv6 source addresses grows the map without bound
-/// (pattern ported from labby-auth's bounded limiter).
+/// (bounded to prevent untrusted-source cardinality growth).
 const RATE_LIMIT_MAX_IP_BUCKETS: usize = 4096;
 
 /// Buckets untouched for this long are eligible for eviction. Any bucket
@@ -71,9 +71,9 @@ impl RateLimiterInner {
 ///
 /// Uses a `DashMap` of `tokio::sync::Mutex<RateLimiterInner>` so:
 /// - different IPs can be checked concurrently without serializing on a global lock
-///   (lab-77y5.10 — one IP cannot exhaust the global bucket),
+///   so one IP cannot exhaust a global bucket,
 /// - the per-bucket lock is a `tokio::sync::Mutex` so contention does not park a
-///   Tokio worker thread (lab-77y5.9).
+///   Tokio worker thread.
 ///
 /// Cheap to clone (all state is behind `Arc`).
 #[derive(Clone)]
@@ -278,7 +278,7 @@ impl AuthState {
 
     /// Replace the extra OAuth resource audiences accepted by `/authorize` and `/token`.
     ///
-    /// The canonical `{LAB_PUBLIC_URL}/mcp` resource is always accepted; callers use this
+    /// The canonical `{APP_PUBLIC_URL}/mcp` resource is always accepted; callers use this
     /// to publish Gateway-managed protected MCP resources such as
     /// `https://mcp.example.com/syslog` or `https://syslog.example.com/mcp`.
     pub fn set_allowed_resource_urls(&self, resources: impl IntoIterator<Item = String>) {
@@ -335,8 +335,8 @@ impl AuthState {
     /// Rate-limit guard for `/authorize` and `/browser_login` endpoints.
     ///
     /// Keyed per remote IP so one client cannot exhaust the global bucket
-    /// (lab-77y5.10). Uses `tokio::sync::Mutex` internally so contention does
-    /// not park a Tokio worker thread (lab-77y5.9).
+    ///. Uses `tokio::sync::Mutex` internally so contention does
+    /// not park a Tokio worker thread.
     pub async fn check_authorize_rate_limit(&self, ip: IpAddr) -> Result<(), AuthError> {
         if self.authorize_limiter.try_acquire(ip).await {
             Ok(())
@@ -609,7 +609,7 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         AuthState::new(AuthConfig {
             mode: AuthMode::OAuth,
-            public_url: Some(Url::parse("https://lab.example.com").expect("url")),
+            public_url: Some(Url::parse("https://app.example.com").expect("url")),
             sqlite_path: dir.path().join("auth.db"),
             key_path: dir.path().join("auth.pem"),
             bootstrap_secret: None,
@@ -648,7 +648,7 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let state = AuthState::new(AuthConfig {
             mode: AuthMode::OAuth,
-            public_url: Some(Url::parse("https://lab.example.com").expect("url")),
+            public_url: Some(Url::parse("https://app.example.com").expect("url")),
             sqlite_path: dir.path().join("auth.db"),
             key_path: dir.path().join("auth.pem"),
             bootstrap_secret: None,
@@ -707,7 +707,7 @@ mod tests {
     fn machine_client_config(dir: &Path, machine_clients: Vec<MachineClientConfig>) -> AuthConfig {
         AuthConfig {
             mode: AuthMode::OAuth,
-            public_url: Some(Url::parse("https://lab.example.com").expect("url")),
+            public_url: Some(Url::parse("https://app.example.com").expect("url")),
             sqlite_path: dir.join("auth.db"),
             key_path: dir.join("auth.pem"),
             admin_email: "admin@example.com".to_string(),
@@ -728,8 +728,8 @@ mod tests {
             client_id: client_id.to_string(),
             client_secret: Some("machine-secret".to_string()),
             jwks: None,
-            scopes: vec!["lab".to_string()],
-            resources: vec!["https://lab.example.com/mcp".to_string()],
+            scopes: vec!["app:read".to_string()],
+            resources: vec!["https://app.example.com/mcp".to_string()],
         }
     }
 
@@ -856,7 +856,7 @@ mod tests {
         let temp = tempdir().expect("tempdir");
         let state = AuthState::new(AuthConfig {
             mode: AuthMode::OAuth,
-            public_url: Some(Url::parse("https://lab.example.com/gateway").expect("public url")),
+            public_url: Some(Url::parse("https://app.example.com/gateway").expect("public url")),
             sqlite_path: temp.path().join("auth.db"),
             key_path: temp.path().join("auth.pem"),
             bootstrap_secret: None,

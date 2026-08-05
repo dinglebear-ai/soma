@@ -78,8 +78,9 @@ keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 # soma-application, and soma-client. To commit another crate, document every
 # public item and add that attribute to its lib.rs.
 [workspace.lints.rust]
-missing_docs = "allow"
 missing_crate_level_docs = "deny"
+missing_docs = "allow"
+renamed_and_removed_lints = "allow"
 unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.rustdoc]
@@ -120,7 +121,7 @@ zeroize = { version = "1", features = ["zeroize_derive"] }
 
 # Shared crates
 rmcp-traces = { path = "crates/shared/traces" }
-soma-auth = { path = "crates/shared/auth" }
+soma-auth = { version = "0.5.0", path = "crates/shared/auth" }
 soma-cli-core = { path = "crates/shared/cli-core" }
 soma-codemode = { path = "crates/shared/codemode", default-features = false }
 soma-gateway = { path = "crates/shared/mcp/gateway" }

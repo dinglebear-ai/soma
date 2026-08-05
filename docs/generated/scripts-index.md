@@ -21,6 +21,7 @@ Generated from script header comments.
 | `scripts/check-runtime-current.sh` | Thin wrapper. Canonical implementation: cargo xtask check-runtime-current. |
 | `scripts/check-scaffold-intent-contract.py` | Thin wrapper. Canonical implementation: cargo xtask check-scaffold-intent-contract. |
 | `scripts/check-schema-docs.py` | Thin wrapper. Canonical implementation: cargo xtask check-schema-docs. |
+| `scripts/check-soma-auth-package.sh` | CUSTOMIZE: add a header comment describing this script. |
 | `scripts/check-stale-claims.py` | Fail on stale Soma claims that should never come back. |
 | `scripts/check-synapse-product-import.py` | Verify the locked Synapse donor import snapshot boundary. |
 | `scripts/check-version-sync.sh` | Thin wrapper. Canonical implementation: cargo xtask check-version-sync. |

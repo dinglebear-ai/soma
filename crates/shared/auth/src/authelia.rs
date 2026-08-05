@@ -236,7 +236,7 @@ mod tests {
             Url::parse("https://example.com/authelia").unwrap(),
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/authelia/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/authelia/callback").unwrap(),
         )
         .unwrap();
         assert_eq!(
@@ -461,7 +461,7 @@ mod tests {
             Url::parse("https://auth.example.com").unwrap(),
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/authelia/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/authelia/callback").unwrap(),
         )
         .unwrap()
     }

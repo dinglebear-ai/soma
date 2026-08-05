@@ -117,6 +117,39 @@ jobs:
       KACHE_S3_ACCESS_KEY: ${{ secrets.KACHE_S3_ACCESS_KEY }}
       KACHE_S3_SECRET_KEY: ${{ secrets.KACHE_S3_SECRET_KEY }}
 
+  soma-auth-package:
+    name: soma-auth package
+    needs: [changes]
+    if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ci-pool-rust
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
+
+      - name: Check feature matrix
+        run: |
+          cargo check -p soma-auth --no-default-features --locked
+          cargo check -p soma-auth --no-default-features --features http-axum --locked
+          cargo check -p soma-auth --no-default-features --features upstream-oauth-rmcp --locked
+          cargo check -p soma-auth --all-features --locked
+
+      - name: Test
+        run: cargo test -p soma-auth --all-features --locked
+
+      - name: Document
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc -p soma-auth --all-features --no-deps --locked
+
+      - name: Verify packaged external consumer
+        run: ./scripts/check-soma-auth-package.sh
+
+      - name: Verify publish request
+        run: cargo publish -p soma-auth --dry-run --locked
+
   # ── architecture: dependency-layer boundary checks ───────────────────────────
   architecture:
     name: Architecture
@@ -603,6 +636,7 @@ jobs:
       - actionlint
       - architecture
       - rust-fast
+      - soma-auth-package
       - test
       - frontend-assets
       - container-smoke

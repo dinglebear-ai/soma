@@ -6,11 +6,11 @@ use crate::state::AuthState;
 use crate::types::BrowserSessionRow;
 use crate::util::{expires_at, now_unix, random_token};
 
-/// Default browser session cookie name used by the lab consumer. Other
+/// Default browser session cookie name used by the original consumer. Other
 /// consumers should not read this constant directly — instead, prefer
 /// `AuthState.config.session_cookie_name` and the helpers in this module
 /// that look up the configured name from state.
-pub const BROWSER_SESSION_COOKIE_NAME: &str = "lab_session";
+pub const BROWSER_SESSION_COOKIE_NAME: &str = "auth_session";
 pub const BROWSER_CSRF_HEADER_NAME: &str = "x-csrf-token";
 
 pub fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -95,7 +95,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(
             axum::http::header::COOKIE,
-            "theme=dark; lab_session=session-123; other=value"
+            "theme=dark; auth_session=session-123; other=value"
                 .parse()
                 .unwrap(),
         );
@@ -148,7 +148,7 @@ mod tests {
         let state = test_auth_state_with_config(config).await;
         let cookie = super::build_browser_session_cookie(&state, "abc");
         assert!(cookie.starts_with("syslog_session=abc;"), "got: {cookie}");
-        assert!(!cookie.contains("lab_session"));
+        assert!(!cookie.contains("auth_session"));
 
         let cleared = super::clear_browser_session_cookie(&state);
         assert!(cleared.starts_with("syslog_session=;"), "got: {cleared}");

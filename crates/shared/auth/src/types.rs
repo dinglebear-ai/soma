@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthorizationServerMetadata {
     pub issuer: String,
-    pub authorization_endpoint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authorization_endpoint: Option<String>,
     pub token_endpoint: String,
     /// RFC 7009 revocation endpoint, served by `revoke::revoke` and mounted at
     /// `/revoke` by both `routes::router` and `routes::bearer_only_router`.
@@ -12,7 +13,12 @@ pub struct AuthorizationServerMetadata {
     /// 404s.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revocation_endpoint: Option<String>,
-    pub registration_endpoint: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub revocation_endpoint_auth_methods_supported: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub revocation_endpoint_auth_signing_alg_values_supported: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registration_endpoint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_callback_endpoint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -50,15 +56,18 @@ pub struct NativePollQuery {
 pub struct NativePollResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
-/// A native-flow authorization code, stored server-side keyed by `state`
-/// until the polling client retrieves it (`take_native_authorization_result`
-/// is a one-shot read-and-delete).
+/// A terminal native-flow authorization result, stored server-side keyed by
+/// `state` until the polling client retrieves it. Exactly one of `code` or
+/// `error` is present; retrieval is a one-shot read-and-delete.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NativeAuthorizationResultRow {
     pub state: String,
-    pub code: String,
+    pub code: Option<String>,
+    pub error: Option<String>,
     pub created_at: i64,
     pub expires_at: i64,
 }
@@ -75,9 +84,9 @@ pub struct ProtectedResourceMetadata {
 pub struct ClientRegistrationRequest {
     pub redirect_uris: Vec<String>,
     /// OIDC / RFC 7591 client application type ("web" or "native"). Optional on
-    /// the wire; defaults to "web" (the OIDC default) when omitted. The MCP draft
-    /// (2026-07-28) asks clients to specify this during DCR to avoid OIDC
-    /// redirect-URI conflicts.
+    /// the wire; when omitted, the server infers `native` for loopback, private-use,
+    /// or server-hosted native callback URIs and `web` for HTTPS web callbacks.
+    /// Explicit values must agree with the registered redirect URI kinds.
     #[serde(default)]
     pub application_type: Option<String>,
 }
@@ -110,7 +119,12 @@ pub struct AuthorizeQuery {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CallbackQuery {
     pub state: String,
-    pub code: String,
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default, rename = "error_description")]
+    pub _error_description: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

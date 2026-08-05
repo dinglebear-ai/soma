@@ -8,17 +8,25 @@ use url::Url;
 use crate::at_rest::TokenEncryptionKey;
 use crate::error::AuthError;
 
+#[path = "config_env.rs"]
+mod config_env;
 #[path = "config_machine_clients.rs"]
 mod config_machine_clients;
+#[path = "config_profile.rs"]
+mod config_profile;
 #[path = "config_providers.rs"]
 mod config_providers;
+#[path = "config_validation.rs"]
+mod config_validation;
 
+pub use config_env::EnvAuthConfigLoader;
 pub use config_machine_clients::{EnterpriseIssuerConfig, MachineClientConfig};
-pub use config_providers::{AutheliaConfig, GitHubConfig, GoogleConfig};
-use config_providers::{
-    default_authelia_callback_path, default_authelia_scopes, default_github_callback_path,
-    default_github_scopes, default_google_scopes,
+pub use config_profile::{
+    AuthProfile, DEFAULT_ADMIN_SCOPE, DEFAULT_DATA_DIR, DEFAULT_ENV_PREFIX, DEFAULT_LOGIN_PATH,
+    DEFAULT_RESOURCE_PATH, DEFAULT_SCOPE, DEFAULT_SESSION_COOKIE_NAME,
+    DEFAULT_UPSTREAM_CALLBACK_PATH, DEFAULT_UPSTREAM_CLIENT_NAME,
 };
+pub use config_providers::{AutheliaConfig, GitHubConfig, GoogleConfig};
 
 const DEFAULT_CALLBACK_PATH: &str = "/auth/google/callback";
 const DEFAULT_AUTH_DB_NAME: &str = "auth.db";
@@ -49,18 +57,6 @@ const FIXED_ROUTE_PATHS: &[&str] = &[
 /// Prefix covering every `/.well-known/oauth-*` metadata route, including
 /// the `{*route}` wildcard variant.
 const WELL_KNOWN_PREFIX: &str = "/.well-known/";
-
-/// Default env-var prefix used when consumers do not specify one.
-/// Backward-compatible with the original `LAB_*` env scheme.
-pub const DEFAULT_ENV_PREFIX: &str = "LAB";
-/// Default browser session cookie name (preserved for the lab consumer).
-pub const DEFAULT_SESSION_COOKIE_NAME: &str = "lab_session";
-/// Default OAuth scope label applied when callers do not request one.
-pub const DEFAULT_SCOPE: &str = "lab";
-/// Default protected resource path (canonical MCP endpoint).
-pub const DEFAULT_RESOURCE_PATH: &str = "/mcp";
-/// Default browser login path mounted by the auth router.
-pub const DEFAULT_LOGIN_PATH: &str = "/auth/login";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -144,14 +140,13 @@ pub struct AuthConfig {
     pub max_pending_oauth_states: usize,
 
     // ---- Brand / consumer-specific parameterization (see L1 bead) ----
-    /// Env var prefix used for diagnostics (e.g. `"LAB"`, `"SYSLOG_MCP"`).
+    /// Env var prefix used for diagnostics (e.g. `"APP"`, `"AXON"`).
     /// Set via [`AuthConfigBuilder::env_prefix`] BEFORE any env reads.
     pub env_prefix: String,
     /// Default base directory for `auth.db` and `auth-jwt.pem` when the
     /// corresponding env vars are unset.
     pub default_data_dir: PathBuf,
-    /// Browser session cookie name. Lab consumer leaves this at the default
-    /// (`"lab_session"`); other consumers override with their own brand.
+    /// Browser session cookie name supplied by the consumer profile.
     pub session_cookie_name: String,
     /// Scopes advertised on `/.well-known/oauth-authorization-server` and
     /// `/.well-known/oauth-protected-resource`.
@@ -162,20 +157,21 @@ pub struct AuthConfig {
     /// Default scope applied when `/authorize` requests omit one and the
     /// only scope accepted by the legacy single-scope validator.
     pub default_scope: String,
-    /// Scopes minted into the static-bearer-derived AuthContext so legacy
-    /// admin tools keep functioning when the dual-mode middleware (L2) is
-    /// deployed. Lab keeps the legacy `["lab:read","lab:admin"]` defaults;
-    /// cortex will override with `["syslog:read","syslog:admin"]`.
+    /// Scopes minted into the static-bearer-derived `AuthContext`.
     pub static_token_scopes: Vec<String>,
     /// Path of the browser login route (typically `/auth/login`).
     pub login_path: String,
     /// Whether `POST /register` (RFC 7591 dynamic client registration) is
     /// mounted. Defaults to `false` (closed) — opt-in per consumer.
     pub enable_dynamic_registration: bool,
-    /// When `true`, dual-mode middleware MUST reject the static bearer
-    /// token whenever OAuth is active. Defaults to `false` (lab keeps the
-    /// historical break-glass behavior); cortex overrides to `true`.
+    /// When `true`, dual-mode middleware rejects the static bearer token
+    /// whenever OAuth is active. Defaults to `false`; security-sensitive
+    /// consumers should opt in explicitly.
     pub disable_static_token_with_oauth: bool,
+    /// Client name sent to upstream authorization servers during dynamic registration.
+    pub upstream_client_name: String,
+    /// Path appended to `public_url` for upstream OAuth authorization callbacks.
+    pub upstream_callback_path: String,
     /// Optional at-rest encryption key for upstream provider refresh tokens.
     ///
     /// When present, provider refresh tokens are encrypted with
@@ -191,7 +187,16 @@ pub struct AuthConfig {
 
 impl Default for AuthConfig {
     fn default() -> Self {
-        let base_dir = default_auth_dir();
+        Self::from_profile(AuthProfile::default())
+    }
+}
+
+impl AuthConfig {
+    /// Construct typed configuration from a product profile without reading
+    /// process environment variables.
+    #[must_use]
+    pub fn from_profile(profile: AuthProfile) -> Self {
+        let base_dir = profile.default_data_dir.clone();
         Self {
             mode: AuthMode::Bearer,
             public_url: None,
@@ -211,62 +216,35 @@ impl Default for AuthConfig {
             authorize_requests_per_minute: DEFAULT_AUTHORIZE_REQUESTS_PER_MINUTE,
             token_requests_per_minute: DEFAULT_TOKEN_REQUESTS_PER_MINUTE,
             max_pending_oauth_states: DEFAULT_MAX_PENDING_OAUTH_STATES,
-            env_prefix: DEFAULT_ENV_PREFIX.to_string(),
+            env_prefix: profile.env_prefix,
             default_data_dir: base_dir,
-            session_cookie_name: DEFAULT_SESSION_COOKIE_NAME.to_string(),
-            // Advertise both the base scope and `:admin` so MCP clients that
-            // need destructive operations can request the elevated scope at
-            // /authorize. Allowed-emails users also receive `:admin` implicitly
-            // (see `authorize::elevate_scope_for_allowed_user`).
-            scopes_supported: vec![DEFAULT_SCOPE.to_string(), format!("{DEFAULT_SCOPE}:admin")],
-            resource_path: DEFAULT_RESOURCE_PATH.to_string(),
-            default_scope: DEFAULT_SCOPE.to_string(),
-            static_token_scopes: vec!["lab:read".to_string(), "lab:admin".to_string()],
-            login_path: DEFAULT_LOGIN_PATH.to_string(),
-            enable_dynamic_registration: false,
-            disable_static_token_with_oauth: false,
+            session_cookie_name: profile.session_cookie_name,
+            scopes_supported: profile.scopes_supported,
+            resource_path: profile.resource_path,
+            default_scope: profile.default_scope,
+            static_token_scopes: profile.static_token_scopes,
+            login_path: profile.login_path,
+            enable_dynamic_registration: profile.enable_dynamic_registration,
+            disable_static_token_with_oauth: profile.disable_static_token_with_oauth,
+            upstream_client_name: profile.upstream_client_name,
+            upstream_callback_path: profile.upstream_callback_path,
             token_encryption_key: None,
             machine_clients: Vec::new(),
             enterprise_issuers: Vec::new(),
         }
     }
-}
 
-impl AuthConfig {
-    /// Backward-compatible convenience: read env vars using the default
-    /// `LAB` prefix. Equivalent to `AuthConfigBuilder::new().build_from_sources(vars)`.
+    /// Read env-style key/value pairs using the generic `APP_*` profile.
     pub fn from_sources(
         vars: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Self, AuthError> {
         AuthConfigBuilder::new().build_from_sources(vars)
     }
 
-    pub(crate) fn validate(&self) -> Result<(), AuthError> {
+    /// Validate a typed configuration before constructing runtime state.
+    pub fn validate(&self) -> Result<(), AuthError> {
+        config_validation::validate_security_sensitive_config(self)?;
         let prefix = &self.env_prefix;
-        if !self.google.callback_path.starts_with('/') {
-            return Err(AuthError::Config(format!(
-                "{prefix}_GOOGLE_CALLBACK_PATH must start with `/`, got `{}`",
-                self.google.callback_path
-            )));
-        }
-
-        if !self.resource_path.starts_with('/') {
-            return Err(AuthError::Config(format!(
-                "resource_path must start with `/`, got `{}`",
-                self.resource_path
-            )));
-        }
-        if !self.login_path.starts_with('/') {
-            return Err(AuthError::Config(format!(
-                "login_path must start with `/`, got `{}`",
-                self.login_path
-            )));
-        }
-        if self.session_cookie_name.is_empty() {
-            return Err(AuthError::Config(
-                "session_cookie_name must not be empty".to_string(),
-            ));
-        }
         if self.default_scope.is_empty() {
             return Err(AuthError::Config(
                 "default_scope must not be empty".to_string(),
@@ -320,12 +298,6 @@ impl AuthConfig {
         }
 
         if matches!(self.mode, AuthMode::OAuth) {
-            if self.public_url.is_none() {
-                return Err(AuthError::Config(format!(
-                    "{prefix}_PUBLIC_URL is required when {prefix}_AUTH_MODE=oauth"
-                )));
-            }
-
             let google_configured = !self.google.client_id.is_empty();
             let authelia_configured = !self.authelia.client_id.is_empty();
             let github_configured = !self.github.client_id.is_empty();
@@ -484,32 +456,14 @@ impl AuthConfig {
     }
 }
 
-/// Consuming builder for [`AuthConfig`]. The `env_prefix` MUST be set BEFORE
-/// any env-driven `build_*` call; builder methods themselves do not read env.
+/// Typed builder for AuthConfig. Environment loading is provided by
+/// EnvAuthConfigLoader and AuthConfigBuilder::build_from_sources.
 ///
-/// ```ignore
-/// let cfg = AuthConfigBuilder::new()
-///     .env_prefix("SYSLOG_MCP")
-///     .session_cookie_name("syslog_session")
-///     .scopes_supported(vec!["syslog:read".to_string(), "syslog:admin".to_string()])
-///     .resource_path("/mcp")
-///     .default_scope("syslog:read")
-///     .static_token_scopes(vec!["syslog:read".to_string(), "syslog:admin".to_string()])
-///     .disable_static_token_with_oauth(true)
-///     .build_from_sources(std::env::vars())?;
-/// ```
+/// Applications should start from an explicit AuthProfile at their composition
+/// root, then set typed provider and policy fields before calling build.
 #[derive(Clone, Debug)]
 pub struct AuthConfigBuilder {
-    env_prefix: String,
-    default_data_dir: Option<PathBuf>,
-    session_cookie_name: String,
-    scopes_supported: Vec<String>,
-    resource_path: String,
-    default_scope: String,
-    static_token_scopes: Vec<String>,
-    login_path: String,
-    enable_dynamic_registration: bool,
-    disable_static_token_with_oauth: bool,
+    config: AuthConfig,
 }
 
 impl Default for AuthConfigBuilder {
@@ -519,219 +473,256 @@ impl Default for AuthConfigBuilder {
 }
 
 impl AuthConfigBuilder {
+    /// Start from the generic, product-neutral profile.
+    #[must_use]
     pub fn new() -> Self {
+        Self::from_profile(AuthProfile::default())
+    }
+
+    /// Start from an application-owned product profile.
+    #[must_use]
+    pub fn from_profile(profile: AuthProfile) -> Self {
         Self {
-            env_prefix: DEFAULT_ENV_PREFIX.to_string(),
-            default_data_dir: None,
-            session_cookie_name: DEFAULT_SESSION_COOKIE_NAME.to_string(),
-            scopes_supported: vec![DEFAULT_SCOPE.to_string(), format!("{DEFAULT_SCOPE}:admin")],
-            resource_path: DEFAULT_RESOURCE_PATH.to_string(),
-            default_scope: DEFAULT_SCOPE.to_string(),
-            static_token_scopes: vec!["lab:read".to_string(), "lab:admin".to_string()],
-            login_path: DEFAULT_LOGIN_PATH.to_string(),
-            enable_dynamic_registration: false,
-            disable_static_token_with_oauth: false,
+            config: AuthConfig::from_profile(profile),
         }
     }
 
     #[must_use]
+    pub const fn mode(mut self, mode: AuthMode) -> Self {
+        self.config.mode = mode;
+        self
+    }
+
+    #[must_use]
+    pub fn public_url(mut self, url: Url) -> Self {
+        self.config.public_url = Some(url);
+        self
+    }
+
+    #[must_use]
+    pub fn sqlite_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.config.sqlite_path = path.into();
+        self
+    }
+
+    #[must_use]
+    pub fn key_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.config.key_path = path.into();
+        self
+    }
+
+    #[must_use]
+    pub fn bootstrap_secret(mut self, secret: impl Into<String>) -> Self {
+        self.config.bootstrap_secret = Some(secret.into());
+        self
+    }
+
+    #[must_use]
+    pub fn allowed_client_redirect_uris(mut self, uris: Vec<String>) -> Self {
+        self.config.allowed_client_redirect_uris = uris;
+        self
+    }
+
+    #[must_use]
+    pub fn admin_email(mut self, email: impl Into<String>) -> Self {
+        self.config.admin_email = email.into().trim().to_ascii_lowercase();
+        self
+    }
+
+    #[must_use]
+    pub fn google(mut self, config: GoogleConfig) -> Self {
+        self.config.google = config;
+        self
+    }
+
+    #[must_use]
+    pub fn authelia(mut self, config: AutheliaConfig) -> Self {
+        self.config.authelia = config;
+        self
+    }
+
+    #[must_use]
+    pub fn github(mut self, config: GitHubConfig) -> Self {
+        self.config.github = config;
+        self
+    }
+
+    #[must_use]
+    pub fn default_provider(mut self, provider: impl Into<String>) -> Self {
+        self.config.default_provider = provider.into().trim().to_ascii_lowercase();
+        self
+    }
+
+    #[must_use]
+    pub const fn access_token_ttl(mut self, ttl: Duration) -> Self {
+        self.config.access_token_ttl = ttl;
+        self
+    }
+
+    #[must_use]
+    pub const fn refresh_token_ttl(mut self, ttl: Duration) -> Self {
+        self.config.refresh_token_ttl = ttl;
+        self
+    }
+
+    #[must_use]
+    pub const fn auth_code_ttl(mut self, ttl: Duration) -> Self {
+        self.config.auth_code_ttl = ttl;
+        self
+    }
+
+    #[must_use]
+    pub const fn register_requests_per_minute(mut self, limit: u32) -> Self {
+        self.config.register_requests_per_minute = limit;
+        self
+    }
+
+    #[must_use]
+    pub const fn authorize_requests_per_minute(mut self, limit: u32) -> Self {
+        self.config.authorize_requests_per_minute = limit;
+        self
+    }
+
+    #[must_use]
+    pub const fn token_requests_per_minute(mut self, limit: u32) -> Self {
+        self.config.token_requests_per_minute = limit;
+        self
+    }
+
+    #[must_use]
+    pub const fn max_pending_oauth_states(mut self, limit: usize) -> Self {
+        self.config.max_pending_oauth_states = limit;
+        self
+    }
+
+    #[must_use]
     pub fn env_prefix(mut self, prefix: impl Into<String>) -> Self {
-        self.env_prefix = prefix.into();
+        self.config.env_prefix = prefix.into();
         self
     }
 
     #[must_use]
     pub fn default_data_dir(mut self, dir: impl Into<PathBuf>) -> Self {
-        self.default_data_dir = Some(dir.into());
+        let dir = dir.into();
+        self.config.sqlite_path = dir.join(DEFAULT_AUTH_DB_NAME);
+        self.config.key_path = dir.join(DEFAULT_KEY_NAME);
+        self.config.default_data_dir = dir;
         self
     }
 
     #[must_use]
     pub fn session_cookie_name(mut self, name: impl Into<String>) -> Self {
-        self.session_cookie_name = name.into();
+        self.config.session_cookie_name = name.into();
         self
     }
 
     #[must_use]
     pub fn scopes_supported(mut self, scopes: Vec<String>) -> Self {
-        self.scopes_supported = scopes;
+        self.config.scopes_supported = scopes;
         self
     }
 
     #[must_use]
     pub fn resource_path(mut self, path: impl Into<String>) -> Self {
-        self.resource_path = path.into();
+        self.config.resource_path = path.into();
         self
     }
 
     #[must_use]
     pub fn default_scope(mut self, scope: impl Into<String>) -> Self {
-        self.default_scope = scope.into();
+        self.config.default_scope = scope.into();
         self
     }
 
     #[must_use]
     pub fn static_token_scopes(mut self, scopes: Vec<String>) -> Self {
-        self.static_token_scopes = scopes;
+        self.config.static_token_scopes = scopes;
         self
     }
 
     #[must_use]
     pub fn login_path(mut self, path: impl Into<String>) -> Self {
-        self.login_path = path.into();
+        self.config.login_path = path.into();
         self
     }
 
     #[must_use]
     pub const fn enable_dynamic_registration(mut self, enabled: bool) -> Self {
-        self.enable_dynamic_registration = enabled;
+        self.config.enable_dynamic_registration = enabled;
         self
     }
 
     #[must_use]
     pub const fn disable_static_token_with_oauth(mut self, disabled: bool) -> Self {
-        self.disable_static_token_with_oauth = disabled;
+        self.config.disable_static_token_with_oauth = disabled;
         self
     }
 
-    /// Read configuration from the supplied env-style key/value pairs using
-    /// the configured `env_prefix`, then validate and return [`AuthConfig`].
+    #[must_use]
+    pub fn upstream_client_name(mut self, name: impl Into<String>) -> Self {
+        self.config.upstream_client_name = name.into();
+        self
+    }
+
+    #[must_use]
+    pub fn upstream_callback_path(mut self, path: impl Into<String>) -> Self {
+        self.config.upstream_callback_path = path.into();
+        self
+    }
+
+    #[must_use]
+    pub fn token_encryption_key(mut self, key: TokenEncryptionKey) -> Self {
+        self.config.token_encryption_key = Some(key);
+        self
+    }
+
+    #[must_use]
+    pub fn machine_clients(mut self, clients: Vec<MachineClientConfig>) -> Self {
+        self.config.machine_clients = clients;
+        self
+    }
+
+    #[must_use]
+    pub fn enterprise_issuers(mut self, issuers: Vec<EnterpriseIssuerConfig>) -> Self {
+        self.config.enterprise_issuers = issuers;
+        self
+    }
+
+    /// Validate and return typed configuration without reading environment variables.
+    pub fn build(self) -> Result<AuthConfig, AuthError> {
+        let mut config = self.config;
+        infer_default_provider(&mut config);
+        config.validate()?;
+        Ok(config)
+    }
+
+    /// Overlay supplied env-style key/value pairs, then validate the result.
     pub fn build_from_sources(
         self,
         vars: impl IntoIterator<Item = (String, String)>,
     ) -> Result<AuthConfig, AuthError> {
-        let vars = normalize(vars);
-        let prefix = self.env_prefix.clone();
-        let key_mode = env_key(&prefix, "AUTH_MODE");
-        let key_admin = env_key(&prefix, "AUTH_ADMIN_EMAIL");
-        let key_public_url = env_key(&prefix, "PUBLIC_URL");
-        let key_db = env_key(&prefix, "AUTH_SQLITE_PATH");
-        let key_keypath = env_key(&prefix, "AUTH_KEY_PATH");
-        let key_secret = env_key(&prefix, "AUTH_BOOTSTRAP_SECRET");
-        let key_redirects = env_key(&prefix, "AUTH_ALLOWED_REDIRECT_URIS");
-        let key_g_id = env_key(&prefix, "GOOGLE_CLIENT_ID");
-        let key_g_secret = env_key(&prefix, "GOOGLE_CLIENT_SECRET");
-        let key_g_callback = env_key(&prefix, "GOOGLE_CALLBACK_PATH");
-        let key_g_scopes = env_key(&prefix, "GOOGLE_SCOPES");
-        let key_a_issuer = env_key(&prefix, "AUTHELIA_ISSUER_URL");
-        let key_a_id = env_key(&prefix, "AUTHELIA_CLIENT_ID");
-        let key_a_secret = env_key(&prefix, "AUTHELIA_CLIENT_SECRET");
-        let key_a_callback = env_key(&prefix, "AUTHELIA_CALLBACK_PATH");
-        let key_a_scopes = env_key(&prefix, "AUTHELIA_SCOPES");
-        let key_gh_id = env_key(&prefix, "GITHUB_CLIENT_ID");
-        let key_gh_secret = env_key(&prefix, "GITHUB_CLIENT_SECRET");
-        let key_gh_callback = env_key(&prefix, "GITHUB_CALLBACK_PATH");
-        let key_gh_scopes = env_key(&prefix, "GITHUB_SCOPES");
-        let key_default_provider = env_key(&prefix, "AUTH_DEFAULT_PROVIDER");
-        let key_at_ttl = env_key(&prefix, "AUTH_ACCESS_TOKEN_TTL_SECS");
-        let key_rt_ttl = env_key(&prefix, "AUTH_REFRESH_TOKEN_TTL_SECS");
-        let key_code_ttl = env_key(&prefix, "AUTH_CODE_TTL_SECS");
-        let key_reg_rpm = env_key(&prefix, "AUTH_REGISTER_REQUESTS_PER_MINUTE");
-        let key_az_rpm = env_key(&prefix, "AUTH_AUTHORIZE_REQUESTS_PER_MINUTE");
-        let key_token_rpm = env_key(&prefix, "AUTH_TOKEN_REQUESTS_PER_MINUTE");
-        let key_max_pending = env_key(&prefix, "AUTH_MAX_PENDING_OAUTH_STATES");
-        let key_enc_key = env_key(&prefix, "TOKEN_ENCRYPTION_KEY");
-        let key_machine_clients = env_key(&prefix, "AUTH_MACHINE_CLIENTS_JSON");
-        let key_enterprise_issuers = env_key(&prefix, "AUTH_ENTERPRISE_ISSUERS_JSON");
-
-        let mode = AuthMode::parse(vars.get(&key_mode).map(String::as_str), &key_mode)?;
-        let admin_email = read_string(&vars, &key_admin)
-            .map(|raw| raw.trim().to_ascii_lowercase())
-            .unwrap_or_default();
-        let base_dir = self
-            .default_data_dir
-            .clone()
-            .unwrap_or_else(default_auth_dir);
-        let google_client_id = read_string(&vars, &key_g_id).unwrap_or_default();
-        let authelia_client_id = read_string(&vars, &key_a_id).unwrap_or_default();
-        let github_client_id = read_string(&vars, &key_gh_id).unwrap_or_default();
-        let default_provider = read_string(&vars, &key_default_provider)
-            .map(|raw| raw.trim().to_ascii_lowercase())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| {
-                if !google_client_id.is_empty() {
-                    "google".to_string()
-                } else if !authelia_client_id.is_empty() {
-                    "authelia".to_string()
-                } else if !github_client_id.is_empty() {
-                    "github".to_string()
-                } else {
-                    "google".to_string()
-                }
-            });
-        let config = AuthConfig {
-            mode,
-            public_url: read_url(&vars, &key_public_url)?,
-            sqlite_path: read_path(&vars, &key_db)
-                .unwrap_or_else(|| base_dir.join(DEFAULT_AUTH_DB_NAME)),
-            key_path: read_path(&vars, &key_keypath)
-                .unwrap_or_else(|| base_dir.join(DEFAULT_KEY_NAME)),
-            bootstrap_secret: read_string(&vars, &key_secret),
-            allowed_client_redirect_uris: read_csv(&vars, &key_redirects).unwrap_or_default(),
-            admin_email,
-            google: GoogleConfig {
-                client_id: google_client_id.clone(),
-                client_secret: read_string(&vars, &key_g_secret).unwrap_or_default(),
-                callback_path: read_string(&vars, &key_g_callback)
-                    .unwrap_or_else(|| DEFAULT_CALLBACK_PATH.to_string()),
-                scopes: read_csv(&vars, &key_g_scopes).unwrap_or_else(default_google_scopes),
-            },
-            authelia: AutheliaConfig {
-                issuer_url: read_url(&vars, &key_a_issuer)?,
-                client_id: read_string(&vars, &key_a_id).unwrap_or_default(),
-                client_secret: read_string(&vars, &key_a_secret).unwrap_or_default(),
-                callback_path: read_string(&vars, &key_a_callback)
-                    .unwrap_or_else(default_authelia_callback_path),
-                scopes: read_csv(&vars, &key_a_scopes).unwrap_or_else(default_authelia_scopes),
-            },
-            github: GitHubConfig {
-                client_id: read_string(&vars, &key_gh_id).unwrap_or_default(),
-                client_secret: read_string(&vars, &key_gh_secret).unwrap_or_default(),
-                callback_path: read_string(&vars, &key_gh_callback)
-                    .unwrap_or_else(default_github_callback_path),
-                scopes: read_csv(&vars, &key_gh_scopes).unwrap_or_else(default_github_scopes),
-            },
-            default_provider,
-            access_token_ttl: Duration::from_secs(
-                read_u64(&vars, &key_at_ttl)?.unwrap_or(DEFAULT_ACCESS_TOKEN_TTL_SECS),
-            ),
-            refresh_token_ttl: Duration::from_secs(
-                read_u64(&vars, &key_rt_ttl)?.unwrap_or(DEFAULT_REFRESH_TOKEN_TTL_SECS),
-            ),
-            auth_code_ttl: Duration::from_secs(
-                read_u64(&vars, &key_code_ttl)?.unwrap_or(DEFAULT_AUTH_CODE_TTL_SECS),
-            ),
-            register_requests_per_minute: read_u32(&vars, &key_reg_rpm)?
-                .unwrap_or(DEFAULT_REGISTER_REQUESTS_PER_MINUTE),
-            authorize_requests_per_minute: read_u32(&vars, &key_az_rpm)?
-                .unwrap_or(DEFAULT_AUTHORIZE_REQUESTS_PER_MINUTE),
-            token_requests_per_minute: read_u32(&vars, &key_token_rpm)?
-                .unwrap_or(DEFAULT_TOKEN_REQUESTS_PER_MINUTE),
-            max_pending_oauth_states: read_usize(&vars, &key_max_pending)?
-                .unwrap_or(DEFAULT_MAX_PENDING_OAUTH_STATES),
-            env_prefix: prefix,
-            default_data_dir: base_dir,
-            session_cookie_name: self.session_cookie_name,
-            scopes_supported: self.scopes_supported,
-            resource_path: self.resource_path,
-            default_scope: self.default_scope,
-            static_token_scopes: self.static_token_scopes,
-            login_path: self.login_path,
-            enable_dynamic_registration: self.enable_dynamic_registration,
-            disable_static_token_with_oauth: self.disable_static_token_with_oauth,
-            token_encryption_key: read_string(&vars, &key_enc_key)
-                .map(|raw| {
-                    TokenEncryptionKey::from_encoded(&raw)
-                        .map_err(|e| AuthError::Config(format!("invalid {key_enc_key}: {e}")))
-                })
-                .transpose()?,
-            machine_clients: read_json(&vars, &key_machine_clients)?.unwrap_or_default(),
-            enterprise_issuers: read_json(&vars, &key_enterprise_issuers)?.unwrap_or_default(),
-        };
-
-        config.validate()?;
-        Ok(config)
+        EnvAuthConfigLoader::new(self).load(vars)
     }
+
+    pub(crate) fn into_config(self) -> AuthConfig {
+        self.config
+    }
+}
+
+fn infer_default_provider(config: &mut AuthConfig) {
+    if !config.default_provider.trim().is_empty() {
+        return;
+    }
+    config.default_provider = if !config.google.client_id.is_empty() {
+        "google"
+    } else if !config.authelia.client_id.is_empty() {
+        "authelia"
+    } else if !config.github.client_id.is_empty() {
+        "github"
+    } else {
+        "google"
+    }
+    .to_string();
 }
 
 fn env_key(prefix: &str, suffix: &str) -> String {
@@ -754,16 +745,6 @@ fn normalize(vars: impl IntoIterator<Item = (String, String)>) -> HashMap<String
             }
         })
         .collect()
-}
-
-fn default_auth_dir() -> PathBuf {
-    home_dir().map_or_else(|| PathBuf::from(".soma"), |home| home.join(".soma"))
-}
-
-fn home_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
 }
 
 fn read_string(vars: &HashMap<String, String>, key: &str) -> Option<String> {
@@ -842,7 +823,9 @@ fn read_usize(vars: &HashMap<String, String>, key: &str) -> Result<Option<usize>
 
 #[cfg(test)]
 mod tests {
-    use super::{AuthConfig, AuthConfigBuilder, AuthMode, AuthModeConfig, AutheliaConfig};
+    use super::{
+        AuthConfig, AuthConfigBuilder, AuthMode, AuthModeConfig, AuthProfile, AutheliaConfig,
+    };
 
     /// Guards against a regression where `GoogleConfig`/`AutheliaConfig`/
     /// `GitHubConfig` derived `Default` (giving `callback_path: String::new()`
@@ -856,7 +839,7 @@ mod tests {
     fn validate_accepts_a_struct_literal_config_configuring_only_authelia() {
         let cfg = AuthConfig {
             mode: AuthMode::OAuth,
-            public_url: Some(url::Url::parse("https://lab.example.com").unwrap()),
+            public_url: Some(url::Url::parse("https://app.example.com").unwrap()),
             admin_email: "admin@example.com".to_string(),
             authelia: AutheliaConfig {
                 issuer_url: Some(url::Url::parse("https://auth.example.com").unwrap()),
@@ -874,26 +857,26 @@ mod tests {
 
     #[test]
     fn bearer_mode_preserves_existing_http_token_behavior() {
-        let cfg = AuthModeConfig::from_sources(fake_env_with("LAB_AUTH_MODE", "bearer")).unwrap();
+        let cfg = AuthModeConfig::from_sources(fake_env_with("APP_AUTH_MODE", "bearer")).unwrap();
         assert!(matches!(cfg.mode, AuthMode::Bearer));
     }
 
     #[test]
     fn oauth_mode_requires_public_url_and_google_credentials() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
         ]))
         .unwrap_err();
-        assert!(err.to_string().contains("LAB_PUBLIC_URL"));
+        assert!(err.to_string().contains("APP_PUBLIC_URL"));
     }
 
     #[test]
     fn oauth_mode_requires_at_least_one_configured_provider() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(err.to_string().contains("at least one OAuth provider"));
@@ -902,12 +885,12 @@ mod tests {
     #[test]
     fn oauth_mode_accepts_authelia_only_configuration() {
         let cfg = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_AUTHELIA_ISSUER_URL", "https://auth.example.com"),
-            ("LAB_AUTHELIA_CLIENT_ID", "id"),
-            ("LAB_AUTHELIA_CLIENT_SECRET", "secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_AUTHELIA_ISSUER_URL", "https://auth.example.com"),
+            ("APP_AUTHELIA_CLIENT_ID", "id"),
+            ("APP_AUTHELIA_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap();
         assert_eq!(cfg.default_provider, "authelia");
@@ -916,11 +899,11 @@ mod tests {
     #[test]
     fn oauth_mode_accepts_github_only_configuration() {
         let cfg = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GITHUB_CLIENT_ID", "id"),
-            ("LAB_GITHUB_CLIENT_SECRET", "secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GITHUB_CLIENT_ID", "id"),
+            ("APP_GITHUB_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap();
         assert_eq!(cfg.default_provider, "github");
@@ -929,12 +912,12 @@ mod tests {
     #[test]
     fn oauth_mode_rejects_github_scopes_missing_user_email() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GITHUB_CLIENT_ID", "id"),
-            ("LAB_GITHUB_CLIENT_SECRET", "secret"),
-            ("LAB_GITHUB_SCOPES", "read:user"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GITHUB_CLIENT_ID", "id"),
+            ("APP_GITHUB_CLIENT_SECRET", "secret"),
+            ("APP_GITHUB_SCOPES", "read:user"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(err.to_string().contains("user:email"));
@@ -943,13 +926,13 @@ mod tests {
     #[test]
     fn oauth_mode_default_provider_prefers_google_when_multiple_are_configured() {
         let cfg = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_GITHUB_CLIENT_ID", "gh-id"),
-            ("LAB_GITHUB_CLIENT_SECRET", "gh-secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_GITHUB_CLIENT_ID", "gh-id"),
+            ("APP_GITHUB_CLIENT_SECRET", "gh-secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap();
         assert_eq!(cfg.default_provider, "google");
@@ -958,45 +941,45 @@ mod tests {
     #[test]
     fn oauth_mode_rejects_default_provider_naming_an_unconfigured_provider() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
-            ("LAB_AUTH_DEFAULT_PROVIDER", "github"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_DEFAULT_PROVIDER", "github"),
         ]))
         .unwrap_err();
-        assert!(err.to_string().contains("LAB_AUTH_DEFAULT_PROVIDER=github"));
+        assert!(err.to_string().contains("APP_AUTH_DEFAULT_PROVIDER=github"));
     }
 
     #[test]
     fn oauth_mode_rejects_a_non_https_authelia_issuer_url() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_AUTHELIA_ISSUER_URL", "http://auth.internal"),
-            ("LAB_AUTHELIA_CLIENT_ID", "id"),
-            ("LAB_AUTHELIA_CLIENT_SECRET", "secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_AUTHELIA_ISSUER_URL", "http://auth.internal"),
+            ("APP_AUTHELIA_CLIENT_ID", "id"),
+            ("APP_AUTHELIA_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(
             err.to_string()
-                .contains("LAB_AUTHELIA_ISSUER_URL must use https")
+                .contains("APP_AUTHELIA_ISSUER_URL must use https")
         );
     }
 
     #[test]
     fn oauth_mode_rejects_two_configured_providers_sharing_a_callback_path() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_GITHUB_CLIENT_ID", "gh-id"),
-            ("LAB_GITHUB_CLIENT_SECRET", "gh-secret"),
-            ("LAB_GITHUB_CALLBACK_PATH", "/auth/google/callback"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_GITHUB_CLIENT_ID", "gh-id"),
+            ("APP_GITHUB_CLIENT_SECRET", "gh-secret"),
+            ("APP_GITHUB_CALLBACK_PATH", "/auth/google/callback"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(
@@ -1006,26 +989,25 @@ mod tests {
     }
 
     #[test]
-    fn oauth_mode_rejects_two_configured_providers_sharing_a_callback_path_missing_a_leading_slash()
-    {
+    fn oauth_mode_rejects_provider_callback_path_missing_a_leading_slash() {
         // A `callback_path` without a leading `/` still mounts at the same
         // normalized route as one that has it (build_provider_redirect_uri
         // in state.rs prepends the missing `/`), so the collision check must
         // catch this even though the raw strings don't textually match.
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_GITHUB_CLIENT_ID", "gh-id"),
-            ("LAB_GITHUB_CLIENT_SECRET", "gh-secret"),
-            ("LAB_GITHUB_CALLBACK_PATH", "auth/google/callback"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_GITHUB_CLIENT_ID", "gh-id"),
+            ("APP_GITHUB_CLIENT_SECRET", "gh-secret"),
+            ("APP_GITHUB_CALLBACK_PATH", "auth/google/callback"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(
             err.to_string()
-                .contains("must not both resolve to `/auth/google/callback`"),
+                .contains("github.callback_path must be an absolute path"),
             "unexpected error: {err}"
         );
     }
@@ -1033,12 +1015,12 @@ mod tests {
     #[test]
     fn oauth_mode_rejects_a_callback_path_colliding_with_a_fixed_crate_route() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_GOOGLE_CALLBACK_PATH", "/authorize"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_GOOGLE_CALLBACK_PATH", "/authorize"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(
@@ -1048,8 +1030,7 @@ mod tests {
     }
 
     #[test]
-    fn oauth_mode_rejects_a_callback_path_colliding_with_a_fixed_crate_route_missing_a_leading_slash()
-     {
+    fn oauth_mode_rejects_fixed_route_name_missing_a_leading_slash() {
         // Same as above but without the leading `/` on the operator-supplied
         // value. Uses GitHub, not Google: Google's callback_path has its own
         // unconditional "must start with `/`" check earlier in validate()
@@ -1059,16 +1040,17 @@ mod tests {
         // check, so this is the only path that exercises it — the value
         // still mounts at `/authorize` once state.rs builds the redirect URI.
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GITHUB_CLIENT_ID", "id"),
-            ("LAB_GITHUB_CLIENT_SECRET", "secret"),
-            ("LAB_GITHUB_CALLBACK_PATH", "authorize"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GITHUB_CLIENT_ID", "id"),
+            ("APP_GITHUB_CLIENT_SECRET", "secret"),
+            ("APP_GITHUB_CALLBACK_PATH", "authorize"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(
-            err.to_string().contains("must not resolve to `/authorize`"),
+            err.to_string()
+                .contains("github.callback_path must be an absolute path"),
             "unexpected error: {err}"
         );
     }
@@ -1076,15 +1058,15 @@ mod tests {
     #[test]
     fn oauth_mode_rejects_a_callback_path_under_the_well_known_prefix() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
             (
-                "LAB_GOOGLE_CALLBACK_PATH",
+                "APP_GOOGLE_CALLBACK_PATH",
                 "/.well-known/oauth-authorization-server",
             ),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap_err();
         assert!(
@@ -1097,11 +1079,11 @@ mod tests {
     #[test]
     fn oauth_mode_defaults_paths_and_callback() {
         let cfg = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
         ]))
         .unwrap();
         assert_eq!(cfg.sqlite_path.file_name().unwrap(), "auth.db");
@@ -1112,23 +1094,23 @@ mod tests {
     #[test]
     fn oauth_mode_requires_admin_email() {
         let err = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
         ]))
         .unwrap_err();
-        assert!(err.to_string().contains("LAB_AUTH_ADMIN_EMAIL"));
+        assert!(err.to_string().contains("APP_AUTH_ADMIN_EMAIL"));
     }
 
     #[test]
     fn admin_email_normalizes_case_and_trims_whitespace() {
         let cfg = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "  Admin@Example.COM  "),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "  Admin@Example.COM  "),
         ]))
         .unwrap();
         assert_eq!(cfg.admin_email, "admin@example.com");
@@ -1137,13 +1119,13 @@ mod tests {
     #[test]
     fn oauth_mode_parses_allowed_client_redirect_uris() {
         let cfg = AuthConfig::from_sources(fake_env_with_many([
-            ("LAB_AUTH_MODE", "oauth"),
-            ("LAB_PUBLIC_URL", "https://lab.example.com"),
-            ("LAB_GOOGLE_CLIENT_ID", "id"),
-            ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-            ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+            ("APP_AUTH_MODE", "oauth"),
+            ("APP_PUBLIC_URL", "https://app.example.com"),
+            ("APP_GOOGLE_CLIENT_ID", "id"),
+            ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+            ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
             (
-                "LAB_AUTH_ALLOWED_REDIRECT_URIS",
+                "APP_AUTH_ALLOWED_REDIRECT_URIS",
                 "https://callback.tootie.tv/callback/*,https://claude.ai/api/mcp/auth_callback",
             ),
         ]))
@@ -1158,23 +1140,35 @@ mod tests {
     }
 
     #[test]
-    fn default_config_preserves_lab_brand_for_backward_compat() {
+    fn default_config_uses_generic_product_profile() {
         let cfg = AuthConfig::default();
-        assert_eq!(cfg.env_prefix, "LAB");
-        assert_eq!(cfg.session_cookie_name, "lab_session");
+        assert_eq!(cfg.env_prefix, "APP");
+        assert_eq!(cfg.session_cookie_name, "auth_session");
         assert_eq!(
             cfg.scopes_supported,
-            vec!["lab".to_string(), "lab:admin".to_string()]
+            vec!["app:read".to_string(), "app:admin".to_string()]
         );
         assert_eq!(cfg.resource_path, "/mcp");
-        assert_eq!(cfg.default_scope, "lab");
+        assert_eq!(cfg.default_scope, "app:read");
         assert_eq!(
             cfg.static_token_scopes,
-            vec!["lab:read".to_string(), "lab:admin".to_string()]
+            vec!["app:read".to_string(), "app:admin".to_string()]
         );
         assert_eq!(cfg.login_path, "/auth/login");
         assert!(!cfg.enable_dynamic_registration);
         assert!(!cfg.disable_static_token_with_oauth);
+        // The generic profile must not resolve the SQLite token store / JWT
+        // signing key to a bare relative path (cwd-dependent) whenever the
+        // environment offers a platform data dir or home dir to anchor on —
+        // see `config_profile::resolve_default_data_dir`.
+        if dirs::data_dir().is_none() && dirs::home_dir().is_none() {
+            assert_eq!(cfg.default_data_dir, std::path::PathBuf::from(".auth"));
+        } else {
+            assert_ne!(cfg.default_data_dir, std::path::PathBuf::from(".auth"));
+            assert!(cfg.default_data_dir.is_absolute());
+        }
+        assert_eq!(cfg.upstream_client_name, "app");
+        assert_eq!(cfg.upstream_callback_path, "/auth/upstream/callback");
     }
 
     #[test]
@@ -1206,17 +1200,17 @@ mod tests {
     }
 
     #[test]
-    fn builder_lab_env_vars_ignored_when_prefix_is_overridden() {
-        // Vars use LAB_*; builder is set to SYSLOG_MCP — so AUTH_MODE goes
+    fn builder_unrelated_env_vars_are_ignored_when_prefix_is_overridden() {
+        // Vars use APP_*; builder is set to SYSLOG_MCP — so AUTH_MODE goes
         // unread, defaults to bearer, and PUBLIC_URL stays None.
         let cfg = AuthConfigBuilder::new()
             .env_prefix("SYSLOG_MCP")
             .build_from_sources(fake_env_with_many([
-                ("LAB_AUTH_MODE", "oauth"),
-                ("LAB_PUBLIC_URL", "https://lab.example.com"),
-                ("LAB_GOOGLE_CLIENT_ID", "id"),
-                ("LAB_GOOGLE_CLIENT_SECRET", "secret"),
-                ("LAB_AUTH_ADMIN_EMAIL", "admin@example.com"),
+                ("APP_AUTH_MODE", "oauth"),
+                ("APP_PUBLIC_URL", "https://app.example.com"),
+                ("APP_GOOGLE_CLIENT_ID", "id"),
+                ("APP_GOOGLE_CLIENT_SECRET", "secret"),
+                ("APP_AUTH_ADMIN_EMAIL", "admin@example.com"),
             ]))
             .unwrap();
         assert!(matches!(cfg.mode, AuthMode::Bearer));
@@ -1239,6 +1233,70 @@ mod tests {
             .build_from_sources(Vec::<(String, String)>::new())
             .unwrap_err();
         assert!(err.to_string().contains("login_path"));
+    }
+
+    #[test]
+    fn typed_builder_builds_without_environment_loading() {
+        let profile = AuthProfile {
+            env_prefix: "AXON".to_string(),
+            default_data_dir: std::path::PathBuf::from("/tmp/axon-auth"),
+            session_cookie_name: "axon_session".to_string(),
+            scopes_supported: vec!["axon:read".to_string(), "axon:admin".to_string()],
+            resource_path: "/mcp".to_string(),
+            default_scope: "axon:read".to_string(),
+            static_token_scopes: vec!["axon:read".to_string(), "axon:admin".to_string()],
+            login_path: "/auth/login".to_string(),
+            enable_dynamic_registration: true,
+            disable_static_token_with_oauth: true,
+            upstream_client_name: "axon".to_string(),
+            upstream_callback_path: "/oauth/upstream/callback".to_string(),
+        };
+
+        let config = AuthConfigBuilder::from_profile(profile)
+            .build()
+            .expect("typed profile builds without env");
+
+        assert!(matches!(config.mode, AuthMode::Bearer));
+        assert_eq!(config.env_prefix, "AXON");
+        assert_eq!(
+            config.sqlite_path,
+            std::path::PathBuf::from("/tmp/axon-auth/auth.db")
+        );
+        assert_eq!(config.upstream_client_name, "axon");
+        assert_eq!(config.upstream_callback_path, "/oauth/upstream/callback");
+        assert!(config.disable_static_token_with_oauth);
+    }
+
+    #[test]
+    fn env_loader_overlays_only_supplied_values() {
+        let config = AuthConfigBuilder::new()
+            .session_cookie_name("custom_session")
+            .upstream_client_name("custom-client")
+            .build_from_sources(fake_env_with("APP_AUTH_ACCESS_TOKEN_TTL_SECS", "99"))
+            .expect("env overlay builds");
+
+        assert_eq!(config.access_token_ttl.as_secs(), 99);
+        assert_eq!(config.session_cookie_name, "custom_session");
+        assert_eq!(config.upstream_client_name, "custom-client");
+    }
+
+    #[test]
+    fn builder_rejects_invalid_upstream_identity() {
+        let empty_name = AuthConfigBuilder::new()
+            .upstream_client_name(" ")
+            .build()
+            .unwrap_err();
+        assert!(empty_name.to_string().contains("upstream_client_name"));
+
+        let relative_callback = AuthConfigBuilder::new()
+            .upstream_callback_path("oauth/callback")
+            .build()
+            .unwrap_err();
+        assert!(
+            relative_callback
+                .to_string()
+                .contains("upstream_callback_path")
+        );
     }
 
     fn fake_env_with(key: &'static str, value: &'static str) -> Vec<(String, String)> {

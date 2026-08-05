@@ -12,7 +12,7 @@ use std::sync::Arc;
 pub struct AuthContext {
     /// JWT `sub` claim (or `"static-bearer"` for static-token requests).
     pub sub: String,
-    /// Optional opaque actor key (lab-specific observability hook); produced
+    /// Optional opaque actor key (consumer-specific observability hook); produced
     /// by the [`crate::middleware::ActorKeyDeriver`] closure when one is
     /// installed on the layer. Consumers without an actor-key concept
     /// (cortex etc.) leave this `None`.
@@ -68,30 +68,30 @@ mod tests {
     #[test]
     fn www_authenticate_value_appends_metadata_path_and_strips_trailing_slash() {
         assert_eq!(
-            www_authenticate_value("https://lab.example.com/", None),
-            "Bearer resource_metadata=\"https://lab.example.com/.well-known/oauth-protected-resource\""
+            www_authenticate_value("https://app.example.com/", None),
+            "Bearer resource_metadata=\"https://app.example.com/.well-known/oauth-protected-resource\""
         );
         assert_eq!(
-            www_authenticate_value("https://lab.example.com", None),
-            "Bearer resource_metadata=\"https://lab.example.com/.well-known/oauth-protected-resource\""
+            www_authenticate_value("https://app.example.com", None),
+            "Bearer resource_metadata=\"https://app.example.com/.well-known/oauth-protected-resource\""
         );
     }
 
     #[test]
     fn www_authenticate_value_appends_scope_when_present_and_omits_when_absent() {
         assert_eq!(
-            www_authenticate_value("https://lab.example.com", Some("syslog:read syslog:admin")),
-            "Bearer resource_metadata=\"https://lab.example.com/.well-known/oauth-protected-resource\", scope=\"syslog:read syslog:admin\""
+            www_authenticate_value("https://app.example.com", Some("syslog:read syslog:admin")),
+            "Bearer resource_metadata=\"https://app.example.com/.well-known/oauth-protected-resource\", scope=\"syslog:read syslog:admin\""
         );
         // `None` and empty-string scopes are both treated as "nothing to
         // offer" and must not append a `scope=` param.
         assert_eq!(
-            www_authenticate_value("https://lab.example.com", None),
-            "Bearer resource_metadata=\"https://lab.example.com/.well-known/oauth-protected-resource\""
+            www_authenticate_value("https://app.example.com", None),
+            "Bearer resource_metadata=\"https://app.example.com/.well-known/oauth-protected-resource\""
         );
         assert_eq!(
-            www_authenticate_value("https://lab.example.com", Some("")),
-            "Bearer resource_metadata=\"https://lab.example.com/.well-known/oauth-protected-resource\""
+            www_authenticate_value("https://app.example.com", Some("")),
+            "Bearer resource_metadata=\"https://app.example.com/.well-known/oauth-protected-resource\""
         );
     }
 }

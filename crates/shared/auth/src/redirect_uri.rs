@@ -1,37 +1,60 @@
-//! Pure redirect-URI trust checks shared by DCR (`registration.rs`) and CIMD
-//! (`authorize.rs`) client resolution. No I/O, no `AuthState` — every
-//! function here takes only strings/patterns and returns a bool, so this
-//! module has no feature dependency of its own beyond `reqwest::Url`
-//! parsing; it's gated behind `http-axum` only because its sole callers are.
+//! Redirect-URI trust checks shared by DCR and CIMD client resolution.
 
-fn is_loopback_redirect(value: &str) -> bool {
-    let Ok(url) = reqwest::Url::parse(value) else {
-        return false;
-    };
-    if url.scheme() != "http" {
-        return false;
-    }
-    matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1"))
+use std::net::IpAddr;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RedirectUriKind {
+    Https,
+    Loopback,
+    PrivateUse,
 }
 
-/// Native-app private-use URI scheme redirects (RFC 8252 §7.1), e.g.
-/// `com.raycast:/oauth`. Only an app registered for that scheme with the
-/// OS can receive the redirect, so — like loopback — these don't need an
-/// explicit allowlist entry per client. Deliberately excludes `http(s)`
-/// (network-reachable, needs the allowlist) and script-executing pseudo
-/// schemes a browser might act on directly instead of merely redirecting.
-fn is_native_app_scheme_redirect(value: &str) -> bool {
-    let Ok(url) = reqwest::Url::parse(value) else {
-        return false;
-    };
-    !matches!(
-        url.scheme(),
-        "http" | "https" | "javascript" | "data" | "vbscript" | "file"
-    )
+const FORBIDDEN_PRIVATE_SCHEMES: &[&str] = &[
+    "data",
+    "file",
+    "ftp",
+    "http",
+    "https",
+    "intent",
+    "javascript",
+    "mailto",
+    "tel",
+    "vbscript",
+];
+
+/// Parse and validate the security-relevant shape of a registered redirect URI.
+pub(crate) fn redirect_uri_kind(value: &str) -> Option<RedirectUriKind> {
+    let url = reqwest::Url::parse(value).ok()?;
+    if url.fragment().is_some() || !url.username().is_empty() || url.password().is_some() {
+        return None;
+    }
+
+    match url.scheme() {
+        "https" if url.host_str().is_some() => Some(RedirectUriKind::Https),
+        "http" => {
+            let host = url.host_str()?;
+            let ip: IpAddr = host.parse().ok()?;
+            ip.is_loopback().then_some(RedirectUriKind::Loopback)
+        }
+        scheme
+            if !FORBIDDEN_PRIVATE_SCHEMES.contains(&scheme)
+                && !url.path().is_empty()
+                && !value.chars().any(char::is_control) =>
+        {
+            Some(RedirectUriKind::PrivateUse)
+        }
+        _ => None,
+    }
 }
 
 pub(crate) fn is_allowed_redirect_uri(value: &str, patterns: &[String]) -> bool {
-    if is_loopback_redirect(value) || is_native_app_scheme_redirect(value) {
+    let Some(kind) = redirect_uri_kind(value) else {
+        return false;
+    };
+    if matches!(
+        kind,
+        RedirectUriKind::Loopback | RedirectUriKind::PrivateUse
+    ) {
         return true;
     }
 
@@ -41,6 +64,40 @@ pub(crate) fn is_allowed_redirect_uri(value: &str, patterns: &[String]) -> bool 
     patterns
         .iter()
         .any(|pattern| redirect_pattern_matches(pattern, &candidate))
+}
+
+pub(crate) fn is_allowed_redirect_uri_for_application(
+    value: &str,
+    patterns: &[String],
+    application_type: &str,
+) -> bool {
+    let Some(kind) = redirect_uri_kind(value) else {
+        return false;
+    };
+    match application_type {
+        "web" if kind != RedirectUriKind::Https => return false,
+        "native" => {}
+        _ if application_type != "web" => return false,
+        _ => {}
+    }
+    is_allowed_redirect_uri(value, patterns)
+}
+
+pub(crate) fn infer_application_type(
+    redirect_uris: &[String],
+    native_callback: &str,
+) -> &'static str {
+    if redirect_uris.iter().any(|uri| {
+        uri == native_callback
+            || matches!(
+                redirect_uri_kind(uri),
+                Some(RedirectUriKind::Loopback | RedirectUriKind::PrivateUse)
+            )
+    }) {
+        "native"
+    } else {
+        "web"
+    }
 }
 
 pub(crate) fn wildcard_matches(pattern: &str, value: &str) -> bool {
@@ -90,13 +147,14 @@ fn redirect_pattern_matches(pattern: &str, candidate: &reqwest::Url) -> bool {
     let Ok(pattern_url) = reqwest::Url::parse(pattern) else {
         return false;
     };
-    if pattern_url.scheme() != candidate.scheme() {
+    if pattern_url.fragment().is_some()
+        || !pattern_url.username().is_empty()
+        || pattern_url.password().is_some()
+        || pattern_url.scheme() != candidate.scheme()
+    {
         return false;
     }
 
-    // Native-app custom URI schemes (e.g. `com.raycast:/oauth`) have no
-    // authority component, so `host_str()` is None and can never satisfy the
-    // host/port comparison below. Compare the whole URI instead.
     if pattern_url.host_str().is_none() || candidate.host_str().is_none() {
         return wildcard_matches(pattern, candidate.as_str());
     }
@@ -139,4 +197,92 @@ pub(crate) fn host_pattern_matches(pattern_host: &str, candidate_host: &str) -> 
         .all(|(pattern, candidate)| {
             *pattern == "*" || (!pattern.contains('*') && pattern.eq_ignore_ascii_case(candidate))
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        RedirectUriKind, infer_application_type, is_allowed_redirect_uri,
+        is_allowed_redirect_uri_for_application, redirect_uri_kind,
+    };
+
+    #[test]
+    fn accepts_secure_web_loopback_and_reverse_domain_native_redirects() {
+        assert_eq!(
+            redirect_uri_kind("https://client.example/callback"),
+            Some(RedirectUriKind::Https)
+        );
+        assert_eq!(
+            redirect_uri_kind("http://127.0.0.1:7777/callback"),
+            Some(RedirectUriKind::Loopback)
+        );
+        assert_eq!(
+            redirect_uri_kind("com.example.app:/oauth/callback"),
+            Some(RedirectUriKind::PrivateUse)
+        );
+        assert!(is_allowed_redirect_uri(
+            "com.example.app:/oauth/callback",
+            &[]
+        ));
+    }
+
+    #[test]
+    fn rejects_fragments_userinfo_non_loopback_http_and_dangerous_schemes() {
+        for uri in [
+            "https://client.example/callback#fragment",
+            "https://user:pass@client.example/callback",
+            "http://localhost:7777/callback",
+            "http://192.168.1.5/callback",
+            "javascript:alert(1)",
+            "data:text/html,hello",
+            "file:///tmp/callback",
+            "mailto:user@example.com",
+            "ftp://example.com/callback",
+            "intent://callback",
+        ] {
+            assert!(redirect_uri_kind(uri).is_none(), "{uri}");
+        }
+    }
+
+    #[test]
+    fn safe_private_schemes_remain_compatible_with_native_clients() {
+        assert!(is_allowed_redirect_uri("raycast://oauth/callback", &[]));
+        assert!(is_allowed_redirect_uri("warp://mcp/oauth2callback", &[]));
+    }
+
+    #[test]
+    fn application_type_constrains_redirect_kind() {
+        let wildcard = vec!["https://*".to_string()];
+        assert!(is_allowed_redirect_uri_for_application(
+            "https://client.example/callback",
+            &wildcard,
+            "web"
+        ));
+        assert!(!is_allowed_redirect_uri_for_application(
+            "http://127.0.0.1:7777/callback",
+            &[],
+            "web"
+        ));
+        assert!(is_allowed_redirect_uri_for_application(
+            "http://127.0.0.1:7777/callback",
+            &[],
+            "native"
+        ));
+    }
+
+    #[test]
+    fn infers_native_for_loopback_private_use_and_server_native_callback() {
+        assert_eq!(
+            infer_application_type(&["http://127.0.0.1:7777/cb".into()], "https://as/native"),
+            "native"
+        );
+        assert_eq!(
+            infer_application_type(&["https://as/native".into()], "https://as/native"),
+            "native"
+        );
+        assert_eq!(
+            infer_application_type(&["https://client.example/cb".into()], "https://as/native"),
+            "web"
+        );
+    }
 }

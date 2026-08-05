@@ -87,11 +87,13 @@ pub(super) fn row_to_browser_login_state(
 pub(super) fn row_to_native_authorization_result(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<NativeAuthorizationResultRow> {
+    let code: String = row.get(1)?;
     Ok(NativeAuthorizationResultRow {
         state: row.get(0)?,
-        code: row.get(1)?,
-        created_at: row.get(2)?,
-        expires_at: row.get(3)?,
+        code: (!code.is_empty()).then_some(code),
+        error: row.get(2)?,
+        created_at: row.get(3)?,
+        expires_at: row.get(4)?,
     })
 }
 

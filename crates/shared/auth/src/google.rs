@@ -129,7 +129,7 @@ impl OAuthProvider for GoogleProvider {
             provider = "google",
             oauth_state_id = %fingerprint(&request.state),
             scope = %scope,
-            redirect_uri = %self.redirect_uri,
+            redirect_uri_id = %fingerprint(self.redirect_uri.as_str()),
             "oauth upstream authorize URL constructed"
         );
         Ok(url)
@@ -372,7 +372,7 @@ mod tests {
         GoogleProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            Url::parse("https://lab.example.com/auth/google/callback").unwrap(),
+            Url::parse("https://app.example.com/auth/google/callback").unwrap(),
         )
         .unwrap()
     }

@@ -8,7 +8,10 @@ use std::time::Instant;
 
 use crate::authorize::{authorize, browser_login, callback, native_callback, native_poll};
 use crate::error::AuthErrorKind;
-use crate::metadata::{authorization_server_metadata, jwks, protected_resource_metadata};
+use crate::metadata::{
+    authorization_server_metadata, bearer_authorization_server_metadata, jwks,
+    protected_resource_metadata,
+};
 use crate::registration::register_client;
 use crate::revoke::revoke;
 use crate::state::AuthState;
@@ -77,11 +80,11 @@ pub fn bearer_only_router(state: AuthState) -> Router {
     let mut app = Router::new()
         .route(
             "/.well-known/oauth-authorization-server",
-            get(authorization_server_metadata),
+            get(bearer_authorization_server_metadata),
         )
         .route(
             "/.well-known/oauth-authorization-server/{*route}",
-            get(authorization_server_metadata),
+            get(bearer_authorization_server_metadata),
         )
         .route(
             "/.well-known/oauth-protected-resource",
@@ -309,7 +312,7 @@ mod tests {
     /// each path in [`BEARER_ONLY_ROUTER_FORBIDDEN_PATHS`] and asserts
     /// IT IS 404 (i.e. the route is NOT mounted).
     ///
-    /// Catches future drift where lab-auth contributors add endpoints to
+    /// Catches future drift where soma-auth contributors add endpoints to
     /// [`router`] but forget to keep the headless subset in lock-step.
     #[tokio::test(flavor = "current_thread")]
     async fn bearer_only_router_route_list_matches_pinned_snapshot() {

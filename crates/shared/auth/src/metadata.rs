@@ -6,9 +6,33 @@ use crate::types::{AuthorizationServerMetadata, ProtectedResourceMetadata};
 pub async fn authorization_server_metadata(
     State(state): State<AuthState>,
 ) -> Json<AuthorizationServerMetadata> {
-    let base = public_base_url(&state);
-    let has_machine_clients = !state.config.machine_clients.is_empty();
+    Json(build_authorization_server_metadata(&state, true))
+}
+
+pub async fn bearer_authorization_server_metadata(
+    State(state): State<AuthState>,
+) -> Json<AuthorizationServerMetadata> {
+    Json(build_authorization_server_metadata(&state, false))
+}
+
+fn build_authorization_server_metadata(
+    state: &AuthState,
+    full_surface: bool,
+) -> AuthorizationServerMetadata {
+    let base = public_base_url(state);
+    let has_secret_machine_client = state
+        .config
+        .machine_clients
+        .iter()
+        .any(|client| client.client_secret.is_some());
+    let has_jwks_machine_client = state
+        .config
+        .machine_clients
+        .iter()
+        .any(|client| client.jwks.is_some());
+    let has_machine_clients = has_secret_machine_client || has_jwks_machine_client;
     let has_enterprise_issuers = !state.config.enterprise_issuers.is_empty();
+
     let mut grant_types_supported = vec![
         "authorization_code".to_string(),
         "refresh_token".to_string(),
@@ -19,36 +43,49 @@ pub async fn authorization_server_metadata(
     if has_enterprise_issuers {
         grant_types_supported.push("urn:ietf:params:oauth:grant-type:jwt-bearer".to_string());
     }
-    let mut token_auth_methods = vec!["none".to_string()];
-    if has_machine_clients {
-        token_auth_methods.extend([
-            "client_secret_basic".to_string(),
-            "private_key_jwt".to_string(),
-        ]);
+
+    let mut token_auth_methods = vec!["none".to_string(), "private_key_jwt".to_string()];
+    if has_secret_machine_client {
+        token_auth_methods.push("client_secret_basic".to_string());
     }
-    Json(AuthorizationServerMetadata {
+    if has_jwks_machine_client
+        && !token_auth_methods
+            .iter()
+            .any(|method| method == "private_key_jwt")
+    {
+        token_auth_methods.push("private_key_jwt".to_string());
+    }
+    let signing_algorithms = if token_auth_methods
+        .iter()
+        .any(|method| method == "private_key_jwt")
+    {
+        vec![
+            "EdDSA".to_string(),
+            "RS256".to_string(),
+            "ES256".to_string(),
+        ]
+    } else {
+        Vec::new()
+    };
+
+    AuthorizationServerMetadata {
         issuer: base.clone(),
-        authorization_endpoint: format!("{base}/authorize"),
+        authorization_endpoint: Some(format!("{base}/authorize")),
         token_endpoint: format!("{base}/token"),
         revocation_endpoint: Some(format!("{base}/revoke")),
-        registration_endpoint: format!("{base}/register"),
-        native_callback_endpoint: Some(native_callback_endpoint(&state)),
-        native_poll_endpoint: Some(native_poll_endpoint(&state)),
+        revocation_endpoint_auth_methods_supported: token_auth_methods.clone(),
+        revocation_endpoint_auth_signing_alg_values_supported: signing_algorithms.clone(),
+        registration_endpoint: (full_surface && state.config.enable_dynamic_registration)
+            .then(|| format!("{base}/register")),
+        native_callback_endpoint: full_surface.then(|| native_callback_endpoint(state)),
+        native_poll_endpoint: full_surface.then(|| native_poll_endpoint(state)),
         jwks_uri: format!("{base}/jwks"),
         response_types_supported: vec!["code".to_string()],
         scopes_supported: state.config.scopes_supported.clone(),
         grant_types_supported,
         code_challenge_methods_supported: vec!["S256".to_string()],
         token_endpoint_auth_methods_supported: token_auth_methods,
-        token_endpoint_auth_signing_alg_values_supported: if has_machine_clients {
-            vec![
-                "EdDSA".to_string(),
-                "RS256".to_string(),
-                "ES256".to_string(),
-            ]
-        } else {
-            Vec::new()
-        },
+        token_endpoint_auth_signing_alg_values_supported: signing_algorithms,
         authorization_response_iss_parameter_supported: true,
         client_id_metadata_document_supported: true,
         authorization_grant_profiles_supported: if has_enterprise_issuers {
@@ -56,7 +93,7 @@ pub async fn authorization_server_metadata(
         } else {
             Vec::new()
         },
-    })
+    }
 }
 
 pub async fn protected_resource_metadata(
@@ -113,12 +150,12 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use tower::util::ServiceExt;
 
-    use crate::routes::router;
+    use crate::routes::{bearer_only_router, router};
 
     use super::super::authorize::tests::test_auth_state;
 
     #[tokio::test]
-    async fn authorization_server_metadata_exposes_lab_endpoints() {
+    async fn authorization_server_metadata_exposes_configured_endpoints() {
         let app = router(test_auth_state().await);
         let response = app
             .oneshot(
@@ -134,15 +171,62 @@ mod tests {
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["token_endpoint"], "https://lab.example.com/token");
+        assert_eq!(json["token_endpoint"], "https://app.example.com/token");
         // Advertised only because `/revoke` is really mounted -- see
         // `AuthorizationServerMetadata::revocation_endpoint`.
         assert_eq!(
             json["revocation_endpoint"],
-            "https://lab.example.com/revoke"
+            "https://app.example.com/revoke"
+        );
+        assert_eq!(
+            json["registration_endpoint"],
+            "https://app.example.com/register"
+        );
+        assert_eq!(
+            json["native_callback_endpoint"],
+            "https://app.example.com/native/callback"
         );
         assert_eq!(json["authorization_response_iss_parameter_supported"], true);
         assert_eq!(json["client_id_metadata_document_supported"], true);
+        assert!(
+            json["token_endpoint_auth_methods_supported"]
+                .as_array()
+                .is_some_and(|methods| methods.iter().any(|method| method == "private_key_jwt"))
+        );
+        assert_eq!(
+            json["revocation_endpoint_auth_methods_supported"],
+            json["token_endpoint_auth_methods_supported"]
+        );
+        assert_eq!(
+            json["token_endpoint_auth_signing_alg_values_supported"],
+            serde_json::json!(["EdDSA", "RS256", "ES256"])
+        );
+    }
+
+    #[tokio::test]
+    async fn bearer_only_metadata_omits_unmounted_registration_and_native_extensions() {
+        let app = bearer_only_router(test_auth_state().await);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/.well-known/oauth-authorization-server")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json.get("registration_endpoint").is_none(), "{json}");
+        assert!(json.get("native_callback_endpoint").is_none(), "{json}");
+        assert!(json.get("native_poll_endpoint").is_none(), "{json}");
+        assert_eq!(
+            json["authorization_endpoint"],
+            "https://app.example.com/authorize"
+        );
     }
 
     #[tokio::test]
@@ -162,7 +246,7 @@ mod tests {
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["resource"], "https://lab.example.com/mcp");
+        assert_eq!(json["resource"], "https://app.example.com/mcp");
     }
 
     #[tokio::test]
@@ -189,7 +273,7 @@ mod tests {
             resource_path: "/syslog/mcp".to_string(),
             default_provider: "google".to_string(),
             // validate() requires default_scope to be listed in
-            // scopes_supported; AuthConfig::default()'s "lab" isn't in the
+            // scopes_supported; AuthConfig::default()'s "app:read" isn't in the
             // syslog-flavored scopes_supported above.
             default_scope: "syslog:read".to_string(),
             ..AuthConfig::default()

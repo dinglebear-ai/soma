@@ -60,8 +60,7 @@ pub const REFRESH_FAILURE_COOLDOWN: Duration = Duration::from_secs(300);
 /// no memory of prior outcomes. That wastes latency on every real request
 /// touching the upstream, and can itself contribute to the authorization
 /// server rate-limiting or flagging the client_id, which is especially bad
-/// when multiple upstreams share one client_id (see `labby-auth::upstream`
-/// module docs).
+/// when multiple upstreams share one client_id (see this module's lifecycle documentation).
 #[derive(Default)]
 pub struct RefreshFailureCache(DashMap<(String, String), Instant>);
 

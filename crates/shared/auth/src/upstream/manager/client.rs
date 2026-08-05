@@ -26,7 +26,7 @@ fn should_use_client_metadata_document(
 }
 
 fn dynamic_registration_bootstrap_config(redirect_uri: &str) -> OAuthClientConfig {
-    OAuthClientConfig::new("soma-registration-placeholder", redirect_uri)
+    OAuthClientConfig::new("oauth-registration-placeholder", redirect_uri)
         .with_application_type("web")
 }
 
@@ -601,7 +601,11 @@ impl UpstreamOauthManager {
                         ))
                     })?;
                 let cfg = manager
-                    .register_client("soma", self.redirect_uri.as_str(), scopes)
+                    .register_client(
+                        self.client_name.as_str(),
+                        self.redirect_uri.as_str(),
+                        scopes,
+                    )
                     .await
                     .map_err(|e| OauthError::Internal(format!("dynamic registration: {e}")))?;
 

@@ -71,8 +71,8 @@ async fn seed_refresh_token(state: &AuthState, refresh_token: &str, client_id: &
             refresh_token: refresh_token.to_string(),
             client_id: client_id.to_string(),
             subject: "google-subject-123".to_string(),
-            resource: "https://lab.example.com/mcp".to_string(),
-            scope: "lab".to_string(),
+            resource: "https://app.example.com/mcp".to_string(),
+            scope: "app:read".to_string(),
             provider: "google".to_string(),
             provider_refresh_token: None,
             created_at: now_unix(),
@@ -270,8 +270,8 @@ async fn secret_machine_client_state() -> AuthState {
         client_id: "machine".to_string(),
         client_secret: Some("machine-secret".to_string()),
         jwks: None,
-        scopes: vec!["lab".to_string()],
-        resources: vec!["https://lab.example.com/mcp".to_string()],
+        scopes: vec!["app:read".to_string()],
+        resources: vec!["https://app.example.com/mcp".to_string()],
     }];
     test_auth_state_with_config(config).await
 }

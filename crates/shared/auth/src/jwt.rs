@@ -154,7 +154,7 @@ impl SigningKeys {
     /// NOTE: this method does NOT enforce the `iss` claim. Callers that
     /// need RFC 7519 issuer validation MUST use
     /// [`Self::validate_access_token_with_issuer`] instead. This entry
-    /// point is preserved for the lab consumer, which performs its own
+    /// point is preserved for the original consumer, which performs its own
     /// post-decode `iss` check. New consumers should always use the
     /// issuer-enforcing variant.
     #[deprecated(note = "Use `validate_access_token_with_issuer` for RFC 7519 §4.1.1 compliance")]
@@ -397,9 +397,9 @@ mod tests {
         let claims = sample_claims();
         let token = signer.issue_access_token(&claims).unwrap();
         let claims = signer
-            .validate_access_token(&token, "https://lab.example.com")
+            .validate_access_token(&token, "https://app.example.com")
             .unwrap();
-        assert_eq!(claims.aud, "https://lab.example.com");
+        assert_eq!(claims.aud, "https://app.example.com");
         assert!(!claims.jti.is_empty());
         assert!(decode_header(&token).unwrap().kid.is_some());
     }
@@ -443,11 +443,11 @@ mod tests {
         let decoded = signer
             .validate_access_token_with_issuer(
                 &token,
-                "https://lab.example.com",
-                "https://lab.example.com",
+                "https://app.example.com",
+                "https://app.example.com",
             )
             .expect("token with matching issuer must validate");
-        assert_eq!(decoded.iss, "https://lab.example.com");
+        assert_eq!(decoded.iss, "https://app.example.com");
     }
 
     #[test]
@@ -460,7 +460,7 @@ mod tests {
         let token = signer.issue_access_token(&claims).unwrap();
         let result = signer.validate_access_token_with_issuer(
             &token,
-            "https://lab.example.com",
+            "https://app.example.com",
             "https://attacker.example.com",
         );
         assert!(
@@ -476,8 +476,8 @@ mod tests {
         let token = stranger.issue_access_token(&sample_claims()).unwrap();
         let result = signer.validate_access_token_with_issuer(
             &token,
-            "https://lab.example.com",
-            "https://lab.example.com",
+            "https://app.example.com",
+            "https://app.example.com",
         );
         assert!(
             result.is_err(),
@@ -534,8 +534,8 @@ mod tests {
         after
             .validate_access_token_with_issuer(
                 &old_token,
-                "https://lab.example.com",
-                "https://lab.example.com",
+                "https://app.example.com",
+                "https://app.example.com",
             )
             .expect("pre-rotation token must remain valid during overlap");
 
@@ -544,8 +544,8 @@ mod tests {
         after
             .validate_access_token_with_issuer(
                 &new_token,
-                "https://lab.example.com",
-                "https://lab.example.com",
+                "https://app.example.com",
+                "https://app.example.com",
             )
             .expect("post-rotation token must validate");
     }
@@ -573,13 +573,13 @@ mod tests {
 
     fn sample_claims() -> AccessClaims {
         AccessClaims {
-            iss: "https://lab.example.com".to_string(),
+            iss: "https://app.example.com".to_string(),
             sub: "google-user".to_string(),
-            aud: "https://lab.example.com".to_string(),
+            aud: "https://app.example.com".to_string(),
             exp: 4_102_444_800,
             iat: 1_700_000_000,
             jti: "test-jti".to_string(),
-            scope: "lab".to_string(),
+            scope: "app:read".to_string(),
             azp: "client".to_string(),
         }
     }

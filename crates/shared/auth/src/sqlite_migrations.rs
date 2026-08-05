@@ -86,7 +86,7 @@ pub(super) fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
         // This column binds the OAuth client_id used to begin a specific
         // authorization flow to the CSRF state row so that concurrent
         // `begin_authorization` calls for the same upstream+subject can each
-        // complete their own callback with the correct client_id (lab-77y5.15).
+        // complete their own callback with the correct client_id.
         add_column_if_missing(conn, "upstream_oauth_state", "dynamic_client_id", "TEXT")?;
 
         conn.execute_batch("PRAGMA user_version = 2;")
@@ -174,6 +174,46 @@ pub(super) fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
             "TEXT",
         )?;
         add_column_if_missing(conn, "refresh_tokens", "token_endpoint_auth_method", "TEXT")?;
+        conn.execute_batch("PRAGMA user_version = 5;")
+            .map_err(sqlite_error)?;
+    }
+
+    if current_version < 6 {
+        // Public clients use bearer refresh tokens, so schema v6 tracks a
+        // rotation family and retains spent token hashes long enough to detect
+        // replay and revoke the currently active family member.
+        add_column_if_missing(conn, "refresh_tokens", "family_id", "TEXT")?;
+        conn.execute(
+            "UPDATE refresh_tokens
+             SET family_id = refresh_token_hash
+             WHERE family_id IS NULL OR family_id = ''",
+            [],
+        )
+        .map_err(sqlite_error)?;
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family
+                ON refresh_tokens(family_id);
+             CREATE TABLE IF NOT EXISTS used_refresh_tokens (
+                refresh_token_hash TEXT PRIMARY KEY,
+                family_id TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                token_endpoint_auth_method TEXT,
+                used_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_used_refresh_tokens_family
+                ON used_refresh_tokens(family_id);",
+        )
+        .map_err(sqlite_error)?;
+        conn.execute_batch("PRAGMA user_version = 6;")
+            .map_err(sqlite_error)?;
+    }
+
+    if current_version < 7 {
+        // Native polling stores terminal provider denials as well as successful
+        // authorization codes. The existing non-null code column is retained
+        // for migration compatibility; error rows use an empty code sentinel.
+        add_column_if_missing(conn, "native_authorization_results", "error", "TEXT")?;
         conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
             .map_err(sqlite_error)?;
     }

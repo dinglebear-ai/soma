@@ -70,6 +70,22 @@ impl AuthError {
     }
 
     #[cfg(feature = "http-axum")]
+    pub(crate) const fn public_message(&self) -> &'static str {
+        match self {
+            Self::InvalidGrant(_) => "invalid or expired grant",
+            Self::InvalidScope(_) => "requested scope is invalid",
+            Self::AuthFailed(_) | Self::InvalidAccessToken => "authentication failed",
+            Self::Validation(_) => "request validation failed",
+            Self::Network(_) | Self::Server(_) => "authorization service unavailable",
+            Self::Decode(_) => "authorization service returned an invalid response",
+            Self::RateLimited { .. } => "request rate limited",
+            Self::Config(_) | Self::Storage(_) | Self::InsecurePermissions { .. } => {
+                "internal authorization server error"
+            }
+        }
+    }
+
+    #[cfg(feature = "http-axum")]
     const fn status(&self) -> StatusCode {
         match self {
             Self::InvalidGrant(_) | Self::InvalidScope(_) => StatusCode::BAD_REQUEST,
@@ -89,9 +105,12 @@ impl AuthError {
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let status = self.status();
+        let kind = self.kind();
+        let public_message = self.public_message();
+        tracing::warn!(kind, error = %self, "authorization request failed");
         let body = axum::Json(serde_json::json!({
-            "kind": self.kind(),
-            "message": self.to_string(),
+            "kind": kind,
+            "message": public_message,
         }));
         let mut response = (status, body).into_response();
         response.extensions_mut().insert(AuthErrorKind(self.kind()));

@@ -7,7 +7,7 @@
 //! mode + browser GETs) optionally redirects to a configured login path so the
 //! configured OAuth/OIDC flow can establish a session.
 //!
-//! Precedence (matches the legacy lab middleware):
+//! Precedence (matches the legacy middleware):
 //!
 //! 1. `Authorization: Bearer <token>` matches the static bearer (constant-time
 //!    compare) -> grants `static_token_scopes`.
@@ -44,8 +44,8 @@ use crate::state::AuthState;
 
 /// Closure-erased actor-key derivation hook.
 ///
-/// Consumers that have a notion of an opaque actor identifier (lab uses an
-/// HMAC over the JWT subject for non-PII observability) build one and pass
+/// Consumers that have a notion of an opaque actor identifier may derive one
+/// from the JWT subject for non-PII observability build one and pass
 /// it through [`AuthLayer::with_actor_key_deriver`]. Consumers without this
 /// concept (e.g. cortex) leave it unset.
 ///
@@ -118,7 +118,7 @@ struct AuthLayerInner {
     allow_session_cookie: bool,
     /// Scopes minted into the [`AuthContext`] when the static bearer or
     /// session-cookie path matches. For the static path this is the legacy
-    /// `static_token_scopes` config; for the cookie path lab keeps the same
+    /// `static_token_scopes` config; for the cookie path the runtime keeps the same
     /// list (browser-session subjects are admin-equivalent today).
     static_token_scopes: Vec<String>,
     /// Browser login path used for the GET+text/html unauthenticated
@@ -397,7 +397,7 @@ async fn authenticate(
                     return Ok(request);
                 }
                 Err(error) => {
-                    tracing::debug!(error = %error, "lab-auth JWT validation failed");
+                    tracing::debug!(error = %error, "soma-auth JWT validation failed");
                 }
             }
         }
@@ -628,7 +628,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn missing_bearer_token_returns_401_with_www_authenticate() {
         let layer =
-            AuthLayer::new().with_resource_url(Some(Arc::<str>::from("https://lab.example.com")));
+            AuthLayer::new().with_resource_url(Some(Arc::<str>::from("https://app.example.com")));
         let app = echo_app(layer);
         let response = app
             .oneshot(
@@ -659,7 +659,7 @@ mod tests {
     async fn missing_bearer_token_with_auth_state_includes_scope_in_www_authenticate() {
         let state = Arc::new(test_auth_state().await);
         let layer = AuthLayer::from_state(state)
-            .with_resource_url(Some(Arc::<str>::from("https://lab.example.com")));
+            .with_resource_url(Some(Arc::<str>::from("https://app.example.com")));
         let app = echo_app(layer);
         let response = app
             .oneshot(
@@ -804,7 +804,7 @@ mod tests {
         };
         let token = state.signing_keys.issue_access_token(&claims).unwrap();
         let layer = AuthLayer::from_state(state)
-            .with_resource_url(Some(Arc::<str>::from("https://lab.example.com")));
+            .with_resource_url(Some(Arc::<str>::from("https://app.example.com")));
         let app = echo_app(layer);
 
         let response = app

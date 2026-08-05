@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn aad_round_trip_plaintext() {
         let key = test_key();
-        let aad = b"upstream=test\0subject=alice\0client=soma-client";
+        let aad = b"upstream=test\0subject=alice\0client=app-client";
         let plaintext = b"hello, world";
         let (ct, nonce) = seal_with_aad(&key, plaintext, aad).unwrap();
         let pt = open_with_aad(&key, &ct, &nonce, aad).unwrap();

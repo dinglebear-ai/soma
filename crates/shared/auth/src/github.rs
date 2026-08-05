@@ -259,7 +259,7 @@ impl OAuthProvider for GitHubProvider {
         info!(
             provider = "github",
             oauth_code_id = %fingerprint(code),
-            redirect_uri = %self.redirect_uri,
+            redirect_uri_id = %fingerprint(self.redirect_uri.as_str()),
             "oauth upstream code exchange started"
         );
         let payload: GitHubTokenResult = read_json_response(
@@ -302,7 +302,7 @@ impl OAuthProvider for GitHubProvider {
     async fn refresh(&self, _refresh_token: &str) -> Result<ProviderExchange, AuthError> {
         Err(AuthError::Config(
             "github oauth apps do not support token refresh — access tokens do not expire; \
-             the user must re-authenticate via github once their local soma-issued refresh \
+             the user must re-authenticate via github once their locally issued refresh \
              token expires"
                 .to_string(),
         ))
@@ -475,7 +475,7 @@ mod tests {
         GitHubProvider::new(
             "client-id".to_string(),
             "client-secret".to_string(),
-            url::Url::parse("https://lab.example.com/auth/github/callback").unwrap(),
+            url::Url::parse("https://app.example.com/auth/github/callback").unwrap(),
         )
         .unwrap()
     }
