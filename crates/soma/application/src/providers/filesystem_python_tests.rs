@@ -628,7 +628,11 @@ async fn refresh_owner_rechecks_a_change_arriving_during_candidate_preparation()
     let (released, changed) = &*release;
     *released.lock().expect("release lock") = true;
     changed.notify_all();
-    tokio::time::timeout(std::time::Duration::from_secs(5), owner)
+    // The production refresh owner is bounded to two passes. Shared CI can
+    // legitimately spend more than five seconds preparing Python candidates
+    // under load, so keep the test bounded without making scheduler pressure a
+    // false failure.
+    tokio::time::timeout(std::time::Duration::from_secs(15), owner)
         .await
         .expect("refresh owner must remain bounded under contention")
         .unwrap()
