@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **release:** regenerate the OpenAPI document during release-please fixups so version bumps cannot leave the generated contract stale
 * **python:** retry `ETXTBSY` when spawning a Python interpreter or sidecar. A freshly materialized generation could be exec'd while a write descriptor on the image was still open, surfacing as a spurious `invalid Python provider: Text file busy` load failure
-* **tests:** replace fixed-interval waits and tight wall-clock deadlines in the Python supervisor and provider-refresh tests with polls on the actual precondition, so scheduler pressure is no longer a false failure
+* **tests:** replace fixed-interval waits and tight wall-clock deadlines in the Python supervisor, provider-refresh, broker-state, and wasm tests with polls on the actual precondition, so scheduler pressure is no longer a false failure
 * **tests:** retain a bounded provider-refresh contention test without failing when shared-runner scheduler pressure pushes legitimate preparation beyond five seconds
 
 

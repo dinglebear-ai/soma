@@ -407,8 +407,15 @@ fn sync_parent(_parent: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    /// Budget for state operations these tests expect to *succeed*.
+    ///
+    /// Not the property under test — it only stops a genuinely stuck lock from
+    /// hanging the suite. It has to cover the slowest legitimate case
+    /// (`independent_store_instances_serialize_durable_updates` performs 50
+    /// lock-contended, fsync'd writes), so a tight value here just converts
+    /// disk and scheduler pressure into a false failure.
     fn deadline() -> Instant {
-        Instant::now() + Duration::from_secs(5)
+        Instant::now() + Duration::from_secs(60)
     }
 
     #[test]

@@ -1707,8 +1707,14 @@ def emit() -> dict:
         let supervisor = PythonWorkerSupervisor::new(
             identity(&provider),
             PythonInterpreter::Prepared(fake_python),
+            // The fake worker never connects, so startup fails at *any*
+            // timeout — this value is not the property under test. It does
+            // gate how long the fake shell has to fork its descendant and
+            // record the pid the assertions below read, and a 150ms budget
+            // lost that race whenever the machine was busy, leaving an empty
+            // pid file.
             PythonSupervisorConfig {
-                startup_timeout: Duration::from_millis(150),
+                startup_timeout: Duration::from_secs(5),
                 ..PythonSupervisorConfig::default()
             },
         );
@@ -1750,8 +1756,13 @@ def wait(delay_ms: int) -> dict:
         let supervisor = PythonWorkerSupervisor::new(
             identity(&provider),
             PythonInterpreter::Prepared(python),
+            // As in `installed_runner_preflights_invokes_times_out_and_restarts`,
+            // `invoke` waits `request_timeout.min(per_call)`. A short config
+            // value here also capped the post-reset call, which has to boot a
+            // brand-new interpreter — the timeout below supplies its own short
+            // per-call deadline instead.
             PythonSupervisorConfig {
-                request_timeout: Duration::from_millis(200),
+                request_timeout: GENEROUS,
                 max_restarts: 0,
                 restart_backoff: Duration::ZERO,
                 ..PythonSupervisorConfig::default()
@@ -1777,7 +1788,7 @@ def wait(delay_ms: int) -> dict:
                 json!({"delay_ms": 0}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect_err("restart budget is exhausted");
