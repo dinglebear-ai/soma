@@ -12,13 +12,13 @@ fn ssh_host() -> HostRecord {
                 .unwrap()
                 .with_port(2222)
                 .unwrap()
-                .with_user("jmagar")
+                .with_user("devuser")
                 .unwrap()
-                .with_identity_file("/home/jmagar/.ssh/id_ed25519")
+                .with_identity_file("/home/devuser/.ssh/id_ed25519")
                 .unwrap()
-                .with_config_file("/home/jmagar/.ssh/config")
+                .with_config_file("/home/devuser/.ssh/config")
                 .unwrap()
-                .with_known_hosts_file("/home/jmagar/.ssh/known_hosts")
+                .with_known_hosts_file("/home/devuser/.ssh/known_hosts")
                 .unwrap(),
         ),
     )
@@ -34,18 +34,18 @@ fn connection_plan_is_strict_and_revision_bound() {
     assert_eq!(plan.revision(), host.revision());
     assert_eq!(plan.destination(), "198.51.100.10");
     assert_eq!(plan.port(), 2222);
-    assert_eq!(plan.user(), Some("jmagar"));
+    assert_eq!(plan.user(), Some("devuser"));
     assert_eq!(
         plan.identity_file(),
-        Some(Path::new("/home/jmagar/.ssh/id_ed25519"))
+        Some(Path::new("/home/devuser/.ssh/id_ed25519"))
     );
     assert_eq!(
         plan.config_file(),
-        Some(Path::new("/home/jmagar/.ssh/config"))
+        Some(Path::new("/home/devuser/.ssh/config"))
     );
     assert_eq!(
         plan.known_hosts_file(),
-        Some(Path::new("/home/jmagar/.ssh/known_hosts"))
+        Some(Path::new("/home/devuser/.ssh/known_hosts"))
     );
     assert_eq!(plan.connect_timeout(), Duration::from_secs(3));
     assert_eq!(plan.server_alive_interval(), Duration::from_secs(10));

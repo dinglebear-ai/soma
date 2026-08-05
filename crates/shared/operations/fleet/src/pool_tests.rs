@@ -57,7 +57,7 @@ fn ssh(user: &str) -> HostRecord {
 async fn concurrent_cold_cache_calls_share_one_connect() {
     let factory = Arc::new(MockFactory::default());
     let pool = Arc::new(ConnectionPool::new(Arc::clone(&factory)));
-    let host = ssh("jmagar");
+    let host = ssh("devuser");
     let mut tasks = Vec::new();
     for _ in 0..8 {
         let pool = Arc::clone(&pool);
@@ -87,7 +87,7 @@ async fn concurrent_cold_cache_calls_share_one_connect() {
 async fn topology_changes_use_new_keys_and_evict_old_connections() {
     let factory = Arc::new(MockFactory::default());
     let pool = ConnectionPool::new(Arc::clone(&factory));
-    let old = ssh("jmagar");
+    let old = ssh("devuser");
     let current = ssh("root");
     let first = pool
         .get_or_connect(&old, &CancellationToken::new())

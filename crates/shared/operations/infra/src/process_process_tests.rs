@@ -39,7 +39,7 @@ async fn driver_uses_allowlisted_sort_and_parses_rows() {
             concat!(
                 "USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
 ",
-                "jmagar 22 10.5 3.5 2000 1000 pts/0 Sl 10:01 1:02 soma serve
+                "devuser 22 10.5 3.5 2000 1000 pts/0 Sl 10:01 1:02 soma serve
 ",
             )
             .as_bytes()

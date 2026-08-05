@@ -15,7 +15,7 @@ fn ssh(name: &str, user: &str) -> HostRecord {
 #[test]
 fn cache_reuses_only_exact_topology_revisions() {
     let cache = ConnectionCache::new();
-    let first = ssh("devhost", "jmagar");
+    let first = ssh("devhost", "devuser");
     let changed = ssh("devhost", "root");
     cache.insert(&first, "session-a".to_owned());
 
@@ -28,7 +28,7 @@ fn cache_reuses_only_exact_topology_revisions() {
 #[test]
 fn host_invalidation_removes_every_revision() {
     let cache = ConnectionCache::new();
-    let first = ssh("devhost", "jmagar");
+    let first = ssh("devhost", "devuser");
     let changed = ssh("devhost", "root");
     cache.insert(&first, 1);
     cache.insert(&changed, 2);
@@ -48,7 +48,7 @@ fn host_invalidation_removes_every_revision() {
 #[test]
 fn retaining_snapshot_evicts_missing_and_stale_keys() {
     let cache = ConnectionCache::new();
-    let old_devhost = ssh("devhost", "jmagar");
+    let old_devhost = ssh("devhost", "devuser");
     let new_devhost = ssh("devhost", "root");
     let edgehost = local("edgehost");
     cache.insert(&old_devhost, "old");

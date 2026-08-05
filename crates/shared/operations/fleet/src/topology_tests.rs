@@ -12,7 +12,7 @@ fn ssh(user: &str) -> HostEndpoint {
 
 #[test]
 fn host_labels_and_capabilities_are_sorted_unique() {
-    let host = HostRecord::new(HostId::new("devhost").unwrap(), ssh("jmagar"))
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), ssh("devuser"))
         .with_label("linux")
         .unwrap()
         .with_label("linux")
@@ -30,7 +30,7 @@ fn host_labels_and_capabilities_are_sorted_unique() {
 #[test]
 fn topology_is_sorted_unique_and_revision_bound() {
     let alpha = HostRecord::new(HostId::new("alpha").unwrap(), HostEndpoint::Local);
-    let beta = HostRecord::new(HostId::new("beta").unwrap(), ssh("jmagar"));
+    let beta = HostRecord::new(HostId::new("beta").unwrap(), ssh("devuser"));
     let snapshot = TopologySnapshot::new([beta.clone(), alpha.clone()]).unwrap();
     assert_eq!(
         snapshot
@@ -49,7 +49,7 @@ fn topology_is_sorted_unique_and_revision_bound() {
 fn snapshot_revision_changes_with_endpoint_material() {
     let first = TopologySnapshot::new([HostRecord::new(
         HostId::new("devhost").unwrap(),
-        ssh("jmagar"),
+        ssh("devuser"),
     )])
     .unwrap();
     let second = TopologySnapshot::new([HostRecord::new(
