@@ -1447,7 +1447,7 @@ The table below contains this session artifact plus the deduplicated union of me
 - **GitHub CLI:** `gh` created, reviewed, monitored, merged, and cleaned PRs. Self-hosted checks were slow, stale runs required force cancellation, and the PR-files API returned 503 during final documentation.
 - **Beads CLI:** `bd` tracked every implementation slice and review finding; `bd dolt push` synchronized tracker state.
 - **Subagents/review agents:** Parallel agents implemented and reviewed bounded slices. Some delegated calls hit usage limits, so work continued in the primary agent; final reviews completed successfully.
-- **External/runtime access:** `ssh steamy` timed out during Windows investigation, so no remote host change was made. No browser automation or MCP server was required for implementation.
+- **External/runtime access:** `ssh winhost` timed out during Windows investigation, so no remote host change was made. No browser automation or MCP server was required for implementation.
 
 ## Commands Executed
 
@@ -1470,7 +1470,7 @@ The table below contains this session artifact plus the deduplicated union of me
 - Enabling `serde_json/preserve_order` globally changed generated OpenAPI bytes. Feature activation was narrowed so runtime catalog compatibility and generator stability both hold.
 - Review found ordering, surface-exposure, schema-validation, and fingerprint compatibility regressions in the first provider extraction. Dispatch hooks and compatibility handling were corrected and regression-tested.
 - Stale GitHub Actions jobs continued consuming self-hosted runners after ordinary cancellation. The force-cancel endpoint cleared them; long Windows/MSRV jobs were then allowed to finish.
-- `ssh steamy` timed out, so the investigation did not modify the Windows host.
+- `ssh winhost` timed out, so the investigation did not modify the Windows host.
 - GitHub's PR-files API returned HTTP 503 during documentation; local merge-parent diffs were used as the evidence source.
 
 ## Behavior Changes (Before/After)

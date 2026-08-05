@@ -151,7 +151,7 @@ async fn docker_build_plans_executes_and_verifies_context_bound_image() {
         compose,
     );
     let operation = OperationName::new("docker.build").unwrap();
-    let params = json!({"host":"dookie","context":"/srv/app","tag":"app:v1","dockerfile":"Dockerfile","no_cache":true});
+    let params = json!({"host":"devhost","context":"/srv/app","tag":"app:v1","dockerfile":"Dockerfile","no_cache":true});
     let ctx = context();
     let plan = runtime.plan(&operation, &params, &ctx).await.unwrap();
     assert_eq!(
@@ -223,7 +223,7 @@ async fn compose_build_binds_service_context_and_verifies_image() {
         compose,
     );
     let operation = OperationName::new("compose.build").unwrap();
-    let params = json!({"host":"dookie","project":"soma","service":"api"});
+    let params = json!({"host":"devhost","project":"soma","service":"api"});
     let ctx = context();
     let plan = runtime.plan(&operation, &params, &ctx).await.unwrap();
     let result = runtime
@@ -246,7 +246,7 @@ async fn compose_build_binds_service_context_and_verifies_image() {
 async fn absent_build_ports_fail_closed_before_context_access() {
     let runtime = crate::mutation_pull_test_support::runtime(None, None);
     let operation = OperationName::new("docker.build").unwrap();
-    let params = json!({"host":"dookie","context":"/srv/app","tag":"app:v1"});
+    let params = json!({"host":"devhost","context":"/srv/app","tag":"app:v1"});
     let error = runtime
         .plan(&operation, &params, &context())
         .await

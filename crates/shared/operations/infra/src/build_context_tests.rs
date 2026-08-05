@@ -16,7 +16,7 @@ fn build_context_policy_requires_explicit_bounded_roots() {
 
 #[test]
 fn fingerprints_require_lowercase_sha256() {
-    let host = soma_fleet::HostId::new("dookie").unwrap();
+    let host = soma_fleet::HostId::new("devhost").unwrap();
     let fingerprint = BuildContextFingerprint {
         host,
         topology_revision: soma_fleet::TopologyRevision::from_material(b"test"),

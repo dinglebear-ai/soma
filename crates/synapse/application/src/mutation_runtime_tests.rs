@@ -161,13 +161,13 @@ impl DockerMutationClientProvider for FakeProvider {
 }
 
 fn local_host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn ssh_host() -> HostRecord {
     HostRecord::new(
-        HostId::new("dookie").unwrap(),
-        HostEndpoint::Ssh(SshEndpoint::new("dookie.internal").unwrap()),
+        HostId::new("devhost").unwrap(),
+        HostEndpoint::Ssh(SshEndpoint::new("devhost.internal").unwrap()),
     )
 }
 
@@ -226,7 +226,7 @@ async fn plan_and_execute(
     let hosts = Arc::new(MutableHosts::new(local_host()));
     let client = Arc::new(FakeDocker::states([before, after]));
     let runtime = mutation_runtime(hosts, client);
-    let parameters = json!({"host":"dookie","container_id":"soma"});
+    let parameters = json!({"host":"devhost","container_id":"soma"});
     let plan = runtime
         .plan(&operation, &parameters, &context)
         .await
@@ -295,7 +295,7 @@ async fn already_satisfied_state_returns_verified_noop() {
     let hosts = Arc::new(MutableHosts::new(local_host()));
     let client = Arc::new(FakeDocker::states([ContainerState::Running]));
     let runtime = mutation_runtime(hosts, Arc::clone(&client));
-    let parameters = json!({"host":"dookie","container_id":"soma"});
+    let parameters = json!({"host":"devhost","container_id":"soma"});
     let plan = runtime
         .plan(&operation, &parameters, &context)
         .await
@@ -323,7 +323,7 @@ async fn admission_rejects_missing_idempotency_and_confirmation() {
     let context = mutation_context(false);
     let hosts = Arc::new(MutableHosts::new(local_host()));
     let runtime = mutation_runtime(hosts, Arc::new(FakeDocker::states([])));
-    let parameters = json!({"host":"dookie","container_id":"soma"});
+    let parameters = json!({"host":"devhost","container_id":"soma"});
     let plan = runtime
         .plan(&operation, &parameters, &context)
         .await
@@ -378,7 +378,7 @@ async fn topology_change_invalidates_the_authorized_plan() {
     let context = mutation_context(true);
     let hosts = Arc::new(MutableHosts::new(local_host()));
     let runtime = mutation_runtime(Arc::clone(&hosts), Arc::new(FakeDocker::states([])));
-    let parameters = json!({"host":"dookie","container_id":"soma"});
+    let parameters = json!({"host":"devhost","container_id":"soma"});
     let plan = runtime
         .plan(&operation, &parameters, &context)
         .await
@@ -403,7 +403,7 @@ async fn topology_change_invalidates_the_authorized_plan() {
 #[tokio::test(flavor = "current_thread")]
 async fn unknown_send_state_and_failed_verification_become_failed_terminal_results() {
     let operation = OperationName::new("container.start").unwrap();
-    let parameters = json!({"host":"dookie","container_id":"soma"});
+    let parameters = json!({"host":"devhost","container_id":"soma"});
     let context = mutation_context(true);
     let hosts = Arc::new(MutableHosts::new(local_host()));
     let failure = MutationFailure::new(
@@ -467,7 +467,7 @@ async fn expired_authorization_is_rejected_before_provider_access() {
         Arc::new(MutableHosts::new(local_host())),
         Arc::new(FakeDocker::states([])),
     );
-    let parameters = json!({"host":"dookie","container_id":"soma"});
+    let parameters = json!({"host":"devhost","container_id":"soma"});
     let plan = runtime
         .plan(&operation, &parameters, &context)
         .await

@@ -43,9 +43,9 @@ impl ConnectionFactory for MockFactory {
 
 fn ssh(user: &str) -> HostRecord {
     HostRecord::new(
-        HostId::new("dookie").unwrap(),
+        HostId::new("devhost").unwrap(),
         HostEndpoint::Ssh(
-            SshEndpoint::new("100.64.0.10")
+            SshEndpoint::new("198.51.100.10")
                 .unwrap()
                 .with_user(user)
                 .unwrap(),

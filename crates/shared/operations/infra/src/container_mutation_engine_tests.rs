@@ -114,7 +114,7 @@ impl ContainerLifecycleMutator for FakeClient {
 }
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn request(action: ContainerLifecycleAction) -> ContainerLifecycleRequest {

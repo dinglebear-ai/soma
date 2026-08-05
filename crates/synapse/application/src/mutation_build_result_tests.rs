@@ -22,7 +22,7 @@ fn build_context_evidence_uses_digest_not_raw_path() {
     )
     .unwrap();
     let fp = BuildContextFingerprint {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: TopologyRevision::from_material(b"test"),
         path: "/private/path".into(),
         sha256: "a".repeat(64),

@@ -5,7 +5,7 @@ use crate::{HostId, HostRecord};
 
 fn ssh(user: &str) -> HostEndpoint {
     HostEndpoint::Ssh(
-        SshEndpoint::new("100.64.0.10")
+        SshEndpoint::new("198.51.100.10")
             .unwrap()
             .with_user(user)
             .unwrap()
@@ -16,7 +16,7 @@ fn ssh(user: &str) -> HostEndpoint {
 
 #[test]
 fn endpoint_changes_derive_new_topology_revisions() {
-    let id = HostId::new("dookie").unwrap();
+    let id = HostId::new("devhost").unwrap();
     let first = HostRecord::new(id.clone(), ssh("jmagar"));
     let second = HostRecord::new(id, ssh("root"));
     assert_ne!(first.revision(), second.revision());
@@ -25,7 +25,7 @@ fn endpoint_changes_derive_new_topology_revisions() {
 
 #[test]
 fn host_round_trip_rejects_forged_revision() {
-    let host = HostRecord::new(HostId::new("dookie").unwrap(), ssh("jmagar"));
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), ssh("jmagar"));
     let encoded = serde_json::to_value(&host).unwrap();
     assert_eq!(
         serde_json::from_value::<HostRecord>(encoded.clone()).unwrap(),
@@ -39,14 +39,14 @@ fn host_round_trip_rejects_forged_revision() {
 
 #[test]
 fn endpoints_reject_ambient_or_credential_bearing_configuration() {
-    assert!(SshEndpoint::new("dookie").unwrap().with_port(0).is_err());
+    assert!(SshEndpoint::new("devhost").unwrap().with_port(0).is_err());
     assert!(
-        SshEndpoint::new("dookie")
+        SshEndpoint::new("devhost")
             .unwrap()
             .with_identity_file(".ssh/id_ed25519")
             .is_err()
     );
-    assert!(HttpEndpoint::new("ftp://dookie").is_err());
-    assert!(HttpEndpoint::new("https://user:pass@dookie").is_err());
-    assert!(HttpEndpoint::new("https://dookie.example").is_ok());
+    assert!(HttpEndpoint::new("ftp://devhost").is_err());
+    assert!(HttpEndpoint::new("https://user:pass@devhost").is_err());
+    assert!(HttpEndpoint::new("https://devhost.example").is_ok());
 }

@@ -24,7 +24,7 @@ Planned the labby-gateway/labby-codemode port into soma (two parallel exploratio
 1. **Crate inventory + monorepo goal.** Listed soma's 13 workspace members; user declared soma the future home for crates extracted from `../lab` (gateway/codemode focus, since soma is naturally becoming a gateway via MCP-server-as-provider).
 2. **Parallel exploration.** Two Explore agents: one compared soma↔labby support crates (soma-auth is a vendored ~95% subset fork of labby-auth; soma-runtime/labby-runtime share only a name; soma-web/labby-web coexist; soma-contracts' `ActionSpec` is richer than labby-primitives'), the other mapped gateway/codemode extraction surface (~61k LoC; codemode has no rmcp dep; labby-apis not needed; `labby-runtime` slice + `ssrf` + labby-auth `upstream/` module are the real drag). Port plan recorded in bead `rmcp-template-0lnb` (5 waves).
 3. **Repo status** (vibin:repo-status): corrected an earlier false claim about a dirty branch — main was clean; found 19 dependabot PRs all with failing checks, release-please PR #115 conflicted, two failing scheduled workflows.
-4. **Workflow diagnosis.** `gh: command not found` on the tootie runner (rmcp monitor + dependabot auto-merge); openwiki better-sqlite3 Node-ABI mismatch; main's own Secret Scan red was a gitleaks SARIF-upload flake (re-run passed); dependabot PR check failures were stale pre-`8423e6d` workflow versions.
+4. **Workflow diagnosis.** `gh: command not found` on the nashost runner (rmcp monitor + dependabot auto-merge); openwiki better-sqlite3 Node-ABI mismatch; main's own Secret Scan red was a gitleaks SARIF-upload flake (re-run passed); dependabot PR check failures were stale pre-`8423e6d` workflow versions.
 5. **PR #118**: gh via `.mise.toml` pin (2.93.0) + mise-action for rmcp monitor; auto-merge job moved to ubuntu-latest; first openwiki rebuild attempt. Merged green.
 6. **Merge strategy pivot.** After user pushback on the serialized rebase-per-PR timeline, killed the babysitter loop and built batch **PR #121**: all 19 PR diffs applied (lockfiles excluded) — discovering most were already on main via #117 — then regenerated Cargo.lock (wat chain) and pnpm-lock (in-range bumps). typescript 7 excluded: reproducibly crashes `next build`.
 7. **Cold-build landmines.** #121's lock delta forced the first cold compile of deps main already pinned: jsonschema 0.47 API removal (`JSONSchema` → `Validator`, 3 crates ported), sha2 0.11 digests losing `LowerHex` (2 sites hex-encoded), sse-stream 0.2.3 too old for rmcp 2.2 (bumped 0.2.4), reqwest 0.13 rustls-provider panic (ring provider installed in `providers/mcp.rs` — would have crashed production). Plus gate alignment: workflow_shapes SHA assertion, deny.toml MIT-0 allowlist, 800-line PATTERNS.md limit (deduped via `schema_error_details` helper). #121 merged with 22/22 checks green; 18 dependabot PRs closed/superseded.
@@ -118,7 +118,7 @@ Merged dependabot PRs (content): #122 (setup-node 7 → conformance.yml, release
 
 ## Errors Encountered
 
-- **`gh: command not found`** (tootie runner) → gh pinned via mise / job moved to GitHub-hosted (#118).
+- **`gh: command not found`** (nashost runner) → gh pinned via mise / job moved to GitHub-hosted (#118).
 - **gitleaks "Upload progress stalled"** on main — flake; re-run passed.
 - **`Python launcher not found`** (Build Windows on stale PR runs) — already fixed on main by `8423e6d`; rebases resolved.
 - **4 cold-compile failures** (jsonschema/sha2/sse-stream/rustls) — fixed in #121; root cause cache masking.

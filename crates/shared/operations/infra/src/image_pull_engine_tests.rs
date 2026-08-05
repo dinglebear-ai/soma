@@ -81,12 +81,12 @@ impl ImagePullMutator for FakeClient {
 }
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn image(id: &str, tag: &str) -> ImageSummary {
     ImageSummary {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         id: id.into(),
         repo_tags: vec![tag.into()],
@@ -110,7 +110,7 @@ fn request() -> ImagePullRequest {
 
 fn receipt() -> ImagePullReceipt {
     ImagePullReceipt {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         image: "alpine:latest".into(),
         send_state: MutationSendState::Sent,

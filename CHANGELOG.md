@@ -1811,8 +1811,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- GitHub workflow docs now cover the full workflow inventory, TOOTIE Docker
-  Linux runner layout, steamy Windows runner expectations, and sccache usage
+- GitHub workflow docs now cover the full workflow inventory, NASHOST Docker
+  Linux runner layout, winhost Windows runner expectations, and sccache usage
   across Linux and Windows CI builds.
 - OAuth authorization responses now include the RFC 9207 `iss` parameter on both the
   success and error redirects, set to the authorization server's issuer identifier, so

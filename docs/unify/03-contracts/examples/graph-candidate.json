@@ -13,11 +13,11 @@
       "attributes": {}
     },
     {
-      "key": "host:tootie",
+      "key": "host:nashost",
       "kind": "host",
-      "canonicalName": "TOOTIE",
+      "canonicalName": "NASHOST",
       "aliases": [
-        "tootie"
+        "nashost"
       ],
       "attributes": {}
     }
@@ -25,7 +25,7 @@
   "relationships": [
     {
       "sourceKey": "service:labby",
-      "targetKey": "host:tootie",
+      "targetKey": "host:nashost",
       "kind": "RUNS_ON",
       "directed": true,
       "validFrom": "2026-07-21T14:00:00Z",
@@ -59,7 +59,7 @@
       "trust": "high",
       "polarity": "supports",
       "confidenceContribution": 0.95,
-      "safeExcerpt": "Labby container observed on TOOTIE",
+      "safeExcerpt": "Labby container observed on NASHOST",
       "reasonCode": "docker.container.host",
       "metadataPath": null
     }

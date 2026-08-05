@@ -15,8 +15,8 @@ fn ssh(name: &str, user: &str) -> HostRecord {
 #[test]
 fn cache_reuses_only_exact_topology_revisions() {
     let cache = ConnectionCache::new();
-    let first = ssh("dookie", "jmagar");
-    let changed = ssh("dookie", "root");
+    let first = ssh("devhost", "jmagar");
+    let changed = ssh("devhost", "root");
     cache.insert(&first, "session-a".to_owned());
 
     assert_eq!(cache.get(&first).as_deref(), Some(&"session-a".to_owned()));
@@ -28,11 +28,11 @@ fn cache_reuses_only_exact_topology_revisions() {
 #[test]
 fn host_invalidation_removes_every_revision() {
     let cache = ConnectionCache::new();
-    let first = ssh("dookie", "jmagar");
-    let changed = ssh("dookie", "root");
+    let first = ssh("devhost", "jmagar");
+    let changed = ssh("devhost", "root");
     cache.insert(&first, 1);
     cache.insert(&changed, 2);
-    cache.insert(&local("squirts"), 3);
+    cache.insert(&local("edgehost"), 3);
 
     let removed = cache.invalidate_host(first.id());
     assert_eq!(removed.len(), 2);
@@ -41,19 +41,19 @@ fn host_invalidation_removes_every_revision() {
         cache
             .keys()
             .iter()
-            .all(|key| key.host().as_str() == "squirts")
+            .all(|key| key.host().as_str() == "edgehost")
     );
 }
 
 #[test]
 fn retaining_snapshot_evicts_missing_and_stale_keys() {
     let cache = ConnectionCache::new();
-    let old_dookie = ssh("dookie", "jmagar");
-    let new_dookie = ssh("dookie", "root");
-    let squirts = local("squirts");
+    let old_dookie = ssh("devhost", "jmagar");
+    let new_dookie = ssh("devhost", "root");
+    let edgehost = local("edgehost");
     cache.insert(&old_dookie, "old");
     cache.insert(&new_dookie, "new");
-    cache.insert(&squirts, "removed-host");
+    cache.insert(&edgehost, "removed-host");
 
     let snapshot = TopologySnapshot::new([new_dookie.clone()]).unwrap();
     let removed = cache.retain_snapshot(&snapshot);

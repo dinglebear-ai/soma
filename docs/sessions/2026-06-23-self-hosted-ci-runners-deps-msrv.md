@@ -30,11 +30,11 @@ MSRV, and migrating every workflow to the runner.
   `serial_test`, gitleaks allowlist).
 - Fixed a yanked `crypto-bigint` advisory, then diagnosed that CI was red because of
   a **GitHub Actions billing failure**, not code.
-- Stood up **3 self-hosted Linux runners on dookie**, fully isolated from the dev
+- Stood up **3 self-hosted Linux runners on devhost**, fully isolated from the dev
   environment, and drove CI from all-red to **15/15 green** by fixing ~8 distinct
   self-hosted environment-integration root causes.
 - Merged **all 11 open dependabot PRs**, raised the **MSRV 1.90 → 1.96** (a dep bump
-  forced it), and migrated **every** workflow off `ubuntu-latest` onto dookie
+  forced it), and migrated **every** workflow off `ubuntu-latest` onto devhost
   (amd64-only Docker, gated to `v*` tags; CodeQL deleted).
 
 ## Sequence of Events
@@ -53,9 +53,9 @@ MSRV, and migrating every workflow to the runner.
 5. **Yanked advisory**: bumped `crypto-bigint` 0.7.3 → 0.7.5 to clear `cargo deny`.
 6. **CI diagnosis**: every job failed in ~2s at "Set up job" → annotation said
    "recent account payments have failed or your spending limit needs to be
-   increased." GitHub-hosted minutes were exhausted; the existing Windows/steamy
+   increased." GitHub-hosted minutes were exhausted; the existing Windows/winhost
    self-hosted job was unaffected — proving self-hosted was the fix.
-7. **Self-hosted runners**: built `dookie-linux-1/2/3`, iterated through isolation +
+7. **Self-hosted runners**: built `devhost-linux-1/2/3`, iterated through isolation +
    environment-integration failures until all 15 CI jobs passed; wrote
    `docs/LINUX-RUNNER.md`.
 8. **Trigger correction**: removed `pull_request` (over-literal reading of "only run
@@ -124,7 +124,7 @@ session log itself is the only file in this commit.
 |---|---|---|---|
 | modified | `~/docs/scripts/list-my-repos.sh` | `mcp_output_path` → `~/docs/` (unmanaged file, edited live) | session step 2 |
 | deleted | `mcp-server-inventory.md` | generated file removed from repo | `git rm` step 2 |
-| modified | `.github/workflows/ci.yml` | dookie runner, `CI Gate`, cache fix, taplo, wrapper-disable, trigger churn | `c44fed1`,`f405abb`,`18a2541`,`a530d6e`,`b8f3bbb`,`887cd51`,`b164409` |
+| modified | `.github/workflows/ci.yml` | devhost runner, `CI Gate`, cache fix, taplo, wrapper-disable, trigger churn | `c44fed1`,`f405abb`,`18a2541`,`a530d6e`,`b8f3bbb`,`887cd51`,`b164409` |
 | created | `.github/workflows/scheduled.yml` | weekly cargo-deny advisory + dispatch | `f405abb` |
 | created | `.gitleaks.toml` | placeholder/fixture allowlist | `f405abb` |
 | modified | service/runtime/api/mcp crates | `/readyz`, `/metrics`, `dispatch_action`, confirm gate | `f4dce62` |
@@ -135,7 +135,7 @@ session log itself is the only file in this commit.
 | modified | `crates/soma-contracts/{Cargo.toml,src/config_tests.rs}` | `serial_test` | `cf0e28b` |
 | modified | `Cargo.lock` | crypto-bigint 0.7.5; dep batch | `b224128`, dependabot merges |
 | modified | 12 `crates/*/Cargo.toml`, `.github/workflows/msrv.yml`, 4 docs | MSRV 1.90 → 1.96 | `4910f58` |
-| modified | `.github/workflows/{auto-tag,release,docker-publish,msrv,dependabot-auto-merge}.yml` | migrate to dookie | `5072260`,`4a51967`,`2b4a19f`,`30e309b`,`70d8f90` |
+| modified | `.github/workflows/{auto-tag,release,docker-publish,msrv,dependabot-auto-merge}.yml` | migrate to devhost | `5072260`,`4a51967`,`2b4a19f`,`30e309b`,`70d8f90` |
 | deleted | `.github/workflows/codeql.yml` | needs GHAS; removed | `30e309b` |
 | created | `docs/LINUX-RUNNER.md`; modified `docs/CI.md`,`docs/README.md`,`CLAUDE.md` | runner docs | `1b223da`,`b164409` |
 | created | `docs/sessions/2026-06-23-self-hosted-ci-runners-deps-msrv.md` | this log | this commit |
@@ -197,7 +197,7 @@ Existing open beads `soma-otd` (cancelled Docker Publish run), `-2qk`
 | command | result |
 |---|---|
 | `gh api .../actions/jobs/<id>` annotations | revealed the billing failure root cause |
-| `./config.sh --unattended … --labels soma,dookie --work /opt/gha-home-N/_work` | registered 3 runners |
+| `./config.sh --unattended … --labels soma,devhost --work /opt/gha-home-N/_work` | registered 3 runners |
 | `sudo ./svc.sh install jmagar && start` | runners online as systemd services |
 | `rustup default stable` | local default → 1.96.0 |
 | `cargo +stable build/clippy/nextest` | build ✓, clippy ✓, 519 tests pass |
@@ -208,7 +208,7 @@ Existing open beads `soma-otd` (cancelled Docker Publish run), `-2qk`
 ## Errors Encountered
 
 - **CI all-red (~2s/job)** — GitHub Actions billing/spend limit. Resolved by moving
-  every workflow to self-hosted dookie runners.
+  every workflow to self-hosted devhost runners.
 - **Cargo config + `~/.cargo` cache leaks, dotenv leak, gitleaks rootDir, mise trust,
   mise binary missing, install-action↔binstall conflict, no-default-toolchain,
   Windows wrapper, missing `metrics_tests.rs` sibling** — each diagnosed from CI logs
@@ -223,8 +223,8 @@ Existing open beads `soma-otd` (cancelled Docker Publish run), `-2qk`
 
 | area | before | after |
 |---|---|---|
-| CI runners | `ubuntu-latest` (billing-blocked, all red) | self-hosted dookie (free, green) |
-| CI surface | mixed; 4 workflows billing-red | every workflow on dookie; CodeQL removed |
+| CI runners | `ubuntu-latest` (billing-blocked, all red) | self-hosted devhost (free, green) |
+| CI surface | mixed; 4 workflows billing-red | every workflow on devhost; CodeQL removed |
 | HTTP endpoints | `/health`, `/status` | + `/readyz` (upstream probe), `/metrics` (Prometheus) |
 | Action dispatch | `execute_service_action` per surface | unified `dispatch_action` (timing/log/metrics) + confirm gate |
 | MSRV | declared 1.90 (untrue) | 1.96 (matches reality) |
@@ -239,14 +239,14 @@ Existing open beads `soma-otd` (cancelled Docker Publish run), `-2qk`
 | `cargo +stable clippy --all-targets -- -D warnings` | clean | Finished, no warnings | pass |
 | `cargo deny check` | advisories ok | advisories/bans/licenses/sources ok | pass |
 | CI run on `fe52735` (post dep-merge) | green | success (all jobs) | pass |
-| CI + MSRV on `5072260` (post migrations) | green on dookie | both `completed/success` | pass |
+| CI + MSRV on `5072260` (post migrations) | green on devhost | both `completed/success` | pass |
 | `grep -rl ubuntu-latest .github/workflows` | none | zero matches | pass |
 
 ## Risks and Rollback
 
-- **All CI on one box (dookie)** — single point of failure; CI competes with dev/agent
+- **All CI on one box (devhost)** — single point of failure; CI competes with dev/agent
   load. Rollback: revert `runs-on` to `ubuntu-latest` (needs billing resolved).
-- **Runners are hand-built, not in VCS** (`soma-7f5`) — a dookie rebuild loses
+- **Runners are hand-built, not in VCS** (`soma-7f5`) — a devhost rebuild loses
   them; `docs/LINUX-RUNNER.md` documents recreation.
 - **GHAS-gated steps** (Trivy upload, dependabot-auto-merge) will fail on releases
   (`soma-5yz`).
@@ -274,12 +274,12 @@ Existing open beads `soma-otd` (cancelled Docker Publish run), `-2qk`
 
 ## Next Steps
 
-- **From this session (done)**: all 8 (now 7) workflows on dookie, green; 11 deps
+- **From this session (done)**: all 8 (now 7) workflows on devhost, green; 11 deps
   merged; MSRV 1.96; local default 1.96.
 - **Immediate**: resolve `soma-5yz` (Trivy upload / dependabot-auto-merge fate)
   and `soma-7f5` (runner setup script) before the next `v*` release.
 - **Watch**: the first `v*` tag will exercise `auto-tag` → `release` →
-  `docker-publish` on dookie for the first time; verify the release pipeline end-to-end.
+  `docker-publish` on devhost for the first time; verify the release pipeline end-to-end.
 - **Cleanup**: once out of the `lucid-perlman-6392e0` worktree,
   `git worktree remove .claude/worktrees/lucid-perlman-6392e0 && git branch -D
   claude/lucid-perlman-6392e0`.

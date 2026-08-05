@@ -152,7 +152,7 @@ impl ComposeMutator for FakeCompose {
 }
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn status(state: &str, health: Option<&str>) -> ComposeStatus {
@@ -225,7 +225,7 @@ async fn compose_up_and_restart_plan_execute_and_verify() {
         let runtime = runtime(Some(compose.clone()));
         let operation = OperationName::new(name).unwrap();
         let context = context(idempotent);
-        let parameters = json!({"host":"dookie","project":"soma"});
+        let parameters = json!({"host":"devhost","project":"soma"});
         let plan = runtime
             .plan(&operation, &parameters, &context)
             .await
@@ -266,7 +266,7 @@ async fn compose_verification_failure_is_a_failed_terminal_result() {
     let runtime = runtime(Some(compose));
     let operation = OperationName::new("compose.restart").unwrap();
     let context = context(false);
-    let parameters = json!({"host":"dookie","project":"soma"});
+    let parameters = json!({"host":"devhost","project":"soma"});
     let plan = runtime
         .plan(&operation, &parameters, &context)
         .await
@@ -291,7 +291,7 @@ async fn compose_verification_failure_is_a_failed_terminal_result() {
 async fn absent_compose_port_fails_closed() {
     let runtime = runtime(None);
     let operation = OperationName::new("compose.up").unwrap();
-    let parameters = json!({"host":"dookie","project":"soma"});
+    let parameters = json!({"host":"devhost","project":"soma"});
     let error = runtime
         .plan(&operation, &parameters, &context(true))
         .await
