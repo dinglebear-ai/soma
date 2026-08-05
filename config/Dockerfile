@@ -52,6 +52,7 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev libseccomp-dev &&
 # builds that only change app code skip this expensive step entirely.
 COPY Cargo.toml Cargo.lock ./
 COPY apps/soma/ apps/soma/
+COPY apps/synapse/ apps/synapse/
 COPY crates/ crates/
 # Workspace member: cargo refuses to load the workspace without it, even
 # though the soma binary does not depend on the PyO3 extension.

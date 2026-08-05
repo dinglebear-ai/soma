@@ -22,19 +22,19 @@ labels = ["local"]
 kind = "local"
 
 [[hosts]]
-id = "tootie"
-read_roots = ["/mnt/user", "/mnt/cache", "/var/log"]
-build_roots = ["/mnt/cache/compose"]
-transfer_source_roots = ["/mnt/user"]
-transfer_destination_roots = ["/mnt/user"]
-labels = ["unraid", "docker"]
+id = "nashost"
+read_roots = ["/srv/data", "/srv/appdata", "/var/log"]
+build_roots = ["/srv/appdata/compose"]
+transfer_source_roots = ["/srv/data"]
+transfer_destination_roots = ["/srv/data"]
+labels = ["nas", "docker"]
 docker_socket = "/var/run/docker.sock"
 
 [hosts.endpoint]
 kind = "ssh"
-host = "tootie"
+host = "nashost"
 port = 22
-user = "root"
+user = "synapse"
 identity_file = "/home/synapse/.ssh/id_ed25519"
 config_file = "/home/synapse/.ssh/config"
 known_hosts_file = "/home/synapse/.ssh/known_hosts"

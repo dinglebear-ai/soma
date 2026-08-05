@@ -210,8 +210,8 @@ files:
   sha256: e204ad224d3a5f3b179b331115f8a5013772899d5f092949af70ea0ce5cb8845
   type: md
 - path: 02-crates/specs/synapse-standalone.md
-  bytes: 2606
-  sha256: fbb27299a6716f4ef970a4d5f7b1e2544d22528e0f2845491ea3305b07682d3f
+  bytes: 2703
+  sha256: 16a91dc7703b5e241cfd38c6d543dd621f62eeb3a31921bf2624f95038a27556
   type: md
 - path: 03-contracts/CITATION-CONTRACT.md
   bytes: 2416
