@@ -3,7 +3,7 @@ use soma_fleet::{HostEndpoint, HostId, HostRecord};
 use std::collections::BTreeMap;
 
 fn image(id: &str, tags: &[&str], digests: &[&str]) -> ImageSummary {
-    let host = HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local);
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local);
     ImageSummary {
         host: host.id().clone(),
         topology_revision: host.revision().clone(),
@@ -28,7 +28,7 @@ fn image_lookup_matches_ids_tags_and_digests() {
 
 #[test]
 fn prune_verification_rejects_reported_identity_that_remains() {
-    let host = HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local);
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local);
     let after = DockerPruneFingerprint {
         host: host.id().clone(),
         topology_revision: host.revision().clone(),

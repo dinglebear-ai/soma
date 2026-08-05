@@ -29,7 +29,7 @@ impl CommandExecutor for MockExecutor {
 async fn compose_down_uses_discrete_volume_argument() {
     let executor = Arc::new(MockExecutor::default());
     let inspector = CommandComposeInspector::new(executor.clone());
-    let host = HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local);
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local);
     let request = ComposeDownRequest::new(
         OperationId::new(),
         OperationName::new("compose.down").unwrap(),
