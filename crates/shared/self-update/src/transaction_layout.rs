@@ -1,7 +1,5 @@
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
-
-use fs2::FileExt;
 
 use super::authority::{authority_paths, ensure_state_authority};
 use super::path_validation::validate_distinct_paths;
@@ -15,7 +13,7 @@ pub(super) struct TransactionLock {
 
 impl Drop for TransactionLock {
     fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.file);
+        let _ = self.file.unlock();
     }
 }
 
@@ -66,14 +64,11 @@ impl Updater {
                 });
             }
         }
-        file.try_lock_exclusive().map_err(|error| {
-            if error.kind() == std::io::ErrorKind::WouldBlock {
-                UpdateError::UpdateInProgress {
-                    path: lock_path.to_path_buf(),
-                }
-            } else {
-                UpdateError::io(lock_path, error)
-            }
+        file.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => UpdateError::UpdateInProgress {
+                path: lock_path.to_path_buf(),
+            },
+            TryLockError::Error(error) => UpdateError::io(lock_path, error),
         })?;
         Ok(TransactionLock {
             file,

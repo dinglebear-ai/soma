@@ -2,7 +2,7 @@
 //!
 //! **Customize**: extend these tests when you add new CLI subcommands.
 
-use soma::cli::{Command, SetupCommand, parse_args_from};
+use soma::cli::{Command, SelfUpdateCommand, SetupCommand, parse_args_from};
 
 #[test]
 fn test_greet_no_name_parsed() {
@@ -152,6 +152,101 @@ fn test_unknown_trailing_args_are_rejected() {
         &["doctor", "--json", "--json"],
         &["watch", "--interval", "0"],
         &["setup", "plugin-hook", "--no-reapir"],
+    ] {
+        assert!(
+            parse_args_from(args.iter().copied()).is_err(),
+            "{args:?} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn test_self_update_run_parsed() {
+    assert_eq!(
+        parse_args_from([
+            "self-update",
+            "run",
+            "--version",
+            "2.0.0",
+            "--url",
+            "https://releases.example/soma",
+            "--sha256",
+            "aa",
+        ])
+        .unwrap(),
+        Some(Command::SelfUpdate(SelfUpdateCommand::Run {
+            version: "2.0.0".into(),
+            url: "https://releases.example/soma".into(),
+            sha256: "aa".into(),
+            allow_http_loopback: false,
+            state_file: None,
+        }))
+    );
+}
+
+#[test]
+fn test_self_update_run_accepts_state_file_and_loopback() {
+    assert_eq!(
+        parse_args_from([
+            "self-update",
+            "run",
+            "--version",
+            "2.0.0",
+            "--url",
+            "http://127.0.0.1:8000/soma",
+            "--sha256",
+            "aa",
+            "--state-file",
+            "/var/lib/soma/update.json",
+            "--allow-http-loopback",
+        ])
+        .unwrap(),
+        Some(Command::SelfUpdate(SelfUpdateCommand::Run {
+            version: "2.0.0".into(),
+            url: "http://127.0.0.1:8000/soma".into(),
+            sha256: "aa".into(),
+            allow_http_loopback: true,
+            state_file: Some("/var/lib/soma/update.json".into()),
+        }))
+    );
+}
+
+#[test]
+fn test_self_update_recover_and_confirm_parsed() {
+    assert_eq!(
+        parse_args_from(["self-update", "recover"]).unwrap(),
+        Some(Command::SelfUpdate(SelfUpdateCommand::Recover {
+            state_file: None
+        }))
+    );
+    assert_eq!(
+        parse_args_from(["self-update", "confirm", "--state-file", "s.json"]).unwrap(),
+        Some(Command::SelfUpdate(SelfUpdateCommand::Confirm {
+            state_file: Some("s.json".into())
+        }))
+    );
+}
+
+#[test]
+fn test_self_update_rejects_bad_invocations() {
+    for args in [
+        &["self-update"][..],
+        &["self-update", "reinstall"],
+        &["self-update", "run", "--version", "2.0.0"],
+        &["self-update", "run", "--version", "2.0.0", "--url"],
+        &["self-update", "recover", "--bogus"],
+        &[
+            "self-update",
+            "run",
+            "--version",
+            "1",
+            "--version",
+            "2",
+            "--url",
+            "https://a",
+            "--sha256",
+            "aa",
+        ],
     ] {
         assert!(
             parse_args_from(args.iter().copied()).is_err(),

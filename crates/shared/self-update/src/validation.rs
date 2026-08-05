@@ -12,6 +12,12 @@ use crate::staging::VALIDATION_MODE;
 use crate::{Result, StagedArtifact, UpdateError, Updater};
 
 const OUTPUT_LIMIT: usize = 16 * 1024;
+#[cfg(unix)]
+const ETXTBSY: i32 = nix::libc::ETXTBSY;
+// Non-Unix spawns never surface ETXTBSY; keep the Linux value so the retry
+// predicate compiles without pulling in a platform errno crate.
+#[cfg(not(unix))]
+const ETXTBSY: i32 = 26;
 
 /// An artifact that executed successfully and reported its exact target version.
 #[derive(Debug)]
@@ -53,6 +59,11 @@ impl ValidatedArtifact {
     #[cfg(unix)]
     pub(crate) fn intended_mode(&self) -> u32 {
         self.staged.intended_mode
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn source_was_present(&self) -> bool {
+        self.staged.source_was_present()
     }
 
     #[cfg(unix)]
@@ -226,7 +237,7 @@ async fn spawn_validator(path: &std::path::Path) -> Result<Box<dyn ChildWrapper>
         let result = validator_command(path).spawn();
         match result {
             Ok(child) => return Ok(child),
-            Err(error) if error.raw_os_error() == Some(26) => {
+            Err(error) if error.raw_os_error() == Some(ETXTBSY) => {
                 tokio::time::sleep(std::time::Duration::from_millis(5)).await;
             }
             Err(error) => return Err(UpdateError::io(path, error)),

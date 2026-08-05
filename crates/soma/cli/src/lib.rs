@@ -32,11 +32,13 @@ use std::sync::{Arc, atomic::AtomicU64, atomic::Ordering};
 pub mod doctor;
 mod provider_command;
 mod providers;
+pub mod self_update;
 pub mod setup;
 pub mod watch;
 
 pub use provider_command::ProviderCommand;
 use provider_command::{parse_providers_command, run_provider_management_command};
+pub use self_update::SelfUpdateCommand;
 pub use setup::{SetupCommand, apply_plugin_options, run_setup};
 
 pub const USAGE: &str = "Usage:
@@ -50,6 +52,11 @@ pub const USAGE: &str = "Usage:
   soma help                      Show JSON action reference
   soma doctor [--json]           Run environment pre-flight checks
   soma watch [--url URL] [--interval N]  Poll /health and emit on state change
+  soma self-update run --version V --url URL --sha256 HEX
+                       [--state-file PATH] [--allow-http-loopback]
+                                 Download, validate, and install a new binary
+  soma self-update recover [--state-file PATH]  Reconcile pending update state
+  soma self-update confirm [--state-file PATH]  Confirm update after healthy restart
   soma setup check               Check plugin setup without mutating appdata
   soma setup repair              Create missing appdata/env setup files
   soma setup plugin-hook [--no-repair]  Plugin hook JSON contract
@@ -122,6 +129,11 @@ pub enum Command {
     PackageGenerate {
         write: bool,
     },
+    /// Operator-driven binary self-update over the shared transaction crate.
+    ///
+    /// CLI infrastructure like `doctor` and `watch` — dispatched in
+    /// apps/soma::local::run, no MCP/REST parity requirement.
+    SelfUpdate(SelfUpdateCommand),
     Setup(SetupCommand),
 }
 
@@ -248,6 +260,7 @@ where
                 }
                 Some(Command::Watch { url, interval })
             }
+            "self-update" => parse_self_update_command(rest)?,
             "setup" => match rest {
                 [action, flags @ ..] if action == "check" => {
                     reject_args(flags, "setup check")?;
@@ -454,6 +467,7 @@ fn service_action_from_command(cmd: &Command) -> Option<SomaAction> {
         | Command::Provider { .. }
         | Command::Providers(_)
         | Command::PackageGenerate { .. }
+        | Command::SelfUpdate(_)
         | Command::Setup(_) => None,
     }
 }
@@ -564,6 +578,7 @@ fn reserved_cli_command(command: &str) -> bool {
             | "mcp"
             | "doctor"
             | "watch"
+            | "self-update"
             | "setup"
             | "package"
             | "tools"
@@ -654,6 +669,79 @@ fn parse_optional_value_flag(args: &[String], command: &str, flag: &str) -> Resu
 
 fn parse_required_value_flag(args: &[String], command: &str, flag: &str) -> Result<Option<String>> {
     Ok(core_parse_required_value_flag(args, command, flag)?)
+}
+
+fn parse_self_update_command(rest: &[String]) -> Result<Option<Command>> {
+    let Some((action, flags)) = rest.split_first() else {
+        return Err(anyhow!(
+            "self-update requires a subcommand: run, recover, or confirm"
+        ));
+    };
+    match action.as_str() {
+        "run" => {
+            let mut version = None;
+            let mut url = None;
+            let mut sha256 = None;
+            let mut state_file = None;
+            let mut allow_http_loopback = false;
+            let mut index = 0;
+            while index < flags.len() {
+                let flag = flags[index].as_str();
+                if flag == "--allow-http-loopback" {
+                    if allow_http_loopback {
+                        return Err(anyhow!("self-update run received duplicate {flag}"));
+                    }
+                    allow_http_loopback = true;
+                    index += 1;
+                    continue;
+                }
+                let target = match flag {
+                    "--version" => &mut version,
+                    "--url" => &mut url,
+                    "--sha256" => &mut sha256,
+                    "--state-file" => &mut state_file,
+                    _ => return Err(anyhow!("self-update run does not accept argument `{flag}`")),
+                };
+                if target.is_some() {
+                    return Err(anyhow!("self-update run received duplicate {flag}"));
+                }
+                let Some(value) = flags
+                    .get(index + 1)
+                    .filter(|value| !value.starts_with("--"))
+                else {
+                    return Err(anyhow!("self-update run requires a value after {flag}"));
+                };
+                *target = Some(value.clone());
+                index += 2;
+            }
+            let missing =
+                |flag: &str| anyhow!("self-update run requires {flag} (see `soma --help`)");
+            Ok(Some(Command::SelfUpdate(SelfUpdateCommand::Run {
+                version: version.ok_or_else(|| missing("--version"))?,
+                url: url.ok_or_else(|| missing("--url"))?,
+                sha256: sha256.ok_or_else(|| missing("--sha256"))?,
+                allow_http_loopback,
+                state_file,
+            })))
+        }
+        "recover" => {
+            let state_file =
+                parse_optional_value_flag(flags, "self-update recover", "--state-file")?;
+            Ok(Some(Command::SelfUpdate(SelfUpdateCommand::Recover {
+                state_file,
+            })))
+        }
+        "confirm" => {
+            let state_file =
+                parse_optional_value_flag(flags, "self-update confirm", "--state-file")?;
+            Ok(Some(Command::SelfUpdate(SelfUpdateCommand::Confirm {
+                state_file,
+            })))
+        }
+        other => Err(anyhow!(
+            "unknown self-update subcommand `{other}` (expected run, recover, or confirm)"
+        )),
+    }
 }
 
 fn parse_watch_flags(args: &[String]) -> Result<(Option<String>, Option<String>)> {

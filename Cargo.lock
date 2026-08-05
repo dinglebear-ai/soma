@@ -5852,9 +5852,11 @@ dependencies = [
  "soma-domain",
  "soma-provider-core",
  "soma-runtime",
+ "soma-self-update",
  "soma-test-support",
  "tempfile",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -6268,7 +6270,6 @@ dependencies = [
 name = "soma-self-update"
 version = "0.1.0"
 dependencies = [
- "fs2",
  "nix",
  "process-wrap",
  "serde",

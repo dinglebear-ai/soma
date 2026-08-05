@@ -12,7 +12,6 @@ publish = false
 layer = "shared"
 
 [dependencies]
-fs2 = "0.4"
 process-wrap = { version = "9.1", default-features = false, features = [
     "tokio1",
     "kill-on-drop",
