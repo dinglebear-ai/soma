@@ -13,7 +13,6 @@ use std::{
 };
 
 use atomicwrites::{AllowOverwrite, AtomicFile};
-use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -185,16 +184,20 @@ fn state_file_lock(
     loop {
         check_wait(deadline, cancelled)?;
         let locked = if exclusive {
-            file.try_lock_exclusive()
+            file.try_lock()
         } else {
-            FileExt::try_lock_shared(&file)
+            file.try_lock_shared()
         };
+        // Fully qualified: `std::sync::TryLockError` is already in scope here
+        // for the mutex helpers below and is a different type.
         match locked {
             Ok(()) => return Ok(Some(file)),
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+            Err(std::fs::TryLockError::WouldBlock) => {
                 std::thread::sleep(Duration::from_millis(2));
             }
-            Err(_) => return Err("provider state file could not be locked".to_owned()),
+            Err(std::fs::TryLockError::Error(_)) => {
+                return Err("provider state file could not be locked".to_owned());
+            }
         }
     }
 }
