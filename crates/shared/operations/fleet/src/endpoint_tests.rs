@@ -9,7 +9,7 @@ fn ssh(user: &str) -> HostEndpoint {
             .unwrap()
             .with_user(user)
             .unwrap()
-            .with_known_hosts_file("/home/jmagar/.ssh/known_hosts")
+            .with_known_hosts_file("/home/devuser/.ssh/known_hosts")
             .unwrap(),
     )
 }
@@ -17,7 +17,7 @@ fn ssh(user: &str) -> HostEndpoint {
 #[test]
 fn endpoint_changes_derive_new_topology_revisions() {
     let id = HostId::new("devhost").unwrap();
-    let first = HostRecord::new(id.clone(), ssh("jmagar"));
+    let first = HostRecord::new(id.clone(), ssh("devuser"));
     let second = HostRecord::new(id, ssh("root"));
     assert_ne!(first.revision(), second.revision());
     assert_ne!(first.pool_key(), second.pool_key());
@@ -25,7 +25,7 @@ fn endpoint_changes_derive_new_topology_revisions() {
 
 #[test]
 fn host_round_trip_rejects_forged_revision() {
-    let host = HostRecord::new(HostId::new("devhost").unwrap(), ssh("jmagar"));
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), ssh("devuser"));
     let encoded = serde_json::to_value(&host).unwrap();
     assert_eq!(
         serde_json::from_value::<HostRecord>(encoded.clone()).unwrap(),

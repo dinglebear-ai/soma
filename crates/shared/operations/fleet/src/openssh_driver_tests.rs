@@ -9,7 +9,7 @@ fn ssh_host() -> HostRecord {
         HostEndpoint::Ssh(
             SshEndpoint::new("198.51.100.10")
                 .unwrap()
-                .with_user("jmagar")
+                .with_user("devuser")
                 .unwrap(),
         ),
     )
