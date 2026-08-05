@@ -61,27 +61,28 @@ All 35 canonical read operations execute through this path.
 5. Require an idempotency key when the canonical operation contract declares idempotency.
 6. Execute through a mutation-capable `soma-infra` port.
 7. Preserve `NotSent`, `Sent`, or `Unknown` backend send state.
-8. Verify the postcondition through a separate read operation.
-9. Build and validate a canonical `OperationResult` with retry policy, verification, diagnostics, and recovery guidance.
+8. Verify the postcondition through a separate read operation when the canonical contract declares verification support; execution-only operations retain bounded exit/output evidence instead.
+9. Build and validate a canonical `OperationResult` with retry policy, verification when supported, diagnostics, and recovery guidance.
 
 ## Implemented mutations
 
-Fourteen of the 21 canonical mutations are implemented:
+Seventeen of the 21 canonical mutations are implemented:
 
 - `container.start`, `container.stop`, `container.restart`, `container.pause`, and `container.resume`;
 - `compose.up` and `compose.restart`;
 - `docker.pull`, `container.pull`, and `compose.pull`;
 - `docker.build` and `compose.build`;
-- `container.recreate` and `compose.recreate`.
+- `container.recreate` and `compose.recreate`;
+- `container.exec`, `host.exec`, and `host.exec_many`.
 
-Container lifecycle operations verify through `container.inspect`. Compose lifecycle operations verify through `compose.status`. Pull operations bind exact image references and verify IDs/tags/digests through `docker.images`. Build operations bind source-context SHA-256 values and output tags and verify output identities. Replacement operations bind full container configuration or normalized Compose config/status fingerprints, recheck them before send, and attach diff plus runtime-state evidence. Already-satisfied lifecycle states still return verified no-op results without mutation send.
+Container lifecycle operations verify through `container.inspect`. Compose lifecycle operations verify through `compose.status`. Pull operations bind exact image references and verify IDs/tags/digests through `docker.images`. Build operations bind source-context SHA-256 values and output tags and verify output identities. Replacement operations bind full container configuration or normalized Compose config/status fingerprints, recheck them before send, and attach diff plus runtime-state evidence. Execution operations bind direct argv, users, paths, timeouts, topology revisions, and normalized fanout target order; they return bounded canonical exit/output evidence without fabricating unsupported verification. Already-satisfied lifecycle states still return verified no-op results without mutation send.
 
-The remaining seven mutations fail closed with `UnsupportedOperation`.
+The remaining four mutations fail closed with `UnsupportedOperation`.
 
 ## Verification
 
 - all 35 canonical reads execute and validate their result schemas;
-- all fourteen implemented mutations plan, authorize, execute, and verify;
+- all seventeen implemented mutations plan, authorize, and execute; operations that declare verification support also verify independently;
 - stale topology, wrong target, expired authorization, missing confirmation, and missing idempotency fail before mutation send;
 - cancellation before admission is `NotSent`;
 - uncertain Docker failures remain `Unknown` and become failed terminal results;
@@ -97,6 +98,9 @@ The remaining seven mutations fail closed with `UnsupportedOperation`.
 - container replacement preserves the donor configuration surface and records destructive stage progress;
 - Compose replacement uses shell-free force-recreate and verifies the exact healthy service set;
 - successful replacements carry diff and runtime-state evidence with explicit recovery guidance;
+- execution plans bind direct argv, users, paths, timeouts, and target order, and drift is rejected before send;
+- container exec is non-TTY, host exec is descriptor-confined to explicit roots, and fanout retains stable per-target partial results;
+- execution outputs remain within canonical inline limits and uncertain targets require selective replanning rather than blind retry;
 - generated historical input schemas remain closed;
 - no legacy result projector or imported donor dependency exists;
 - strict Clippy, warning-free rustdoc, sibling tests, architecture, and pattern gates pass.

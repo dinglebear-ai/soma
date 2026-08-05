@@ -7,7 +7,8 @@ use crate::{RequestError, request::validate_absolute_path};
 
 const MAX_PROGRAM_CHARS: usize = 4096;
 const MAX_ARGUMENT_CHARS: usize = 4096;
-const MAX_ARGUMENTS: usize = 256;
+// Allows the 256 canonical command arguments plus a bounded typed-launcher prelude.
+const MAX_ARGUMENTS: usize = 320;
 const MAX_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 
 /// Bounded exec-style command request with no shell interpretation.
