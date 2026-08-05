@@ -166,6 +166,14 @@ jobs:
           version: "0.11.31"
           enable-cache: true
 
+      # python_authoring_fixtures_match_across_prepared_runner_modes looks for
+      # packages/python/.venv and fails the run if it is missing. That venv used
+      # to appear as a side effect of the Python suites this job ran; those moved
+      # to the python-tests job, so create it explicitly rather than depending on
+      # another job's leftovers.
+      - name: Install the Python authoring SDK for parity tests
+        run: uv sync --project packages/python --frozen
+
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
 
