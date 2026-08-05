@@ -13,6 +13,7 @@ use tracing::{info, warn};
 
 use crate::error::AuthError;
 use crate::jwt::AccessClaims;
+use crate::oauth_validation::validate_code_verifier;
 use crate::state::AuthState;
 use crate::token_client_auth;
 use crate::types::AuthorizationCodeRow;
@@ -261,7 +262,7 @@ impl TokenEndpointError {
 
     fn description(&self) -> String {
         match self {
-            Self::Auth(error) => error.to_string(),
+            Self::Auth(error) => error.public_message().to_string(),
             Self::UnsupportedGrantType(grant_type) => {
                 format!("unsupported grant_type `{grant_type}`")
             }
@@ -311,12 +312,14 @@ async fn authorization_code_grant(
     let client_id = require_field(request.client_id, "client_id")?;
     let redirect_uri = require_field(request.redirect_uri, "redirect_uri")?;
     let code_verifier = require_field(request.code_verifier, "code_verifier")?;
+    validate_code_verifier(&code_verifier)?;
     let auth_code_id = fingerprint(&code);
+    let redirect_uri_id = fingerprint(&redirect_uri);
     info!(
         grant_type = "authorization_code",
         client_id = %client_id,
         auth_code_id = %auth_code_id,
-        redirect_uri = %redirect_uri,
+        redirect_uri_id = %redirect_uri_id,
         requested_resource = requested_resource.as_deref().unwrap_or("<authorization-code-resource>"),
         "oauth authorization_code grant redeeming local code"
     );
@@ -437,7 +440,7 @@ async fn refresh_token_grant(
     );
     let stored = state
         .store
-        .find_refresh_token(&refresh_token)
+        .find_refresh_token_for_use(&refresh_token, &client_id)
         .await?
         .ok_or_else(|| {
             warn!(
@@ -511,11 +514,14 @@ async fn refresh_token_grant(
     }
     let exchange = provider.refresh(&provider_refresh_token).await?;
 
+    let refreshed_at = now_unix();
     let refreshed_expires_at = expires_at(
-        now_unix(),
+        refreshed_at,
         state.config.refresh_token_ttl,
         &format!("{}_AUTH_REFRESH_TOKEN_TTL_SECS", state.config.env_prefix),
     )?;
+    let next_refresh_token = random_token(24)?;
+    let next_refresh_token_id = fingerprint(&next_refresh_token);
     let subject =
         crate::oauth_provider::namespaced_subject(provider.provider_id(), &exchange.subject);
     let next_provider_refresh_token = exchange
@@ -531,33 +537,42 @@ async fn refresh_token_grant(
         &state.config.default_scope,
     );
 
-    state
+    let rotated = state
         .store
-        .upsert_refresh_token(RefreshTokenRow {
-            refresh_token: refresh_token.clone(),
-            client_id: stored.client_id.clone(),
-            subject: subject.clone(),
-            resource: stored_resource.clone(),
-            scope: elevated_scope.clone(),
-            provider: stored.provider.clone(),
-            provider_refresh_token: Some(next_provider_refresh_token),
-            created_at: stored.created_at,
-            expires_at: refreshed_expires_at,
-            // Preserved verbatim across the rewrite: the grant's contract does
-            // not change just because it was refreshed.
-            token_endpoint_auth_method: stored.token_endpoint_auth_method.clone(),
-        })
+        .rotate_refresh_token(
+            &refresh_token,
+            RefreshTokenRow {
+                refresh_token: next_refresh_token.clone(),
+                client_id: stored.client_id.clone(),
+                subject: subject.clone(),
+                resource: stored_resource.clone(),
+                scope: elevated_scope.clone(),
+                provider: stored.provider.clone(),
+                provider_refresh_token: Some(next_provider_refresh_token),
+                created_at: refreshed_at,
+                expires_at: refreshed_expires_at,
+                // Preserved across the rotation: the grant's client-auth
+                // contract does not change just because it was refreshed.
+                token_endpoint_auth_method: stored.token_endpoint_auth_method.clone(),
+            },
+        )
         .await?;
+    if rotated.is_none() {
+        return Err(AuthError::InvalidGrant(
+            "refresh token is missing, expired, or already used".to_string(),
+        ));
+    }
 
     info!(
         grant_type = "refresh_token",
         client_id = %stored.client_id,
-        refresh_token_id = %refresh_token_id,
+        previous_refresh_token_id = %refresh_token_id,
+        refresh_token_id = %next_refresh_token_id,
         subject_id = %fingerprint(&subject),
         provider = provider.provider_id(),
         resource = %stored_resource,
         scope = %elevated_scope,
-        "oauth refresh_token grant refreshed stable local token and issued new access token"
+        "oauth refresh_token grant rotated local token and issued new access token"
     );
 
     build_token_response(
@@ -566,7 +581,7 @@ async fn refresh_token_grant(
         subject,
         stored_resource,
         elevated_scope,
-        Some(refresh_token),
+        Some(next_refresh_token),
     )
 }
 
@@ -647,8 +662,8 @@ fn validate_authorization_code_row(
     if row.redirect_uri != redirect_uri {
         warn!(
             auth_code_id = %auth_code_id,
-            requested_redirect_uri = %redirect_uri,
-            stored_redirect_uri = %row.redirect_uri,
+            requested_redirect_uri_id = %fingerprint(redirect_uri),
+            stored_redirect_uri_id = %fingerprint(&row.redirect_uri),
             "oauth token rejected: redirect_uri does not match authorization code"
         );
         return Err(AuthError::InvalidGrant(
@@ -758,7 +773,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"))
                     .unwrap(),
             )
             .await
@@ -805,7 +820,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"))
                     .unwrap(),
             )
             .await
@@ -847,7 +862,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"))
                     .unwrap()
             ),
             app.oneshot(
@@ -858,7 +873,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"))
                     .unwrap()
             )
         );
@@ -882,7 +897,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"))
                     .unwrap(),
             )
             .await
@@ -941,7 +956,7 @@ mod tests {
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["error"], "invalid_grant");
-        assert_eq!(json["error_description"], "unknown refresh_token");
+        assert_eq!(json["error_description"], "invalid or expired grant");
         assert!(json.get("kind").is_none());
         assert!(json.get("message").is_none());
     }
@@ -1083,7 +1098,7 @@ mod tests {
                         header::CONTENT_TYPE,
                         "application/x-www-form-urlencoded",
                     )
-                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&resource=https%3A%2F%2Fother.example.com%2Fmcp&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"))
+                    .body(Body::from("grant_type=authorization_code&code=auth-code&client_id=client&resource=https%3A%2F%2Fother.example.com%2Fmcp&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"))
                     .unwrap(),
             )
             .await
@@ -1259,7 +1274,9 @@ mod tests {
                 resource: "https://app.example.com/mcp".to_string(),
                 scope: "app:read".to_string(),
                 provider: "google".to_string(),
-                code_challenge: super::pkce_challenge("verifier"),
+                code_challenge: super::pkce_challenge(
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1",
+                ),
                 code_challenge_method: "S256".to_string(),
                 provider_refresh_token: None,
                 created_at: 1_700_000_000,
@@ -1281,7 +1298,9 @@ mod tests {
                 resource: "https://app.example.com/mcp".to_string(),
                 scope: "app:read".to_string(),
                 provider: "google".to_string(),
-                code_challenge: super::pkce_challenge("verifier"),
+                code_challenge: super::pkce_challenge(
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1",
+                ),
                 code_challenge_method: "S256".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: 1_700_000_000,
@@ -1293,7 +1312,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refresh_grant_preserves_local_token_on_success() {
+    async fn refresh_grant_rotates_local_token_on_success() {
         let state = test_auth_state_with_mock_google().await;
         state
             .store
@@ -1331,18 +1350,24 @@ mod tests {
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         let new_token = json["refresh_token"].as_str().expect("refresh_token");
-        assert_eq!(
-            new_token, "original-token",
-            "local token must remain stable"
-        );
+        assert_ne!(new_token, "original-token", "refresh token must rotate");
         assert!(
             state
                 .store
                 .find_refresh_token("original-token")
                 .await
                 .unwrap()
+                .is_none(),
+            "spent refresh token must be removed from the active set"
+        );
+        assert!(
+            state
+                .store
+                .find_refresh_token(new_token)
+                .await
+                .unwrap()
                 .is_some(),
-            "local refresh token must remain usable after successful refresh"
+            "replacement refresh token must be active"
         );
     }
 
@@ -1454,7 +1479,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refresh_grant_allows_reuse_of_stable_local_token() {
+    async fn refresh_token_replay_revokes_the_active_rotation_family() {
         let state = test_auth_state_with_mock_google().await;
         state
             .store
@@ -1472,7 +1497,7 @@ mod tests {
             })
             .await
             .unwrap();
-        let app = router(state);
+        let app = router(state.clone());
         let first = app
             .clone()
             .oneshot(
@@ -1488,6 +1513,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(first.status(), StatusCode::OK);
+        let first_body = axum::body::to_bytes(first.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let first_json: serde_json::Value = serde_json::from_slice(&first_body).unwrap();
+        let replacement = first_json["refresh_token"]
+            .as_str()
+            .expect("rotated refresh token")
+            .to_string();
         let replay = app
             .oneshot(
                 Request::builder()
@@ -1501,10 +1534,20 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(
-            replay.status(),
-            StatusCode::OK,
-            "same local refresh token must be reusable across client restarts"
+        assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
+        let replay_body = axum::body::to_bytes(replay.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let replay_json: serde_json::Value = serde_json::from_slice(&replay_body).unwrap();
+        assert_eq!(replay_json["error"], "invalid_grant");
+        assert!(
+            state
+                .store
+                .find_refresh_token(&replacement)
+                .await
+                .unwrap()
+                .is_none(),
+            "replaying a spent token must revoke the active family member"
         );
     }
 
@@ -1521,7 +1564,9 @@ mod tests {
                 resource: "https://app.example.com/mcp".to_string(),
                 scope: "app:read".to_string(),
                 provider: "github".to_string(),
-                code_challenge: super::pkce_challenge("verifier"),
+                code_challenge: super::pkce_challenge(
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1",
+                ),
                 code_challenge_method: "S256".to_string(),
                 provider_refresh_token: None,
                 created_at: crate::util::now_unix(),
@@ -1538,7 +1583,7 @@ mod tests {
                     .uri("/token")
                     .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                     .body(Body::from(
-                        "grant_type=authorization_code&code=github-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier",
+                        "grant_type=authorization_code&code=github-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1",
                     ))
                     .unwrap(),
             )
@@ -1956,7 +2001,7 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(json["error"], "invalid_request");
-        assert_eq!(json["error_description"], "missing `assertion` parameter");
+        assert_eq!(json["error_description"], "request validation failed");
     }
 
     #[tokio::test]
@@ -1987,13 +2032,41 @@ mod tests {
         let (status, json) = post_token(
             &state,
             "grant_type=authorization_code&code=auth-code&client_id=client\
-             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
+             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"
                 .to_string(),
             None,
         )
         .await;
         assert_eq!(status, StatusCode::OK, "{json}");
         assert!(json["access_token"].is_string());
+    }
+
+    #[tokio::test]
+    async fn malformed_pkce_verifier_is_rejected_without_burning_the_code() {
+        let state = test_auth_state_with_registered_client().await;
+        seed_authorization_code(&state).await;
+        let (status, json) = post_token(
+            &state,
+            "grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=short"
+                .to_string(),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+        assert_eq!(json["error"], "invalid_grant");
+
+        let (status, json) = post_token(
+            &state,
+            "grant_type=authorization_code&code=auth-code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"
+                .to_string(),
+            None,
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "shape validation must happen before one-shot code redemption: {json}"
+        );
     }
 
     #[tokio::test]
@@ -2005,7 +2078,7 @@ mod tests {
         let (status, json) = post_token(
             &state,
             "grant_type=authorization_code&code=auth-code&client_id=client&client_secret=\
-             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
+             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"
                 .to_string(),
             None,
         )
@@ -2021,7 +2094,7 @@ mod tests {
         let (status, json) = post_token(
             &state,
             "grant_type=authorization_code&code=auth-code&client_id=client&client_secret=guess\
-             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
+             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"
                 .to_string(),
             None,
         )
@@ -2034,7 +2107,7 @@ mod tests {
         let (status, json) = post_token(
             &state,
             "grant_type=authorization_code&code=auth-code&client_id=client\
-             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
+             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"
                 .to_string(),
             None,
         )
@@ -2213,11 +2286,9 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
         assert_eq!(json["error"], "invalid_request");
-        assert!(
-            json["error_description"]
-                .as_str()
-                .is_some_and(|description| description.contains("unreachable")),
-            "the legacy path must still fail on client resolution: {json}"
+        assert_eq!(
+            json["error_description"], "request validation failed",
+            "the legacy path must still fail on client resolution without leaking network details: {json}"
         );
     }
 
@@ -2352,7 +2423,9 @@ mod tests {
                 resource: "https://app.example.com/mcp".to_string(),
                 scope: "app:read".to_string(),
                 provider: "google".to_string(),
-                code_challenge: super::pkce_challenge("verifier"),
+                code_challenge: super::pkce_challenge(
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1",
+                ),
                 code_challenge_method: "S256".to_string(),
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: 1_700_000_000,
@@ -2364,7 +2437,7 @@ mod tests {
         let (status, json) = post_token(
             &state,
             "grant_type=authorization_code&code=recorded-code&client_id=client\
-             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=verifier"
+             &redirect_uri=http://127.0.0.1:7777/callback&code_verifier=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"
                 .to_string(),
             None,
         )
@@ -2391,9 +2464,10 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK, "{json}");
+        let rotated_token = json["refresh_token"].as_str().expect("refresh token");
         let row = state
             .store
-            .find_refresh_token("preserved-token")
+            .find_refresh_token(rotated_token)
             .await
             .unwrap()
             .expect("refresh token row");

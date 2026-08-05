@@ -16,6 +16,8 @@ mod config_machine_clients;
 mod config_profile;
 #[path = "config_providers.rs"]
 mod config_providers;
+#[path = "config_validation.rs"]
+mod config_validation;
 
 pub use config_env::EnvAuthConfigLoader;
 pub use config_machine_clients::{EnterpriseIssuerConfig, MachineClientConfig};
@@ -241,42 +243,8 @@ impl AuthConfig {
 
     /// Validate a typed configuration before constructing runtime state.
     pub fn validate(&self) -> Result<(), AuthError> {
+        config_validation::validate_security_sensitive_config(self)?;
         let prefix = &self.env_prefix;
-        if !self.google.callback_path.starts_with('/') {
-            return Err(AuthError::Config(format!(
-                "{prefix}_GOOGLE_CALLBACK_PATH must start with `/`, got `{}`",
-                self.google.callback_path
-            )));
-        }
-
-        if !self.resource_path.starts_with('/') {
-            return Err(AuthError::Config(format!(
-                "resource_path must start with `/`, got `{}`",
-                self.resource_path
-            )));
-        }
-        if !self.login_path.starts_with('/') {
-            return Err(AuthError::Config(format!(
-                "login_path must start with `/`, got `{}`",
-                self.login_path
-            )));
-        }
-        if self.upstream_client_name.trim().is_empty() {
-            return Err(AuthError::Config(
-                "upstream_client_name must not be empty".to_string(),
-            ));
-        }
-        if !self.upstream_callback_path.starts_with('/') {
-            return Err(AuthError::Config(format!(
-                "upstream_callback_path must start with `/`, got `{}`",
-                self.upstream_callback_path
-            )));
-        }
-        if self.session_cookie_name.is_empty() {
-            return Err(AuthError::Config(
-                "session_cookie_name must not be empty".to_string(),
-            ));
-        }
         if self.default_scope.is_empty() {
             return Err(AuthError::Config(
                 "default_scope must not be empty".to_string(),
@@ -330,12 +298,6 @@ impl AuthConfig {
         }
 
         if matches!(self.mode, AuthMode::OAuth) {
-            if self.public_url.is_none() {
-                return Err(AuthError::Config(format!(
-                    "{prefix}_PUBLIC_URL is required when {prefix}_AUTH_MODE=oauth"
-                )));
-            }
-
             let google_configured = !self.google.client_id.is_empty();
             let authelia_configured = !self.authelia.client_id.is_empty();
             let github_configured = !self.github.client_id.is_empty();
@@ -1027,8 +989,7 @@ mod tests {
     }
 
     #[test]
-    fn oauth_mode_rejects_two_configured_providers_sharing_a_callback_path_missing_a_leading_slash()
-    {
+    fn oauth_mode_rejects_provider_callback_path_missing_a_leading_slash() {
         // A `callback_path` without a leading `/` still mounts at the same
         // normalized route as one that has it (build_provider_redirect_uri
         // in state.rs prepends the missing `/`), so the collision check must
@@ -1046,7 +1007,7 @@ mod tests {
         .unwrap_err();
         assert!(
             err.to_string()
-                .contains("must not both resolve to `/auth/google/callback`"),
+                .contains("github.callback_path must be an absolute path"),
             "unexpected error: {err}"
         );
     }
@@ -1069,8 +1030,7 @@ mod tests {
     }
 
     #[test]
-    fn oauth_mode_rejects_a_callback_path_colliding_with_a_fixed_crate_route_missing_a_leading_slash()
-     {
+    fn oauth_mode_rejects_fixed_route_name_missing_a_leading_slash() {
         // Same as above but without the leading `/` on the operator-supplied
         // value. Uses GitHub, not Google: Google's callback_path has its own
         // unconditional "must start with `/`" check earlier in validate()
@@ -1089,7 +1049,8 @@ mod tests {
         ]))
         .unwrap_err();
         assert!(
-            err.to_string().contains("must not resolve to `/authorize`"),
+            err.to_string()
+                .contains("github.callback_path must be an absolute path"),
             "unexpected error: {err}"
         );
     }

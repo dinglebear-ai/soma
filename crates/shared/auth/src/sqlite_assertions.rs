@@ -1,4 +1,4 @@
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 
 use crate::error::AuthError;
 
@@ -67,7 +67,8 @@ impl SqliteStore {
         .await
     }
 
-    /// Revoke one refresh token only when it belongs to the authenticated client.
+    /// Revoke a refresh-token family only when the presented active or spent
+    /// token belongs to the authenticated client.
     pub async fn revoke_refresh_token(
         &self,
         refresh_token: &str,
@@ -76,13 +77,37 @@ impl SqliteStore {
         let token_hash = hash_token(refresh_token);
         let client_id = client_id.to_owned();
         self.with_conn(move |conn| {
+            conn.execute_batch("BEGIN IMMEDIATE")
+                .map_err(sqlite_error)?;
+            let family_id = conn
+                .query_row(
+                    "SELECT family_id FROM refresh_tokens
+                     WHERE refresh_token_hash = ?1 AND client_id = ?2
+                     UNION ALL
+                     SELECT family_id FROM used_refresh_tokens
+                     WHERE refresh_token_hash = ?1 AND client_id = ?2
+                     LIMIT 1",
+                    params![token_hash, client_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+                .map_err(sqlite_error)?;
+            let Some(family_id) = family_id else {
+                conn.execute_batch("ROLLBACK").map_err(sqlite_error)?;
+                return Ok(false);
+            };
             conn.execute(
-                "DELETE FROM refresh_tokens
-                 WHERE refresh_token_hash = ?1 AND client_id = ?2",
-                params![token_hash, client_id],
+                "DELETE FROM refresh_tokens WHERE family_id = ?1",
+                params![family_id],
             )
-            .map(|deleted| deleted == 1)
-            .map_err(sqlite_error)
+            .map_err(sqlite_error)?;
+            conn.execute(
+                "DELETE FROM used_refresh_tokens WHERE family_id = ?1",
+                params![family_id],
+            )
+            .map_err(sqlite_error)?;
+            conn.execute_batch("COMMIT").map_err(sqlite_error)?;
+            Ok(true)
         })
         .await
     }

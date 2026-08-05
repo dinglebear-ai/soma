@@ -225,7 +225,7 @@ impl RevocationEndpointError {
 
     fn description(&self) -> String {
         match self {
-            Self::Auth(error) => error.to_string(),
+            Self::Auth(error) => error.public_message().to_string(),
             Self::UnsupportedTokenType => {
                 "access tokens are stateless and cannot be revoked; revoke the refresh token \
                  instead"

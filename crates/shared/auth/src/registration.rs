@@ -14,7 +14,9 @@ use axum::{Json, response::Response};
 use tracing::{info, warn};
 
 use crate::error::AuthError;
-use crate::redirect_uri::is_allowed_redirect_uri;
+use crate::redirect_uri::{
+    infer_application_type, is_allowed_redirect_uri, is_allowed_redirect_uri_for_application,
+};
 use crate::state::AuthState;
 use crate::types::{ClientRegistrationRequest, ClientRegistrationResponse, RegisteredClient};
 use crate::util::{now_unix, oauth_error_response, random_token, remote_ip};
@@ -32,28 +34,10 @@ pub async fn register_client(
         );
     }
     let native_callback_endpoint = crate::metadata::native_callback_endpoint(&state);
-    for redirect_uri in &request.redirect_uris {
-        if redirect_uri != &native_callback_endpoint
-            && !is_allowed_redirect_uri(redirect_uri, &state.config.allowed_client_redirect_uris)
-        {
-            warn!(
-                redirect_uri = %redirect_uri,
-                native_callback_endpoint = %native_callback_endpoint,
-                allowed_patterns = ?state.config.allowed_client_redirect_uris,
-                "oauth register rejected: redirect URI is not in the allowlist, native callback, or loopback set"
-            );
-            return Err(RegistrationError::InvalidRedirectUri(format!(
-                "redirect URI `{redirect_uri}` must target a loopback host, match the native callback endpoint, or match an allowed redirect pattern"
-            )));
-        }
-    }
-
-    // RFC 7591 / OIDC application_type. Accept the two registered values and
-    // default to "web" when omitted; reject anything else so misconfigured
-    // clients fail loudly rather than silently registering an unknown type.
     let application_type = match request.application_type.as_deref() {
-        None | Some("web") => "web".to_string(),
-        Some("native") => "native".to_string(),
+        None => infer_application_type(&request.redirect_uris, &native_callback_endpoint),
+        Some("web") => "web",
+        Some("native") => "native",
         Some(other) => {
             warn!(
                 application_type = %other,
@@ -64,6 +48,28 @@ pub async fn register_client(
             )));
         }
     };
+    for redirect_uri in &request.redirect_uris {
+        let allowed = if redirect_uri == &native_callback_endpoint {
+            application_type == "native"
+        } else {
+            is_allowed_redirect_uri_for_application(
+                redirect_uri,
+                &state.config.allowed_client_redirect_uris,
+                application_type,
+            )
+        };
+        if !allowed {
+            warn!(
+                redirect_uri_id = %crate::util::fingerprint(redirect_uri),
+                application_type,
+                "oauth register rejected: redirect URI failed validation or policy"
+            );
+            return Err(RegistrationError::InvalidRedirectUri(format!(
+                "redirect URI `{redirect_uri}` is not valid for application_type `{application_type}` or is not allowed by policy"
+            )));
+        }
+    }
+    let application_type = application_type.to_string();
 
     let client = RegisteredClient {
         client_id: random_token(18)?,
@@ -76,7 +82,7 @@ pub async fn register_client(
     info!(
         client_id = %client.client_id,
         redirect_uri_count = client.redirect_uris.len(),
-        redirect_uris = ?client.redirect_uris,
+        application_type = %application_type,
         "oauth client registration accepted"
     );
     Ok(Json(ClientRegistrationResponse {
@@ -165,10 +171,11 @@ impl RegistrationError {
 
     fn description(&self) -> String {
         match self {
-            Self::InvalidRedirectUri(message) | Self::InvalidClientMetadata(message) => {
-                message.clone()
+            Self::InvalidRedirectUri(_) => {
+                "one or more redirect_uris are invalid or disallowed".to_string()
             }
-            Self::Auth(error) => error.to_string(),
+            Self::InvalidClientMetadata(_) => "client metadata is invalid".to_string(),
+            Self::Auth(error) => error.public_message().to_string(),
         }
     }
 

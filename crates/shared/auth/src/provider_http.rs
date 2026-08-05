@@ -164,13 +164,44 @@ impl RequestErrors {
 /// `AuthError` message / log line — bounds the blast radius of a malicious
 /// or buggy upstream sending back an oversized body.
 const ERROR_BODY_SNIPPET_MAX_CHARS: usize = 500;
+const ERROR_BODY_MAX_BYTES: usize = 64 * 1024;
+const SUCCESS_BODY_MAX_BYTES: usize = 1024 * 1024;
+
+async fn read_bounded_body(
+    response: &mut reqwest::Response,
+    max_bytes: usize,
+    context: &str,
+) -> Result<Vec<u8>, AuthError> {
+    if response
+        .content_length()
+        .is_some_and(|content_length| content_length > max_bytes as u64)
+    {
+        return Err(AuthError::Decode(format!(
+            "{context}: response body exceeds {max_bytes} bytes"
+        )));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| AuthError::Network(format!("{context}: {error}")))?
+    {
+        if body.len().saturating_add(chunk.len()) > max_bytes {
+            return Err(AuthError::Decode(format!(
+                "{context}: response body exceeds {max_bytes} bytes"
+            )));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
 
 pub(crate) async fn read_json_response<T: DeserializeOwned>(
     trace: RequestTrace<'_>,
     request: reqwest::RequestBuilder,
     errors: RequestErrors,
 ) -> Result<T, AuthError> {
-    let response = request.send().await.map_err(|error| {
+    let mut response = request.send().await.map_err(|error| {
         let auth_error = AuthError::Network(format!("{}: {error}", errors.transport_context));
         trace.error(None, &error);
         warn!(
@@ -191,13 +222,16 @@ pub(crate) async fn read_json_response<T: DeserializeOwned>(
         .map(|seconds| seconds.saturating_mul(1_000));
 
     // Check the status via `error_for_status_ref` (borrows, doesn't consume)
-    // so a non-2xx response's body can still be read afterward via
-    // `.text()` — `error_for_status()` on the owned `Response` would consume
+    // so a non-2xx response's body can still be read afterward by the bounded
+    // chunk reader. `error_for_status()` on the owned `Response` would consume
     // it, and the resulting `reqwest::Error` carries only the status line,
     // leaving operators debugging a 400 from a token endpoint with no
     // indication of *why* (e.g. `{"error":"invalid_grant",...}`).
     if let Err(status_error) = response.error_for_status_ref() {
-        let body = response.text().await.unwrap_or_default();
+        let body = read_bounded_body(&mut response, ERROR_BODY_MAX_BYTES, &errors.status_context)
+            .await
+            .unwrap_or_default();
+        let body = String::from_utf8_lossy(&body);
         let body_snippet = error_body_snippet(&body);
         let auth_error = if let Some(retry_after_ms) = retry_after_ms {
             // GitHub's secondary rate limit (abuse detection) responds with
@@ -230,7 +264,13 @@ pub(crate) async fn read_json_response<T: DeserializeOwned>(
     }
 
     trace.finish(status);
-    response.json::<T>().await.map_err(|error| {
+    let body = read_bounded_body(
+        &mut response,
+        SUCCESS_BODY_MAX_BYTES,
+        &errors.decode_context,
+    )
+    .await?;
+    serde_json::from_slice::<T>(&body).map_err(|error| {
         let auth_error = AuthError::Decode(format!("{}: {error}", errors.decode_context));
         warn!(
             provider = errors.provider_id,
@@ -245,10 +285,9 @@ pub(crate) async fn read_json_response<T: DeserializeOwned>(
 
 /// Bounded-length ` - <body>` suffix for an error message/log line. Returns
 /// an empty string (so callers can append it directly with no dangling
-/// separator) when the body is empty or unreadable — `.text()` already
-/// degrades invalid UTF-8 losslessly-to-lossy rather than erroring, so
-/// "unreadable" here means the read itself failed (I/O error), handled by
-/// the caller's `.unwrap_or_default()`.
+/// separator) when the body is empty or unreadable. Invalid UTF-8 is decoded
+/// with `String::from_utf8_lossy`; "unreadable" means the bounded chunk read
+/// itself failed, handled by the caller's `.unwrap_or_default()`.
 fn error_body_snippet(body: &str) -> String {
     let trimmed = body.trim();
     if trimmed.is_empty() {
@@ -445,5 +484,63 @@ mod tests {
             matches!(error, AuthError::Decode(_)),
             "expected Decode, got {error:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn an_oversized_success_body_is_rejected_before_json_decode() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/oversized-success"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![
+                b'x';
+                super::SUCCESS_BODY_MAX_BYTES
+                    + 1
+            ]))
+            .mount(&server)
+            .await;
+        let url = server
+            .uri()
+            .parse::<reqwest::Url>()
+            .unwrap()
+            .join("/oversized-success")
+            .unwrap();
+        let client = reqwest::Client::new();
+        let trace = RequestTrace::start("test-provider", "op", "GET", &url);
+
+        let error =
+            read_json_response::<TestPayload>(trace, client.get(url.clone()), test_errors())
+                .await
+                .unwrap_err();
+        assert!(matches!(error, AuthError::Decode(_)), "{error:?}");
+        assert!(error.to_string().contains("exceeds"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn an_oversized_error_body_does_not_get_buffered_or_reflected() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/oversized-error"))
+            .respond_with(ResponseTemplate::new(400).set_body_bytes(vec![
+                b's';
+                super::ERROR_BODY_MAX_BYTES
+                    + 1
+            ]))
+            .mount(&server)
+            .await;
+        let url = server
+            .uri()
+            .parse::<reqwest::Url>()
+            .unwrap()
+            .join("/oversized-error")
+            .unwrap();
+        let client = reqwest::Client::new();
+        let trace = RequestTrace::start("test-provider", "op", "GET", &url);
+
+        let error =
+            read_json_response::<TestPayload>(trace, client.get(url.clone()), test_errors())
+                .await
+                .unwrap_err();
+        assert!(matches!(error, AuthError::AuthFailed(_)), "{error:?}");
+        assert!(error.to_string().len() < 1_000, "{error}");
     }
 }

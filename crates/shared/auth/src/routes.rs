@@ -8,7 +8,10 @@ use std::time::Instant;
 
 use crate::authorize::{authorize, browser_login, callback, native_callback, native_poll};
 use crate::error::AuthErrorKind;
-use crate::metadata::{authorization_server_metadata, jwks, protected_resource_metadata};
+use crate::metadata::{
+    authorization_server_metadata, bearer_authorization_server_metadata, jwks,
+    protected_resource_metadata,
+};
 use crate::registration::register_client;
 use crate::revoke::revoke;
 use crate::state::AuthState;
@@ -77,11 +80,11 @@ pub fn bearer_only_router(state: AuthState) -> Router {
     let mut app = Router::new()
         .route(
             "/.well-known/oauth-authorization-server",
-            get(authorization_server_metadata),
+            get(bearer_authorization_server_metadata),
         )
         .route(
             "/.well-known/oauth-authorization-server/{*route}",
-            get(authorization_server_metadata),
+            get(bearer_authorization_server_metadata),
         )
         .route(
             "/.well-known/oauth-protected-resource",

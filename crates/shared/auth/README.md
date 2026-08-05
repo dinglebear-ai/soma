@@ -93,7 +93,9 @@ Refresh tokens and credentials are stored in SQLite. Configure an encryption key
 - SQLite is bundled through `rusqlite` for portable deployment.
 - JWT signing uses Ed25519.
 - Provider and upstream refresh tokens support ChaCha20-Poly1305 encryption at rest.
-- PKCE S256 is required for upstream authorization.
+- PKCE S256 syntax and verification are enforced for inbound and upstream authorization.
+- Public-client refresh tokens rotate on every use; replay revokes the active token family.
+- Native polling requires a strong one-time state and returns terminal provider errors exactly once.
 - Secrets are redacted from `Debug` output where represented by secret wrapper types.
 - Dynamic client registration is disabled by default.
 - Static bearer access during OAuth remains an explicit consumer policy.

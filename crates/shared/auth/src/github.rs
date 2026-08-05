@@ -259,7 +259,7 @@ impl OAuthProvider for GitHubProvider {
         info!(
             provider = "github",
             oauth_code_id = %fingerprint(code),
-            redirect_uri = %self.redirect_uri,
+            redirect_uri_id = %fingerprint(self.redirect_uri.as_str()),
             "oauth upstream code exchange started"
         );
         let payload: GitHubTokenResult = read_json_response(

@@ -191,7 +191,7 @@ impl OidcVerifier {
         info!(
             provider = self.provider_id,
             oauth_code_id = %fingerprint(code),
-            redirect_uri = %redirect_uri,
+            redirect_uri_id = %fingerprint(redirect_uri.as_str()),
             "oauth upstream code exchange started"
         );
         let payload: OidcTokenResponse = read_json_response(

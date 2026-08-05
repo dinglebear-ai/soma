@@ -97,3 +97,57 @@ async fn refresh_revocation_is_bound_to_authenticated_client() {
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn presenting_a_spent_token_to_revocation_revokes_its_active_family() {
+    let store = store().await;
+    let now = now_unix();
+    store
+        .upsert_refresh_token(RefreshTokenRow {
+            refresh_token: "old-refresh".to_string(),
+            client_id: "client-a".to_string(),
+            subject: "subject".to_string(),
+            resource: "https://soma.example/mcp".to_string(),
+            scope: "app:read".to_string(),
+            provider: "google".to_string(),
+            provider_refresh_token: Some("provider-refresh".to_string()),
+            created_at: now,
+            expires_at: now + 3600,
+            token_endpoint_auth_method: Some("none".to_string()),
+        })
+        .await
+        .unwrap();
+    store
+        .rotate_refresh_token(
+            "old-refresh",
+            RefreshTokenRow {
+                refresh_token: "new-refresh".to_string(),
+                client_id: "client-a".to_string(),
+                subject: "subject".to_string(),
+                resource: "https://soma.example/mcp".to_string(),
+                scope: "app:read".to_string(),
+                provider: "google".to_string(),
+                provider_refresh_token: Some("provider-refresh".to_string()),
+                created_at: now + 1,
+                expires_at: now + 3600,
+                token_endpoint_auth_method: Some("none".to_string()),
+            },
+        )
+        .await
+        .unwrap()
+        .expect("rotation succeeds");
+
+    assert!(
+        store
+            .revoke_refresh_token("old-refresh", "client-a")
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .find_refresh_token("new-refresh")
+            .await
+            .unwrap()
+            .is_none()
+    );
+}

@@ -11,6 +11,7 @@ use tracing::{debug, info, warn};
 
 use crate::error::AuthError;
 use crate::oauth_provider::{AuthorizeUrlRequest, namespaced_subject};
+use crate::oauth_validation::{validate_client_state, validate_s256_code_challenge};
 use crate::registration::resolve_client_redirect_uris;
 use crate::session::{append_set_cookie, build_browser_session_cookie, create_browser_session};
 use crate::state::AuthState;
@@ -23,9 +24,14 @@ use crate::util::{
     apply_cache_control_no_store, expires_at, fingerprint, now_unix, random_token, remote_ip,
 };
 
+#[path = "authorize_callback.rs"]
+mod authorize_callback;
+use authorize_callback::{authorization_error_redirect, provider_callback_error};
+
 const AUTH_REQUEST_TTL_SECS: i64 = 300;
 const NATIVE_SUCCESS_PAGE: &str = r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Signed in</h2><p>You can close this tab and return to the app.</p></body></html>"#;
 const NATIVE_CALLBACK_EXPIRED_PAGE: &str = r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Sign-in link expired</h2><p>Return to the app and start sign-in again.</p></body></html>"#;
+const PROVIDER_CALLBACK_ERROR_PAGE: &str = r#"<!doctype html><html><body style="font-family:sans-serif;background:#07131c;color:#e6f4fb;text-align:center;padding-top:4rem"><h2>Sign-in was not completed</h2><p>Return to the app and start sign-in again.</p></body></html>"#;
 
 /// Enforces the configured email allowlist.
 ///
@@ -124,11 +130,13 @@ pub async fn browser_login(
         "browser login redirected to upstream provider"
     );
 
-    Ok((
-        StatusCode::FOUND,
-        [(header::LOCATION, location.to_string())],
-    )
-        .into_response())
+    Ok(apply_cache_control_no_store(
+        (
+            StatusCode::FOUND,
+            [(header::LOCATION, location.to_string())],
+        )
+            .into_response(),
+    ))
 }
 
 /// Plain HTML provider-choice page shown by `browser_login` when the
@@ -221,14 +229,18 @@ pub async fn authorize(
     validate_response_type(&query.response_type)?;
     let resource = validate_resource(&state, query.resource.as_deref())?;
     let scope = validate_scope(&state, &resource, &query.scope)?;
+    let native_flow = query.redirect_uri == crate::metadata::native_callback_endpoint(&state);
+    validate_client_state(&query.state, native_flow)?;
     let client_state_id = fingerprint(&query.state);
+    let redirect_uri_id = fingerprint(&query.redirect_uri);
     info!(
         client_id = %query.client_id,
-        redirect_uri = %query.redirect_uri,
+        redirect_uri_id = %redirect_uri_id,
         client_state_id = %client_state_id,
         resource = %resource,
         requested_scope = %query.scope,
         normalized_scope = %scope,
+        native_flow,
         "oauth authorize request received"
     );
     let redirect_uris =
@@ -236,7 +248,7 @@ pub async fn authorize(
     if !redirect_uris.iter().any(|uri| uri == &query.redirect_uri) {
         warn!(
             client_id = %query.client_id,
-            redirect_uri = %query.redirect_uri,
+            redirect_uri_id = %redirect_uri_id,
             client_state_id = %client_state_id,
             "oauth authorize rejected: redirect URI does not match the registered/CIMD-allowlisted client"
         );
@@ -255,6 +267,7 @@ pub async fn authorize(
             "code_challenge_method must be S256".to_string(),
         ));
     }
+    validate_s256_code_challenge(&query.code_challenge)?;
 
     let token_endpoint_auth_method = issued_client_auth_method(&state, &query.client_id).await;
 
@@ -308,26 +321,24 @@ pub async fn authorize(
     })?;
     info!(
         client_id = %query.client_id,
-        redirect_uri = %query.redirect_uri,
+        redirect_uri_id = %redirect_uri_id,
         client_state_id = %client_state_id,
         oauth_state_id = %oauth_state_id,
         resource = %resource,
         scope = %scope,
         provider = provider.provider_id(),
+        authorization_host = location.host_str().unwrap_or_default(),
+        authorization_path = location.path(),
         "oauth authorize request redirected to upstream provider"
     );
-    debug!(
-        client_id = %query.client_id,
-        oauth_state_id = %oauth_state_id,
-        location = %location,
-        "oauth authorize redirect URL generated"
-    );
 
-    Ok((
-        StatusCode::FOUND,
-        [(header::LOCATION, location.to_string())],
-    )
-        .into_response())
+    Ok(apply_cache_control_no_store(
+        (
+            StatusCode::FOUND,
+            [(header::LOCATION, location.to_string())],
+        )
+            .into_response(),
+    ))
 }
 
 pub async fn callback(
@@ -339,10 +350,30 @@ pub async fn callback(
         oauth_state_id = %oauth_state_id,
         "oauth callback received"
     );
+    let callback_error = provider_callback_error(&query);
     if let Some(login) = state.store.take_browser_login_state(&query.state).await? {
+        if let Some(error) = callback_error {
+            warn!(
+                oauth_state_id = %oauth_state_id,
+                provider = %login.provider,
+                error,
+                "browser login callback returned an OAuth error"
+            );
+            return Ok(apply_cache_control_no_store(
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::response::Html(PROVIDER_CALLBACK_ERROR_PAGE),
+                )
+                    .into_response(),
+            ));
+        }
+        let code = query
+            .code
+            .as_deref()
+            .expect("provider_callback_error guarantees a non-empty code");
         let provider = state.provider(&login.provider)?;
         let exchange = provider
-            .exchange_code(&query.code, &login.provider_code_verifier)
+            .exchange_code(code, &login.provider_code_verifier)
             .await?;
         let allowed = state.resolve_allowed_emails().await?;
         check_email_allowlist(
@@ -353,7 +384,8 @@ pub async fn callback(
         )?;
         let subject = namespaced_subject(provider.provider_id(), &exchange.subject);
         let session = create_browser_session(&state, subject, exchange.email).await?;
-        let mut response = Redirect::to(&login.return_to).into_response();
+        let mut response =
+            apply_cache_control_no_store(Redirect::to(&login.return_to).into_response());
         append_set_cookie(
             &mut response,
             &build_browser_session_cookie(&state, &session.session_id),
@@ -379,24 +411,63 @@ pub async fn callback(
             );
             AuthError::InvalidGrant("authorization state is invalid or expired".to_string())
         })?;
+    let redirect_uri_id = fingerprint(&request.redirect_uri);
     info!(
         client_id = %request.client_id,
-        redirect_uri = %request.redirect_uri,
+        redirect_uri_id = %redirect_uri_id,
         oauth_state_id = %oauth_state_id,
         client_state_id = %fingerprint(&request.client_state),
         resource = %request.resource,
         scope = %request.scope,
         "oauth callback state redeemed"
     );
+
+    // RFC 9207: echo the issuer identifier on authorization success and error.
+    let issuer = crate::metadata::public_base_url(&state);
+    if let Some(error) = callback_error {
+        warn!(
+            client_id = %request.client_id,
+            redirect_uri_id = %redirect_uri_id,
+            oauth_state_id = %oauth_state_id,
+            error,
+            "oauth callback returned a provider error"
+        );
+        let native_callback_endpoint = crate::metadata::native_callback_endpoint(&state);
+        if request.redirect_uri == native_callback_endpoint {
+            validate_client_state(&request.client_state, true)?;
+            let now = now_unix();
+            state
+                .store
+                .insert_native_authorization_result(NativeAuthorizationResultRow {
+                    state: request.client_state,
+                    code: None,
+                    error: Some(error.to_string()),
+                    created_at: now,
+                    expires_at: expires_at(
+                        now,
+                        state.config.auth_code_ttl,
+                        &format!("{}_AUTH_CODE_TTL_SECS", state.config.env_prefix),
+                    )?,
+                })
+                .await?;
+            return Ok(apply_cache_control_no_store(
+                (
+                    StatusCode::BAD_REQUEST,
+                    axum::response::Html(PROVIDER_CALLBACK_ERROR_PAGE),
+                )
+                    .into_response(),
+            ));
+        }
+        return authorization_error_redirect(&request, &issuer, error);
+    }
+    let code = query
+        .code
+        .as_deref()
+        .expect("provider_callback_error guarantees a non-empty code");
     let provider = state.provider(&request.provider)?;
     let exchange = provider
-        .exchange_code(&query.code, &request.provider_code_verifier)
+        .exchange_code(code, &request.provider_code_verifier)
         .await?;
-
-    // RFC 9207: echo the issuer identifier on the authorization response (both
-    // success and error) so the client can detect authorization-server mix-up
-    // attacks. Matches the `issuer` advertised in authorization-server metadata.
-    let issuer = crate::metadata::public_base_url(&state);
 
     // RFC 6749 §4.1.2.1: errors must redirect to the client's redirect_uri,
     // not surface as a JSON HTTP error. The denial reason is sourced from the
@@ -419,7 +490,9 @@ pub async fn callback(
             .append_pair("error_description", &denial.to_string())
             .append_pair("state", &request.client_state)
             .append_pair("iss", &issuer);
-        return Ok(Redirect::to(redirect_target.as_str()).into_response());
+        return Ok(apply_cache_control_no_store(
+            Redirect::to(redirect_target.as_str()).into_response(),
+        ));
     }
 
     let subject = namespaced_subject(provider.provider_id(), &exchange.subject);
@@ -473,7 +546,7 @@ pub async fn callback(
         client_id = %request_client_id,
         resource = %request_resource,
         scope = %request_scope,
-        redirect_uri = %request.redirect_uri,
+        redirect_uri_id = %redirect_uri_id,
         "oauth callback issued local authorization code"
     );
 
@@ -485,12 +558,14 @@ pub async fn callback(
     // plain "signed in" page directly.
     let native_callback_endpoint = crate::metadata::native_callback_endpoint(&state);
     if request.redirect_uri == native_callback_endpoint {
+        validate_client_state(&request.client_state, true)?;
         let now = now_unix();
         state
             .store
             .insert_native_authorization_result(NativeAuthorizationResultRow {
                 state: request.client_state,
-                code: auth_code,
+                code: Some(auth_code),
+                error: None,
                 created_at: now,
                 expires_at: expires_at(
                     now,
@@ -522,11 +597,13 @@ pub async fn callback(
         .append_pair("iss", &issuer);
     debug!(
         auth_code_id = %auth_code_id,
-        redirect_uri = %redirect_uri,
+        redirect_uri_id = %redirect_uri_id,
         "oauth callback redirecting client back to registered callback"
     );
 
-    Ok(Redirect::to(redirect_uri.as_str()).into_response())
+    Ok(apply_cache_control_no_store(
+        Redirect::to(redirect_uri.as_str()).into_response(),
+    ))
 }
 
 /// Direct-hit fallback for the registered native `redirect_uri`. In the real
@@ -541,11 +618,7 @@ pub async fn callback(
 /// there's nothing to correlate it against.
 pub async fn native_callback(Query(query): Query<NativePollQuery>) -> Result<Response, AuthError> {
     let state_param = query.state.trim();
-    if state_param.is_empty() {
-        return Err(AuthError::Validation(
-            "missing `state` parameter".to_string(),
-        ));
-    }
+    validate_client_state(state_param, false)?;
     Ok(apply_cache_control_no_store(
         (
             StatusCode::GONE,
@@ -560,24 +633,24 @@ pub async fn native_poll(
     Query(query): Query<NativePollQuery>,
 ) -> Result<Response, AuthError> {
     let state_param = query.state.trim();
-    if state_param.is_empty() {
-        return Err(AuthError::Validation(
-            "missing `state` parameter".to_string(),
-        ));
-    }
+    validate_client_state(state_param, true)?;
     let response = if let Some(row) = state
         .store
         .take_native_authorization_result(state_param)
         .await?
     {
         Json(NativePollResponse {
-            code: Some(row.code),
+            code: row.code,
+            error: row.error,
         })
         .into_response()
     } else {
         (
             StatusCode::ACCEPTED,
-            Json(NativePollResponse { code: None }),
+            Json(NativePollResponse {
+                code: None,
+                error: None,
+            }),
         )
             .into_response()
     };
@@ -868,7 +941,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=https://127.0.0.1/client.json&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=https://127.0.0.1/client.json&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -883,10 +956,7 @@ pub mod tests {
         // CimdError (which would reveal "resolved only to a private
         // address" and leak internal-network-topology information to an
         // anonymous caller) must never appear in the HTTP response body.
-        assert_eq!(
-            json["message"],
-            "client_id metadata document is invalid or unreachable"
-        );
+        assert_eq!(json["message"], "request validation failed");
         let raw_body = String::from_utf8(body.to_vec()).unwrap();
         assert!(!raw_body.contains("ssrf_blocked"), "{raw_body}");
         assert!(!raw_body.contains("127.0.0.1"), "{raw_body}");
@@ -1045,7 +1115,7 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn register_defaults_application_type_to_web_when_absent() {
+    async fn register_infers_native_application_type_for_loopback_redirects() {
         let mut config = test_auth_config();
         config.enable_dynamic_registration = true;
         let app = router(test_auth_state_with_config(config).await);
@@ -1072,8 +1142,8 @@ pub mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(
             json.get("application_type").and_then(|v| v.as_str()),
-            Some("web"),
-            "absent application_type must default to web (OIDC default): {json}"
+            Some("native"),
+            "loopback redirect must infer native application_type: {json}"
         );
     }
 
@@ -1125,7 +1195,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/native/poll?state=never-issued")
+                    .uri("/native/poll?state=never-issued-native-poll-state-0123456789")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1160,8 +1230,9 @@ pub mod tests {
         state
             .store
             .insert_native_authorization_result(NativeAuthorizationResultRow {
-                state: "poll-me".to_string(),
-                code: "the-code".to_string(),
+                state: "poll-me-native-state-0123456789abcdef".to_string(),
+                code: Some("the-code".to_string()),
+                error: None,
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
             })
@@ -1173,7 +1244,7 @@ pub mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/native/poll?state=poll-me")
+                    .uri("/native/poll?state=poll-me-native-state-0123456789abcdef")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1191,7 +1262,7 @@ pub mod tests {
         let second = app
             .oneshot(
                 Request::builder()
-                    .uri("/native/poll?state=poll-me")
+                    .uri("/native/poll?state=poll-me-native-state-0123456789abcdef")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1216,37 +1287,38 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn insert_native_authorization_result_overwrites_on_state_collision() {
-        // A retried /authorize with a reused `state` must not silently lose
-        // the newer code — last-write-wins, not `DO NOTHING`.
+    async fn insert_native_authorization_result_rejects_an_active_state_collision() {
         let state = test_auth_state().await;
         state
             .store
             .insert_native_authorization_result(NativeAuthorizationResultRow {
                 state: "collide".to_string(),
-                code: "first-code".to_string(),
+                code: Some("first-code".to_string()),
+                error: None,
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
             })
             .await
             .unwrap();
-        state
+        let collision = state
             .store
             .insert_native_authorization_result(NativeAuthorizationResultRow {
                 state: "collide".to_string(),
-                code: "second-code".to_string(),
+                code: Some("second-code".to_string()),
+                error: None,
                 created_at: now_unix(),
                 expires_at: now_unix() + 300,
             })
-            .await
-            .unwrap();
+            .await;
+        assert!(collision.is_err());
         let fetched = state
             .store
             .take_native_authorization_result("collide")
             .await
             .unwrap()
-            .expect("row should still be present");
-        assert_eq!(fetched.code, "second-code");
+            .expect("original row should remain present");
+        assert_eq!(fetched.code.as_deref(), Some("first-code"));
+        assert_eq!(fetched.error, None);
     }
 
     #[tokio::test]
@@ -1275,7 +1347,7 @@ pub mod tests {
         let poll = app
             .oneshot(
                 Request::builder()
-                    .uri("/native/poll?state=native-client-state")
+                    .uri("/native/poll?state=native-client-state-0123456789abcdef")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1287,6 +1359,57 @@ pub mod tests {
             .unwrap();
         let poll_json: serde_json::Value = serde_json::from_slice(&poll_body).unwrap();
         assert!(poll_json["code"].as_str().is_some());
+        assert!(poll_json.get("error").is_none());
+    }
+
+    #[tokio::test]
+    async fn native_provider_denial_is_a_one_shot_terminal_poll_result() {
+        let state = test_auth_state_with_mock_google_native().await;
+        let app = router(state);
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/auth/google/callback?state=native-good-state&error=access_denied&error_description=provider-secret")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let response_body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(!String::from_utf8_lossy(&response_body).contains("provider-secret"));
+
+        let poll = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/native/poll?state=native-client-state-0123456789abcdef")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(poll.status(), StatusCode::OK);
+        let poll_body = axum::body::to_bytes(poll.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let poll_json: serde_json::Value = serde_json::from_slice(&poll_body).unwrap();
+        assert_eq!(poll_json["error"], "access_denied");
+        assert!(poll_json.get("code").is_none());
+
+        let second = app
+            .oneshot(
+                Request::builder()
+                    .uri("/native/poll?state=native-client-state-0123456789abcdef")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second.status(), StatusCode::ACCEPTED);
     }
 
     #[tokio::test]
@@ -1464,7 +1587,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1505,7 +1628,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1534,7 +1657,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&resource=https%3A%2F%2Fmcp.example.com%2Fsyslog&scope=mcp%3Aread%20mcp%3Awrite&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&resource=https%3A%2F%2Fmcp.example.com%2Fsyslog&scope=mcp%3Aread%20mcp%3Awrite&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1566,7 +1689,7 @@ pub mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1577,7 +1700,7 @@ pub mod tests {
         let second = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=def&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=def&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1929,8 +2052,8 @@ pub mod tests {
     async fn authorize_rejects_missing_or_invalid_response_type() {
         let app = router(test_auth_state_with_registered_client().await);
         for uri in [
-            "/authorize?client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256",
-            "/authorize?response_type=token&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256",
+            "/authorize?client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256",
+            "/authorize?response_type=token&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256",
         ] {
             let response = app
                 .clone()
@@ -2022,7 +2145,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Awrite&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Awrite&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -2037,7 +2160,7 @@ pub mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&resource=https://other.example.com/mcp&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&resource=https://other.example.com/mcp&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -2229,7 +2352,7 @@ pub mod tests {
                 state: "native-good-state".to_string(),
                 client_id: "native-client".to_string(),
                 redirect_uri: native_callback_endpoint,
-                client_state: "native-client-state".to_string(),
+                client_state: "native-client-state-0123456789abcdef".to_string(),
                 resource: "https://app.example.com/mcp".to_string(),
                 scope: "app:read".to_string(),
                 provider: "google".to_string(),
@@ -2342,8 +2465,8 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         use super::{
-            signed_test_id_token, test_auth_config, test_auth_state_with_config,
-            test_auth_state_with_mock_google, test_jwks,
+            signed_test_id_token, test_auth_config, test_auth_state, test_auth_state_with_config,
+            test_auth_state_with_mock_google, test_auth_state_with_registered_client, test_jwks,
         };
         use crate::google::GoogleProvider;
         use crate::routes::router;
@@ -2651,6 +2774,126 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
             assert!(response.headers().contains_key(header::SET_COOKIE));
         }
 
+        #[tokio::test]
+        async fn browser_provider_denial_consumes_state_without_reflecting_provider_details() {
+            let state = test_auth_state().await;
+            state
+                .store
+                .insert_browser_login_state(BrowserLoginStateRow {
+                    state: "browser-denial-state".to_string(),
+                    return_to: "/".to_string(),
+                    provider: "google".to_string(),
+                    provider_code_verifier: "provider-verifier".to_string(),
+                    created_at: now_unix(),
+                    expires_at: now_unix() + 300,
+                })
+                .await
+                .unwrap();
+            let app = router(state);
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/auth/google/callback?state=browser-denial-state&error=access_denied&error_description=provider-secret")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            assert_eq!(
+                response.headers().get(header::CACHE_CONTROL).unwrap(),
+                "no-store"
+            );
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            assert!(!String::from_utf8_lossy(&body).contains("provider-secret"));
+
+            let replay = app
+                .oneshot(
+                    Request::builder()
+                        .uri("/auth/google/callback?state=browser-denial-state&error=access_denied")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
+        }
+
+        #[tokio::test]
+        async fn oauth_provider_denial_returns_rfc9207_error_and_consumes_state() {
+            let state = test_auth_state_with_registered_client().await;
+            state
+                .store
+                .insert_authorization_request(AuthorizationRequestRow {
+                    state: "oauth-denial-state".to_string(),
+                    client_id: "client".to_string(),
+                    redirect_uri: "http://127.0.0.1:7777/callback".to_string(),
+                    client_state: "client-state".to_string(),
+                    resource: "https://app.example.com/mcp".to_string(),
+                    scope: "app:read".to_string(),
+                    provider: "google".to_string(),
+                    provider_code_verifier: "provider-verifier".to_string(),
+                    code_challenge: "challenge".to_string(),
+                    code_challenge_method: "S256".to_string(),
+                    created_at: now_unix(),
+                    expires_at: now_unix() + 300,
+                    token_endpoint_auth_method: Some("none".to_string()),
+                })
+                .await
+                .unwrap();
+            let app = router(state);
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/auth/google/callback?state=oauth-denial-state&error=access_denied&error_description=provider-secret")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::SEE_OTHER);
+            assert_eq!(
+                response.headers().get(header::CACHE_CONTROL).unwrap(),
+                "no-store"
+            );
+            let location = response
+                .headers()
+                .get(header::LOCATION)
+                .unwrap()
+                .to_str()
+                .unwrap();
+            let redirect = Url::parse(location).unwrap();
+            let params: std::collections::HashMap<_, _> = redirect.query_pairs().collect();
+            assert_eq!(
+                params.get("error").map(|value| value.as_ref()),
+                Some("access_denied")
+            );
+            assert_eq!(
+                params.get("state").map(|value| value.as_ref()),
+                Some("client-state")
+            );
+            assert_eq!(
+                params.get("iss").map(|value| value.as_ref()),
+                Some("https://app.example.com")
+            );
+            assert!(!location.contains("provider-secret"), "{location}");
+
+            let replay = app
+                .oneshot(
+                    Request::builder()
+                        .uri("/auth/google/callback?state=oauth-denial-state&error=access_denied")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
+        }
+
         /// RFC 9207: the authorization success response MUST carry the `iss`
         /// parameter set to the authorization server's issuer identifier so the
         /// client can detect authorization-server mix-up attacks.
@@ -2865,7 +3108,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256&provider=okta")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256&provider=okta")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -2921,7 +3164,7 @@ Iy60nwnOxK6B5mZV2Cs+kv8=
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=pkce&code_challenge_method=S256&provider=github")
+                    .uri("/authorize?response_type=code&client_id=client&redirect_uri=http://127.0.0.1:7777/callback&state=abc&scope=app%3Aread&code_challenge=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1&code_challenge_method=S256&provider=github")
                     .body(Body::empty())
                     .unwrap(),
             )

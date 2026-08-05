@@ -30,6 +30,8 @@ pub mod metadata;
 #[cfg(feature = "http-axum")]
 pub mod middleware;
 pub mod oauth_provider;
+#[cfg(feature = "http-axum")]
+pub(crate) mod oauth_validation;
 pub(crate) mod oidc;
 pub(crate) mod provider_http;
 #[cfg(feature = "http-axum")]

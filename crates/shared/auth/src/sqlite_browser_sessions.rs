@@ -122,41 +122,60 @@ impl SqliteStore {
         .await
     }
 
-    /// Store a native-flow authorization code keyed by `state`, for the
-    /// polling desktop client to retrieve via `take_native_authorization_result`.
+    /// Store a terminal native-flow result keyed by `state`, for the polling
+    /// desktop client to retrieve via `take_native_authorization_result`.
+    /// Exactly one of `code` or `error` must be present.
     ///
-    /// Last-write-wins on a `state` collision (e.g. a client retrying
-    /// `/authorize` with the same `state` after a timeout): each row is
-    /// single-use (deleted on first successful poll), so overwriting with the
-    /// newest code is correct — silently dropping the newest code instead
-    /// (`DO NOTHING`) would leave the polling client hung until the row's TTL
-    /// expires, with no error surfaced anywhere.
+    /// An unexpired result is never overwritten. The native client state is a
+    /// one-time poll credential, so replacing a live row would let a repeated
+    /// authorization request invalidate or swap the result another poller is
+    /// about to redeem. Expired rows may be replaced so retries recover.
     pub async fn insert_native_authorization_result(
         &self,
         result: NativeAuthorizationResultRow,
     ) -> Result<(), AuthError> {
+        let (code, error) = match (result.code, result.error) {
+            (Some(code), None) if !code.is_empty() => (code, None),
+            (None, Some(error)) if !error.is_empty() => (String::new(), Some(error)),
+            _ => {
+                return Err(AuthError::Validation(
+                    "native authorization result must contain exactly one non-empty code or error"
+                        .to_string(),
+                ));
+            }
+        };
         self.with_conn(move |conn| {
-            conn.execute(
-                "INSERT INTO native_authorization_results (state, code, created_at, expires_at)
-                 VALUES (?1, ?2, ?3, ?4)
-                 ON CONFLICT(state) DO UPDATE SET
-                    code = excluded.code,
-                    created_at = excluded.created_at,
-                    expires_at = excluded.expires_at",
-                params![
-                    result.state,
-                    result.code,
-                    result.created_at,
-                    result.expires_at,
-                ],
-            )
-            .map_err(sqlite_error)?;
+            let changed = conn
+                .execute(
+                    "INSERT INTO native_authorization_results
+                        (state, code, error, created_at, expires_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5)
+                     ON CONFLICT(state) DO UPDATE SET
+                        code = excluded.code,
+                        error = excluded.error,
+                        created_at = excluded.created_at,
+                        expires_at = excluded.expires_at
+                     WHERE native_authorization_results.expires_at <= excluded.created_at",
+                    params![
+                        result.state,
+                        code,
+                        error,
+                        result.created_at,
+                        result.expires_at,
+                    ],
+                )
+                .map_err(sqlite_error)?;
+            if changed == 0 {
+                return Err(AuthError::InvalidGrant(
+                    "native authorization state already has a pending result".to_string(),
+                ));
+            }
             Ok(())
         })
         .await
     }
 
-    /// One-shot read-and-delete of a pending native-flow authorization code.
+    /// One-shot read-and-delete of a pending native-flow terminal result.
     pub async fn take_native_authorization_result(
         &self,
         state: &str,
@@ -168,7 +187,7 @@ impl SqliteStore {
                 "DELETE FROM native_authorization_results
                  WHERE state = ?1
                    AND expires_at > ?2
-                 RETURNING state, code, created_at, expires_at",
+                 RETURNING state, code, error, created_at, expires_at",
                 params![state, now],
                 row_to_native_authorization_result,
             )
