@@ -57,7 +57,7 @@ authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "RMCP runtime for provider-backed agents with CLI, REST, HTTP MCP, plugins, and scaffold support."
 homepage = "https://soma.dinglebear.ai"
 repository = "https://github.com/dinglebear-ai/soma"
-license = "MIT"
+license = "AGPL-3.0-only"
 readme = "README.md"
 keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 
