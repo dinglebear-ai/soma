@@ -55,11 +55,14 @@ jobs:
       native: ${{ steps.classify.outputs.native }}
       mcp: ${{ steps.classify.outputs.mcp }}
       docker: ${{ steps.classify.outputs.docker }}
+      docker_build: ${{ steps.classify.outputs.docker_build }}
       toml: ${{ steps.classify.outputs.toml }}
       soma: ${{ steps.classify.outputs.soma }}
       security: ${{ steps.classify.outputs.security }}
       secrets: ${{ steps.classify.outputs.secrets }}
       release: ${{ steps.classify.outputs.release }}
+      python: ${{ steps.classify.outputs.python }}
+      wasm_component: ${{ steps.classify.outputs.wasm_component }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -143,58 +146,25 @@ jobs:
       - name: Install Rust and kache
         uses: ./.github/actions/setup-rust-kache
 
-      # CUSTOMIZE: Change cache key prefix from "soma" to your repo name.
-      - name: Cache Cargo
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target
-          key: ${{ github.repository }}-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ github.repository }}-test-
+      # No actions/cache on target/ here: this job runs on the self-hosted
+      # ci-pool-rust pool where kache plus the persistent per-runner workspace
+      # already provide compile caching, and the old
+      # <repo>-test-<lockhash> key saved once then exact-hit forever,
+      # permanently pinning stale multi-GB entries against the 10 GB quota.
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-nextest
 
-      # This job runs `just test-python*` below but never installed `just` - it
-      # inherited whatever the runner happened to have. Provision it explicitly.
-      - name: Set up mise tools
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
-        with:
-          install_args: just
-          cache: true
-
       - name: Build stdio test binary
         run: cargo build --bin soma
 
+      # uv stays here (not just in python-tests): nextest exercises the
+      # python_environment_* runtime paths, which shell out to uv.
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.11.31"
           enable-cache: true
-
-      - name: Python provider SDK tests
-        run: just test-python
-
-      - name: Python provider package smoke test
-        run: just test-python-package
-
-      - name: Install component target
-        run: rustup target add wasm32-wasip2
-
-      - name: Build reference component
-        run: >-
-          cargo build
-          --manifest-path examples/providers/components/reference-provider/Cargo.toml
-          --target wasm32-wasip2
-          --locked
-
-      - name: Reference component cross-runtime conformance
-        env:
-          SOMA_REFERENCE_COMPONENT: examples/providers/components/reference-provider/target/wasm32-wasip2/debug/soma_reference_component_provider.wasm
-        run: >-
-          cargo test -p soma --test wasm_provider
-          reference_component_matches_cross_runtime_fixture
-          -- --ignored --exact
 
       - name: cargo nextest run --profile ci
         run: cargo nextest run --profile ci
@@ -228,6 +198,68 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # ── python-tests: embedded provider SDK + packaged wheel smoke ──────────────
+  python-tests:
+    name: Python provider SDK
+    needs: [changes]
+    if: ${{ needs.changes.outputs.python == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ci-pool-rust
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
+
+      - name: Set up mise tools
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+        with:
+          install_args: just
+          cache: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.31"
+          enable-cache: true
+
+      - name: Python provider SDK tests
+        run: just test-python
+
+      - name: Python provider package smoke test
+        run: just test-python-package
+
+  # ── wasm-component: reference component build + cross-runtime fixture ───────
+  wasm-component:
+    name: WASM Reference Component
+    needs: [changes]
+    if: ${{ needs.changes.outputs.wasm_component == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ci-pool-rust
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust and kache
+        uses: ./.github/actions/setup-rust-kache
+
+      - name: Install component target
+        run: rustup target add wasm32-wasip2
+
+      - name: Build reference component
+        run: >-
+          cargo build
+          --manifest-path examples/providers/components/reference-provider/Cargo.toml
+          --target wasm32-wasip2
+          --locked
+
+      - name: Reference component cross-runtime conformance
+        env:
+          SOMA_REFERENCE_COMPONENT: examples/providers/components/reference-provider/target/wasm32-wasip2/debug/soma_reference_component_provider.wasm
+        run: >-
+          cargo test -p soma --test wasm_provider
+          reference_component_matches_cross_runtime_fixture
+          -- --ignored --exact
+
   frontend-assets:
     name: Frontend checks
     needs: [changes]
@@ -246,14 +278,27 @@ jobs:
   container-smoke:
     name: Production container Python smoke
     needs: [changes]
-    if: ${{ needs.changes.outputs.docker == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    # PRs only rebuild the image when its actual inputs change (docker_build);
+    # every push to main still smokes the container regardless.
+    if: ${{ (needs.changes.outputs.docker_build == 'true' || github.event_name == 'push') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
       - name: Build production image
-        run: docker build --file config/Dockerfile --tag soma:container-smoke .
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: config/Dockerfile
+          tags: soma:container-smoke
+          push: false
+          load: true
+          cache-from: type=gha,scope=soma-container-smoke
+          cache-to: type=gha,mode=min,scope=soma-container-smoke
 
       - name: Verify persistent provider startup and hot reload
         run: |
@@ -307,7 +352,10 @@ jobs:
     name: MCP Smoke
     runs-on: ci-pool-rust
     needs: [changes, frontend-assets]
-    if: ${{ always() && (needs.changes.outputs.mcp == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true') && needs.frontend-assets.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    # frontend-assets is path-skipped on Rust-only PRs; treat 'skipped' as
+    # acceptable (this job builds its own web assets below), otherwise MCP
+    # smoke would silently never run for Rust-only changes.
+    if: ${{ always() && (needs.changes.outputs.mcp == 'true' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true') && (needs.frontend-assets.result == 'success' || needs.frontend-assets.result == 'skipped') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -322,19 +370,23 @@ jobs:
           install_args: node npm:mcporter
           cache: true
 
+      # frontend-assets (a reusable workflow) builds the same assets but does
+      # not upload them as an artifact, so build here only when the export is
+      # absent. This is also the required fallback when frontend-assets was
+      # path-skipped (Rust-only PRs).
       - name: Build web assets for MCP smoke
         run: |
-          cd apps/web
-          pnpm install --frozen-lockfile
-          pnpm build
+          if [ -d apps/web/out ] && [ -n "$(ls -A apps/web/out 2>/dev/null)" ]; then
+            echo "apps/web/out already present; skipping rebuild"
+          else
+            cd apps/web
+            pnpm install --frozen-lockfile
+            pnpm build
+          fi
 
-      - name: Cache Cargo
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target
-          key: ${{ github.repository }}-mcp-smoke-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ github.repository }}-mcp-smoke-
+      # No actions/cache on target/ here: self-hosted ci-pool-rust runners get
+      # compile caching from kache plus persistent workspaces, and the old
+      # exact-hit-forever lockhash key only thrashed the shared 10 GB quota.
 
       - name: Install smoke test dependencies
         run: |
@@ -539,6 +591,8 @@ jobs:
       - architecture
       - rust-fast
       - test
+      - python-tests
+      - wasm-component
       - frontend-assets
       - container-smoke
       - mcp-smoke
