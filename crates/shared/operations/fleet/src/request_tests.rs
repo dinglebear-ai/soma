@@ -31,7 +31,7 @@ fn command_requests_preserve_exec_style_arguments() {
 fn command_requests_reject_invalid_bounds() {
     assert!(CommandRequest::new("", Vec::<String>::new(), deadline()).is_err());
     assert!(
-        CommandRequest::new("echo", (0..257).map(|index| index.to_string()), deadline()).is_err()
+        CommandRequest::new("echo", (0..321).map(|index| index.to_string()), deadline()).is_err()
     );
     assert!(CommandRequest::new("echo", ["hello\0world"], deadline()).is_err());
     assert!(

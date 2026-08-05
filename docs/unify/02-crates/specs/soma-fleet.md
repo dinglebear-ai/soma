@@ -25,7 +25,7 @@ soma-ops <- soma-fleet <- soma-infra <- product adapters
 - `HostEndpoint`, `SshEndpoint`, `HttpEndpoint`, `HostRecord`, and `TopologySnapshot`;
 - bounded `CommandRequest`, `CommandOutput`, `TransferRequest`, and `TransferReceipt`;
 - `FleetError`, lifecycle events, and event-sink port;
-- stable-order fanout reports with success, failure, cancellation, and timeout states;
+- stable-order fanout reports with success, failure, cancellation, and timeout states, including host/payload pairs and duplicate-host requests distinguished by input index;
 - observable `TransferLifecycle` and RAII `TransferGuard` states.
 
 ## Ports
@@ -65,7 +65,7 @@ Concrete infrastructure-aware file semantics remain in `soma-infra`; implementat
 
 ## Fanout semantics
 
-`FanoutScheduler` enforces nonzero concurrency and per-target timeout bounds. It uses bounded unordered execution internally but restores original target order. Every admitted target produces exactly one terminal classification. Shared cancellation accounts for running and queued targets rather than dropping them.
+`FanoutScheduler` enforces nonzero concurrency and per-target timeout bounds. It supports both one operation per host and distinct host/payload pairs, including repeated host identities whose requests remain separated by their original index. It uses bounded unordered execution internally but restores original target order. Every admitted target produces exactly one terminal classification, reports can be consumed without cloning opaque failures, and shared cancellation accounts for running and queued targets rather than dropping them.
 
 ## Forbidden responsibilities
 
@@ -73,6 +73,6 @@ Concrete infrastructure-aware file semantics remain in `soma-infra`; implementat
 
 ## Verification evidence
 
-The deterministic suite covers identity and forged revisions, endpoint changes, stale pooled connections, concurrent single-connect initialization, shutdown, argument injection, bounded output, local cancellation/timeout, strict OpenSSH plans, fail-closed SSH working directories, runtime/socket ownership and permissions, file/symlink rejection, transfer overrun/mismatch/cancellation/failure/abandonment, and bounded fanout with partial success, timeout, cancellation, overload prevention, and stable order.
+The deterministic suite covers identity and forged revisions, endpoint changes, stale pooled connections, concurrent single-connect initialization, shutdown, argument injection, bounded output, local cancellation/timeout, strict OpenSSH plans, fail-closed SSH working directories, runtime/socket ownership and permissions, file/symlink rejection, transfer overrun/mismatch/cancellation/failure/abandonment, and bounded fanout with partial success, timeout, cancellation, overload prevention, stable order, duplicate-host payloads, and consuming reports.
 
 Live SSH and host-key mismatch tests remain environment-gated product verification; deterministic tests prove the driver can construct only strict-host-key plans.

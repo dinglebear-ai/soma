@@ -77,6 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo xtask sync-release-please-version
+          cargo xtask check-openapi --write
           cargo xtask generate-provider-surfaces --write
           cargo xtask check-version-sync
           cargo xtask generate-provider-surfaces --check
