@@ -19,6 +19,10 @@ mod mutation_build_execute;
 mod mutation_build_result;
 mod mutation_compose;
 mod mutation_dispatch;
+mod mutation_exec;
+mod mutation_exec_execute;
+mod mutation_exec_output;
+mod mutation_exec_result;
 mod mutation_pull;
 mod mutation_pull_execute;
 mod mutation_pull_result;
@@ -45,12 +49,16 @@ pub use diagnostic::DiagnosticProjection;
 pub use error::CompatibilityError;
 pub use execution_error::ExecutionError;
 pub use mutation_runtime::{
-    SynapseBuildPorts, SynapseMutationPorts, SynapseMutationRuntime, SynapseRecreatePorts,
+    SynapseBuildPorts, SynapseExecPorts, SynapseMutationPorts, SynapseMutationRuntime,
+    SynapseRecreatePorts,
 };
 pub use normalize::NormalizedOperationRequest;
 pub use runtime::{SynapseReadPorts, SynapseReadRuntime};
 pub use schema::OperationSchemaContract;
 
+#[cfg(test)]
+#[path = "../tests/support/mutation_exec_support.rs"]
+mod mutation_exec_test_support;
 #[cfg(test)]
 #[path = "../tests/support/mutation_pull_compose.rs"]
 mod mutation_pull_test_compose;
