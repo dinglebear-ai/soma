@@ -10,7 +10,7 @@ use soma_ops::Timestamp;
 use super::*;
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 #[tokio::test]
@@ -41,6 +41,35 @@ async fn local_transfer_copies_and_verifies_bytes() {
     assert_eq!(receipt.bytes(), 13);
     assert!(receipt.verified());
     assert_eq!(fs::read(destination).unwrap(), b"soma transfer");
+}
+
+#[tokio::test]
+async fn source_drift_from_expected_digest_is_rejected_before_write() {
+    let source_root = tempfile::tempdir().unwrap();
+    let destination_root = tempfile::tempdir().unwrap();
+    let source = source_root.path().join("source.txt");
+    let destination = destination_root.path().join("destination.txt");
+    fs::write(&source, b"soma transfer").unwrap();
+    let host = host();
+    let driver = CommandFileTransfer::new(Arc::new(LocalProcessDriver)).with_policy(
+        host.id().clone(),
+        FileTransferPolicy::new([source_root.path()], [destination_root.path()]).unwrap(),
+    );
+    let request = TransferRequest::new(
+        host.id().clone(),
+        source.clone(),
+        host.id().clone(),
+        destination.clone(),
+        crate::MAX_FILE_TRANSFER_BYTES,
+        Timestamp::from_unix_millis(Timestamp::now().unix_millis() + 20_000),
+    )
+    .unwrap()
+    .with_expected_source_sha256("f".repeat(64));
+    let result = driver
+        .transfer(&host, &host, &request, &CancellationToken::new())
+        .await;
+    assert!(result.is_err());
+    assert!(!destination.exists());
 }
 
 #[tokio::test]

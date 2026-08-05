@@ -270,6 +270,17 @@ impl FileTransfer for CommandFileTransfer {
         let (_lifecycle, mut guard) = TransferLifecycle::start(request);
         guard.record_chunk(bytes.len() as u64)?;
         let source_identity = identity_from_bytes(request.source_path(), &bytes);
+        if let Some(expected) = request.expected_source_sha256()
+            && source_identity.sha256 != expected
+        {
+            let error = FleetError::Transfer {
+                source_host: source.id().clone(),
+                destination_host: destination.id().clone(),
+                message: "source content changed after planning".into(),
+            };
+            let _ = guard.fail(bounded_error(&error));
+            return Err(error);
+        }
         if let Err(error) = self
             .write_bound(
                 destination,

@@ -108,7 +108,8 @@ impl FileTransferEngine {
             request.deadline,
         )
         .map_err(soma_fleet::FleetError::from)
-        .map_err(|error| not_sent(error.into()))?;
+        .map_err(|error| not_sent(error.into()))?
+        .with_expected_source_sha256(request.fingerprint.source.sha256.clone());
         let receipt = client
             .transfer(source, destination, &transfer, cancellation)
             .await
