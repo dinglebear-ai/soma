@@ -164,6 +164,15 @@ synapse-application = { path = "crates/synapse/application" }
 # many codegen units so local iteration — `just sync-container`, container smoke
 # loops — recompiles in a fraction of the full `release` time. Not for shipping;
 # tags/publishes still build the canonical `release` profile.
+[profile.dev]
+# CI recompiles from scratch on every job (CARGO_INCREMENTAL=0 is required
+# under the kache rustc-wrapper), and full DWARF is a large share of that
+# time — which the build then discards anyway via -C strip=debuginfo.
+# "line-tables-only" keeps file/line in panics and backtraces, which is what
+# CI logs are read for. Override with CARGO_PROFILE_DEV_DEBUG=full for a
+# debugger session. Matches labby, cortex and yarr.
+debug = "line-tables-only"
+
 [profile.release-fast]
 inherits = "release"
 lto = false
