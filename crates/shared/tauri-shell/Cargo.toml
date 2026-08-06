@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 description = "Reusable Tauri desktop shell mechanics: window, tray, shortcut, blur, and persistence helpers"
 homepage.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 repository.workspace = true
 publish = false
 

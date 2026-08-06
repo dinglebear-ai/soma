@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 description = "Async Rust client for the Incus REST API (system container and VM management)."
 homepage.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 repository.workspace = true
 publish = false
 

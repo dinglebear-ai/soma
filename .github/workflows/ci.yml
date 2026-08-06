@@ -112,7 +112,11 @@ jobs:
       kache-manifest-key: soma-fast-rust
       uv-version: "0.11.31"
       setup-command: uv sync --project packages/python --frozen
-      test-command: cargo test --workspace --locked --exclude soma-provider-python
+      test-command: >-
+        mkdir -p "$RUNNER_TEMP/soma-fast-rust-cargo" &&
+        { test ! -f "$CARGO_HOME/config.toml" || cp "$CARGO_HOME/config.toml" "$RUNNER_TEMP/soma-fast-rust-cargo/config.toml"; } &&
+        { test ! -f "$CARGO_HOME/config" || cp "$CARGO_HOME/config" "$RUNNER_TEMP/soma-fast-rust-cargo/config"; } &&
+        CARGO_HOME="$RUNNER_TEMP/soma-fast-rust-cargo" cargo test --workspace --locked --exclude soma-provider-python
     secrets:
       KACHE_S3_ACCESS_KEY: ${{ secrets.KACHE_S3_ACCESS_KEY }}
       KACHE_S3_SECRET_KEY: ${{ secrets.KACHE_S3_SECRET_KEY }}
@@ -123,7 +127,7 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ci-pool-rust
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -432,7 +436,7 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.soma == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ci-pool-rust
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

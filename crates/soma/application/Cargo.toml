@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 description = "Transport-neutral product use cases for Soma"
 homepage.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 repository.workspace = true
 publish = false
 

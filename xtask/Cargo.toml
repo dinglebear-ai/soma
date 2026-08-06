@@ -18,7 +18,7 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 homepage.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 repository.workspace = true
 # Exclude from crates.io — this is a private automation crate.
 publish = false
