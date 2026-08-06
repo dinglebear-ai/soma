@@ -244,7 +244,7 @@ async fn browser_session_round_trip_succeeds() {
     let row = BrowserSessionRow {
         session_id: "sess_123".into(),
         subject: "user_1".into(),
-        email: Some("jmagar@example.com".into()),
+        email: Some("devuser@example.com".into()),
         csrf_token: "csrf_123".into(),
         created_at: 1,
         expires_at: now_unix() + 9_999,
