@@ -16,6 +16,8 @@ pub struct TransferRequest {
     destination_path: PathBuf,
     max_bytes: u64,
     deadline: Timestamp,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    expected_source_sha256: Option<String>,
 }
 
 impl TransferRequest {
@@ -41,7 +43,25 @@ impl TransferRequest {
             destination_path: validate_absolute_path(destination_path.into())?,
             max_bytes,
             deadline,
+            expected_source_sha256: None,
         })
+    }
+
+    /// Binds the pre-checked source SHA-256 that the bytes read for send must match.
+    ///
+    /// When set, a transfer implementation must hash the bytes it actually reads
+    /// for send and reject the transfer before any destination write if the
+    /// digest has drifted from this pre-checked value.
+    #[must_use]
+    pub fn with_expected_source_sha256(mut self, sha256: impl Into<String>) -> Self {
+        self.expected_source_sha256 = Some(sha256.into());
+        self
+    }
+
+    /// Returns the pre-checked source SHA-256 bound at plan time, when present.
+    #[must_use]
+    pub fn expected_source_sha256(&self) -> Option<&str> {
+        self.expected_source_sha256.as_deref()
     }
 
     /// Rejects a request whose deadline has elapsed.
@@ -128,6 +148,18 @@ impl TransferReceipt {
     #[must_use]
     pub const fn bytes(&self) -> u64 {
         self.bytes
+    }
+
+    /// Returns the source SHA-256 when recorded.
+    #[must_use]
+    pub fn source_sha256(&self) -> Option<&str> {
+        self.source_sha256.as_deref()
+    }
+
+    /// Returns the destination SHA-256 when recorded.
+    #[must_use]
+    pub fn destination_sha256(&self) -> Option<&str> {
+        self.destination_sha256.as_deref()
     }
 
     /// Returns whether source and destination digests match.
