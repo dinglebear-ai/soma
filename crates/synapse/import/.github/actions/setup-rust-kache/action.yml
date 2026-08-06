@@ -131,7 +131,7 @@ runs:
         fi
         mkdir -p "$cache_dir"
 
-        # The REMOTE is the shared surface: one directory on tootie's raidz1
+        # The REMOTE is the shared surface: one directory on nashost's raidz1
         # cache pool, bind-mounted into every runner.
         #
         # A missing mount degrades to local-only rather than failing the job:

@@ -1,6 +1,7 @@
 {
   "name": "codex-app-server-rest-client",
   "version": "0.0.0",
+  "license": "AGPL-3.0-only",
   "private": true,
   "description": "Generated TypeScript types + a thin hand-written fetch wrapper for the codex-app-server-client REST adapter's OpenAPI spec. Proves the REST API is consumable outside Rust.",
   "type": "module",

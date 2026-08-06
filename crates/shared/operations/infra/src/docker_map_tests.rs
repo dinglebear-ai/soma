@@ -4,7 +4,7 @@ use soma_fleet::{HostEndpoint, HostId, HostRecord};
 use super::*;
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("tootie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("nashost").unwrap(), HostEndpoint::Local)
 }
 
 #[test]
@@ -13,7 +13,7 @@ fn system_and_container_fields_accept_docker_api_names() {
         &host(),
         &json!({
             "ID": "daemon-1",
-            "Name": "tootie",
+            "Name": "nashost",
             "Containers": 7,
             "ContainersRunning": 5,
             "NCPU": 16,

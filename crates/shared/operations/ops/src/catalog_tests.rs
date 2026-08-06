@@ -138,9 +138,9 @@ fn diagnostic_codes_are_sorted_unique_contract_metadata() {
 #[test]
 fn typed_operation_definition_resolves_target() {
     let target = HostInspect::target(&Params {
-        host: "dookie".into(),
+        host: "devhost".into(),
     })
     .unwrap();
-    assert_eq!(target.id(), "dookie");
+    assert_eq!(target.id(), "devhost");
     assert_eq!(HostInspect::spec().name().as_str(), "host.inspect");
 }

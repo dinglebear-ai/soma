@@ -40,14 +40,14 @@ impl OperationDefinition for Restart {
 
 fn parameters() -> Params {
     Params {
-        host: "dookie".into(),
+        host: "devhost".into(),
         container: "soma".into(),
     }
 }
 
 fn authorized_request(now: Timestamp) -> OperationRequest<Params> {
     let context = OperationContext::new()
-        .with_idempotency_key(IdempotencyKey::new("restart:dookie:soma:1").unwrap())
+        .with_idempotency_key(IdempotencyKey::new("restart:devhost:soma:1").unwrap())
         .with_deadline(Timestamp::from_unix_millis(now.unix_millis() + 10_000));
     let request = OperationRequest::new::<Restart>(context, parameters()).unwrap();
     let authorization = AuthorizationEvidence::new(
@@ -64,7 +64,7 @@ fn authorized_request(now: Timestamp) -> OperationRequest<Params> {
 fn mutation_requires_authorization() {
     let now = Timestamp::from_unix_millis(100);
     let context = OperationContext::new()
-        .with_idempotency_key(IdempotencyKey::new("restart:dookie:soma:1").unwrap())
+        .with_idempotency_key(IdempotencyKey::new("restart:devhost:soma:1").unwrap())
         .with_deadline(Timestamp::from_unix_millis(1_000));
     let request = OperationRequest::new::<Restart>(context, parameters()).unwrap();
     assert_eq!(
@@ -116,7 +116,7 @@ fn expired_authorization_is_rejected() {
 fn plan_binding_must_match_exactly() {
     let now = Timestamp::from_unix_millis(100);
     let context = OperationContext::new()
-        .with_idempotency_key(IdempotencyKey::new("restart:dookie:soma:1").unwrap())
+        .with_idempotency_key(IdempotencyKey::new("restart:devhost:soma:1").unwrap())
         .with_deadline(Timestamp::from_unix_millis(10_000));
     let request = OperationRequest::new::<Restart>(context, parameters()).unwrap();
     let plan = OperationPlan::new(
