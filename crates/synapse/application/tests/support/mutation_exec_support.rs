@@ -128,6 +128,7 @@ pub(crate) fn runtime(
             hosts,
             max_fanout_concurrency: 2,
         }),
+        final_mutations: None,
     })
 }
 
