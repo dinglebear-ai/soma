@@ -129,7 +129,7 @@ fn ssh_host() -> HostConfig {
 const SYSLOG_SAMPLE: &str = "\
 May 29 12:00:01 devhost kernel: [    0.000000] Linux version 7.0.0
 May 29 12:00:02 devhost systemd[1]: Starting Network Time Synchronization
-May 29 12:00:03 devhost sshd[1234]: Accepted publickey for jmagar
+May 29 12:00:03 devhost sshd[1234]: Accepted publickey for devuser
 ";
 
 const JOURNAL_SAMPLE: &str = "\
@@ -147,8 +147,8 @@ const DMESG_SAMPLE: &str = "\
 ";
 
 const AUTH_SAMPLE: &str = "\
-May 29 12:00:01 devhost sshd[1234]: Accepted publickey for jmagar from 192.168.1.10
-May 29 12:00:02 devhost sudo[5678]: jmagar : TTY=pts/0 ; PWD=/home/jmagar ; USER=root
+May 29 12:00:01 devhost sshd[1234]: Accepted publickey for devuser from 192.168.1.10
+May 29 12:00:02 devhost sudo[5678]: devuser : TTY=pts/0 ; PWD=/home/devuser ; USER=root
 ";
 
 // ─── syslog tests ────────────────────────────────────────────────────────────
