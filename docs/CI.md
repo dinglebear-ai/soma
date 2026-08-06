@@ -136,7 +136,7 @@ release artifacts, writes SHA256 sums, publishes the `soma-rmcp` npm launcher
 package with provenance/trusted publishing support, and uploads artifacts to the
 existing GitHub Release. Release Cargo builds use kache through the same
 wrapper environment as CI. Linux release jobs cross-compile the Windows GNU
-target from the TOOTIE runner; the native Windows build is a PR-time `ci.yml`
+target from the NASHOST runner; the native Windows build is a PR-time `ci.yml`
 check, not the release packaging path. The workflow never commits generated
 binaries back to the repository.
 
@@ -212,7 +212,7 @@ GitHub Pages on every push to `main`. PRs run the same build (and the
 
 Path-gated to `**/*.rs`, `**/Cargo.toml`, `Cargo.lock`, `.cargo/config.toml`,
 and the workflow itself, so doc-only, web-only, or config-only changes skip
-it. Runs on the same `[self-hosted, tootie, rmcp-template]` Linux runner as
+it. Runs on the same `[self-hosted, nashost, rmcp-template]` Linux runner as
 the rest of CI.
 
 Two jobs:

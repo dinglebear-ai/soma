@@ -3,7 +3,7 @@ use soma_fleet::{HostEndpoint, HostId};
 use super::*;
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 #[test]
@@ -13,14 +13,14 @@ fn requests_validate_filters_limits_and_sort_arguments() {
         .with_sort(ProcessSort::Memory)
         .with_grep("soma")
         .unwrap()
-        .with_user("jmagar")
+        .with_user("devuser")
         .unwrap()
         .with_limit(25)
         .unwrap();
     assert_eq!(request.sort(), ProcessSort::Memory);
     assert_eq!(request.sort().ps_argument(), "-mem");
     assert_eq!(request.grep(), Some("soma"));
-    assert_eq!(request.user(), Some("jmagar"));
+    assert_eq!(request.user(), Some("devuser"));
     assert_eq!(request.limit(), 25);
     assert!(ProcessListRequest::new(deadline).with_limit(0).is_err());
     assert!(ProcessListRequest::new(deadline).with_limit(501).is_err());
@@ -36,13 +36,13 @@ fn process_rows_are_typed_filtered_and_bounded() {
     let raw = concat!(
         "root 1 0.1 0.2 1000 500 ? Ss 10:00 0:01 /sbin/init
 ",
-        "jmagar 22 10.5 3.5 2000 1000 pts/0 Sl 10:01 1:02 /usr/bin/soma serve --port 40060
+        "devuser 22 10.5 3.5 2000 1000 pts/0 Sl 10:01 1:02 /usr/bin/soma serve --port 40060
 ",
-        "jmagar 23 5.0 1.0 1500 700 pts/1 S 10:02 0:10 cargo test
+        "devuser 23 5.0 1.0 1500 700 pts/1 S 10:02 0:10 cargo test
 ",
     );
     let request = ProcessListRequest::new(Timestamp::from_unix_millis(100))
-        .with_user("jmagar")
+        .with_user("devuser")
         .unwrap()
         .with_grep("soma")
         .unwrap()

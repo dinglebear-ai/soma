@@ -14,7 +14,7 @@ struct MockExecutor {
 impl MockExecutor {
     fn standard() -> Self {
         let mut outputs = BTreeMap::new();
-        outputs.insert("hostname".into(), ok("dookie\n"));
+        outputs.insert("hostname".into(), ok("devhost\n"));
         outputs.insert("uname -s".into(), ok("Linux\n"));
         outputs.insert("uname -r".into(), ok("7.0.0-test\n"));
         outputs.insert("uname -m".into(), ok("x86_64\n"));
@@ -56,7 +56,7 @@ fn ok(text: &str) -> CommandOutput {
 }
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn request() -> HostInspectRequest {
@@ -72,8 +72,8 @@ async fn command_inspector_returns_typed_host_snapshot() {
         .await
         .unwrap();
 
-    assert_eq!(result.host.as_str(), "dookie");
-    assert_eq!(result.identity.hostname, "dookie");
+    assert_eq!(result.host.as_str(), "devhost");
+    assert_eq!(result.identity.hostname, "devhost");
     assert_eq!(result.identity.operating_system, "Linux");
     assert_eq!(result.identity.kernel_release, "7.0.0-test");
     assert_eq!(result.identity.architecture, "x86_64");

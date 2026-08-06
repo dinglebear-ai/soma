@@ -89,7 +89,7 @@ impl ImageReader for FakeImages {
 }
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn project() -> crate::ComposeProjectRef {
@@ -109,7 +109,7 @@ fn request(service: Option<&str>) -> ComposePullRequest {
 
 fn config() -> ComposeConfig {
     ComposeConfig {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         project: "soma".into(),
         services: BTreeMap::from([
@@ -137,7 +137,7 @@ fn config() -> ComposeConfig {
 
 fn image(id: &str, tag: &str) -> ImageSummary {
     ImageSummary {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         id: id.into(),
         repo_tags: vec![tag.into()],
@@ -151,7 +151,7 @@ fn image(id: &str, tag: &str) -> ImageSummary {
 
 fn receipt() -> ComposePullReceipt {
     ComposePullReceipt {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         project: "soma".into(),
         service: None,

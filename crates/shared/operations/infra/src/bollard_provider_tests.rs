@@ -28,7 +28,7 @@ fn socket_plans_follow_endpoint_kind_and_defaults() {
 
 #[test]
 fn remote_socket_paths_reject_relative_and_parent_components() {
-    let id = HostId::new("dookie").unwrap();
+    let id = HostId::new("devhost").unwrap();
     assert!(
         provider()
             .with_remote_socket(id, "/var/run/../docker.sock")

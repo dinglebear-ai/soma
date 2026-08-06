@@ -18,7 +18,7 @@ Address the review comments for the OAuth-provider PR, execute three named Beads
 
 ## Session Overview
 
-Completed the three requested Beads, applied and re-reviewed the OAuth follow-ups, refreshed operator documentation, and fixed a Windows executable lookup defect. Configured a confidential Authelia OIDC client on `squirts`, stored the Soma client secret only in protected runtime configuration, deployed the PR build, found and fixed a missing Axum `ConnectInfo` integration, and verified Soma now redirects Authelia login requests to the live `auth.tootie.tv` issuer. PR #167 subsequently merged into `main` with the stable CI and MSRV gates green.
+Completed the three requested Beads, applied and re-reviewed the OAuth follow-ups, refreshed operator documentation, and fixed a Windows executable lookup defect. Configured a confidential Authelia OIDC client on `edgehost`, stored the Soma client secret only in protected runtime configuration, deployed the PR build, found and fixed a missing Axum `ConnectInfo` integration, and verified Soma now redirects Authelia login requests to the live `auth.example.internal` issuer. PR #167 subsequently merged into `main` with the stable CI and MSRV gates green.
 
 ## Sequence of Events
 
@@ -26,7 +26,7 @@ Completed the three requested Beads, applied and re-reviewed the OAuth follow-up
 2. **Executed the three Beads sequentially.** Rewrote the Soma configuration plan (`rmcp-template-2sl4`), deduplicated provider authorization and OIDC token flows (`rmcp-template-1ge3`), then fixed Windows bare-executable resolution (`rmcp-template-mkag`).
 3. **Reviewed the changes.** Architecture, goal/spec, and security reviewers checked the combined result. The provider-kind refactor and public/upstream error separation were tracked instead of being folded into the narrow fixes.
 4. **Refreshed stale documentation.** A dispatched documentation agent reconciled README, auth/config/operator guidance, generated environment metadata, plugin metadata, and repository instructions with the actual Google/Authelia/GitHub runtime surface.
-5. **Configured Authelia.** Inspected `/mnt/appdata/authelia` and `/mnt/compose/authelia` on `squirts`, registered Soma as an OIDC client, backed up the configuration, restarted Authelia, and verified it healthy.
+5. **Configured Authelia.** Inspected `/mnt/appdata/authelia` and `/mnt/compose/authelia` on `edgehost`, registered Soma as an OIDC client, backed up the configuration, restarted Authelia, and verified it healthy.
 6. **Configured and deployed Soma.** Wrote protected Soma OAuth environment settings and a local Compose override, built the feature branch image, and changed the live deployment from trusted-gateway no-auth mode to mounted Authelia OAuth.
 7. **Fixed the live-only failure.** The first `/auth/login` smoke returned 500 because rate-limited auth handlers extracted `ConnectInfo<SocketAddr>` but the shared server did not inject it. Added peer-address injection to both server paths, tested it, rebuilt, and redeployed.
 8. **Closed the PR and maintenance loop.** CodeRabbit follow-ups were applied, PR #167 merged with all required checks green, the completed Windows portability follow-up was closed, and a new Bead was opened for the remaining typed setup/doctor/config plan.
@@ -34,7 +34,7 @@ Completed the three requested Beads, applied and re-reviewed the OAuth follow-up
 ## Key Findings
 
 - `crates/shared/http-server/src/server.rs:81` and `:102` now call `into_make_service_with_connect_info::<SocketAddr>()`; without this, live OAuth login handlers failed before redirecting because their rate limiter requires a peer address.
-- The authoritative Authelia issuer is `https://auth.tootie.tv`; the similarly named `authelia.tootie.tv` endpoint was a stale SWAG surface and was not used.
+- The authoritative Authelia issuer is `https://auth.example.internal`; the similarly named `authelia.example.internal` endpoint was a stale SWAG surface and was not used.
 - `crates/soma/config/src/env_registry.rs:173-254` exposes the live Authelia, GitHub, callback, scope, and default-provider variables, but typed TOML, `soma setup`, `soma doctor`, and guided plugin options remain Google-oriented. Runtime works because bootstrap reads these raw variables through `soma-auth`.
 - Authelia's confidential-client default is `client_secret_basic`; the final provider code documents and uses that behavior (`crates/shared/auth/src/authelia.rs:334`, `crates/shared/auth/src/oidc.rs:23`) while Google retains `client_secret_post`.
 - The Windows doctor failure was specifically bare `soma` lookup: Cargo produces `soma.exe`, while the old PATH check did not append the platform executable suffix. The prior test used `cmd.exe` explicitly and missed that case.
@@ -121,7 +121,7 @@ Completed the three requested Beads, applied and re-reviewed the OAuth follow-up
 - **Skills/plugins:** `vibin:gh-pr` for review-comment handling, `lavra:lavra-work` for the three requested Beads in sequence, and `vibin:save-to-md` for this evidence-driven closeout.
 - **Agents:** Lavra architecture, goal/spec, and security reviewers checked the combined implementation; the explicitly dispatched `oauth_docs_refresh` agent performed the stale-doc pass and committed `f50885f`.
 - **Shell/file tools:** `git`, `gh`, `bd`, `cargo`, `rg`, `sed`, `curl`, `ssh`, Docker/Compose, and patch-based file editing were used for repository inspection, implementation, CI proof, deployment, and documentation.
-- **Remote operations:** SSH to `squirts` inspected and updated Authelia, while local Docker/Compose rebuilt and restarted Soma. No browser automation or domain MCP server was needed.
+- **Remote operations:** SSH to `edgehost` inspected and updated Authelia, while local Docker/Compose rebuilt and restarted Soma. No browser automation or domain MCP server was needed.
 - **Issues/workarounds:** The local Cargo wrapper emitted a very large metadata stream during a focused maintenance test; rerunning with `SOLDR_BYPASS=1 CARGO_TIMINGS=0` produced a clean exit. A zsh unmatched glob during filename collision checking was benign and the target was independently confirmed absent.
 
 ## Commands Executed
@@ -134,8 +134,8 @@ Completed the three requested Beads, applied and re-reviewed the OAuth follow-up
 | Windows CI doctor tests | `doctor_cli` 2/2 and `soma-cli` 87/87 passed |
 | `cargo test -p soma-config` plus docs-generation checks | 28 tests passed; docs, patterns, version, and README guide checks passed |
 | `cargo test -p soma-http-server` | 22 unit tests and 1 doc test passed |
-| `curl -I 'https://soma.dinglebear.ai/auth/login?provider=authelia'` | HTTP 302 to `https://auth.tootie.tv/api/oidc/authorization` |
-| `ssh squirts 'docker ps --filter name=authelia ...'` | Authelia healthy; MariaDB and Redis up |
+| `curl -I 'https://soma.dinglebear.ai/auth/login?provider=authelia'` | HTTP 302 to `https://auth.example.internal/api/oidc/authorization` |
+| `ssh edgehost 'docker ps --filter name=authelia ...'` | Authelia healthy; MariaDB and Redis up |
 | `gh pr view 167 ...` | PR merged; CI Gate and MSRV Gate succeeded |
 | `git merge-base --is-ancestor <session-commit> origin/main` | all seven follow-up commits confirmed on `main` |
 | `SOLDR_BYPASS=1 CARGO_TIMINGS=0 cargo test -q -p soma-provider-adapters expand_env_templates_substitutes_multiple_variables` | passed with exit status 0 |
@@ -189,7 +189,7 @@ Completed the three requested Beads, applied and re-reviewed the OAuth follow-up
 - GitHub credentials were not configured on the live deployment because the request was specifically to replace Google with Authelia; GitHub runtime support remains available.
 - The typed setup/doctor/TOML plan was not implemented during the credential rollout. Runtime raw-env support was sufficient for the requested deployment, and the remaining UX work is isolated in `rmcp-template-avvs`.
 - Merged or apparently stale worktrees were not deleted when dirty, attached to an open PR, detached with untracked work, protected, or registered ambiguously.
-- The stale `authelia.tootie.tv` endpoint was not repaired because the verified issuer is `auth.tootie.tv` and proxy cleanup was outside the requested OAuth credential scope.
+- The stale `authelia.example.internal` endpoint was not repaired because the verified issuer is `auth.example.internal` and proxy cleanup was outside the requested OAuth credential scope.
 
 ## References
 

@@ -58,7 +58,7 @@ impl ImageReader for Images {
     }
 }
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 fn fp(value: &str) -> BuildContextFingerprint {
     BuildContextFingerprint {

@@ -1,6 +1,6 @@
-# FROZEN — never edit this crate. Its only purpose is that dookie and the CI
+# FROZEN — never edit this crate. Its only purpose is that devhost and the CI
 # runners compile byte-identical source and compare the resulting kache cache
-# key; any edit here must be mirrored in dookie's reference writer
+# key; any edit here must be mirrored in devhost's reference writer
 # (~/.local/bin/kache-key-probe.sh) or the lockstep check false-alarms forever.
 [package]
 name = "kache_key_probe"

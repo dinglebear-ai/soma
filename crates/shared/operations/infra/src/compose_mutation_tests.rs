@@ -102,7 +102,7 @@ impl ComposeMutator for FakeCompose {
 }
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn project() -> ComposeProjectRef {

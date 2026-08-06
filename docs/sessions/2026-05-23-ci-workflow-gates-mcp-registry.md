@@ -26,16 +26,16 @@ Added reusable CI/release workflow coverage to `soma`: actionlint, frontend arti
 2. Identified reusable workflow patterns and explicitly skipped the Codex plugin scanner when requested.
 3. Implemented CI additions in `.github/workflows/ci.yml`, release web artifact reuse in `.github/workflows/release.yml`, MCP Registry publishing in `.github/workflows/docker-publish.yml`, and `.github/actionlint.yaml`.
 4. Verified workflows locally and exercised the new MCP smoke path against `./target/debug/example` on port `40123`.
-5. Committed and pushed `8a5c0d5`, then changed the registry domain to use `vars.MCP_REGISTRY_DOMAIN`, set the repo variable to `tootie.tv`, committed and pushed `0085d88`.
+5. Committed and pushed `8a5c0d5`, then changed the registry domain to use `vars.MCP_REGISTRY_DOMAIN`, set the repo variable to `nashost.tv`, committed and pushed `0085d88`.
 6. Checked live GitHub Actions runs; all push workflows failed before runner startup due to GitHub billing/spending-limit annotations.
-7. Searched `~/workspace` for MCP Registry key/domain usage and confirmed sibling repos use `tootie.tv` plus `MCP_PRIVATE_KEY`; `soma` has the variable but not the secret.
+7. Searched `~/workspace` for MCP Registry key/domain usage and confirmed sibling repos use `nashost.tv` plus `MCP_PRIVATE_KEY`; `soma` has the variable but not the secret.
 8. Created follow-up beads for the missing secret and GitHub Actions billing blocker.
 
 ## Key Findings
 
 - `soma` already had stronger equivalents for several sibling checks: CodeQL, gitleaks, cargo-deny, MSRV, Trivy, Dependabot auto-merge, and native Linux/Windows artifact builds.
-- Sibling workflows consistently use DNS auth domain `tootie.tv` for MCP Registry publishing, for example `syslog-mcp/.github/workflows/docker-publish.yml`.
-- `jmagar/soma` now has repository variable `MCP_REGISTRY_DOMAIN=tootie.tv`, verified with `gh variable list -R jmagar/soma`.
+- Sibling workflows consistently use DNS auth domain `nashost.tv` for MCP Registry publishing, for example `syslog-mcp/.github/workflows/docker-publish.yml`.
+- `jmagar/soma` now has repository variable `MCP_REGISTRY_DOMAIN=nashost.tv`, verified with `gh variable list -R jmagar/soma`.
 - `jmagar/soma` does not have a repository secret named `MCP_PRIVATE_KEY`; sibling repos such as `syslog-mcp`, `arcane-mcp`, `unifi-mcp`, `gotify-mcp`, `overseerr-mcp`, `swag-mcp`, and `axon_rust` do.
 - GitHub Actions failures on pushed commits were not workflow-step failures. Check-run annotations reported: "The job was not started because recent account payments have failed or your spending limit needs to be increased."
 
@@ -43,9 +43,9 @@ Added reusable CI/release workflow coverage to `soma`: actionlint, frontend arti
 
 - Kept the Codex plugin scanner out of scope because the user explicitly rejected it.
 - Put the MCP Registry publish job in `.github/workflows/docker-publish.yml` because `server.json` publishes an OCI package identifier, so registry publishing should run after the Docker image push succeeds.
-- Used `vars.MCP_REGISTRY_DOMAIN` instead of committing `tootie.tv`, preserving template neutrality while still allowing this repository to publish under the user's DNS identity.
+- Used `vars.MCP_REGISTRY_DOMAIN` instead of committing `nashost.tv`, preserving template neutrality while still allowing this repository to publish under the user's DNS identity.
 - Used port `40123` for the CI MCP smoke instead of `40060` after local verification found an installed `/usr/local/bin/example serve mcp` already listening on `40060`.
-- Added `.github/actionlint.yaml` for self-hosted runner labels `soma` and `steamy`, so the new actionlint job accepts this repository's Windows runner label set.
+- Added `.github/actionlint.yaml` for self-hosted runner labels `soma` and `winhost`, so the new actionlint job accepts this repository's Windows runner label set.
 
 ## Files Changed
 
@@ -78,7 +78,7 @@ Notes: both `bd create` commands succeeded, but emitted `Warning: auto-export: g
 
 - Skill: `save-to-md` was used to drive this session capture and maintenance pass.
 - Shell/git: inspected workflows, branches, worktrees, diffs, logs, and pushed commits.
-- GitHub CLI: inspected workflow runs, check-run annotations, repo variables, and repo secrets; set `MCP_REGISTRY_DOMAIN=tootie.tv`.
+- GitHub CLI: inspected workflow runs, check-run annotations, repo variables, and repo secrets; set `MCP_REGISTRY_DOMAIN=nashost.tv`.
 - Beads CLI: searched tracker state and created two follow-up beads.
 - Docker CLI: validated Compose config locally with `docker compose ... config --quiet`.
 - mcporter: live-tested MCP tool/resource smoke against the debug binary.
@@ -92,7 +92,7 @@ Notes: both `bd create` commands succeeded, but emitted `Warning: auto-export: g
 - `docker compose --env-file .env.example -f docker-compose.prod.yml config --quiet` and `docker compose --env-file .env.example -f docker-compose.yml config --quiet`: passed.
 - `cargo build --locked --bin example`: passed locally.
 - `SOMA_MCP_HOST=127.0.0.1 SOMA_MCP_PORT=40123 bash tests/mcporter/test-mcp.sh --timeout-ms 20000`: passed with `10` pass, `0` fail, `2` skip.
-- `gh variable set MCP_REGISTRY_DOMAIN --body tootie.tv -R jmagar/soma`: set the repository variable.
+- `gh variable set MCP_REGISTRY_DOMAIN --body nashost.tv -R jmagar/soma`: set the repository variable.
 - `gh run list --branch main --limit 5 --json ...`: showed push workflow failures on `0085d88` and `8a5c0d5`.
 - `gh api repos/jmagar/soma/check-runs/.../annotations`: showed GitHub billing/spending-limit failure annotations.
 - `git pull --rebase && bd dolt push && git push && git status --short --branch`: pushed commits and Beads state.
@@ -100,7 +100,7 @@ Notes: both `bd create` commands succeeded, but emitted `Warning: auto-export: g
 ## Errors Encountered
 
 - Local MCP smoke initially failed because port `40060` was already occupied by `/usr/local/bin/example serve mcp`. Resolution: run the new CI smoke on `40123`.
-- Local actionlint initially failed on custom self-hosted runner labels `soma` and `steamy`. Resolution: add `.github/actionlint.yaml`.
+- Local actionlint initially failed on custom self-hosted runner labels `soma` and `winhost`. Resolution: add `.github/actionlint.yaml`.
 - Local actionlint also reported shellcheck `SC2035` for `sha256sum *`. Resolution: changed the release workflow to `sha256sum ./*`.
 - GitHub Actions runs failed before job steps due to billing/spending-limit status, not due to workflow content. Follow-up bead: `soma-lei`.
 - `bd create` emitted `Warning: auto-export: git add failed: exit status 1`; `bd show` confirmed both created issues exist.
@@ -113,7 +113,7 @@ Notes: both `bd create` commands succeeded, but emitted `Warning: auto-export: g
 | CI release-build jobs rebuilt web assets separately. | CI and release workflows upload/download a `web-out` artifact. |
 | No push/PR live MCP smoke ran through mcporter. | CI starts the debug binary on loopback and runs the mcporter harness. |
 | Docker image publishing had no MCP Registry publication step. | Tag-time Docker Publish can prepare `server.json`, authenticate with `mcp-publisher`, and publish when `MCP_PRIVATE_KEY` is configured. |
-| Registry domain was temporarily committed as a placeholder. | Workflow now reads `vars.MCP_REGISTRY_DOMAIN`; GitHub stores `tootie.tv`. |
+| Registry domain was temporarily committed as a placeholder. | Workflow now reads `vars.MCP_REGISTRY_DOMAIN`; GitHub stores `nashost.tv`. |
 
 ## Verification Evidence
 
@@ -126,7 +126,7 @@ Notes: both `bd create` commands succeeded, but emitted `Warning: auto-export: g
 | `docker compose --env-file .env.example -f docker-compose.yml config --quiet` | Valid dev compose config | No output, exit 0 | pass |
 | `cargo build --locked --bin example` | Debug binary builds | Finished dev profile | pass |
 | `tests/mcporter/test-mcp.sh --timeout-ms 20000` on port `40123` | MCP smoke passes | `PASS 10`, `FAIL 0`, `SKIP 2` | pass |
-| `gh variable list -R jmagar/soma` | Domain stored as repo variable | `MCP_REGISTRY_DOMAIN tootie.tv` | pass |
+| `gh variable list -R jmagar/soma` | Domain stored as repo variable | `MCP_REGISTRY_DOMAIN nashost.tv` | pass |
 | `gh secret list -R jmagar/soma` | Show required publish secret | Did not show `MCP_PRIVATE_KEY` | blocked |
 | GitHub Actions push workflows | Jobs start and produce logs | Jobs failed before startup due to billing/spending-limit annotation | blocked |
 
@@ -139,7 +139,7 @@ Notes: both `bd create` commands succeeded, but emitted `Warning: auto-export: g
 ## Decisions Not Taken
 
 - Did not add the Codex plugin scanner because the user explicitly said they did not want it.
-- Did not hardcode `tootie.tv` in the workflow after the user asked how to use the domain without committing it.
+- Did not hardcode `nashost.tv` in the workflow after the user asked how to use the domain without committing it.
 - Did not try to fix GitHub Actions by editing workflow YAML after the live evidence showed billing/spending-limit annotations.
 - Did not delete or clean worktrees/branches because only the main worktree and `main` branch were registered.
 
