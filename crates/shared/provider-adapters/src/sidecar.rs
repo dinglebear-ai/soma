@@ -78,7 +78,7 @@ fn image_is_busy(error: &io::Error) -> bool {
 }
 
 /// Spawns `command`, retrying only the transient "image still open for
-/// writing" condition described on [`image_is_busy`]. Every other spawn error
+/// writing" condition detected by `image_is_busy`. Every other spawn error
 /// is returned immediately and untouched.
 pub async fn spawn_retrying_busy_image(command: &mut Command) -> io::Result<tokio::process::Child> {
     for _ in 0..EXEC_BUSY_ATTEMPTS {
