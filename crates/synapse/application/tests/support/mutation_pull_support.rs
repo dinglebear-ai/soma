@@ -186,7 +186,7 @@ impl ProgressSink for FailingProgress {
 }
 
 pub(crate) fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 pub(crate) fn context() -> OperationContext {
@@ -235,7 +235,7 @@ pub(crate) fn runtime(
 
 pub(crate) fn image(id: &str, tag: &str) -> ImageSummary {
     ImageSummary {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         id: id.into(),
         repo_tags: vec![tag.into()],
@@ -249,7 +249,7 @@ pub(crate) fn image(id: &str, tag: &str) -> ImageSummary {
 
 pub(crate) fn container(id: &str, image: &str) -> ContainerSummary {
     ContainerSummary {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         id: Some(id.into()),
         names: vec![id.into()],

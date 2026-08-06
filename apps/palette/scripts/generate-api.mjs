@@ -15,7 +15,7 @@ const useLive =
 let input;
 if (useLive) {
   input =
-    process.env.LABBY_OPENAPI_URL || "https://lab.tootie.tv/api-docs/openapi.json";
+    process.env.LABBY_OPENAPI_URL || "https://lab.example.internal/api-docs/openapi.json";
   console.log(`[generate-api] fetching live spec from ${input}`);
 } else {
   // Resolve relative to the monorepo root (two dirs up from apps/palette)

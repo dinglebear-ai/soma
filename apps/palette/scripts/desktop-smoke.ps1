@@ -40,7 +40,7 @@ if (-not $token) { throw 'LABBY_PALETTE_TOKEN or LABBY_MCP_HTTP_TOKEN is require
 if (-not $query) { $query = 'gateway' }
 if (-not $evidenceDir) { $evidenceDir = Join-Path $PWD 'palette-smoke-evidence' }
 if (-not $settingsDir) {
-  $settingsDir = Join-Path $env:APPDATA 'tv.tootie.lab.palette'
+  $settingsDir = Join-Path $env:APPDATA 'tv.nashost.lab.palette'
 }
 
 New-Item -ItemType Directory -Force -Path $evidenceDir | Out-Null

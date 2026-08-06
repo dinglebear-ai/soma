@@ -34,7 +34,7 @@ fn generated_legacy_tool_schemas_are_closed_and_executable() {
         .validate(&json!({
             "action": "docker",
             "subaction": "build",
-            "host": "dookie",
+            "host": "devhost",
             "context": "/tmp/image",
             "tag": "example:latest",
             "response_format": "json"
@@ -43,7 +43,7 @@ fn generated_legacy_tool_schemas_are_closed_and_executable() {
     scout_validator
         .validate(&json!({
             "action": "delta",
-            "source_host": "dookie",
+            "source_host": "devhost",
             "source_path": "/tmp/a",
             "content": "hello"
         }))
@@ -54,7 +54,7 @@ fn generated_legacy_tool_schemas_are_closed_and_executable() {
             .validate(&json!({
                 "action": "docker",
                 "subaction": "build",
-                "host": "dookie",
+                "host": "devhost",
                 "context": "/tmp/image",
                 "tag": "example:latest",
                 "unknown": true

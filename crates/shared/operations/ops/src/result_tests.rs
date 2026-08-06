@@ -90,7 +90,7 @@ fn inline_output_is_bounded() {
     let result = OperationResult::new(
         OperationId::new(),
         OperationName::new("host.inspect").unwrap(),
-        TargetRef::new(TargetKind::Host, "dookie").unwrap(),
+        TargetRef::new(TargetKind::Host, "devhost").unwrap(),
         OperationStatus::Succeeded,
         ExecutionMetadata::new(
             Timestamp::from_unix_millis(10),

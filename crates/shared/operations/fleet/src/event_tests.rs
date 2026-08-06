@@ -5,7 +5,7 @@ use crate::{HostEndpoint, HostRecord};
 
 #[tokio::test(flavor = "current_thread")]
 async fn events_bind_host_revision_and_emit() {
-    let host = HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local);
+    let host = HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local);
     let event = FleetEvent::new(
         FleetEventKind::ConnectionOpened,
         Timestamp::from_unix_millis(100),

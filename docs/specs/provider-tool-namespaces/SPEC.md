@@ -184,7 +184,7 @@ Examples:
 
 ```bash
 soma nexus repos --repo soma
-soma nexus services --device squirts --service swag
+soma nexus services --device edgehost --service swag
 soma weather status
 soma providers test nexus repos --json '{}'
 ```
