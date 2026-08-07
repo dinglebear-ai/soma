@@ -73,6 +73,15 @@ impl Updater {
         previous: String,
     ) -> Result<InstallOutcome> {
         let paths = self.validated_layout()?;
+        // Staging and validation tolerate an absent target so adopters can
+        // exercise them standalone, but this installer backs up and atomically
+        // replaces an existing executable. Reject the absent-target case with a
+        // typed error before any lock or transaction state is created.
+        if !validated.source_was_present() {
+            return Err(UpdateError::InvalidPolicy(
+                "the provided installer requires the target executable to exist before staging",
+            ));
+        }
         let validated_path = pre_swap::validated_artifact_path(&paths.executable, &validated)?;
         let _locks = self.transaction_locks(&paths)?;
         let (executable, state) = (paths.executable, paths.state);

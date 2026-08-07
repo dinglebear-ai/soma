@@ -104,6 +104,17 @@ fn rejects_package_as_a_reserved_cli_command() {
 }
 
 #[test]
+fn rejects_self_update_as_a_reserved_cli_command() {
+    // Same contract as `package` above: `self-update` is CLI infrastructure
+    // gated by reserved_cli_command(), so a provider must not be able to claim
+    // the name in a manifest and then be unreachable at the parser.
+    let mut value = valid_manifest();
+    value["tools"][0]["cli"] = json!({"enabled":true,"command":"self-update"});
+    let error = validate_provider_manifest_value(&value).expect_err("reserved name fails");
+    assert_eq!(error.code(), "reserved_cli_command");
+}
+
+#[test]
 fn contracts_do_not_expose_execution_types() {
     let _manifest: Option<ProviderManifest> = None;
     let _env: Option<EnvRequirement> = None;
