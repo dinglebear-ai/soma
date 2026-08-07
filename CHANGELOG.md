@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.11.0](https://github.com/dinglebear-ai/soma/compare/v0.10.0...v0.11.0) (2026-08-07)
+
+
+### Added
+
+* **infra:** complete canonical mutation runtime ([#319](https://github.com/dinglebear-ai/soma/issues/319)) ([948c419](https://github.com/dinglebear-ai/soma/commit/948c419094d6d51b08da78f4f242fa080b2c0217))
+
+
+### Fixed
+
+* **python:** retry ETXTBSY on interpreter spawn; deflake Python timing tests ([#332](https://github.com/dinglebear-ai/soma/issues/332)) ([8897398](https://github.com/dinglebear-ai/soma/commit/8897398c812f9d65f2dc9cc7f310ba8ce1b1c7a2))
+* **self-update:** address review findings and adopt the crate in the CLI ([#330](https://github.com/dinglebear-ai/soma/issues/330)) ([b447c5e](https://github.com/dinglebear-ai/soma/commit/b447c5e1e6464821d4045a663596e4a22059248e))
+
+
+### Changed
+
+* **ci:** build xtask once in Soma Contracts instead of 17 cargo runs ([#336](https://github.com/dinglebear-ai/soma/issues/336)) ([ee22278](https://github.com/dinglebear-ai/soma/commit/ee22278da0948087ff49241e01d2ea5c8cbdc132))
+* **ci:** drop the redundant target cache from the Test job ([#338](https://github.com/dinglebear-ai/soma/issues/338)) ([e876708](https://github.com/dinglebear-ai/soma/commit/e8767089d2d16a4a05c9145e3276e5269d01600a))
+* **ci:** emit line-tables-only debuginfo in dev builds ([#334](https://github.com/dinglebear-ai/soma/issues/334)) ([113eb56](https://github.com/dinglebear-ai/soma/commit/113eb56b35892345d81035187ce91f2458062165))
+
 ## [0.10.0](https://github.com/dinglebear-ai/soma/compare/v0.9.0...v0.10.0) (2026-08-05)
 
 
