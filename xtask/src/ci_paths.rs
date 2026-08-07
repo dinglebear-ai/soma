@@ -5,8 +5,22 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const OUTPUT_KEYS: &[&str] = &[
-    "all", "docs", "workflow", "rust", "web", "native", "mcp", "docker", "toml", "soma",
-    "security", "secrets", "release",
+    "all",
+    "docs",
+    "workflow",
+    "rust",
+    "web",
+    "native",
+    "mcp",
+    "docker",
+    "docker_build",
+    "toml",
+    "soma",
+    "security",
+    "secrets",
+    "release",
+    "python",
+    "wasm_component",
 ];
 
 pub fn run(args: &[String]) -> Result<()> {
@@ -112,6 +126,21 @@ fn classify(event: &str, paths: &[String]) -> BTreeMap<String, bool> {
                 "xtask/src/ci_paths.rs" | "xtask/src/main.rs" | "docs/CI.md"
             )
     });
+    // The all-true fail-safe promotion below is reserved for changes that can
+    // alter CI routing itself: ci.yml, shared composite actions, this
+    // classifier, or its documentation. Other workflow files (release,
+    // monitors, docs, conformance) still set `workflow` so actionlint and the
+    // lefthook policy run, but no longer force every expensive job.
+    let workflow_core = any(paths, |p| {
+        starts(p, &[".github/actions/"])
+            || matches!(
+                p,
+                ".github/workflows/ci.yml"
+                    | "xtask/src/ci_paths.rs"
+                    | "xtask/src/main.rs"
+                    | "docs/CI.md"
+            )
+    });
     let docs = any(paths, |p| {
         (starts(p, &["docs/"]) && !starts(p, &["docs/sessions/"]))
             || matches!(
@@ -159,6 +188,19 @@ fn classify(event: &str, paths: &[String]) -> BTreeMap<String, bool> {
                         | "docker-compose.prod.yml"
                 )
         });
+    // Narrower than `docker`: true only when the container image inputs
+    // themselves change. Gates the (expensive, hosted) container-smoke job on
+    // PRs; pushes to main always smoke regardless of this flag.
+    let docker_build = any(paths, |p| {
+        matches!(
+            p,
+            "config/Dockerfile"
+                | ".dockerignore"
+                | ".env.example"
+                | "docker-compose.yml"
+                | "docker-compose.prod.yml"
+        )
+    });
     let toml = any(paths, |p| p.ends_with(".toml"));
     let soma = rust
         || mcp
@@ -173,6 +215,8 @@ fn classify(event: &str, paths: &[String]) -> BTreeMap<String, bool> {
         });
     let native = rust || web;
     let release = rust || web || any(paths, |p| starts(p, &["release/", "packages/soma-rmcp/"]));
+    let python = any(paths, |p| starts(p, &["packages/python/"]));
+    let wasm_component = any(paths, |p| starts(p, &["examples/providers/components/"]));
 
     let mut result = BTreeMap::new();
     result.insert("all".to_owned(), false);
@@ -183,6 +227,7 @@ fn classify(event: &str, paths: &[String]) -> BTreeMap<String, bool> {
     result.insert("native".to_owned(), native);
     result.insert("mcp".to_owned(), mcp);
     result.insert("docker".to_owned(), docker);
+    result.insert("docker_build".to_owned(), docker_build);
     result.insert("toml".to_owned(), toml);
     result.insert("soma".to_owned(), soma);
     result.insert("security".to_owned(), security);
@@ -191,8 +236,10 @@ fn classify(event: &str, paths: &[String]) -> BTreeMap<String, bool> {
         !only_low_risk_docs_or_agent_files(paths),
     );
     result.insert("release".to_owned(), release);
+    result.insert("python".to_owned(), python);
+    result.insert("wasm_component".to_owned(), wasm_component);
 
-    if workflow {
+    if workflow_core {
         for key in OUTPUT_KEYS {
             result.insert((*key).to_owned(), true);
         }
@@ -355,6 +402,42 @@ mod tests {
         assert!(out["soma"]);
         assert!(out["security"]);
         assert!(out["release"]);
+        assert!(
+            !out["docker_build"],
+            "rust-only changes should not force a PR container image rebuild"
+        );
+        assert!(!out["python"]);
+        assert!(!out["wasm_component"]);
+    }
+
+    #[test]
+    fn dockerfile_changes_enable_docker_build() {
+        for path in [
+            "config/Dockerfile",
+            ".dockerignore",
+            ".env.example",
+            "docker-compose.yml",
+            "docker-compose.prod.yml",
+        ] {
+            let out = classify_paths(&[path]);
+            assert!(out["docker_build"], "{path} should enable docker_build");
+            assert!(out["docker"], "{path} should enable docker");
+        }
+    }
+
+    #[test]
+    fn python_package_changes_enable_python() {
+        let out = classify_paths(&["packages/python/python/soma_provider/runner.py"]);
+        assert!(out["python"]);
+        assert!(!out["rust"]);
+        assert!(!out["wasm_component"]);
+    }
+
+    #[test]
+    fn component_example_changes_enable_wasm_component() {
+        let out = classify_paths(&["examples/providers/components/reference-provider/src/lib.rs"]);
+        assert!(out["wasm_component"]);
+        assert!(!out["python"]);
     }
 
     #[test]
@@ -377,11 +460,32 @@ mod tests {
     }
 
     #[test]
-    fn workflow_changes_fail_safe_to_full_ci() {
-        let out = classify_paths(&[".github/workflows/ci.yml"]);
-        for key in OUTPUT_KEYS {
-            assert!(out[*key], "workflow changes should enable {key}");
+    fn core_workflow_changes_fail_safe_to_full_ci() {
+        for path in [
+            ".github/workflows/ci.yml",
+            ".github/actions/setup-rust-kache/action.yml",
+            "xtask/src/ci_paths.rs",
+        ] {
+            let out = classify_paths(&[path]);
+            for key in OUTPUT_KEYS {
+                assert!(out[*key], "{path} changes should enable {key}");
+            }
         }
+    }
+
+    #[test]
+    fn non_core_workflow_changes_only_enable_workflow_checks() {
+        let out = classify_paths(&[".github/workflows/release.yml"]);
+        assert!(out["workflow"]);
+        assert!(out["secrets"]);
+        assert!(!out["rust"], "non-core workflow edits must not run rust CI");
+        assert!(!out["docker"]);
+        assert!(!out["docker_build"]);
+        assert!(!out["web"]);
+        assert!(!out["mcp"]);
+        assert!(!out["soma"]);
+        assert!(!out["release"]);
+        assert!(!out["all"]);
     }
 
     #[test]
