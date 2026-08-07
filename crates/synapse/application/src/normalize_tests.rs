@@ -10,7 +10,7 @@ fn flux_build_normalizes_to_canonical_parameters() {
             &json!({
                 "action": "docker",
                 "subaction": "build",
-                "host": "dookie",
+                "host": "devhost",
                 "context": "/tmp/image",
                 "tag": "example:latest",
                 "response_format": "json"
@@ -23,7 +23,7 @@ fn flux_build_normalizes_to_canonical_parameters() {
     assert_eq!(request.presentation(), LegacyPresentation::Json);
     assert_eq!(
         request.parameters(),
-        &json!({"host":"dookie","context":"/tmp/image","tag":"example:latest"})
+        &json!({"host":"devhost","context":"/tmp/image","tag":"example:latest"})
     );
 }
 
@@ -49,7 +49,7 @@ fn unknown_fields_and_missing_required_fields_are_rejected() {
             &json!({
                 "action":"container",
                 "subaction":"start",
-                "host":"dookie",
+                "host":"devhost",
                 "container_id":"soma",
                 "shell":true
             })
@@ -59,7 +59,7 @@ fn unknown_fields_and_missing_required_fields_are_rejected() {
     assert!(matches!(
         catalog.normalize_legacy_request(
             LegacyTool::Flux,
-            &json!({"action":"container","subaction":"start","host":"dookie"})
+            &json!({"action":"container","subaction":"start","host":"devhost"})
         ),
         Err(CompatibilityError::SchemaValidation { .. })
     ));
@@ -71,15 +71,15 @@ fn delta_requires_exactly_one_complete_alternative() {
     for valid in [
         json!({
             "action":"delta",
-            "source_host":"dookie",
+            "source_host":"devhost",
             "source_path":"/tmp/a",
             "content":"hello"
         }),
         json!({
             "action":"delta",
-            "source_host":"dookie",
+            "source_host":"devhost",
             "source_path":"/tmp/a",
-            "target_host":"squirts",
+            "target_host":"edgehost",
             "target_path":"/tmp/b"
         }),
     ] {
@@ -93,15 +93,15 @@ fn delta_requires_exactly_one_complete_alternative() {
     for invalid in [
         json!({
             "action":"delta",
-            "source_host":"dookie",
+            "source_host":"devhost",
             "source_path":"/tmp/a",
-            "target_host":"squirts"
+            "target_host":"edgehost"
         }),
         json!({
             "action":"delta",
-            "source_host":"dookie",
+            "source_host":"devhost",
             "source_path":"/tmp/a",
-            "target_host":"squirts",
+            "target_host":"edgehost",
             "target_path":"/tmp/b",
             "content":"hello"
         }),

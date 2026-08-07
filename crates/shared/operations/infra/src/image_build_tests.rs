@@ -2,7 +2,7 @@ use super::*;
 
 fn fingerprint(path: &str) -> BuildContextFingerprint {
     BuildContextFingerprint {
-        host: soma_fleet::HostId::new("dookie").unwrap(),
+        host: soma_fleet::HostId::new("devhost").unwrap(),
         topology_revision: soma_fleet::TopologyRevision::from_material(b"test"),
         path: path.into(),
         sha256: "a".repeat(64),

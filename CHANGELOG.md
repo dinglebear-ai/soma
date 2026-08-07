@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 * **ci:** validate release-please PRs with a hosted version-surface contract while preserving the full self-hosted matrix for normal changes
+* **ci:** isolate the Fast Rust test-phase Cargo home so parallel runner containers cannot race while unpacking shared registry sources
+- Relicense Dinglebear-owned original work under AGPL-3.0-only and document separate commercial licensing; third-party material retains its original terms.
 * **ci:** pin the shared Rust cache action to upstream Kache 0.13.0 so hosted and self-hosted jobs use the same daemon protocol and S3 cache epoch
 * **docs:** document the MinIO-only Kache remote, 80 GiB runner L1 stores, and retired NFS topology
 
@@ -1833,8 +1835,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- GitHub workflow docs now cover the full workflow inventory, TOOTIE Docker
-  Linux runner layout, steamy Windows runner expectations, and sccache usage
+- GitHub workflow docs now cover the full workflow inventory, NASHOST Docker
+  Linux runner layout, winhost Windows runner expectations, and sccache usage
   across Linux and Windows CI builds.
 - OAuth authorization responses now include the RFC 9207 `iss` parameter on both the
   success and error redirects, set to the authorization server's issuer identifier, so

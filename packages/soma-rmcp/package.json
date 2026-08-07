@@ -46,7 +46,7 @@
     "http-server",
     "soma"
   ],
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "mcpName": "ai.dinglebear/soma",
   "name": "@dinglebear/soma",
   "repository": {

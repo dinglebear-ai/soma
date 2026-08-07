@@ -53,7 +53,7 @@ impl OperationDefinition for InspectHostOperation {
     }
 }
 
-let parameters = InspectHost { host: "dookie".into() };
+let parameters = InspectHost { host: "devhost".into() };
 let request = OperationRequest::new::<InspectHostOperation>(
     OperationContext::new(),
     parameters,
