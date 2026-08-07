@@ -146,21 +146,12 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ci-pool-rust
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust and kache
         uses: ./.github/actions/setup-rust-kache
-
-      # CUSTOMIZE: Change cache key prefix from "soma" to your repo name.
-      - name: Cache Cargo
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            target
-          key: ${{ github.repository }}-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ github.repository }}-test-
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-nextest
