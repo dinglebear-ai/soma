@@ -71,7 +71,11 @@ fn component_state_is_namespaced_and_requires_write_authority() {
             actor_scopes: vec!["soma:read".to_owned(), "soma:write".to_owned()],
             ..ProviderInvocationContext::default()
         },
-        deadline: Instant::now() + Duration::from_secs(1),
+        // Generous on purpose: this test asserts state namespacing and write
+        // authority, not latency, and the state calls below take file locks
+        // and fsync. See `epoch_deadline_interrupts_running_guest_code` for
+        // the one place a short deadline is the actual subject.
+        deadline: Instant::now() + Duration::from_secs(60),
         resolved_hosts: BTreeMap::new(),
         wasi: wasmtime_wasi::WasiCtxBuilder::new().build(),
         table: wasmtime::component::ResourceTable::new(),
@@ -182,7 +186,11 @@ fn verification_rejects_a_component_without_the_soma_provider_world() {
 #[test]
 fn retained_artifact_survives_global_cache_eviction() {
     let runtime = WasmRuntime::new().expect("runtime");
-    let deadline = Instant::now() + Duration::from_secs(5);
+    // Wasm compilation budget for artifacts this test expects to compile.
+    // The assertion is about cache retention under eviction pressure, not
+    // compile speed, and Cranelift codegen is exactly the kind of work a
+    // loaded machine slows down.
+    let deadline = Instant::now() + Duration::from_secs(120);
     let original = wat::parse_str(
         r#"
 (module
