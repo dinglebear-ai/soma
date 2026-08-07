@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/compiled-context.schema.json",
+  "title": "Soma Compiled Context",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "id", "generationId", "manifest", "requestDigest",
+    "planDigest", "graphRevision", "task", "roots", "counts", "sources",
+    "items", "conflicts", "budget", "materializations", "createdAt", "digest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "generationId": { "$ref": "common.schema.json#/$defs/id" },
+    "parentGenerationId": { "$ref": "common.schema.json#/$defs/id" },
+    "manifest": { "$ref": "common.schema.json#/$defs/canonicalRef" },
+    "requestDigest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "planDigest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "graphRevision": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "task": { "type": "string", "minLength": 1, "maxLength": 16384 },
+    "roots": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "value"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "value": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        }
+      }
+    },
+    "timeWindow": { "$ref": "common.schema.json#/$defs/timeWindow" },
+    "counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": { "$ref": "#/$defs/sourceReport" }
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/item" }
+    },
+    "conflicts": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/conflict" }
+    },
+    "budget": { "$ref": "common.schema.json#/$defs/budgetReport" },
+    "materializations": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "common.schema.json#/$defs/materializationReceipt" }
+    },
+    "createdAt": { "$ref": "common.schema.json#/$defs/rfc3339" },
+    "digest": { "$ref": "common.schema.json#/$defs/sha256" }
+  },
+  "$defs": {
+    "sourceReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "provider", "status"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "provider": { "enum": ["axon", "cortex", "soma"] },
+        "status": { "enum": ["available", "stale", "unavailable", "excluded", "failed"] },
+        "revision": { "type": "string", "maxLength": 512 },
+        "observedAt": { "$ref": "common.schema.json#/$defs/rfc3339" },
+        "required": { "type": "boolean" },
+        "warnings": { "type": "array", "items": { "type": "string", "maxLength": 4096 } }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "canonicalRef", "kind", "evidenceClass", "sensitivity", "freshness"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "canonicalRef": { "$ref": "common.schema.json#/$defs/canonicalRef" },
+        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "evidenceClass": { "$ref": "common.schema.json#/$defs/evidenceClass" },
+        "sensitivity": { "$ref": "common.schema.json#/$defs/sensitivity" },
+        "freshness": { "enum": ["live", "current", "stale", "expired", "unknown"] },
+        "excerpt": { "type": "string", "maxLength": 65536 },
+        "entityIds": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/id" }
+        },
+        "attributes": { "type": "object" }
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "evidence"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "evidence": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 128,
+          "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }
+        }
+      }
+    }
+  }
+}

@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* **docs:** preserve the proposed agent-runtime architecture package, contracts, schemas, examples, and implementation blueprints for review
 * **ci:** validate release-please PRs with a hosted version-surface contract while preserving the full self-hosted matrix for normal changes
 * **ci:** isolate the Fast Rust test-phase Cargo home so parallel runner containers cannot race while unpacking shared registry sources
 - Relicense Dinglebear-owned original work under AGPL-3.0-only and document separate commercial licensing; third-party material retains its original terms.
@@ -35,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* **ci:** align schema-backed documentation, isolated external-consumer fixtures, and `soma-ops` dependency pins with the fleet repository contract
 * **release:** regenerate the OpenAPI document during release-please fixups so version bumps cannot leave the generated contract stale
 * **tests:** retain a bounded provider-refresh contention test without failing when shared-runner scheduler pressure pushes legitimate preparation beyond five seconds
 
