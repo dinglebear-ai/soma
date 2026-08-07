@@ -32,9 +32,13 @@ inputs:
     description: >-
       S3-compatible endpoint used when credentials are supplied. Intentionally
       has NO default: this repository is public, and a real endpoint hostname
-      here would publish internal infrastructure. Every caller passes
-      ${{ vars.KACHE_S3_ENDPOINT }}, so the value lives in org variables, not
-      in source. An empty value means callers fall back to local-only caching.
+      here would publish internal infrastructure. Callers that supply
+      credentials pass the org variable KACHE_S3_ENDPOINT, so the value lives
+      in org configuration rather than in source. An empty value means the
+      caller falls back to local-only caching. Do not write an expression in
+      this description - GitHub evaluates expressions in input descriptions,
+      and the vars context is not available when loading a composite action,
+      so it fails the whole action with "Unrecognized named-value: 'vars'".
     required: false
     default: ""
   s3-bucket:
