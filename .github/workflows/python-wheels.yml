@@ -74,7 +74,7 @@ jobs:
           (cd dist && sha256sum ./*.whl) > supply-chain/SHA256SUMS
 
       - name: Attest wheel provenance
-        uses: actions/attest-build-provenance@e3fe62ef559997059fe8380e7d2b4c909e2d65f4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: dist/*.whl
 
