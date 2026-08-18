@@ -55,8 +55,19 @@ def main() -> int:
     iterations = int(BUDGET["soak_iterations"] if args.full else min(BUDGET["soak_iterations"], 250))
 
     probe = "import sys,time; sys.path.insert(0, sys.argv[1]); started=time.perf_counter(); import soma_provider; print((time.perf_counter()-started)*1000)"
-    imported = subprocess.run([sys.executable, "-I", "-c", probe, str(PACKAGE)], check=True, text=True, capture_output=True)
-    import_ms = float(imported.stdout.strip())
+    import_samples_ms = []
+    for _ in range(int(BUDGET["sdk_import_trials"])):
+        imported = subprocess.run(
+            [sys.executable, "-I", "-c", probe, str(PACKAGE)],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        import_samples_ms.append(float(imported.stdout.strip()))
+    # Each subprocess is a cold Python interpreter. Use the best isolated sample
+    # as the intrinsic import-cost estimate so scheduler contention on shared
+    # development/CI hosts does not turn this gate into a load detector.
+    import_ms = min(import_samples_ms)
     require("sdk import", import_ms, float(BUDGET["sdk_import_ms"]))
 
     sys.path.insert(0, str(PACKAGE))
@@ -109,7 +120,7 @@ def main() -> int:
                 f"soak memory budget exceeded: {growth} > {BUDGET['soak_memory_bytes']}"
             )
 
-    print(json.dumps({"sdk_import_ms": import_ms, "catalog_cold_ms": cold_ms, "catalog_warm_average_ms": warm_ms, "invocation_warm_average_ms": invoke_ms, "reload_average_ms": reload_ms, "soak_iterations": iterations, "soak_growth_bytes": growth}, sort_keys=True))
+    print(json.dumps({"sdk_import_ms": import_ms, "sdk_import_samples_ms": import_samples_ms, "catalog_cold_ms": cold_ms, "catalog_warm_average_ms": warm_ms, "invocation_warm_average_ms": invoke_ms, "reload_average_ms": reload_ms, "soak_iterations": iterations, "soak_growth_bytes": growth}, sort_keys=True))
     return 0
 
 if __name__ == "__main__":
