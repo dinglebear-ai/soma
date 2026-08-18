@@ -49,6 +49,8 @@ use crate::upstream::types::{BeginAuthorization, OauthError};
 
 const TOKEN_EXPIRY_WARNING_SECS: i64 = 300;
 const PROACTIVE_REFRESH_WINDOW_SECS: i64 = 30;
+const MAX_AUTHORIZATION_SERVERS: usize = 8;
+const OAUTH_METADATA_DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
 
 /// Upstream OAuth manager for a single upstream MCP server.
 ///
@@ -644,12 +646,27 @@ enum DynamicClientRegistrationUse {
 #[derive(Debug, Deserialize)]
 struct ProtectedResourceMetadata {
     #[serde(default)]
+    resource: Option<String>,
+    #[serde(default)]
     authorization_server: Option<String>,
     #[serde(default)]
     authorization_servers: Option<Vec<String>>,
 }
 
 async fn discover_metadata_via_protected_resource(
+    upstream_url: &str,
+) -> Result<Option<AuthorizationMetadata>, OauthError> {
+    tokio::time::timeout(
+        OAUTH_METADATA_DISCOVERY_TIMEOUT,
+        discover_metadata_via_protected_resource_inner(upstream_url),
+    )
+    .await
+    .map_err(|_| {
+        OauthError::Internal("OAuth metadata discovery exceeded its overall deadline".to_string())
+    })?
+}
+
+async fn discover_metadata_via_protected_resource_inner(
     upstream_url: &str,
 ) -> Result<Option<AuthorizationMetadata>, OauthError> {
     let upstream = url::Url::parse(upstream_url)
@@ -673,14 +690,8 @@ async fn discover_metadata_via_protected_resource(
         let Ok(resource_metadata) = response.json::<ProtectedResourceMetadata>().await else {
             continue;
         };
-
-        let mut authorization_servers = Vec::new();
-        if let Some(server) = resource_metadata.authorization_server {
-            authorization_servers.push(server);
-        }
-        if let Some(servers) = resource_metadata.authorization_servers {
-            authorization_servers.extend(servers);
-        }
+        validate_protected_resource(&resource_metadata, &upstream)?;
+        let authorization_servers = bounded_authorization_servers(resource_metadata)?;
 
         for authorization_server in authorization_servers {
             let Ok(server_url) =
@@ -704,6 +715,45 @@ async fn discover_metadata_via_protected_resource(
     }
 
     Ok(None)
+}
+
+fn validate_protected_resource(
+    metadata: &ProtectedResourceMetadata,
+    upstream: &url::Url,
+) -> Result<(), OauthError> {
+    if metadata
+        .resource
+        .as_deref()
+        .is_some_and(|resource| resource != upstream.as_str())
+    {
+        return Err(OauthError::ResourceMismatch(
+            "protected-resource metadata does not match the configured upstream resource"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn bounded_authorization_servers(
+    metadata: ProtectedResourceMetadata,
+) -> Result<Vec<String>, OauthError> {
+    let mut servers = metadata.authorization_servers.unwrap_or_default();
+    if let Some(server) = metadata.authorization_server {
+        servers.insert(0, server);
+    }
+    let mut seen = std::collections::HashSet::new();
+    servers = servers
+        .into_iter()
+        .map(|server| server.trim().to_string())
+        .filter(|server| !server.is_empty() && seen.insert(server.clone()))
+        .collect();
+    if servers.len() > MAX_AUTHORIZATION_SERVERS {
+        return Err(OauthError::Internal(format!(
+            "OAuth protected-resource metadata lists {} authorization servers; maximum is {MAX_AUTHORIZATION_SERVERS}",
+            servers.len()
+        )));
+    }
+    Ok(servers)
 }
 
 fn protected_resource_metadata_candidates(upstream: &url::Url) -> Vec<url::Url> {
@@ -861,7 +911,10 @@ fn map_auth_error(e: rmcp::transport::AuthError) -> OauthError {
 
 #[cfg(test)]
 mod url_tests {
-    use super::google_offline_access_url;
+    use super::{
+        MAX_AUTHORIZATION_SERVERS, OauthError, ProtectedResourceMetadata,
+        bounded_authorization_servers, google_offline_access_url, validate_protected_resource,
+    };
 
     #[test]
     fn google_authorization_url_requests_offline_consent() {
@@ -908,5 +961,60 @@ mod url_tests {
             params.get("include_granted_scopes").map(|v| v.as_ref()),
             Some("false")
         );
+    }
+
+    #[test]
+    fn protected_resource_metadata_must_bind_to_configured_resource() {
+        let upstream = url::Url::parse("https://mcp.example.test/mcp").unwrap();
+        let matching = ProtectedResourceMetadata {
+            resource: Some(upstream.as_str().to_string()),
+            authorization_server: None,
+            authorization_servers: None,
+        };
+        validate_protected_resource(&matching, &upstream).unwrap();
+
+        let mismatched = ProtectedResourceMetadata {
+            resource: Some("https://other.example.test/mcp".to_string()),
+            authorization_server: None,
+            authorization_servers: None,
+        };
+        assert!(matches!(
+            validate_protected_resource(&mismatched, &upstream),
+            Err(OauthError::ResourceMismatch(_))
+        ));
+    }
+
+    #[test]
+    fn authorization_server_candidates_are_deduplicated_and_bounded() {
+        let metadata = ProtectedResourceMetadata {
+            resource: None,
+            authorization_server: Some("https://auth.example.test".to_string()),
+            authorization_servers: Some(vec![
+                " https://auth.example.test ".to_string(),
+                "https://auth2.example.test".to_string(),
+            ]),
+        };
+        let servers = bounded_authorization_servers(metadata).unwrap();
+        assert_eq!(
+            servers,
+            vec![
+                "https://auth.example.test".to_string(),
+                "https://auth2.example.test".to_string(),
+            ]
+        );
+
+        let too_many = ProtectedResourceMetadata {
+            resource: None,
+            authorization_server: None,
+            authorization_servers: Some(
+                (0..=MAX_AUTHORIZATION_SERVERS)
+                    .map(|index| format!("https://auth{index}.example.test"))
+                    .collect(),
+            ),
+        };
+        assert!(matches!(
+            bounded_authorization_servers(too_many),
+            Err(OauthError::Internal(message)) if message.contains("maximum")
+        ));
     }
 }
