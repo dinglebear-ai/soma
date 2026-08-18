@@ -42,7 +42,10 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
     .await?;
     let config = request.config;
     let mut budget = RunBudget::new(&config);
-    let proxy = build_proxy(&entries, config.semantic_search.blend_weight)?;
+    let start_input = CodeModeRunnerInput::Start {
+        code: normalize_user_code(request.code),
+        proxy: build_proxy(&entries, config.semantic_search.blend_weight)?,
+    };
     let fallback_pool;
     let pool = if let Some(pool) = request.runner_pool {
         pool
@@ -58,16 +61,11 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
         &fallback_pool
     };
     let mut lease = pool.checkout().await?;
-    let deadline = tokio::time::Instant::now() + Duration::from_millis(config.timeout_ms.max(1));
-    write_with_deadline(
-        &mut lease.handle_mut()?.stdin,
-        &CodeModeRunnerInput::Start {
-            code: normalize_user_code(request.code),
-            proxy,
-        },
-        deadline,
-    )
-    .await?;
+    let mut deadline =
+        tokio::time::Instant::now() + Duration::from_millis(config.timeout_ms.max(1));
+    write_with_deadline(&mut lease.handle_mut()?.stdin, &start_input, deadline).await?;
+    let mut saw_protocol_activity = false;
+    let mut replayed_on_fresh_runner = false;
 
     let mut calls = Vec::new();
     let mut step_ordinals: HashMap<u64, (u64, String)> = HashMap::new();
@@ -93,7 +91,30 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
     };
 
     loop {
-        let output = next_output(lease.handle_mut()?, deadline).await?;
+        let output = match next_output(lease.handle_mut()?, deadline).await {
+            Ok(output) => {
+                saw_protocol_activity = true;
+                output
+            }
+            Err(NextOutputError::RunnerExited)
+                if !saw_protocol_activity && !replayed_on_fresh_runner =>
+            {
+                drop(lease);
+                tracing::warn!(
+                    surface = "dispatch",
+                    service = "code_mode",
+                    action = "pool.retry_fresh",
+                    "Code Mode runner exited before protocol activity; retrying once on a fresh runner"
+                );
+                lease = pool.checkout_fresh().await?;
+                deadline =
+                    tokio::time::Instant::now() + Duration::from_millis(config.timeout_ms.max(1));
+                write_with_deadline(&mut lease.handle_mut()?.stdin, &start_input, deadline).await?;
+                replayed_on_fresh_runner = true;
+                continue;
+            }
+            Err(error) => return Err(error.into_tool_error()),
+        };
         match output {
             CodeModeRunnerOutput::ToolCall { seq, id, params } => {
                 let result = handle_tool_call(&mut tool_ctx, &mut budget, seq, id, params).await;
@@ -229,10 +250,12 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
                 return response;
             }
             CodeModeRunnerOutput::Error { kind, message } => {
-                return Err(ToolError::Sdk {
+                let error = ToolError::Sdk {
                     sdk_kind: kind,
                     message,
-                });
+                };
+                pool.release(lease, RunnerDisposition::Reuse).await;
+                return Err(error);
             }
         }
     }
@@ -299,24 +322,39 @@ async fn record_step<H: CodeModeHost>(
     .await
 }
 
+enum NextOutputError {
+    RunnerExited,
+    Tool(ToolError),
+}
+
+impl NextOutputError {
+    fn into_tool_error(self) -> ToolError {
+        match self {
+            Self::RunnerExited => ToolError::Sdk {
+                sdk_kind: "server_error".to_string(),
+                message: "Code Mode runner exited before completion".to_string(),
+            },
+            Self::Tool(error) => error,
+        }
+    }
+}
+
 async fn next_output(
     runner: &mut crate::pool::RunnerHandle,
     deadline: tokio::time::Instant,
-) -> Result<CodeModeRunnerOutput, ToolError> {
+) -> Result<CodeModeRunnerOutput, NextOutputError> {
     match tokio::time::timeout_at(deadline, runner.lines.next()).await {
-        Ok(Some(Ok(line))) => decode_runner_output(&line),
-        Ok(Some(Err(error))) => Err(ToolError::internal_message(format!(
+        Ok(Some(Ok(line))) => decode_runner_output(&line).map_err(NextOutputError::Tool),
+        Ok(Some(Err(error))) => Err(NextOutputError::Tool(ToolError::internal_message(format!(
             "failed to read runner output: {error}"
-        ))),
-        Ok(None) => Err(ToolError::internal_message(
-            "runner exited before completion",
-        )),
+        )))),
+        Ok(None) => Err(NextOutputError::RunnerExited),
         Err(_) => {
             terminate_code_mode_runner(&mut runner.child, runner.child_pid).await;
-            Err(ToolError::Sdk {
+            Err(NextOutputError::Tool(ToolError::Sdk {
                 sdk_kind: "timeout".to_string(),
                 message: "Code Mode execution timed out".to_string(),
-            })
+            }))
         }
     }
 }

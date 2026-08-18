@@ -48,6 +48,24 @@ impl RunnerPool {
         })
     }
 
+    /// Check out a guaranteed-fresh runner instead of reusing an idle pooled handle.
+    ///
+    /// This is reserved for the single safe replay path when a pooled runner exits
+    /// before emitting any protocol activity for the current execution.
+    pub async fn checkout_fresh(&self) -> Result<RunnerLease, ToolError> {
+        let permit = self
+            .overflow
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| ToolError::internal_message("runner pool semaphore closed"))?;
+        let handle = RunnerHandle::spawn(&self.spawn)?;
+        Ok(RunnerLease {
+            handle: Some(handle),
+            _permit: permit,
+        })
+    }
+
     pub async fn release(&self, mut lease: RunnerLease, disposition: RunnerDisposition) {
         let Some(handle) = lease.handle.take() else {
             return;
