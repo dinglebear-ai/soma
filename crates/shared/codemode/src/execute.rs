@@ -5,6 +5,7 @@ pub mod internal;
 pub mod proxy;
 pub mod result;
 pub mod runner;
+mod settlement;
 pub mod tool_dispatch;
 
 #[cfg(test)]
@@ -21,6 +22,8 @@ mod proxy_tests;
 mod result_tests;
 #[cfg(test)]
 mod runner_tests;
+#[cfg(test)]
+mod settlement_tests;
 #[cfg(test)]
 mod tool_dispatch_tests;
 

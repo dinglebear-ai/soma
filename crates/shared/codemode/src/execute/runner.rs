@@ -15,6 +15,7 @@ use crate::{CodeModeConfig, ToolError, normalize_user_code};
 
 use super::budget::RunBudget;
 use super::proxy::{build_proxy, load_entries};
+use super::settlement::{RUNNER_SETTLEMENT_GRACE, SettlementWatch, external_tool_deadline};
 use super::tool_dispatch::{ToolCallContext, handle_tool_call};
 use super::{CodeModeExecutionOutcome, finish_response};
 
@@ -66,6 +67,7 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
     write_with_deadline(&mut lease.handle_mut()?.stdin, &start_input, deadline).await?;
     let mut saw_protocol_activity = false;
     let mut replayed_on_fresh_runner = false;
+    let mut settlement_watch: Option<SettlementWatch> = None;
 
     let mut calls = Vec::new();
     let mut step_ordinals: HashMap<u64, (u64, String)> = HashMap::new();
@@ -91,9 +93,15 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
     };
 
     loop {
-        let output = match next_output(lease.handle_mut()?, deadline).await {
+        let active_settlement_watch = settlement_watch;
+        let read_deadline = active_settlement_watch.map_or(deadline, |watch| watch.deadline);
+        let output = match next_output(lease.handle_mut()?, read_deadline).await {
             Ok(output) => {
                 saw_protocol_activity = true;
+                // Any protocol activity proves the runner is alive and ends the
+                // prior post-result settlement watch. A new watch is armed only
+                // after the next ToolResult/ToolError is written successfully.
+                settlement_watch = None;
                 output
             }
             Err(NextOutputError::RunnerExited)
@@ -111,14 +119,26 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
                     tokio::time::Instant::now() + Duration::from_millis(config.timeout_ms.max(1));
                 write_with_deadline(&mut lease.handle_mut()?.stdin, &start_input, deadline).await?;
                 replayed_on_fresh_runner = true;
+                settlement_watch = None;
                 continue;
+            }
+            Err(NextOutputError::TimedOut) => {
+                return Err(match active_settlement_watch {
+                    Some(watch) if watch.grace_limited => settlement_timeout_error(),
+                    _ => execution_timeout_error(),
+                });
             }
             Err(error) => return Err(error.into_tool_error()),
         };
         match output {
             CodeModeRunnerOutput::ToolCall { seq, id, params } => {
-                let result = handle_tool_call(&mut tool_ctx, &mut budget, seq, id, params).await;
+                let tool_deadline = external_tool_deadline(tokio::time::Instant::now(), deadline);
+                let result =
+                    handle_tool_call(&mut tool_ctx, &mut budget, seq, id, params, tool_deadline)
+                        .await;
                 settle(seq, result, &mut lease.handle_mut()?.stdin, deadline).await?;
+                settlement_watch =
+                    Some(SettlementWatch::new(tokio::time::Instant::now(), deadline));
             }
             CodeModeRunnerOutput::ArtifactWrite {
                 seq,
@@ -322,8 +342,34 @@ async fn record_step<H: CodeModeHost>(
     .await
 }
 
+fn execution_timeout_error() -> ToolError {
+    ToolError::Sdk {
+        sdk_kind: "timeout".to_string(),
+        message: "Code Mode execution timed out".to_string(),
+    }
+}
+
+fn settlement_timeout_error() -> ToolError {
+    tracing::warn!(
+        surface = "dispatch",
+        service = "code_mode",
+        action = "codemode.settlement",
+        kind = "runner_settlement_timeout",
+        grace_ms = RUNNER_SETTLEMENT_GRACE.as_millis(),
+        "Code Mode runner failed to settle after a tool result was delivered"
+    );
+    ToolError::Sdk {
+        sdk_kind: "timeout".to_string(),
+        message: format!(
+            "Code Mode runner did not settle within {}ms after a tool call completed",
+            RUNNER_SETTLEMENT_GRACE.as_millis()
+        ),
+    }
+}
+
 enum NextOutputError {
     RunnerExited,
+    TimedOut,
     Tool(ToolError),
 }
 
@@ -334,6 +380,7 @@ impl NextOutputError {
                 sdk_kind: "server_error".to_string(),
                 message: "Code Mode runner exited before completion".to_string(),
             },
+            Self::TimedOut => execution_timeout_error(),
             Self::Tool(error) => error,
         }
     }
@@ -351,10 +398,7 @@ async fn next_output(
         Ok(None) => Err(NextOutputError::RunnerExited),
         Err(_) => {
             terminate_code_mode_runner(&mut runner.child, runner.child_pid).await;
-            Err(NextOutputError::Tool(ToolError::Sdk {
-                sdk_kind: "timeout".to_string(),
-                message: "Code Mode execution timed out".to_string(),
-            }))
+            Err(NextOutputError::TimedOut)
         }
     }
 }

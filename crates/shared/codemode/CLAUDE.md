@@ -14,6 +14,15 @@ Do not add ambient Node, filesystem, process, fetch, or network globals to the
 sandbox. The standalone runner binary is `soma-codemode-runner`; resolver
 overrides use `SOMA_CODE_MODE_RUNNER_EXE`.
 
+Runner deadlines have two nested control-plane guarantees. External host tool
+calls reserve 250ms of an ordinary execution budget, when the budget is large
+enough, so a timed-out call can still receive its `ToolError` and acknowledge
+with `Done`/`Error`. After a `ToolResult`/`ToolError` is delivered, the parent
+arms a 5s settlement watch clipped by the original execution deadline. Any new
+runner protocol activity clears that watch. If the outer deadline is earlier or
+exactly equal to the settlement deadline, it remains an ordinary execution
+timeout; only a genuinely grace-limited expiry is reported as runner settlement.
+
 Local providers are explicit and reserved: `state`, `git`, and, only with the
 `openapi` feature, `openapi`. State and git calls may serialize around local
 mutable state; OpenAPI dispatch must remain outside that lock.

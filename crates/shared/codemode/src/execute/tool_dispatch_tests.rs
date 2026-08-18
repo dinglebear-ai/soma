@@ -98,6 +98,7 @@ async fn nested_tool_ui_is_retained_on_the_executed_call() {
             0,
             "demo::widget".to_string(),
             json!({}),
+            tokio::time::Instant::now() + std::time::Duration::from_secs(5),
         )
         .await
         .unwrap()

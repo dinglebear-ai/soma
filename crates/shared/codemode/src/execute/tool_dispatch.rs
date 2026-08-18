@@ -29,6 +29,7 @@ pub(crate) async fn handle_tool_call<H: CodeModeHost>(
     seq: u64,
     id: String,
     params: Value,
+    external_deadline: tokio::time::Instant,
 ) -> Result<Value, ToolError> {
     budget.record_operation("tool call")?;
     let result = if let Some(call) = parse_local_provider_call(&id, params.clone())? {
@@ -43,7 +44,7 @@ pub(crate) async fn handle_tool_call<H: CodeModeHost>(
                 .map(|value| ToolCallOutcome { value, ui: None })
         }
     } else {
-        call_catalog_tool(ctx, seq, &id, params.clone()).await
+        call_catalog_tool(ctx, seq, &id, params.clone(), external_deadline).await
     };
     let result = result.map(|mut outcome| {
         outcome.value = budget.cap_tool_result(outcome.value);
@@ -71,6 +72,7 @@ async fn call_catalog_tool<H: CodeModeHost>(
     seq: u64,
     id: &str,
     params: Value,
+    external_deadline: tokio::time::Instant,
 ) -> Result<ToolCallOutcome, ToolError> {
     let host = ctx.host.ok_or_else(|| unknown_tool(id, ctx.entries))?;
     let descriptor = ctx
@@ -78,20 +80,27 @@ async fn call_catalog_tool<H: CodeModeHost>(
         .iter()
         .find(|entry| entry.id == id)
         .ok_or_else(|| unknown_tool(id, ctx.entries))?;
-    let outcome = call_host_tool_with_ctx(
-        host,
-        descriptor,
-        params,
-        ctx.caller,
-        ctx.surface,
-        ctx.scope,
-        ExecCtx {
-            seq,
-            execution_id: ctx.execution_id.clone(),
-            step_ordinal: None,
-        },
+    let outcome = tokio::time::timeout_at(
+        external_deadline,
+        call_host_tool_with_ctx(
+            host,
+            descriptor,
+            params,
+            ctx.caller,
+            ctx.surface,
+            ctx.scope,
+            ExecCtx {
+                seq,
+                execution_id: ctx.execution_id.clone(),
+                step_ordinal: None,
+            },
+        ),
     )
-    .await?;
+    .await
+    .map_err(|_| ToolError::Sdk {
+        sdk_kind: "timeout".to_string(),
+        message: "Code Mode tool call timed out".to_string(),
+    })??;
     if let Some(ui) = outcome.ui.clone()
         && let Ok(mut guard) = ctx.ui_capture.lock()
     {
