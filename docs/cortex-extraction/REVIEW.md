@@ -175,7 +175,9 @@ product dependency.
 
 ## Verification evidence
 
-Wave 0 completed the repository verification contract on DOOKIE:
+Wave 0 completed the repository verification contract on DOOKIE. The extraction
+foundation is tracked in [PR #363](https://github.com/dinglebear-ai/soma/pull/363).
+
 
 - `cargo fmt --all --check` passed.
 - `cargo clippy -p cortex-ingest-core --all-targets --all-features -- -D warnings` passed.

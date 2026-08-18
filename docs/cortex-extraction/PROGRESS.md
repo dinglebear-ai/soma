@@ -43,7 +43,7 @@ evidence exists on the branch or in the linked lane PR.
 - [x] Run all-features workspace check and test gates required by ADR 0010.
 - [x] Complete architecture/API review and behavior/safety review.
 - [x] Resolve every review/test/docs finding and record evidence in REVIEW.md.
-- [ ] Commit, push, and open the extraction-foundation PR.
+- [x] Commit, push, and open extraction-foundation PR #363.
 
 ## Wave 1: Domain seam
 
