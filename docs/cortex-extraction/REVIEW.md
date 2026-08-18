@@ -186,6 +186,22 @@ contract revision used by PR CI (`ac57c3208cf92d71c5971bb936df51c400cb1ccf`)
 now reports `fleet contract valid`. These fixes are contract-only cleanup; the
 root workspace was already locked to the same `schemars` version.
 
+### Finding B7: PR coupled-file contract required script documentation
+
+**Severity:** P1 because `Soma Contracts` is a required PR gate.
+
+After the ASCII fixture fix, the next hosted run reached the coupled-file gate
+and reported that the Python platform scripts changed without the required
+`scripts/README.md` update. The implementation and provider specification were
+already current, but the script catalog did not describe the new
+`sdk_import_trials` policy or scheduler-resilient cold-import sampling.
+
+**Resolution:** document both `check-python-platform-policy.py` and
+`python-platform-gates.py` in the script quick index and reference section,
+including the positive trial/budget policy, isolated-process sampling, best-sample
+selection, emitted samples, and full-vs-developer soak behavior. This satisfies
+the repository coupled-file ownership contract instead of weakening the gate.
+
 ### Result
 
 No unexplained semantic donor diff remains in the proof crate. Public visibility

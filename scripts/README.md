@@ -44,7 +44,8 @@ usage text, Justfile wiring, CI references, and hook integration.
 | `bump-version.sh` | Bash wrapper | `cargo xtask bump-version soma <major|minor|patch>` | Thin wrapper for the xtask version bumper. |
 | `check-version-sync.sh` | Bash wrapper | `cargo xtask check-version-sync` | Thin wrapper for the xtask manifest-backed version sync gate. |
 | `check-dependency-updates.sh` | Bash wrapper | `cargo xtask check-dependency-updates`, `just deps-check` | Delegates to xtask for a read-only dependency drift report using `cargo update --dry-run` plus optional crates.io latest-version checks. |
-| `check-python-platform-policy.py` | Python policy gate | `cargo xtask check-docs`, CI | Verifies the Python provider remains x86_64-only across Linux, macOS, and Windows and that its release workflow pins the approved OIDC PyPI publisher, provenance, SBOM, checksum, and recovery contracts. |
+| `check-python-platform-policy.py` | Python policy gate | `cargo xtask check-docs`, CI | Verifies the Python provider remains x86_64-only across Linux, macOS, and Windows, validates positive performance trial/budget settings, and keeps trusted-publishing, provenance, SBOM, checksum, and recovery contracts pinned. |
+| `python-platform-gates.py` | Python performance gate | `cargo xtask check-docs`, CI | Measures SDK import, catalog, invocation, reload, mixed-provider, memory, and soak budgets; cold SDK import uses the best of the policy-defined isolated-process trials so host scheduler contention does not masquerade as intrinsic import cost. |
 | `check-blob-size.py` | Python wrapper | `cargo xtask check-blob-size`, `just blob-size-check`, CI | Delegates to xtask to block changed git blobs above the configured size budget unless allowlisted. |
 | `blob-size-allowlist.txt` | Data | used by `check-blob-size.py` | Allowlist patterns for intentional large artifacts. |
 
@@ -337,6 +338,25 @@ workflows, and documentation. The gate requires x86_64 wheels for Linux,
 macOS, and Windows; rejects ARM/AArch64/QEMU release contracts; and keeps the
 approved OIDC PyPI publisher SHA aligned with `.github/workflows/python-wheels.yml`
 alongside provenance, SBOM, checksum, and immutable-tag recovery requirements.
+The performance policy must also define positive `sdk_import_trials` and
+`sdk_import_ms` values consumed by the runtime performance gate.
+
+### `python-platform-gates.py`
+
+```bash
+python3 scripts/python-platform-gates.py
+python3 scripts/python-platform-gates.py --full
+```
+
+Enforces the Python provider runtime budgets from
+`release/python-platform-policy.toml`. SDK import is measured in fresh isolated
+Python interpreters for `sdk_import_trials` attempts and the best sample is used
+as the intrinsic cold-import estimate. This keeps the unchanged import budget
+meaningful while avoiding false failures from scheduler contention on shared
+development or CI hosts. The gate reports every import sample plus the selected
+value and continues to enforce cold/warm catalog, invocation, reload,
+mixed-provider, memory, and soak budgets. `--full` uses the complete configured
+soak count instead of the shorter default developer run.
 
 ### `check-readme-guide.py`
 
