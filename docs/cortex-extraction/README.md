@@ -1,7 +1,7 @@
 ---
 title: "Cortex Shared-Crate Extraction"
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-18
 doc_type: "guide"
 status: "active"
 owner: "soma"
@@ -10,7 +10,7 @@ audience:
   - "agents"
 scope: "family"
 source_of_truth: true
-last_reviewed: "2026-08-17"
+last_reviewed: "2026-08-18"
 ---
 
 # Cortex Shared-Crate Extraction
@@ -39,6 +39,7 @@ source reference for parity work.
 | [SPEC.md](SPEC.md) | Target crate architecture, dependency graph, runtime composition, and migration sequence. |
 | [CONTRACTS.md](CONTRACTS.md) | Rules every extracted crate and adapter must satisfy. |
 | [SOURCE-INVENTORY.md](SOURCE-INVENTORY.md) | Current Cortex modules, coupling hotspots, and planned destinations. |
+| [MODEL-CLASSIFICATION.md](MODEL-CLASSIFICATION.md) | Complete ownership classification for all 255 public donor model declarations. |
 | [PROGRESS.md](PROGRESS.md) | Dedicated lane-by-lane extraction tracker and definition of done. |
 | [VERIFICATION.md](VERIFICATION.md) | Required build, test, docs, architecture, parity, and smoke gates. |
 | [REVIEW.md](REVIEW.md) | Review passes, findings, resolutions, and final evidence for this extraction branch. |
@@ -46,16 +47,20 @@ source reference for parity work.
 
 ## Current implementation
 
-The first proof crate is
-`crates/shared/cortex/ingest-core` (package `cortex-ingest-core`). It extracts
-Cortex's message normalization/signature logic and bounded metadata redaction.
-It deliberately does not know about SQLite, Axum, RMCP, Labby auth, process
-runtime, or deployment.
+The shared family now has two implemented crates. `cortex-ingest-core` contains
+message normalization/signature logic and bounded metadata redaction.
+`cortex-domain` contains all 65 donor public model declarations classified as
+semantic contracts, plus deterministic incident-finding rules and the narrow
+domain error taxonomy. Neither crate depends on SQLite, Axum, RMCP, Labby auth,
+process runtime, or deployment.
 
-This proof establishes the pattern future Cortex crates must copy: workspace
-package inheritance, `layer = "shared"` architecture metadata, explicit
-features, `publish = false` during stabilization, README and crate-level docs,
-ported donor tests, and tests that exercise only the public consumer API.
+The domain lane also records ownership for all 255 public donor model
+declarations. Transport DTOs, storage/query projections, runtime/collector
+state, and every database-row conversion remain explicitly assigned to later
+adapter crates instead of leaking into the reusable domain API. Both crates use
+workspace package inheritance, `layer = "shared"` architecture metadata,
+explicit features, `publish = false` during stabilization, README and crate-level
+docs, donor parity tests, and independent public-consumer tests.
 
 ## Completion condition
 

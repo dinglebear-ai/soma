@@ -79,10 +79,7 @@ async fn fanout_classifies_failures_timeouts_and_partial_success() {
         .run(targets(4), CancellationToken::new(), |host, _| async move {
             match host.id().as_str() {
                 "host1" => Err("driver failed"),
-                "host2" => {
-                    tokio::time::sleep(Duration::from_millis(30)).await;
-                    Ok("late")
-                }
+                "host2" => std::future::pending::<Result<&'static str, &'static str>>().await,
                 _ => Ok("ok"),
             }
         })

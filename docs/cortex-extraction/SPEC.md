@@ -1,7 +1,7 @@
 ---
 title: "Cortex Shared-Crate Extraction Specification"
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-18
 doc_type: "spec"
 status: "active"
 owner: "soma"
@@ -10,7 +10,7 @@ audience:
   - "agents"
 scope: "family"
 source_of_truth: true
-last_reviewed: "2026-08-17"
+last_reviewed: "2026-08-18"
 ---
 
 # Cortex Shared-Crate Extraction Specification
@@ -57,7 +57,7 @@ apps/cortex
           cortex-agent ---------> cortex-domain + cortex-ingest-core + ports
           cortex-inventory -----> cortex-domain
           cortex-observatory ---> cortex-domain
-          cortex-domain --------> general shared/external primitives only
+          cortex-domain --------> serde + serde_json + thiserror only in wave 1
           cortex-ingest-core ---> serde_json + sha2 only in wave 0
 ```
 
@@ -79,7 +79,9 @@ configuration.
 Own stable semantic types and invariants shared across Cortex capabilities. It
 may define traits/ports needed to invert dependencies, but it does not know
 SQLite row structs, Axum extractors, RMCP protocol DTOs, filesystem layout, or
-process globals.
+process globals. Wave 1 classifies all 255 donor public model declarations and
+extracts all 65 semantic contracts. Database-row mappings remain owned by the
+SQLite adapter, and transport/runtime projections remain outside the domain API.
 
 ### cortex-storage-sqlite
 

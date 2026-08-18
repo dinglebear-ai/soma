@@ -1,7 +1,7 @@
 ---
 title: "Cortex Extraction Review Log"
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-18
 doc_type: "report"
 status: "active"
 owner: "soma"
@@ -10,7 +10,7 @@ audience:
   - "agents"
 scope: "family"
 source_of_truth: true
-last_reviewed: "2026-08-17"
+last_reviewed: "2026-08-18"
 ---
 
 # Cortex Extraction Review Log
@@ -254,3 +254,124 @@ and Cargo warns that `incus-client` and `codex-app-server-client` both have an
 example output named `basic`. None requires a Cortex behavior change, so this
 branch records them without folding unrelated fleet-policy migration, schema
 regeneration, or example renaming into the extraction.
+
+## Review 3: Wave 1 domain seam
+
+### Finding C1: the donor model module has four different owners
+
+**Severity:** P1 if copied wholesale.
+
+The donor exposes 255 public model declarations from one application module, but
+the declarations do not share an architectural owner. The complete classification
+records 65 semantic contracts, 165 transport DTO/policy types, 23 storage/query
+projections, and 2 runtime/collector state types.
+
+**Resolution:** [MODEL-CLASSIFICATION.md](MODEL-CLASSIFICATION.md) classifies all
+255 declarations exactly once. All 65 semantic donor declarations are represented
+in `cortex-domain`; no type classified as semantic remains unowned.
+
+### Finding C2: storage types leaked through otherwise semantic contracts
+
+**Severity:** P1 for a reusable domain crate.
+
+The donor keeps 53 `impl From<db::...>` mappings beside public models and also
+exposes raw heartbeat, MCP-event, and skill-event database types from semantic
+aggregates.
+
+**Resolution:** `cortex-domain` owns no database-row conversion. It introduces
+domain-owned heartbeat contracts, uses `McpEventEntry` / `SkillEventEntry` in
+evidence bundles, and assigns row-to-domain mapping to the Wave 2 SQLite adapter.
+The donor remains unchanged until cutover, so extraction does not alter the live
+Cortex product while dependency direction is being repaired.
+
+### Finding C3: ServiceError mixes domain meaning with adapter failures
+
+**Severity:** P1 if moved unchanged.
+
+`ServiceError` combines invalid/not-found semantic outcomes with SQLite busy,
+timeout, constraint, row, pool, and opaque runtime errors.
+
+**Resolution:** the domain crate exposes only `DomainError::InvalidInput` and
+`DomainError::NotFound`. Storage/application adapters retain operational error
+classification and translate those failures at their surface boundaries.
+
+### Finding C4: deterministic finding engines are domain behavior
+
+**Severity:** P2 if left coupled to the monolithic application module.
+
+The incident, hook, MCP, and skill finding engines are pure deterministic rule
+evaluation. They query no database and invoke no model, but donor location under
+`app/` obscured that property.
+
+**Resolution:** all four engines move with their donor parity tests. Their only
+adaptations are crate-local imports and replacing raw database event arguments
+with domain event contracts. Existing evidence-id, conservative-confidence,
+determinism, and unknown/open-question behavior remains covered.
+
+### Finding C5: copied comments violated Soma ASCII source hygiene
+
+**Severity:** P2 CI failure if left unresolved.
+
+Donor comments used typographic punctuation and box-drawing characters.
+
+**Resolution:** Rust source comments are normalized to ASCII spellings while code
+and runtime strings remain unchanged. The domain source tree is ASCII-clean.
+
+### Finding C6: transport envelopes are not domain contracts
+
+**Severity:** P2 architecture drift.
+
+Request/response envelopes, surface limit policy, graph response-navigation
+metadata, maintenance/query result projections, and collector implementation
+state were tempting to move because many are serde-only. Their semantics are
+still surface, storage, or runtime-specific.
+
+**Resolution:** these types remain explicitly assigned to later API/MCP/CLI,
+application/query, SQLite, inventory, or runtime lanes in the model inventory.
+The domain manifest contains only `serde`, `serde_json`, and `thiserror`.
+
+### Finding C7: fanout timeout fixture raced two short timers under load
+
+**Severity:** P1 for a trustworthy all-features gate.
+
+The first final workspace Nextest run reached 3,037 passing tests but exposed a
+pre-existing flake in `soma-fleet::fanout_classifies_failures_timeouts_and_partial_success`.
+The fixture raced a 10 ms timeout against a 30 ms Tokio sleep. Under heavy
+parallel test/compile load both timers can become ready before the runtime polls
+them again, allowing the inner sleep result to win and incorrectly making the
+fixture report three successes instead of two.
+
+**Resolution:** replace the intentionally late branch with a permanently pending
+future. That leaves the scheduler timeout as its only possible terminal path and
+tests the behavior the fixture actually claims to test without wall-clock
+racing. The targeted case and all 40 `soma-fleet` tests pass, the corrected case
+passed 500 consecutive stress executions, and the subsequent full workspace
+Nextest run passed 3,038/3,038. Production fanout logic is unchanged.
+
+## Wave 1 final verification
+
+- Cargo metadata registers `cortex-domain` as workspace member 42.
+- All 255 donor public model declarations are classified exactly once; all 65
+  semantic donor declarations are represented in the domain crate, and normalized
+  shape comparison reports 65/65 matches after the documented adapter substitutions.
+- `cargo check -p cortex-domain --all-features` and the final
+  `cargo check --workspace --all-features` passed.
+- `cargo clippy -p cortex-domain --all-targets --all-features -- -D warnings` passed.
+- `cargo test -p cortex-domain --all-features` passed 42 unit/parity tests and 2
+  independent-consumer integration tests.
+- `RUSTDOCFLAGS="-D warnings" cargo doc -p cortex-domain --no-deps --all-features`
+  passed with only the known fleet-required renamed-lint warning, which rustdoc
+  explicitly exempts from `-D warnings`.
+- `cargo nextest run --workspace --all-features` passed 3,038/3,038 runnable tests
+  with 3 skipped after resolving the surfaced fanout fixture race.
+- `cargo xtask check-architecture` passed with 42 workspace packages and 92
+  internal edges; `check-test-siblings` passed with 24 checked source trees.
+- ASCII hygiene, coupled-file ownership, generated/docs checks, and the Python
+  platform gates pass.
+- The exact fleet contract implementation pinned by Soma CI at
+  `ac57c3208cf92d71c5971bb936df51c400cb1ccf` reports `fleet contract valid`.
+- Full `cargo deny check` reports advisories, bans, licenses, and sources all ok;
+  the stacked lockfile contains patched `h2 0.4.16`.
+- The crate source and manifest contain no database/pool, HTTP/MCP, auth, scanner,
+  receiver, file-tail, config, or product-runtime dependency.
+- The Rust source tree is ASCII-clean after comment-only normalization.

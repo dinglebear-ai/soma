@@ -1,7 +1,7 @@
 ---
 title: "Cortex Extraction Progress"
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-18
 doc_type: "report"
 status: "active"
 owner: "soma"
@@ -10,7 +10,7 @@ audience:
   - "agents"
 scope: "family"
 source_of_truth: true
-last_reviewed: "2026-08-17"
+last_reviewed: "2026-08-18"
 ---
 
 # Cortex Extraction Progress
@@ -22,6 +22,8 @@ evidence exists on the branch or in the linked lane PR.
 
 - Donor baseline: `7edf23fadb94650c2d2a2f9c80111fb44319eea8`
 - Soma integration branch: `feat/cortex-shared-extraction`
+- Wave 1 lane: `feat/cortex-domain-extraction`
+- Public model ownership inventory: [MODEL-CLASSIFICATION.md](MODEL-CLASSIFICATION.md)
 - Working topology: [SPEC.md](SPEC.md)
 - Normative rules: [CONTRACTS.md](CONTRACTS.md)
 - Verification gates: [VERIFICATION.md](VERIFICATION.md)
@@ -47,14 +49,14 @@ evidence exists on the branch or in the linked lane PR.
 
 ## Wave 1: Domain seam
 
-- [ ] Classify every public `app/models/**` type as semantic contract, storage projection, transport DTO, or runtime state.
-- [ ] Introduce `cortex-domain` with only storage/transport-neutral contracts.
-- [ ] Move service error taxonomy/invariants that truly belong to domain.
-- [ ] Relocate `From<db::...>` mappings out of the domain dependency direction.
-- [ ] Remove raw DB, scanner, receiver-counter, filetail, and runtime-config types from public domain responses.
-- [ ] Add serialization/parity fixtures for user-visible response models.
-- [ ] Add independent consumer tests and README/rustdoc.
-- [ ] Pass architecture/all-features gates.
+- [x] Classify every public `app/models/**` type as semantic contract, storage projection, transport DTO, or runtime state.
+- [x] Introduce `cortex-domain` with only storage/transport-neutral contracts.
+- [x] Move service error taxonomy/invariants that truly belong to domain.
+- [x] Relocate `From<db::...>` mappings out of the domain dependency direction.
+- [x] Remove raw DB, scanner, receiver-counter, filetail, and runtime-config types from public domain responses.
+- [x] Add serialization/parity fixtures for user-visible response models.
+- [x] Add independent consumer tests and README/rustdoc.
+- [x] Pass architecture/all-features gates.
 
 ## Wave 2: SQLite storage adapter
 
