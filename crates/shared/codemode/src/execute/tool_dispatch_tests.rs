@@ -80,28 +80,28 @@ async fn nested_tool_ui_is_retained_on_the_executed_call() {
     let execution_id: Option<Arc<str>> = None;
     let ui_capture = Arc::new(Mutex::new(None));
     let mut calls = Vec::new();
-    let mut context = ToolCallContext {
-        host: Some(&host),
-        entries: &entries,
-        caller: &caller,
-        surface: CodeModeSurface::Cli,
-        scope: &scope,
-        execution_id: &execution_id,
-        ui_capture: &ui_capture,
-        calls: &mut calls,
-    };
     let mut budget = RunBudget::new(&CodeModeConfig::default());
-
-    let value = handle_tool_call(
-        &mut context,
-        &mut budget,
-        0,
-        "demo::widget".to_string(),
-        json!({}),
-    )
-    .await
-    .unwrap();
-    drop(context);
+    let value = {
+        let mut context = ToolCallContext {
+            host: Some(&host),
+            entries: &entries,
+            caller: &caller,
+            surface: CodeModeSurface::Cli,
+            scope: &scope,
+            execution_id: &execution_id,
+            ui_capture: &ui_capture,
+            calls: &mut calls,
+        };
+        handle_tool_call(
+            &mut context,
+            &mut budget,
+            0,
+            "demo::widget".to_string(),
+            json!({}),
+        )
+        .await
+        .unwrap()
+    };
 
     assert_eq!(value, json!({"ok": true}));
     assert_eq!(calls.len(), 1);

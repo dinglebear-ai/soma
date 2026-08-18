@@ -62,8 +62,10 @@ sleep 60
             args: vec!["-c".to_string(), script],
         },
     );
-    let mut config = CodeModeConfig::default();
-    config.timeout_ms = 5_000;
+    let config = CodeModeConfig {
+        timeout_ms: 5_000,
+        ..CodeModeConfig::default()
+    };
 
     let outcome = execute_in_subprocess::<NoopHost>(SubprocessExecution {
         host: None,
@@ -111,8 +113,10 @@ exit 0
             args: vec!["-c".to_string(), script],
         },
     );
-    let mut config = CodeModeConfig::default();
-    config.timeout_ms = 5_000;
+    let config = CodeModeConfig {
+        timeout_ms: 5_000,
+        ..CodeModeConfig::default()
+    };
 
     let error = execute_in_subprocess::<NoopHost>(SubprocessExecution {
         host: None,
