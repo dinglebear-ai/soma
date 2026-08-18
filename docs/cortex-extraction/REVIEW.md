@@ -202,6 +202,23 @@ including the positive trial/budget policy, isolated-process sampling, best-samp
 selection, emitted samples, and full-vs-developer soak behavior. This satisfies
 the repository coupled-file ownership contract instead of weakening the gate.
 
+### Finding B8: advisory database newly rejected locked `h2`
+
+**Severity:** P1 because Cargo Deny is a required security gate and the advisory
+is actionable.
+
+The next hosted run refreshed the RustSec advisory database and rejected
+`h2 0.4.15` for `GHSA-q83h-524g-xf6h`. The advisory reports `0.4.16` as the
+patched release. This dependency state predates the Cortex extraction, but the
+branch cannot remain knowingly vulnerable simply because the finding surfaced
+while unrelated work was in review.
+
+**Resolution:** update only the locked `h2` package from `0.4.15` to `0.4.16`
+and its registry checksum. Cargo 1.97 initially rewrote unrelated Windows lock
+edges during `cargo update`; those opportunistic changes were discarded so the
+security patch remains minimal. `cargo metadata --locked` accepts the resulting
+lockfile and `cargo deny check advisories` reports `advisories ok`.
+
 ### Result
 
 No unexplained semantic donor diff remains in the proof crate. Public visibility
