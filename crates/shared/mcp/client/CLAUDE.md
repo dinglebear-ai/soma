@@ -13,3 +13,9 @@ Boundary rules:
   generic upstream OAuth client behavior.
 - Product-specific env prefixes, scopes, tool names, and defaults must be
   supplied by the host application, not hard-coded here.
+- Streamable HTTP is the final SEP-2243 wire boundary. `Mcp-Method` and
+  `Mcp-Name` must be derived from the exact JSON-RPC body there, while RMCP's
+  schema-derived `Mcp-Param-*` headers pass through unchanged.
+- A typed `HEADER_MISMATCH` from `tools/call` may trigger exactly one bounded
+  `tools/list` cache refresh and one replay. Recovery uses the configured
+  tools-list response cap; a second mismatch is returned to the caller.

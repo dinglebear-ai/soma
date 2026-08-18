@@ -1,5 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use futures::{StreamExt, stream::BoxStream};
 use http::{HeaderName, HeaderValue};
 use reqwest::header::{ACCEPT, WWW_AUTHENTICATE};
@@ -7,7 +8,8 @@ use rmcp::{
     model::{ClientJsonRpcMessage, JsonRpcMessage, ServerJsonRpcMessage},
     transport::{
         common::http_header::{
-            EVENT_STREAM_MIME_TYPE, HEADER_LAST_EVENT_ID, HEADER_MCP_PROTOCOL_VERSION,
+            BASE64_HEADER_PREFIX, BASE64_HEADER_SUFFIX, EVENT_STREAM_MIME_TYPE,
+            HEADER_LAST_EVENT_ID, HEADER_MCP_METHOD, HEADER_MCP_NAME, HEADER_MCP_PROTOCOL_VERSION,
             HEADER_SESSION_ID, JSON_MIME_TYPE,
         },
         streamable_http_client::{
@@ -55,7 +57,7 @@ impl StreamableHttpClient for BodyCappedHttpClient {
         message: ClientJsonRpcMessage,
         session_id: Option<Arc<str>>,
         auth_token: Option<String>,
-        custom_headers: HashMap<HeaderName, HeaderValue>,
+        mut custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<StreamableHttpPostResponse, StreamableHttpError<Self::Error>> {
         let session_was_attached = session_id.is_some();
         let mut request = self
@@ -68,7 +70,8 @@ impl StreamableHttpClient for BodyCappedHttpClient {
         if let Some(session_id) = session_id {
             request = request.header(HEADER_SESSION_ID, session_id.as_ref());
         }
-        let response = apply_custom_headers(request, custom_headers)?
+        request = apply_message_headers(request, &message, &mut custom_headers)?;
+        let response = request
             .json(&message)
             .send()
             .await
@@ -138,6 +141,69 @@ impl StreamableHttpClient for BodyCappedHttpClient {
         let capped = per_event_capped_stream(response.bytes_stream(), self.sse_event_max_bytes);
         Ok(SseStream::from_bytes_stream(capped).boxed())
     }
+}
+
+fn apply_message_headers(
+    mut request: reqwest::RequestBuilder,
+    message: &ClientJsonRpcMessage,
+    custom_headers: &mut HashMap<HeaderName, HeaderValue>,
+) -> Result<reqwest::RequestBuilder, StreamableHttpError<reqwest::Error>> {
+    // Mcp-Method/Mcp-Name are assertions about this exact JSON-RPC body.
+    // Remove potentially stale/duplicated SDK copies and derive one final
+    // value at the wire boundary. Preserve Mcp-Param-* schema headers.
+    custom_headers.retain(|name, _| {
+        !name.as_str().eq_ignore_ascii_case(HEADER_MCP_METHOD)
+            && !name.as_str().eq_ignore_ascii_case(HEADER_MCP_NAME)
+    });
+    request = apply_custom_headers(request, std::mem::take(custom_headers))?;
+    if let Some(method) = jsonrpc_method_header(message) {
+        request = request.header(HEADER_MCP_METHOD, method);
+    }
+    if let Some(name) = jsonrpc_name_header(message) {
+        request = request.header(HEADER_MCP_NAME, name);
+    }
+    Ok(request)
+}
+
+fn jsonrpc_method_header(message: &ClientJsonRpcMessage) -> Option<HeaderValue> {
+    let value = serde_json::to_value(message).ok()?;
+    let method = value.get("method").and_then(serde_json::Value::as_str)?;
+    HeaderValue::from_str(method).ok()
+}
+
+fn jsonrpc_name_header(message: &ClientJsonRpcMessage) -> Option<HeaderValue> {
+    let value = serde_json::to_value(message).ok()?;
+    let method = value.get("method").and_then(serde_json::Value::as_str)?;
+    let params = value.get("params")?;
+    let key = match method {
+        "tools/call" | "prompts/get" => "name",
+        "resources/read" | "resources/subscribe" | "resources/unsubscribe" => "uri",
+        "tasks/get" | "tasks/update" | "tasks/cancel" => "taskId",
+        _ => return None,
+    };
+    let raw = params.get(key).and_then(serde_json::Value::as_str)?;
+    let requires_base64 = !raw.is_empty()
+        && (raw
+            .as_bytes()
+            .first()
+            .is_some_and(|byte| matches!(*byte, b' ' | 9))
+            || raw
+                .as_bytes()
+                .last()
+                .is_some_and(|byte| matches!(*byte, b' ' | 9))
+            || raw
+                .chars()
+                .any(|ch| (ch as u32) < 0x20 || (ch as u32) > 0x7e)
+            || (raw.starts_with(BASE64_HEADER_PREFIX) && raw.ends_with(BASE64_HEADER_SUFFIX)));
+    let encoded = if requires_base64 {
+        format!(
+            "{BASE64_HEADER_PREFIX}{}{BASE64_HEADER_SUFFIX}",
+            BASE64_STANDARD.encode(raw)
+        )
+    } else {
+        raw.to_owned()
+    };
+    HeaderValue::from_str(&encoded).ok()
 }
 
 fn apply_custom_headers(

@@ -6063,6 +6063,7 @@ name = "soma-mcp-client"
 version = "0.4.1"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "bytes",
  "futures",
  "http",

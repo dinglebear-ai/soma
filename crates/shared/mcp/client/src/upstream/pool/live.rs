@@ -7,7 +7,7 @@ use rmcp::model::{
     GetPromptRequestParams, GetPromptResponse, Implementation, ProtocolVersion,
     ReadResourceRequestParams, ReadResourceResponse, RequestMetaObject,
 };
-use rmcp::service::{ClientInitializeError, ClientServiceExt, RunningService};
+use rmcp::service::{ClientInitializeError, ClientServiceExt, RunningService, ServiceError};
 use rmcp::transport::{
     StreamableHttpClientTransport, TokioChildProcess,
     streamable_http_client::StreamableHttpClientTransportConfig,
@@ -219,23 +219,110 @@ where
     })
 }
 
+fn is_tool_header_mismatch(error: &ServiceError) -> bool {
+    matches!(
+        error,
+        ServiceError::McpError(data) if data.code == rmcp::model::ErrorCode::HEADER_MISMATCH
+    )
+}
+
+async fn refresh_tool_header_cache(
+    peer: &rmcp::service::Peer<RoleClient>,
+    upstream: &str,
+    tools_list_limit: usize,
+) -> Result<(), UpstreamError> {
+    super::catalog_pagination::list_tools(peer, tools_list_limit)
+        .await
+        .map(|tools| {
+            tracing::info!(
+                surface = "dispatch",
+                service = "upstream.pool",
+                action = "tool.header_cache.refresh",
+                upstream,
+                tool_count = tools.len(),
+                "refreshed upstream tool schemas after SEP-2243 header mismatch"
+            );
+        })
+        .map_err(|error| match error {
+            super::catalog_pagination::CatalogPaginationError::ByteLimit { observed, limit } => {
+                UpstreamError::ResponseTooLarge {
+                    scope: CapScope::ToolsList,
+                    observed_bytes: observed,
+                    limit,
+                }
+            }
+            error => UpstreamError::LiveCall {
+                upstream: upstream.to_owned(),
+                operation: "tools/list",
+                message: format!("SEP-2243 header recovery failed: {error}"),
+            },
+        })
+}
+
+async fn call_tool_with_header_recovery(
+    peer: &rmcp::service::Peer<RoleClient>,
+    upstream: &str,
+    request: CallToolRequestParams,
+    tools_list_limit: usize,
+) -> Result<rmcp::model::CallToolResult, UpstreamError> {
+    match peer.call_tool(request.clone()).await {
+        Err(error) if is_tool_header_mismatch(&error) => {
+            refresh_tool_header_cache(peer, upstream, tools_list_limit).await?;
+            peer.call_tool(request)
+                .await
+                .map_err(|error| UpstreamError::LiveCall {
+                    upstream: upstream.to_owned(),
+                    operation: "tools/call",
+                    message: error.to_string(),
+                })
+        }
+        Err(error) => Err(UpstreamError::LiveCall {
+            upstream: upstream.to_owned(),
+            operation: "tools/call",
+            message: error.to_string(),
+        }),
+        Ok(result) => Ok(result),
+    }
+}
+
+async fn call_tool_once_with_header_recovery(
+    peer: &rmcp::service::Peer<RoleClient>,
+    upstream: &str,
+    request: CallToolRequestParams,
+    tools_list_limit: usize,
+) -> Result<CallToolResponse, UpstreamError> {
+    match peer.call_tool_once(request.clone()).await {
+        Err(error) if is_tool_header_mismatch(&error) => {
+            refresh_tool_header_cache(peer, upstream, tools_list_limit).await?;
+            peer.call_tool_once(request)
+                .await
+                .map_err(|error| UpstreamError::LiveCall {
+                    upstream: upstream.to_owned(),
+                    operation: "tools/call",
+                    message: error.to_string(),
+                })
+        }
+        Err(error) => Err(UpstreamError::LiveCall {
+            upstream: upstream.to_owned(),
+            operation: "tools/call",
+            message: error.to_string(),
+        }),
+        Ok(result) => Ok(result),
+    }
+}
+
 pub(super) async fn call_live_tool(
     upstream: &str,
     peer: rmcp::service::Peer<RoleClient>,
     tool: String,
     params: Value,
+    tools_list_limit: usize,
 ) -> Result<Value, UpstreamError> {
     let Value::Object(args) = params else {
         return Err(UpstreamError::ParamsMustBeObject);
     };
-    let result = peer
-        .call_tool(CallToolRequestParams::new(tool).with_arguments(args))
-        .await
-        .map_err(|error| UpstreamError::LiveCall {
-            upstream: upstream.to_owned(),
-            operation: "tools/call",
-            message: error.to_string(),
-        })?;
+    let request = CallToolRequestParams::new(tool).with_arguments(args);
+    let result = call_tool_with_header_recovery(&peer, upstream, request, tools_list_limit).await?;
     if let Some(value) = result.structured_content.clone() {
         return Ok(value);
     }
@@ -248,6 +335,7 @@ pub(super) async fn call_live_tool_once(
     tool: String,
     params: Value,
     round_trip: McpRoundTrip,
+    tools_list_limit: usize,
 ) -> Result<McpRequestOutcome, UpstreamError> {
     let Value::Object(args) = params else {
         return Err(UpstreamError::ParamsMustBeObject);
@@ -255,14 +343,8 @@ pub(super) async fn call_live_tool_once(
     let mut request = CallToolRequestParams::new(tool).with_arguments(args);
     request.input_responses = round_trip.input_responses;
     request.request_state = round_trip.request_state;
-    let response = peer
-        .call_tool_once(request)
-        .await
-        .map_err(|error| UpstreamError::LiveCall {
-            upstream: upstream.to_owned(),
-            operation: "tools/call",
-            message: error.to_string(),
-        })?;
+    let response =
+        call_tool_once_with_header_recovery(&peer, upstream, request, tools_list_limit).await?;
     match response {
         CallToolResponse::Complete(result) => {
             serialize_live_outcome(upstream, "tools/call", result, McpRequestOutcome::Complete)
@@ -296,6 +378,7 @@ pub(super) async fn call_live_tool_once_scoped(
             message: "request-scoped relay requires downstream MCP metadata".to_owned(),
         })?;
     let handler = request_scoped_handler(&config.name, "tools/call", meta)?;
+    let tools_list_limit = context.response_caps.limit_for(CapScope::ToolsList);
     let (mut service, peer, _) =
         connect_with_handler(config, &SpawnGuard::default(), context, handler).await?;
     let outcome = call_live_tool_once(
@@ -308,6 +391,7 @@ pub(super) async fn call_live_tool_once_scoped(
             request_state: round_trip.request_state,
             request_meta: None,
         },
+        tools_list_limit,
     )
     .await;
     if let Err(error) = service.close().await {
@@ -741,6 +825,10 @@ fn catalog_connect_error(
         },
     }
 }
+
+#[cfg(test)]
+#[path = "live_header_recovery_tests.rs"]
+mod header_recovery_tests;
 
 #[cfg(test)]
 #[path = "live_tests.rs"]

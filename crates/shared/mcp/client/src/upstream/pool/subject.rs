@@ -107,7 +107,14 @@ impl UpstreamPool {
             }
             Ok((entry.live.peer(), entry.snapshot.name.clone()))
         })?;
-        let result = live::call_live_tool(&upstream, peer, call.tool, call.params).await?;
+        let result = live::call_live_tool(
+            &upstream,
+            peer,
+            call.tool,
+            call.params,
+            self.response_caps().limit_for(CapScope::ToolsList),
+        )
+        .await?;
         let bytes = serde_json::to_vec(&result).map_or(usize::MAX, |bytes| bytes.len());
         self.response_caps().enforce(CapScope::ToolsCall, bytes)?;
         Ok(result)
@@ -154,7 +161,15 @@ impl UpstreamPool {
             )
             .await?
         } else {
-            live::call_live_tool_once(&upstream, peer, call.tool, call.params, round_trip).await?
+            live::call_live_tool_once(
+                &upstream,
+                peer,
+                call.tool,
+                call.params,
+                round_trip,
+                self.response_caps().limit_for(CapScope::ToolsList),
+            )
+            .await?
         };
         let bytes = serde_json::to_vec(outcome.payload()).map_or(usize::MAX, |bytes| bytes.len());
         self.response_caps().enforce(CapScope::ToolsCall, bytes)?;

@@ -32,7 +32,7 @@ with older MCP peers where the SDK can prove that a legacy lifecycle is required
 | Capability extensions | Implemented. Task-capable clients and the Soma server advertise the tasks extension explicitly. |
 | Discovery/result caching hints | Supported by rmcp models. Soma's discovery response remains private and non-cacheable by default; no broader cacheability claim is made. |
 | Authorization updates | Implemented. Soma emits and validates RFC 9207 `iss`, binds persisted credentials and dynamic registrations to the authorization-server issuer, serves Client ID Metadata Documents, prefers CIMD in automatic mode, retains DCR fallback with `application_type: web`, and exposes a public one-time upstream OAuth callback. |
-| MCP protocol headers and CORS | MCP protocol and routing headers are allowed by the HTTP surface and exercised by modern raw-request tests. |
+| MCP protocol headers and CORS | MCP protocol and routing headers are allowed by the HTTP surface and exercised by modern raw-request tests. Outbound Streamable HTTP derives body-truth `Mcp-Method`/`Mcp-Name`, preserves schema-derived `Mcp-Param-*`, and self-heals one typed `HEADER_MISMATCH` with a bounded schema refresh plus one replay. |
 
 ## Implementation notes
 
@@ -48,6 +48,22 @@ manifest-driven provider polls asynchronous tasks to a terminal state within its
 existing provider timeout. A task that requires interactive input returns an
 explicit provider interaction error because that provider surface has no client UI
 through which to satisfy elicitation, sampling, or roots requests.
+
+### SEP-2243 routing-header recovery
+
+For Streamable HTTP, Soma treats the serialized JSON-RPC message as the source
+of truth for SEP-2243 routing headers. Immediately before sending a request, the
+HTTP adapter removes any precomputed `Mcp-Method` and `Mcp-Name` copies and
+rebuilds exactly one of each from the body. Schema-derived `Mcp-Param-*` headers
+remain untouched. `Mcp-Name` uses the SEP-2243 Base64 sentinel when a raw name
+cannot safely round-trip through an HTTP field value.
+
+A server can still reject `tools/call` with the typed JSON-RPC
+`HEADER_MISMATCH` code when its tool schema changed after the client's cached
+header metadata was populated. Soma recognizes only that code, not message
+text. It performs one bounded `tools/list` refresh using the configured
+tools-list byte cap, then replays the original call exactly once. A second
+header mismatch is surfaced unchanged, preventing an unbounded retry loop.
 
 ### Authorization and client registration
 

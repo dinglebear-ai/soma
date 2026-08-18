@@ -18,6 +18,7 @@ default = []
 oauth = ["rmcp/auth"]
 
 [dependencies]
+base64 = "0.22"
 bytes = "1"
 futures = "0.3"
 http = "1"
