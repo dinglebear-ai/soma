@@ -80,10 +80,10 @@ keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 # public item and add that attribute to its lib.rs.
 [workspace.lints.rust]
 missing_docs = "allow"
+missing_crate_level_docs = "deny"
 unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.rustdoc]
-missing_crate_level_docs = "deny"
 broken_intra_doc_links = "deny"
 private_intra_doc_links = "warn"
 invalid_codeblock_attributes = "deny"

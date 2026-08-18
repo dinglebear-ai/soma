@@ -98,18 +98,20 @@ shared crate. Cortex's donor uses `sha2 = "0.10"`; 0.11 no longer implements
 rather than rewriting the hashing implementation during extraction. Re-run
 clippy/tests/rustdoc after the correction.
 
-### Finding B2: workspace crate-doc lint used its pre-rename namespace
+### Finding B2: toolchain lint rename conflicts with the fleet contract
 
-**Severity:** P2 quality noise.
+**Severity:** P2 compatibility noise.
 
 The pinned toolchain reports that `missing_crate_level_docs` moved from the Rust
-lint namespace to `rustdoc::missing_crate_level_docs`. The old workspace entry
-produced a warning during every crate doctest/doc build.
+lint namespace to `rustdoc::missing_crate_level_docs`. Moving the workspace key
+to the new namespace removes that warning locally, but the shared repository and
+fleet contract explicitly requires `rust.missing_crate_level_docs = deny`. The
+first PR CI run correctly rejected the namespace move in both contract jobs.
 
-**Resolution:** Move the workspace lint entry from `[workspace.lints.rust]` to
-`[workspace.lints.rustdoc]`. This preserves the policy while removing the
-renamed-lint warning. Separate nested/non-workspace manifests are not changed by
-this extraction branch.
+**Resolution:** Preserve the fleet-required `[workspace.lints.rust]` key exactly
+as it exists on main. The renamed-lint diagnostic is a known compatibility
+warning and is exempt from `-D warnings`; changing the fleet contract belongs in
+a coordinated workflows/repository-policy update, not this Cortex extraction.
 
 ### Finding B3: the Python import performance gate was scheduler-sensitive
 
@@ -166,6 +168,24 @@ authoring parity test passed, and the Python supervisor family passed 14 tests
 with one intentionally ignored cgroup-only test. The final all-features Nextest
 run then passed the entire runnable workspace suite.
 
+### Finding B6: PR contract replay exposed two pre-existing soma-ops violations
+
+**Severity:** P1 because the shared Rust fleet contract is a required PR gate.
+
+After restoring the fleet-required lint namespace, replaying the exact contract
+used by PR CI surfaced two violations already present on `origin/main`: the
+optional `schemars` dependency in `soma-ops` used the semver range `1.2.1`
+instead of the fleet-required exact pin, and the standalone external-consumer
+fixture did not declare workspace lint inheritance.
+
+**Resolution:** Change the optional dependency to `schemars = "=1.2.1"`, add an
+empty local `[workspace.lints]` table plus `[lints] workspace = true` to the
+standalone fixture, and refresh that fixture's lockfile. The fixture compiles,
+`soma-ops` passes its all-features test suite, and the exact workflow-library
+contract revision used by PR CI (`ac57c3208cf92d71c5971bb936df51c400cb1ccf`)
+now reports `fleet contract valid`. These fixes are contract-only cleanup; the
+root workspace was already locked to the same `schemars` version.
+
 ### Result
 
 No unexplained semantic donor diff remains in the proof crate. Public visibility
@@ -178,7 +198,6 @@ product dependency.
 Wave 0 completed the repository verification contract on DOOKIE. The extraction
 foundation is tracked in [PR #363](https://github.com/dinglebear-ai/soma/pull/363).
 
-
 - `cargo fmt --all --check` passed.
 - `cargo clippy -p cortex-ingest-core --all-targets --all-features -- -D warnings` passed.
 - `cargo test -p cortex-ingest-core --all-features` passed 14 donor/unit tests and 3 external-consumer integration tests.
@@ -187,15 +206,18 @@ foundation is tracked in [PR #363](https://github.com/dinglebear-ai/soma/pull/36
 - `cargo xtask check-architecture` passed.
 - `cargo xtask check-test-siblings` passed with 23 source trees checked after registering the new crate.
 - `cargo xtask check-docs` passed after the import-budget gate was made scheduler-resilient; the passing run reported a 286.721 ms best import sample under the unchanged 500 ms budget.
+- The PR-pinned shared fleet contract passed after restoring the fleet-required lint namespace and resolving the two pre-existing `soma-ops` contract violations.
+- The standalone `soma-ops` external-consumer fixture compiled and `cargo test -p soma-ops --all-features` passed.
 - `python3 -m py_compile scripts/python-platform-gates.py scripts/check-python-platform-policy.py`, `python3 scripts/check-python-platform-policy.py`, and the Python platform performance gate passed.
 - `cargo check --workspace --all-features` passed.
-- `MISE_TRUSTED_CONFIG_PATHS=/home/jmagar/.config/mise/config.toml MISE_OFFLINE=1 cargo nextest run --workspace --all-features` passed: 2,994 tests run, 2,994 passed, 3 skipped; Nextest classified 1 passing test as slow and 7 passing tests as leaky.
+- `MISE_TRUSTED_CONFIG_PATHS=/home/jmagar/.config/mise/config.toml MISE_OFFLINE=1 cargo nextest run --workspace --all-features` passed after the final contract cleanup: 2,994 tests run, 2,994 passed, 3 skipped; Nextest classified 3 passing tests as leaky.
 - `git diff --check` passed throughout the review cycle.
 
-The full workspace still emits two pre-existing, non-failing warnings unrelated
-to this extraction: the vendored Codex app-server schema was generated against
-`codex-cli 0.144.3` while DOOKIE currently reports `0.147.0`, and Cargo warns
-that `incus-client` and `codex-app-server-client` both have an example output
-named `basic`. Neither warning caused a failed gate, so this branch records them
-without folding unrelated schema regeneration or example renaming into the
-Cortex extraction.
+The full workspace still emits three pre-existing, non-failing warnings unrelated
+to this extraction: the toolchain reports the fleet-required Rust namespace for
+`missing_crate_level_docs` as renamed, the vendored Codex app-server schema was
+generated against `codex-cli 0.144.3` while DOOKIE currently reports `0.147.0`,
+and Cargo warns that `incus-client` and `codex-app-server-client` both have an
+example output named `basic`. None requires a Cortex behavior change, so this
+branch records them without folding unrelated fleet-policy migration, schema
+regeneration, or example renaming into the extraction.
