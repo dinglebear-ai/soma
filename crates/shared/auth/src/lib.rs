@@ -30,6 +30,8 @@ pub(crate) mod provider_http;
 #[cfg(feature = "http-axum")]
 pub mod redirect_uri;
 #[cfg(feature = "http-axum")]
+mod refresh_coordination;
+#[cfg(feature = "http-axum")]
 pub mod registration;
 #[cfg(feature = "http-axum")]
 pub mod revoke;

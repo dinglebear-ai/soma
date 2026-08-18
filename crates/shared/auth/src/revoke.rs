@@ -98,10 +98,23 @@ async fn revoke_token(
     // Any other hint -- including a bogus one -- is ignored, per RFC 7009
     // section 2.2: "An invalid token type hint value is ignored by the
     // authorization server and does not influence the revocation response."
-    let revoked = state
+    let mut revoked = state
         .store
         .revoke_refresh_token(&request.token, client_id)
         .await?;
+    if !revoked
+        && state
+            .store
+            .find_refresh_token_replay_client(&request.token)
+            .await?
+            .as_deref()
+            == Some(client_id)
+    {
+        revoked = state
+            .store
+            .revoke_refresh_token_replay(&request.token, client_id)
+            .await?;
+    }
     // `revoked` reaches the operator's logs and stops there. Branching the
     // HTTP response on it is exactly the token-existence oracle RFC 7009
     // forbids.

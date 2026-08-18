@@ -208,7 +208,11 @@ impl AuthState {
                 prefix = config.env_prefix
             ))
         })?;
-        let store = SqliteStore::open(config.sqlite_path.clone()).await?;
+        let store = SqliteStore::open_with_key(
+            config.sqlite_path.clone(),
+            config.token_encryption_key.clone(),
+        )
+        .await?;
         // Needs both halves of the pair, so it cannot live in
         // `AuthConfig::validate`: the configured machine clients come from
         // config, the registrations they could shadow live in the SQLite
@@ -601,7 +605,7 @@ mod tests {
 
     use super::*;
     use crate::config::{GitHubConfig, GoogleConfig, MachineClientConfig};
-    use crate::types::RegisteredClient;
+    use crate::types::{RefreshTokenRow, RegisteredClient};
     use crate::util::now_unix;
 
     /// Builds a minimal `AuthState` for unit-testing `resolve_allowed_emails`.
@@ -636,6 +640,47 @@ mod tests {
         })
         .await
         .expect("auth state")
+    }
+
+    #[tokio::test]
+    async fn auth_state_wires_configured_token_encryption_key_into_sqlite() {
+        let dir = tempdir().expect("tempdir");
+        let mut config = machine_client_config(dir.path(), Vec::new());
+        config.token_encryption_key = Some(crate::at_rest::TokenEncryptionKey::from_passphrase(
+            "state-encryption-wiring-test",
+        ));
+        let sqlite_path = config.sqlite_path.clone();
+        let state = AuthState::new(config).await.expect("auth state");
+        let now = now_unix();
+        state
+            .store
+            .upsert_refresh_token(RefreshTokenRow {
+                refresh_token: "state-encrypted-refresh".to_string(),
+                client_id: "client".to_string(),
+                subject: "google-subject".to_string(),
+                resource: "https://lab.example.com/mcp".to_string(),
+                scope: "lab".to_string(),
+                provider: "google".to_string(),
+                provider_refresh_token: Some("provider-secret".to_string()),
+                created_at: now,
+                expires_at: now + 3600,
+                token_endpoint_auth_method: None,
+            })
+            .await
+            .expect("store refresh token");
+
+        let conn = rusqlite::Connection::open(sqlite_path).expect("open sqlite");
+        let stored: String = conn
+            .query_row(
+                "SELECT provider_refresh_token FROM refresh_tokens LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("stored provider refresh token");
+        assert!(
+            stored.starts_with("enc2:"),
+            "configured state key must encrypt SQLite token material"
+        );
     }
 
     /// `build_providers` hand-writes each provider's map key (e.g.

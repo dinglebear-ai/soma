@@ -1,10 +1,10 @@
-/// At-rest encryption for upstream provider refresh tokens.
+/// At-rest encryption for sensitive OAuth token material.
 ///
-/// Provider tokens (e.g. Google refresh tokens) are encrypted with
-/// ChaCha20-Poly1305 before being written to SQLite so that a copied
-/// `auth.db` cannot be used as an upstream-account pivot.  The cipher
-/// operations themselves live in the crate-internal `aead` core, shared with
-/// the upstream OAuth credential store.
+/// Provider tokens (e.g. Google refresh tokens) and bounded local refresh
+/// replay responses are encrypted with ChaCha20-Poly1305 before being written
+/// to SQLite so that a copied `auth.db` cannot be used directly as a token or
+/// upstream-account pivot. The cipher operations themselves live in the
+/// crate-internal `aead` core, shared with the upstream OAuth credential store.
 ///
 /// # Key management
 ///

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::types::{
-    AllowedUserRow, AuthorizationCodeRow, BrowserSessionRow, RefreshTokenRow,
+    AllowedUserRow, AuthorizationCodeRow, BrowserSessionRow, RefreshTokenRow, TokenResponse,
     UpstreamOauthCredentialRow, UpstreamOauthStateRow,
 };
 
@@ -629,6 +629,250 @@ fn sample_refresh_row(refresh_token: &str, provider_rt: &str) -> RefreshTokenRow
         expires_at: now + 3600,
         token_endpoint_auth_method: None,
     }
+}
+
+fn sample_token_response(refresh_token: &str) -> TokenResponse {
+    TokenResponse {
+        access_token: "access-token".to_string(),
+        token_type: "Bearer".to_string(),
+        expires_in: 3600,
+        refresh_token: Some(refresh_token.to_string()),
+        scope: "lab".to_string(),
+    }
+}
+
+#[tokio::test]
+async fn refresh_claim_is_single_owner_until_release_or_expiry() {
+    let store = temp_store().await;
+    store
+        .upsert_refresh_token(sample_refresh_row("claim-token", "provider-secret"))
+        .await
+        .unwrap();
+    let now = now_unix();
+
+    let first = store
+        .claim_refresh_token("claim-token", "claim-a", now + 90)
+        .await
+        .unwrap();
+    assert!(first.is_some());
+    assert!(
+        store
+            .claim_refresh_token("claim-token", "claim-b", now + 90)
+            .await
+            .unwrap()
+            .is_none(),
+        "an active lease must exclude a second owner"
+    );
+
+    store
+        .release_refresh_claim("claim-token", "claim-a")
+        .await
+        .unwrap();
+    assert!(
+        store
+            .claim_refresh_token("claim-token", "claim-b", now + 90)
+            .await
+            .unwrap()
+            .is_some(),
+        "release must make the token claimable again"
+    );
+    store
+        .release_refresh_claim("claim-token", "claim-b")
+        .await
+        .unwrap();
+
+    assert!(
+        store
+            .claim_refresh_token("claim-token", "expired", now - 1)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        store
+            .claim_refresh_token("claim-token", "reclaimed", now + 90)
+            .await
+            .unwrap()
+            .is_some(),
+        "an expired claim can be reclaimed"
+    );
+}
+
+#[tokio::test]
+async fn claimed_rotation_persists_bounded_replay_and_cascades_with_successor() {
+    let path = temp_db_path();
+    let store = SqliteStore::open_with_key(path.clone(), Some(test_enc_key()))
+        .await
+        .unwrap();
+    store
+        .upsert_refresh_token(sample_refresh_row("predecessor", "provider-secret"))
+        .await
+        .unwrap();
+    let now = now_unix();
+    store
+        .claim_refresh_token("predecessor", "claim", now + 90)
+        .await
+        .unwrap()
+        .expect("claim predecessor");
+
+    let successor = sample_refresh_row("successor", "provider-successor");
+    let response = sample_token_response("successor");
+    store
+        .rotate_claimed_refresh_token("predecessor", "claim", successor, &response, now + 300)
+        .await
+        .unwrap()
+        .expect("claimed rotation");
+
+    assert!(
+        store
+            .find_refresh_token("predecessor")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        store
+            .find_refresh_token("successor")
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        store
+            .find_refresh_token_replay("predecessor", "client", Some("https://lab.example.com/mcp"))
+            .await
+            .unwrap(),
+        Some(response.clone())
+    );
+    assert!(
+        store
+            .find_refresh_token_replay("predecessor", "wrong-client", None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        store
+            .find_refresh_token_replay(
+                "predecessor",
+                "client",
+                Some("https://other.example.com/mcp")
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let raw_replay: String = conn
+        .query_row(
+            "SELECT response FROM refresh_token_replays WHERE predecessor_token_hash = ?1",
+            rusqlite::params![super::hash_token("predecessor")],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(raw_replay.starts_with("enc2:"));
+    assert!(!raw_replay.contains("successor"));
+    drop(conn);
+
+    store
+        .revoke_refresh_token("successor", "client")
+        .await
+        .unwrap();
+    assert!(
+        store
+            .find_refresh_token_replay("predecessor", "client", None)
+            .await
+            .unwrap()
+            .is_none(),
+        "deleting the successor must invalidate its predecessor replay"
+    );
+}
+
+#[tokio::test]
+async fn refresh_replay_ciphertext_is_bound_to_its_predecessor_hash() {
+    let path = temp_db_path();
+    let store = SqliteStore::open_with_key(path.clone(), Some(test_enc_key()))
+        .await
+        .unwrap();
+    store
+        .upsert_refresh_token(sample_refresh_row("bound-predecessor", "provider-secret"))
+        .await
+        .unwrap();
+    let now = now_unix();
+    store
+        .claim_refresh_token("bound-predecessor", "claim", now + 90)
+        .await
+        .unwrap()
+        .expect("claim predecessor");
+    store
+        .rotate_claimed_refresh_token(
+            "bound-predecessor",
+            "claim",
+            sample_refresh_row("bound-successor", "provider-successor"),
+            &sample_token_response("bound-successor"),
+            now + 300,
+        )
+        .await
+        .unwrap()
+        .expect("rotate");
+
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute(
+        "UPDATE refresh_token_replays SET predecessor_token_hash = ?1 WHERE predecessor_token_hash = ?2",
+        rusqlite::params![
+            super::hash_token("transplanted-predecessor"),
+            super::hash_token("bound-predecessor"),
+        ],
+    )
+    .unwrap();
+    drop(conn);
+
+    let error = store
+        .find_refresh_token_replay("transplanted-predecessor", "client", None)
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("decryption failed"),
+        "transplanted replay ciphertext must fail AAD authentication: {error}"
+    );
+}
+
+#[tokio::test]
+async fn expired_refresh_replay_is_not_returned() {
+    let store = temp_store().await;
+    store
+        .upsert_refresh_token(sample_refresh_row("expired-predecessor", "provider-secret"))
+        .await
+        .unwrap();
+    let now = now_unix();
+    store
+        .claim_refresh_token("expired-predecessor", "claim", now + 90)
+        .await
+        .unwrap()
+        .expect("claim predecessor");
+    store
+        .rotate_claimed_refresh_token(
+            "expired-predecessor",
+            "claim",
+            sample_refresh_row("expired-successor", "provider-successor"),
+            &sample_token_response("expired-successor"),
+            now + 300,
+        )
+        .await
+        .unwrap()
+        .expect("rotate");
+    store
+        .expire_refresh_token_replay("expired-predecessor")
+        .await
+        .unwrap();
+    assert!(
+        store
+            .find_refresh_token_replay("expired-predecessor", "client", None)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 fn raw_provider_rt_column(path: &std::path::Path, hash: &str) -> String {

@@ -89,7 +89,7 @@ This file is generated from `ENV_KEY_SPECS` and typed config defaults. Run `carg
 | `SOMA_MCP_AUTH_AUTHORIZE_REQUESTS_PER_MINUTE` | unset | no | `mcp.auth.authorize_rpm` | - | Per-IP `/authorize` rate limit. Unset uses the built-in auth default. |
 | `SOMA_MCP_AUTH_MAX_PENDING_OAUTH_STATES` | unset | no | `mcp.auth.max_pending_oauth_states` | - | Cap on pending OAuth state rows (DoS bound). Unset uses the built-in auth default. |
 | `SOMA_MCP_AUTH_ALLOWED_REDIRECT_URIS` | unset | no | `mcp.auth.allowed_client_redirect_uris` | - | Comma-separated allowlist of dynamic-client redirect URIs. |
-| `SOMA_MCP_TOKEN_ENCRYPTION_KEY` | unset | yes | `mcp.auth.token_encryption_key` | - | At-rest encryption key for stored provider refresh tokens (64-hex or 43-char base64url). Keep secret. |
+| `SOMA_MCP_TOKEN_ENCRYPTION_KEY` | unset | yes | `mcp.auth.token_encryption_key` | - | At-rest encryption key for stored provider refresh tokens and short-lived refresh-replay responses (64-hex or 43-char base64url). Keep secret. |
 
 ## Docker runtime
 

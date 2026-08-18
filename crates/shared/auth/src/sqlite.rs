@@ -12,7 +12,7 @@ use crate::at_rest::{TokenEncryptionKey, maybe_decrypt_bound, maybe_encrypt_boun
 use crate::error::AuthError;
 use crate::types::{
     AllowedUserRow, AuthorizationCodeRow, AuthorizationRequestRow, RefreshTokenRow,
-    RegisteredClient,
+    RegisteredClient, TokenResponse,
 };
 
 #[path = "sqlite_assertions.rs"]
@@ -31,7 +31,7 @@ use sqlite_rows::{row_to_allowed_user, row_to_authorization_code, row_to_authori
 
 /// Schema version for the `PRAGMA user_version` migration guard.
 /// Increment this whenever a migration step is added to `run_migrations`.
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 7;
 
 use crate::util::{
     ensure_restrictive_permissions, fingerprint, now_unix, set_restrictive_permissions,
@@ -357,6 +357,116 @@ impl SqliteStore {
         .await
     }
 
+    /// Atomically lease an unexpired refresh token before contacting its
+    /// upstream provider. A stale lease may be reclaimed after
+    /// `lease_expires_at`; an active lease returns `None`.
+    pub async fn claim_refresh_token(
+        &self,
+        refresh_token: &str,
+        claim_id: &str,
+        lease_expires_at: i64,
+    ) -> Result<Option<RefreshTokenRow>, AuthError> {
+        let hash = hash_token(refresh_token);
+        let plaintext = refresh_token.to_string();
+        let claim_id = claim_id.to_string();
+        let now = now_unix();
+        let enc_key = self.enc_key.clone();
+        self.with_conn(move |conn| {
+            let claimed = conn
+                .execute(
+                    "UPDATE refresh_tokens
+                     SET refresh_claim_id = ?2, refresh_claim_expires_at = ?3
+                     WHERE refresh_token_hash = ?1
+                       AND expires_at > ?4
+                       AND (refresh_claim_id IS NULL OR refresh_claim_expires_at <= ?4)",
+                    params![hash, claim_id, lease_expires_at, now],
+                )
+                .map_err(sqlite_error)?;
+            if claimed == 0 {
+                return Ok(None);
+            }
+            let mut row = conn
+                .query_row(
+                    "SELECT client_id, subject, scope, provider_refresh_token,
+                            created_at, expires_at, resource, provider,
+                            token_endpoint_auth_method
+                     FROM refresh_tokens
+                     WHERE refresh_token_hash = ?1 AND refresh_claim_id = ?2",
+                    params![hash, claim_id],
+                    |row| {
+                        Ok(RefreshTokenRow {
+                            refresh_token: plaintext,
+                            client_id: row.get(0)?,
+                            subject: row.get(1)?,
+                            scope: row.get(2)?,
+                            provider_refresh_token: row.get(3)?,
+                            created_at: row.get(4)?,
+                            expires_at: row.get(5)?,
+                            resource: row.get(6).unwrap_or_default(),
+                            provider: row.get(7)?,
+                            token_endpoint_auth_method: row.get(8)?,
+                        })
+                    },
+                )
+                .map_err(sqlite_error)?;
+            if let Some(raw) = row.provider_refresh_token.as_deref() {
+                row.provider_refresh_token = Some(maybe_decrypt_bound(
+                    enc_key.as_deref(),
+                    raw,
+                    &refresh_token_aad(&hash),
+                )?);
+            }
+            Ok(Some(row))
+        })
+        .await
+    }
+
+    pub async fn release_refresh_claim(
+        &self,
+        refresh_token: &str,
+        claim_id: &str,
+    ) -> Result<(), AuthError> {
+        let hash = hash_token(refresh_token);
+        let claim_id = claim_id.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "UPDATE refresh_tokens
+                 SET refresh_claim_id = NULL, refresh_claim_expires_at = NULL
+                 WHERE refresh_token_hash = ?1 AND refresh_claim_id = ?2",
+                params![hash, claim_id],
+            )
+            .map_err(sqlite_error)?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Extend a live refresh-token lease only while `claim_id` owns it.
+    pub async fn renew_refresh_claim(
+        &self,
+        refresh_token: &str,
+        claim_id: &str,
+        lease_expires_at: i64,
+    ) -> Result<bool, AuthError> {
+        let hash = hash_token(refresh_token);
+        let claim_id = claim_id.to_string();
+        let now = now_unix();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "UPDATE refresh_tokens
+                 SET refresh_claim_expires_at = ?3
+                 WHERE refresh_token_hash = ?1
+                   AND refresh_claim_id = ?2
+                   AND refresh_claim_expires_at > ?4
+                   AND expires_at > ?4",
+                params![hash, claim_id, lease_expires_at, now],
+            )
+            .map(|updated| updated == 1)
+            .map_err(sqlite_error)
+        })
+        .await
+    }
+
     /// Atomically replace an existing refresh token with a new one in a single
     /// SQLite transaction.  The old token is deleted and the new token is
     /// inserted; if the old token is not found or has expired the operation
@@ -445,6 +555,222 @@ impl SqliteStore {
         .await
     }
 
+    /// Atomically replace a refresh token only while the caller owns its live
+    /// lease, and persist a short-lived idempotent response for retries of the
+    /// predecessor token.
+    pub async fn rotate_claimed_refresh_token(
+        &self,
+        old_token: &str,
+        claim_id: &str,
+        new_token: RefreshTokenRow,
+        response: &TokenResponse,
+        replay_expires_at: i64,
+    ) -> Result<Option<RefreshTokenRow>, AuthError> {
+        let old_hash = hash_token(old_token);
+        let claim_id = claim_id.to_string();
+        let new_hash = hash_token(&new_token.refresh_token);
+        let now = now_unix();
+        let encrypted_provider_rt = new_token
+            .provider_refresh_token
+            .as_deref()
+            .map(|raw| {
+                maybe_encrypt_bound(self.enc_key.as_deref(), raw, &refresh_token_aad(&new_hash))
+            })
+            .transpose()?;
+        let response_json = serde_json::to_string(response)
+            .map_err(|error| AuthError::Storage(format!("serialize refresh replay: {error}")))?;
+        let encrypted_response = maybe_encrypt_bound(
+            self.enc_key.as_deref(),
+            &response_json,
+            &refresh_replay_aad(&old_hash),
+        )?;
+        let replay_client_id = new_token.client_id.clone();
+        let replay_resource = new_token.resource.clone();
+        self.with_conn(move |conn| {
+            conn.execute_batch("BEGIN").map_err(sqlite_error)?;
+            let operation = (|| -> Result<Option<RefreshTokenRow>, AuthError> {
+                let deleted = conn
+                    .execute(
+                        "DELETE FROM refresh_tokens
+                         WHERE refresh_token_hash = ?1
+                           AND refresh_claim_id = ?2
+                           AND refresh_claim_expires_at > ?3
+                           AND expires_at > ?3",
+                        params![old_hash, claim_id, now],
+                    )
+                    .map_err(sqlite_error)?;
+                if deleted == 0 {
+                    return Ok(None);
+                }
+                conn.execute(
+                    "INSERT INTO refresh_tokens (
+                        refresh_token_hash, client_id, subject, resource, scope,
+                        provider_refresh_token, created_at, expires_at, provider,
+                        token_endpoint_auth_method
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    params![
+                        new_hash,
+                        new_token.client_id,
+                        new_token.subject,
+                        new_token.resource,
+                        new_token.scope,
+                        encrypted_provider_rt,
+                        new_token.created_at,
+                        new_token.expires_at,
+                        new_token.provider,
+                        new_token.token_endpoint_auth_method,
+                    ],
+                )
+                .map_err(sqlite_error)?;
+                conn.execute(
+                    "INSERT INTO refresh_token_replays (
+                        predecessor_token_hash, client_id, resource, response,
+                        replacement_token_hash, created_at, expires_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        old_hash,
+                        replay_client_id,
+                        replay_resource,
+                        encrypted_response,
+                        new_hash,
+                        now,
+                        replay_expires_at,
+                    ],
+                )
+                .map_err(sqlite_error)?;
+                Ok(Some(new_token))
+            })();
+
+            match operation {
+                Ok(Some(token)) => {
+                    conn.execute_batch("COMMIT").map_err(sqlite_error)?;
+                    Ok(Some(token))
+                }
+                Ok(None) => {
+                    drop(conn.execute_batch("ROLLBACK"));
+                    Ok(None)
+                }
+                Err(error) => {
+                    drop(conn.execute_batch("ROLLBACK"));
+                    Err(error)
+                }
+            }
+        })
+        .await
+    }
+
+    pub async fn find_refresh_token_replay(
+        &self,
+        predecessor_token: &str,
+        client_id: &str,
+        requested_resource: Option<&str>,
+    ) -> Result<Option<TokenResponse>, AuthError> {
+        let predecessor_hash = hash_token(predecessor_token);
+        let client_id = client_id.to_string();
+        let requested_resource = requested_resource.map(str::to_string);
+        let now = now_unix();
+        let enc_key = self.enc_key.clone();
+        let replay_aad = refresh_replay_aad(&predecessor_hash);
+        let encrypted = self
+            .with_conn(move |conn| {
+                conn.query_row(
+                    "SELECT replay.resource, replay.response
+                     FROM refresh_token_replays AS replay
+                     JOIN refresh_tokens AS replacement
+                       ON replacement.refresh_token_hash = replay.replacement_token_hash
+                     WHERE replay.predecessor_token_hash = ?1
+                       AND replay.client_id = ?2
+                       AND replay.expires_at > ?3
+                       AND replacement.expires_at > ?3",
+                    params![predecessor_hash, client_id, now],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                )
+                .optional()
+                .map_err(sqlite_error)
+            })
+            .await?;
+        let Some((resource, encrypted_response)) = encrypted else {
+            return Ok(None);
+        };
+        if requested_resource
+            .as_deref()
+            .is_some_and(|requested| requested != resource)
+        {
+            return Ok(None);
+        }
+        let response_json =
+            maybe_decrypt_bound(enc_key.as_deref(), &encrypted_response, &replay_aad)?;
+        serde_json::from_str(&response_json)
+            .map(Some)
+            .map_err(|error| AuthError::Storage(format!("deserialize refresh replay: {error}")))
+    }
+
+    pub async fn find_refresh_token_replay_client(
+        &self,
+        predecessor_token: &str,
+    ) -> Result<Option<String>, AuthError> {
+        let predecessor_hash = hash_token(predecessor_token);
+        let now = now_unix();
+        self.with_conn(move |conn| {
+            conn.query_row(
+                "SELECT replay.client_id
+                 FROM refresh_token_replays AS replay
+                 JOIN refresh_tokens AS replacement
+                   ON replacement.refresh_token_hash = replay.replacement_token_hash
+                 WHERE replay.predecessor_token_hash = ?1
+                   AND replay.expires_at > ?2
+                   AND replacement.expires_at > ?2",
+                params![predecessor_hash, now],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(sqlite_error)
+        })
+        .await
+    }
+
+    pub async fn revoke_refresh_token_replay(
+        &self,
+        predecessor_token: &str,
+        client_id: &str,
+    ) -> Result<bool, AuthError> {
+        let predecessor_hash = hash_token(predecessor_token);
+        let client_id = client_id.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "DELETE FROM refresh_tokens
+                 WHERE refresh_token_hash = (
+                   SELECT replacement_token_hash
+                   FROM refresh_token_replays
+                   WHERE predecessor_token_hash = ?1 AND client_id = ?2
+                 )",
+                params![predecessor_hash, client_id],
+            )
+            .map(|deleted| deleted == 1)
+            .map_err(sqlite_error)
+        })
+        .await
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn expire_refresh_token_replay(
+        &self,
+        predecessor_token: &str,
+    ) -> Result<(), AuthError> {
+        let predecessor_hash = hash_token(predecessor_token);
+        let expires_at = now_unix();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "UPDATE refresh_token_replays SET expires_at = ?2
+                 WHERE predecessor_token_hash = ?1",
+                params![predecessor_hash, expires_at],
+            )
+            .map_err(sqlite_error)?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn find_refresh_token(
         &self,
         refresh_token: &str,
@@ -523,18 +849,43 @@ impl SqliteStore {
         .await
     }
 
-    /// Read the `token_endpoint_auth_method` recorded on a refresh token.
+    /// Read the `token_endpoint_auth_method` recorded on a refresh token or,
+    /// during the bounded retry window, on the rotated successor referenced by
+    /// a replayable predecessor.
     ///
+    /// Following the replay link matters for public CIMD clients: client
+    /// authentication runs before the refresh-grant replay cache, so a consumed
+    /// predecessor must still be able to prove that the grant was issued under
+    /// `token_endpoint_auth_method = "none"` without fetching live metadata.
     /// Same `Ok(None)` semantics as [`Self::auth_code_client_auth_method`].
     pub async fn refresh_token_client_auth_method(
         &self,
         refresh_token: &str,
     ) -> Result<Option<String>, AuthError> {
-        self.client_auth_method(
-            "SELECT token_endpoint_auth_method FROM refresh_tokens \
-             WHERE refresh_token_hash = ?1",
-            hash_token(refresh_token),
-        )
+        let hash = hash_token(refresh_token);
+        let now = now_unix();
+        self.with_conn(move |conn| {
+            conn.query_row(
+                "SELECT token_endpoint_auth_method FROM (
+                    SELECT token_endpoint_auth_method, 0 AS priority
+                    FROM refresh_tokens
+                    WHERE refresh_token_hash = ?1
+                    UNION ALL
+                    SELECT replacement.token_endpoint_auth_method, 1 AS priority
+                    FROM refresh_token_replays AS replay
+                    JOIN refresh_tokens AS replacement
+                      ON replacement.refresh_token_hash = replay.replacement_token_hash
+                    WHERE replay.predecessor_token_hash = ?1
+                      AND replay.expires_at > ?2
+                      AND replacement.expires_at > ?2
+                ) ORDER BY priority LIMIT 1",
+                params![hash, now],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map(Option::flatten)
+            .map_err(sqlite_error)
+        })
         .await
     }
 
@@ -664,6 +1015,7 @@ impl SqliteStore {
             for table in [
                 "authorization_requests",
                 "authorization_codes",
+                "refresh_token_replays",
                 "refresh_tokens",
                 "browser_sessions",
                 "browser_login_states",
@@ -867,8 +1219,22 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
             provider_refresh_token TEXT,
             created_at INTEGER NOT NULL,
             expires_at INTEGER NOT NULL,
-            token_endpoint_auth_method TEXT
+            token_endpoint_auth_method TEXT,
+            refresh_claim_id TEXT,
+            refresh_claim_expires_at INTEGER
         );
+        CREATE TABLE IF NOT EXISTS refresh_token_replays (
+            predecessor_token_hash TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            resource TEXT NOT NULL,
+            response TEXT NOT NULL,
+            replacement_token_hash TEXT NOT NULL
+                REFERENCES refresh_tokens(refresh_token_hash) ON DELETE CASCADE,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_refresh_token_replays_expiry
+            ON refresh_token_replays(expires_at);
         CREATE TABLE IF NOT EXISTS browser_sessions (
             session_id TEXT PRIMARY KEY,
             subject TEXT NOT NULL,
@@ -1008,6 +1374,10 @@ fn open_connection(path: &Path) -> Result<Connection, AuthError> {
 /// the `key=value` AAD shape used by `upstream::store::credential_aad`.
 fn refresh_token_aad(refresh_token_hash: &str) -> Vec<u8> {
     format!("refresh_token_hash={refresh_token_hash}").into_bytes()
+}
+
+fn refresh_replay_aad(predecessor_token_hash: &str) -> Vec<u8> {
+    format!("refresh_replay_predecessor_hash={predecessor_token_hash}").into_bytes()
 }
 
 fn hash_token(token: &str) -> String {

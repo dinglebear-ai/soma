@@ -176,12 +176,13 @@ pub struct AuthConfig {
     /// token whenever OAuth is active. Defaults to `false` (lab keeps the
     /// historical break-glass behavior); cortex overrides to `true`.
     pub disable_static_token_with_oauth: bool,
-    /// Optional at-rest encryption key for upstream provider refresh tokens.
+    /// Optional at-rest encryption key for sensitive OAuth token material.
     ///
-    /// When present, provider refresh tokens are encrypted with
-    /// ChaCha20-Poly1305 before being written to SQLite.  Set via
-    /// `{PREFIX}_TOKEN_ENCRYPTION_KEY` (64 hex digits or 43 base64url chars).
-    /// When absent, tokens are stored as plaintext (backward-compatible).
+    /// When present, provider refresh tokens and short-lived local refresh
+    /// replay responses are encrypted with ChaCha20-Poly1305 before being
+    /// written to SQLite. Set via `{PREFIX}_TOKEN_ENCRYPTION_KEY` (64 hex
+    /// digits or 43 base64url chars). When absent, those values are stored as
+    /// plaintext (backward-compatible).
     pub token_encryption_key: Option<TokenEncryptionKey>,
     /// Out-of-band machine identities authorized for OAuth client credentials.
     pub machine_clients: Vec<MachineClientConfig>,

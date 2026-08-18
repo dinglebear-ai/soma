@@ -174,10 +174,45 @@ pub(super) fn run_migrations(conn: &Connection) -> Result<(), AuthError> {
             "TEXT",
         )?;
         add_column_if_missing(conn, "refresh_tokens", "token_endpoint_auth_method", "TEXT")?;
-        conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
+        conn.execute_batch("PRAGMA user_version = 5;")
             .map_err(sqlite_error)?;
     }
 
+    if current_version < 6 {
+        add_column_if_missing(conn, "refresh_tokens", "refresh_claim_id", "TEXT")?;
+        add_column_if_missing(
+            conn,
+            "refresh_tokens",
+            "refresh_claim_expires_at",
+            "INTEGER",
+        )?;
+        conn.execute_batch("PRAGMA user_version = 6;")
+            .map_err(sqlite_error)?;
+    }
+
+    if current_version < 7 {
+        let transaction = conn.unchecked_transaction().map_err(sqlite_error)?;
+        transaction
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS refresh_token_replays (
+                    predecessor_token_hash TEXT PRIMARY KEY,
+                    client_id TEXT NOT NULL,
+                    resource TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    replacement_token_hash TEXT NOT NULL
+                        REFERENCES refresh_tokens(refresh_token_hash) ON DELETE CASCADE,
+                    created_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS idx_refresh_token_replays_expiry
+                    ON refresh_token_replays(expires_at);
+                 PRAGMA user_version = 7;",
+            )
+            .map_err(sqlite_error)?;
+        transaction.commit().map_err(sqlite_error)?;
+    }
+
+    debug_assert_eq!(SCHEMA_VERSION, 7);
     Ok(())
 }
 

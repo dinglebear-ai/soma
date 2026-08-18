@@ -185,14 +185,14 @@ async fn sqlite_store_adds_a_null_client_auth_method_to_pre_v5_rows() {
     assert_eq!(code.client_id, "pre-v5-client");
     assert_eq!(code.redirect_uri, "http://127.0.0.1:7777/callback");
     assert_eq!(code.token_endpoint_auth_method, None);
-    assert_eq!(user_version(&path), 5);
+    assert_eq!(user_version(&path), 7);
 }
 
-/// Re-opening an already-migrated database must be a no-op: the v5 step runs
-/// through `add_column_if_missing`, so a second pass cannot fail on a
-/// duplicate column or disturb the rows already there.
+/// Re-opening an already-migrated database must be a no-op: the v5-v7 steps
+/// are idempotent, so a second pass cannot fail on duplicate columns/tables or
+/// disturb the rows already there.
 #[tokio::test]
-async fn migrating_to_v5_twice_is_a_no_op() {
+async fn migrating_to_v7_twice_is_a_no_op() {
     let path = temp_db_path();
     let now = now_unix();
     let plaintext_token = "reopened-refresh-token";
@@ -201,7 +201,7 @@ async fn migrating_to_v5_twice_is_a_no_op() {
 
     let first = SqliteStore::open(path.clone()).await.unwrap();
     drop(first);
-    assert_eq!(user_version(&path), 5);
+    assert_eq!(user_version(&path), 7);
 
     let second = SqliteStore::open(path.clone()).await.unwrap();
     let refresh = second
@@ -211,7 +211,7 @@ async fn migrating_to_v5_twice_is_a_no_op() {
         .expect("re-opening a migrated database must not disturb its rows");
     assert_eq!(refresh.client_id, "pre-v5-client");
     assert_eq!(refresh.token_endpoint_auth_method, None);
-    assert_eq!(user_version(&path), 5);
+    assert_eq!(user_version(&path), 7);
 }
 
 /// The `authorization_codes` and `refresh_tokens` tables exactly as schema v4
@@ -289,6 +289,106 @@ fn write_v4_database(path: &PathBuf, now: i64, plaintext_token: &str) {
         ],
     )
     .unwrap();
+}
+
+#[tokio::test]
+async fn v5_database_upgrades_refresh_claims_and_replay_schema_without_losing_tokens() {
+    let path = temp_db_path();
+    let now = now_unix();
+    let plaintext_token = "pre-v6-refresh-token";
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE refresh_tokens (
+                refresh_token_hash TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                resource TEXT NOT NULL DEFAULT '',
+                scope TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT 'google',
+                provider_refresh_token TEXT,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                token_endpoint_auth_method TEXT
+             );
+             PRAGMA user_version = 5;",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO refresh_tokens (
+                refresh_token_hash, client_id, subject, resource, scope, provider,
+                provider_refresh_token, created_at, expires_at, token_endpoint_auth_method
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                super::hash_token(plaintext_token),
+                "client-v5",
+                "subject-v5",
+                "https://lab.example.com/mcp",
+                "lab",
+                "google",
+                "provider-refresh-v5",
+                now,
+                now + 3600,
+                "none",
+            ],
+        )
+        .unwrap();
+    }
+    crate::util::set_restrictive_permissions(&path).unwrap();
+
+    let store = SqliteStore::open(path.clone()).await.unwrap();
+    let row = store
+        .find_refresh_token(plaintext_token)
+        .await
+        .unwrap()
+        .expect("pre-v6 refresh token survives migration");
+    assert_eq!(row.client_id, "client-v5");
+    assert_eq!(user_version(&path), 7);
+
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let refresh_columns = table_columns(&conn, "refresh_tokens");
+    assert!(
+        refresh_columns
+            .iter()
+            .any(|name| name == "refresh_claim_id")
+    );
+    assert!(
+        refresh_columns
+            .iter()
+            .any(|name| name == "refresh_claim_expires_at")
+    );
+    let replay_columns = table_columns(&conn, "refresh_token_replays");
+    for expected in [
+        "predecessor_token_hash",
+        "client_id",
+        "resource",
+        "response",
+        "replacement_token_hash",
+        "created_at",
+        "expires_at",
+    ] {
+        assert!(replay_columns.iter().any(|name| name == expected));
+    }
+    let cascade: String = conn
+        .query_row(
+            "SELECT on_delete FROM pragma_foreign_key_list('refresh_token_replays')
+             WHERE \"from\" = 'replacement_token_hash'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(cascade, "CASCADE");
+}
+
+fn table_columns(conn: &rusqlite::Connection, table: &str) -> Vec<String> {
+    let mut statement = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .unwrap();
+    statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap()
 }
 
 fn user_version(path: &PathBuf) -> i64 {

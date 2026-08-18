@@ -2261,7 +2261,7 @@ pub mod tests {
         )
     }
 
-    fn signed_test_id_token() -> String {
+    pub(crate) fn signed_test_id_token() -> String {
         let claims = json!({
             "iss": "https://accounts.google.com",
             "aud": "client-id",
@@ -2276,7 +2276,7 @@ pub mod tests {
         encode(&header, &claims, &test_encoding_key()).unwrap()
     }
 
-    fn test_jwks() -> serde_json::Value {
+    pub(crate) fn test_jwks() -> serde_json::Value {
         let key = test_rsa_key();
         let public_key = key.to_public_key();
         json!({

@@ -168,6 +168,28 @@ e.g. `github:9182310`) to avoid collisions across providers sharing one
 database — except Google, whose subject format is left bare for backward
 compatibility with already-issued sessions and refresh tokens.
 
+### Local refresh-token rotation and retry safety
+
+Local refresh tokens are single-use after a successful upstream refresh. Soma
+leases the predecessor before contacting the provider, serializes refreshes for
+the same provider subject, rotates the local token atomically, and stores a
+short-lived replay result for the consumed predecessor. A concurrent or
+network-level retry during that grace period receives the exact already-issued
+response instead of triggering a second provider refresh or failing because the
+predecessor disappeared. Replay entries are bound to the original client and
+resource and disappear when they expire or when their successor is revoked.
+
+A failed upstream refresh releases the lease and leaves the predecessor usable,
+so transient provider failures do not strand the client. Lease ownership is
+renewed while a refresh is in flight and stale leases are reclaimable after
+their deadline.
+
+When `{PREFIX}_TOKEN_ENCRYPTION_KEY` is configured, `AuthState` passes it into
+the SQLite store so provider refresh tokens and persisted replay responses are
+encrypted at rest. The replay response is additionally authenticated against
+the predecessor-token hash, preventing ciphertext from being transplanted to a
+different replay row.
+
 ---
 
 ## Machine clients

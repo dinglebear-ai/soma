@@ -11,7 +11,7 @@ use crate::authorize::tests::{
 };
 use crate::config::MachineClientConfig;
 use crate::state::AuthState;
-use crate::types::{RefreshTokenRow, RegisteredClient};
+use crate::types::{RefreshTokenRow, RegisteredClient, TokenResponse};
 use crate::util::now_unix;
 
 // `oneshot` bypasses the live `into_make_service_with_connect_info` layer, so
@@ -127,6 +127,69 @@ async fn revoking_a_refresh_token_succeeds_and_the_token_stops_working() {
         .await
         .unwrap();
     assert_eq!(error_code(&body), "invalid_grant");
+}
+
+#[tokio::test]
+async fn revoking_a_recent_predecessor_revokes_its_rotated_successor() {
+    let state = test_auth_state_with_registered_client().await;
+    seed_refresh_token(&state, "predecessor-refresh", "client").await;
+    let now = now_unix();
+    state
+        .store
+        .claim_refresh_token("predecessor-refresh", "claim", now + 90)
+        .await
+        .unwrap()
+        .expect("claim predecessor");
+    let successor = RefreshTokenRow {
+        refresh_token: "successor-refresh".to_string(),
+        client_id: "client".to_string(),
+        subject: "google-subject-123".to_string(),
+        resource: "https://lab.example.com/mcp".to_string(),
+        scope: "lab".to_string(),
+        provider: "google".to_string(),
+        provider_refresh_token: None,
+        created_at: now,
+        expires_at: now + 3600,
+        token_endpoint_auth_method: None,
+    };
+    let response = TokenResponse {
+        access_token: "access-token".to_string(),
+        token_type: "Bearer".to_string(),
+        expires_in: 3600,
+        refresh_token: Some("successor-refresh".to_string()),
+        scope: "lab".to_string(),
+    };
+    state
+        .store
+        .rotate_claimed_refresh_token(
+            "predecessor-refresh",
+            "claim",
+            successor,
+            &response,
+            now + 300,
+        )
+        .await
+        .unwrap()
+        .expect("rotate predecessor");
+    assert!(refresh_token_exists(&state, "successor-refresh").await);
+
+    let (status, body) =
+        post_revoke(&state, "token=predecessor-refresh&client_id=client", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.is_empty());
+    assert!(
+        !refresh_token_exists(&state, "successor-refresh").await,
+        "revoking a replayable predecessor must revoke the committed successor"
+    );
+    assert!(
+        state
+            .store
+            .find_refresh_token_replay_client("predecessor-refresh")
+            .await
+            .unwrap()
+            .is_none(),
+        "successor deletion must cascade the replay record"
+    );
 }
 
 #[tokio::test]
