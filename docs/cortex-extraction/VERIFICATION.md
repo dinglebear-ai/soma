@@ -63,8 +63,10 @@ For each donor file moved into a reusable crate:
 6. leave no unexplained semantic diff in the review log.
 
 For `cortex-ingest-core`, expected diffs are limited to visibility/rustdoc, the
-metadata module/test filename, crate wiring, and dependency-version integration.
-The normalization and metadata algorithms themselves should remain unchanged.
+metadata module/test filename, crate wiring, dependency-version integration, and
+ASCII-safe Rust Unicode escapes for the donor non-ASCII test fixture. The runtime
+fixture value and the normalization and metadata algorithms themselves should
+remain unchanged.
 
 ## Architecture review
 

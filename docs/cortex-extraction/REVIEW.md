@@ -202,7 +202,7 @@ foundation is tracked in [PR #363](https://github.com/dinglebear-ai/soma/pull/36
 - `cargo clippy -p cortex-ingest-core --all-targets --all-features -- -D warnings` passed.
 - `cargo test -p cortex-ingest-core --all-features` passed 14 donor/unit tests and 3 external-consumer integration tests.
 - `RUSTDOCFLAGS="-D warnings" cargo doc -p cortex-ingest-core --no-deps --all-features` passed.
-- Donor source diffs showed no unexplained normalization or metadata behavior change, and donor test contents were unchanged.
+- Donor source diffs showed no unexplained normalization or metadata behavior change. Donor test behavior is unchanged; the non-ASCII normalization fixture is spelled with Rust Unicode escapes so the extracted source also satisfies Soma ASCII hygiene.
 - `cargo xtask check-architecture` passed.
 - `cargo xtask check-test-siblings` passed with 23 source trees checked after registering the new crate.
 - `cargo xtask check-docs` passed after the import-budget gate was made scheduler-resilient; the passing run reported a 286.721 ms best import sample under the unchanged 500 ms budget.

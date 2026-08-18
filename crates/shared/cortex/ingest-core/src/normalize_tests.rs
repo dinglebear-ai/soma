@@ -171,10 +171,11 @@ fn template_normalises_numbers_ips_uuids() {
 
 #[test]
 fn template_preserves_non_ascii() {
-    let msg = "файл 1234 не найден";
+    // Keep the Rust source ASCII-clean while exercising the donor's exact Unicode payload.
+    let msg = "\u{0444}\u{0430}\u{0439}\u{043b} 1234 \u{043d}\u{0435} \u{043d}\u{0430}\u{0439}\u{0434}\u{0435}\u{043d}";
     let t = normalize_template(msg);
-    assert!(t.contains("файл"));
-    assert!(t.contains("не найден"));
+    assert!(t.contains("\u{0444}\u{0430}\u{0439}\u{043b}"));
+    assert!(t.contains("\u{043d}\u{0435} \u{043d}\u{0430}\u{0439}\u{0434}\u{0435}\u{043d}"));
     assert!(t.contains("<n>"));
     assert!(t.is_char_boundary(t.len()));
 }
