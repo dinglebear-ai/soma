@@ -11,7 +11,7 @@ source_of_truth: false
 upstream_refs:
   - "docs/DOCS.md"
   - "docs/CLAUDE.md"
-last_reviewed: "2026-07-28"
+last_reviewed: "2026-08-17"
 ---
 
 # Documentation Index
@@ -26,6 +26,7 @@ and historical session notes. Pick the right layer before editing.
 |---|---|
 | Run Soma quickly | `QUICKSTART.md` |
 | Understand the architecture | `ARCHITECTURE.md`, then `PATTERNS.md` |
+| Extract Cortex into reusable crates | `cortex-extraction/README.md`, then `cortex-extraction/PROGRESS.md` |
 | Plan Python provider work | `specs/python-provider-platform.md` |
 | Generate a new server | `SCAFFOLD.md`, `CARGO_GENERATE.md`, `contracts/scaffold-intent.schema.json` |
 | Write or refresh an RMCP server README | `RMCP_README_GUIDE.md`, then `PATTERNS.md` |
@@ -57,6 +58,7 @@ accepted design history.
 | Directory | Purpose | Editing rule |
 |---|---|---|
 | `adr/` | Accepted architecture decision records | Add a new ADR for cross-cutting decisions; do not rewrite history casually. |
+| `cortex-extraction/` | Durable Cortex extraction spec, contracts, inventory, tracker, verification, and review evidence | Keep the tracker synchronized with code and lane PRs until cutover is complete. |
 | `contracts/` | JSON schemas, example payloads, and normative adapter contracts | Keep examples valid against the schema and code. |
 | `specs/` | Draft or handoff specs for work that has not fully settled into guides | Promote accepted requirements into stable guides. |
 | `generated/` | Machine-produced compatibility artifacts | Regenerate with the documented commands; avoid hand edits. |

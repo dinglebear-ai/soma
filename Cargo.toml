@@ -14,6 +14,7 @@ members = [
   "crates/shared/cli-core",
   "crates/shared/codemode",
   "crates/shared/codex-app-server-client",
+  "crates/shared/cortex/ingest-core",
   "crates/shared/http-api",
   "crates/shared/http-server",
   "crates/shared/incus-client",
@@ -79,10 +80,10 @@ keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 # public item and add that attribute to its lib.rs.
 [workspace.lints.rust]
 missing_docs = "allow"
-missing_crate_level_docs = "deny"
 unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.rustdoc]
+missing_crate_level_docs = "deny"
 broken_intra_doc_links = "deny"
 private_intra_doc_links = "warn"
 invalid_codeblock_attributes = "deny"
@@ -119,6 +120,7 @@ pyo3 = { version = "0.29", features = ["abi3-py311"] }
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
 # Shared crates
+cortex-ingest-core = { path = "crates/shared/cortex/ingest-core" }
 rmcp-traces = { path = "crates/shared/traces" }
 soma-auth = { path = "crates/shared/auth" }
 soma-cli-core = { path = "crates/shared/cli-core" }

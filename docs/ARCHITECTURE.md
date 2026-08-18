@@ -1,7 +1,7 @@
 ---
 title: "Architecture"
 created: 2026-05-15
-updated: 2026-07-30
+updated: 2026-08-17
 doc_type: "guide"
 status: "active"
 owner: "soma"
@@ -12,7 +12,7 @@ scope: "soma"
 source_of_truth: false
 upstream_refs:
   - "docs/PATTERNS.md"
-last_reviewed: "2026-07-17"
+last_reviewed: "2026-08-17"
 ---
 
 # Architecture
@@ -62,6 +62,8 @@ crates/
     auth/                  ← reusable bearer/OAuth auth policy and token handling
     cli-core/              ← reusable terminal/output/confirmation mechanics
     codemode/              ← reusable Code Mode runtime and runner support
+    cortex/
+      ingest-core/         ← reusable Cortex normalization/signature/metadata safety primitives
     http-api/              ← reusable API response/error/probe helpers
     http-server/           ← reusable Axum lifecycle/middleware helpers
     mcp/
@@ -80,8 +82,13 @@ crates/
 ```
 
 Shared crates are reusable building blocks below the Soma product layer and must
-not depend back on `apps/soma` or `crates/soma/**`. Two pieces sit outside the
-client → application → shim pattern:
+not depend back on `apps/soma` or `crates/soma/**`. Namespaced capability families
+may also live below `crates/shared/` when they are intentionally reusable across
+products. The first Cortex extraction proof lives at
+`crates/shared/cortex/ingest-core`; its full extraction contract and target
+composition are tracked in [`docs/cortex-extraction/`](cortex-extraction/README.md).
+
+Two pieces sit outside the client → application → shim pattern:
 
 - `crates/shared/codex-app-server-client/` - a fully-typed async Rust client for the
   Codex CLI's `app-server` v2 JSON-RPC protocol, with zero path-dependencies

@@ -1,7 +1,7 @@
 ---
 title: "Documentation"
 created: 2026-05-15
-updated: 2026-07-30
+updated: 2026-08-17
 doc_type: "guide"
 status: "active"
 owner: "soma"
@@ -10,7 +10,7 @@ audience:
   - "agents"
 scope: "soma"
 source_of_truth: true
-last_reviewed: "2026-07-28"
+last_reviewed: "2026-08-17"
 ---
 
 # Documentation
@@ -35,6 +35,15 @@ docs/
   ├── adr/                            ← accepted architecture decision records
   │   ├── README.md
   │   └── 0001-stdio-first-plugin-adapter.md
+  │
+  ├── cortex-extraction/              ← durable Cortex extraction control package
+  │   ├── README.md
+  │   ├── SPEC.md
+  │   ├── CONTRACTS.md
+  │   ├── SOURCE-INVENTORY.md
+  │   ├── PROGRESS.md
+  │   ├── VERIFICATION.md
+  │   └── REVIEW.md
   │
   ├── QUICKSTART.md                   ← 5-minute getting-started guide
   ├── PHILOSOPHY.md                   ← design principles
@@ -99,6 +108,7 @@ docs/
 | `docs/PATTERNS.md` | Normative patterns for the entire rmcp server family. Deviation requires an explicit recorded decision. |
 | `docs/RMCP_README_GUIDE.md` | Reusable root README structure distilled from the current Rust MCP server family. |
 | `docs/adr/` | Accepted architecture decisions. Use ADRs for cross-cutting choices that future adapters must preserve or explicitly supersede. Number new ADRs after the highest accepted record and add them to `docs/adr/README.md`. |
+| `docs/cortex-extraction/` | Durable extraction specification, contracts, source inventory, progress, verification, and review evidence for composing Cortex from reusable shared crates. |
 | `docs/contracts/` | Machine-readable JSON schemas and example payloads checked by CI scripts. Committed. |
 | `docs/generated/` | Small artifacts produced by `just openapi`, `just schema-docs`, etc. Only commit when the artifact is part of CI/API compatibility checking. |
 | `docs/specs/` | Implementation specs and handoff documents. Draft until promoted to a stable guide. |
