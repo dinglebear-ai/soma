@@ -22,7 +22,9 @@ evidence exists on the branch or in the linked lane PR.
 
 - Donor baseline: `7edf23fadb94650c2d2a2f9c80111fb44319eea8`
 - Soma integration branch: `feat/cortex-shared-extraction`
+- Foundation PR: [#363](https://github.com/dinglebear-ai/soma/pull/363)
 - Wave 1 lane: `feat/cortex-domain-extraction`
+- Wave 1 PR: [#364](https://github.com/dinglebear-ai/soma/pull/364)
 - Public model ownership inventory: [MODEL-CLASSIFICATION.md](MODEL-CLASSIFICATION.md)
 - Working topology: [SPEC.md](SPEC.md)
 - Normative rules: [CONTRACTS.md](CONTRACTS.md)
