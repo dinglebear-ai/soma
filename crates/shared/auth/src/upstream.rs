@@ -13,6 +13,7 @@
 pub mod cache;
 pub mod config;
 pub mod encryption;
+pub mod http_client;
 pub mod manager;
 pub mod refresh;
 pub mod runtime;

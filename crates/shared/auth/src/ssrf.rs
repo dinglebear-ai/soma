@@ -1,25 +1,17 @@
-//! SSRF preflight guard for CIMD `client_id` URL fetches.
+//! Shared SSRF policy primitives for outbound authentication traffic.
 //!
-//! This is a *static* preflight — it does not perform DNS resolution. It
-//! rejects non-https schemes, userinfo, query/fragment components, a
-//! missing or root-only path, private-TLD-suffixed hostnames, textual
-//! loopback hostnames, and IP-literal hosts that fall in a private/
-//! loopback/link-local/CGNAT/ULA/transition-mechanism/multicast range.
-//! Callers that resolve a domain name to an IP address MUST additionally
-//! run each resolved address through [`check_ip_not_private`] before
-//! connecting, and MUST re-validate the actual TCP peer post-connect (see
-//! `cimd::document::resolve_and_validate_address` and
-//! `cimd::document::fetch_document_at`) — this module alone does not close
-//! the DNS-rebinding/proxy-interception gap by itself.
+//! CIMD `client_id` document fetches use [`validate_url_shape`] for their
+//! strict static URL contract, then [`check_ip_not_private`] after DNS
+//! resolution. Upstream OAuth uses the same host/IP classifiers for every
+//! cross-origin authorization-server hop while allowing the operator-selected
+//! MCP origin itself to resolve to homelab/private space.
 //!
-//! Adapted (not imported — this crate has no path dependency on the
-//! sibling `lab` repo) from the equivalent guard in
-//! `labby-primitives::ssrf` and its caller,
-//! `labby-apis::acp_registry::installer`, which additionally documents and
-//! implements post-connect peer re-validation as "the load-bearing line of
-//! the SSRF TOCTOU / DNS-rebinding defense" — that additional layer is
-//! implemented in `cimd::document`, not here (this module only covers the
-//! static/pre-DNS portion of the reference's rigor).
+//! These helpers are only one layer of the DNS-rebinding defense. Callers must
+//! pin validated resolutions into their HTTP transport, and CIMD additionally
+//! re-validates the actual TCP peer in `cimd::document::fetch_document_at`.
+//! The upstream OAuth client pins the validated address set with reqwest
+//! `resolve_to_addrs` and disables proxy discovery so DNS cannot move behind a
+//! proxy after validation.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -157,7 +149,7 @@ pub fn check_ip_not_private(ip: IpAddr, context: &str) -> Result<(), SsrfError> 
     Ok(())
 }
 
-fn check_host_not_private(host: &str) -> Result<(), SsrfError> {
+pub(crate) fn check_host_not_private(host: &str) -> Result<(), SsrfError> {
     let host_lower = host.to_ascii_lowercase();
     let host_lower = host_lower.strip_suffix('.').unwrap_or(&host_lower);
     if host_lower == "localhost"

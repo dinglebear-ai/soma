@@ -36,6 +36,7 @@ use rmcp::transport::AuthorizationManager;
 use rmcp::transport::auth::AuthorizationMetadata;
 use rmcp_client as rmcp;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tokio::sync::RwLock;
 use tracing::info;
 
@@ -43,9 +44,12 @@ use crate::sqlite::SqliteStore;
 use crate::types::UpstreamOauthCredentialRow;
 use crate::upstream::config::UpstreamConfig;
 use crate::upstream::encryption::EncryptionKey;
+use crate::upstream::http_client::{
+    TrustedOriginOAuthHttpClient, authorization_manager_for_upstream,
+};
 use crate::upstream::refresh::{RefreshFailureCache, RefreshLocks};
 use crate::upstream::store::{SqliteCredentialStore, SqliteStateStore};
-use crate::upstream::types::{BeginAuthorization, OauthError};
+use crate::upstream::types::{BeginAuthorization, OAuthEgressKind, OauthError};
 
 const TOKEN_EXPIRY_WARNING_SECS: i64 = 300;
 const PROACTIVE_REFRESH_WINDOW_SECS: i64 = 30;
@@ -128,21 +132,17 @@ impl UpstreamOauthManager {
         let oauth_cfg = self.oauth_config()?;
         let upstream_url = self.upstream_url()?;
 
-        // rmcp's AuthorizationManager builds its own internal reqwest client.
-        // See google.rs::GoogleProvider::new for why this call is needed
-        // under "rustls-no-provider" -- idempotent, safe to ignore Err.
-        drop(rustls::crypto::ring::default_provider().install_default());
-        let mut manager = AuthorizationManager::new(upstream_url.as_str())
+        let mut manager = authorization_manager_for_upstream(upstream_url.as_str())
             .await
             .map_err(|e| {
                 tracing::warn!(
                     upstream = %self.upstream.name,
                     subject,
-                    kind = "internal_error",
+                    kind = e.kind(),
                     error = %e,
                     "upstream oauth: failed to create authorization manager"
                 );
-                OauthError::Internal(format!("create auth manager: {e}"))
+                e
             })?;
 
         let state_store = SqliteStateStore::new(self.sqlite.clone(), &self.upstream.name, subject);
@@ -415,12 +415,7 @@ impl UpstreamOauthManager {
         let upstream_url = self.upstream_url()?;
         let oauth_cfg = self.oauth_config()?;
 
-        // See begin_authorization above for why this call is needed under
-        // "rustls-no-provider" -- idempotent, safe to ignore Err.
-        drop(rustls::crypto::ring::default_provider().install_default());
-        let mut manager = AuthorizationManager::new(upstream_url.as_str())
-            .await
-            .map_err(|e| OauthError::Internal(format!("create auth manager: {e}")))?;
+        let mut manager = authorization_manager_for_upstream(upstream_url.as_str()).await?;
 
         let state_store = SqliteStateStore::new(self.sqlite.clone(), &self.upstream.name, subject);
         manager.set_state_store(state_store);
@@ -559,16 +554,12 @@ impl UpstreamOauthManager {
 
         let metadata = match manager.resolve_metadata().await {
             Ok(resolution) => resolution.metadata,
-            Err(error) => {
-                match discover_metadata_via_protected_resource(self.upstream_url()?.as_str())
-                    .await?
-                {
-                    Some(metadata) => metadata,
-                    None => {
-                        return Err(OauthError::Internal(format!("discover metadata: {error}")));
-                    }
+            Err(error) => match discover_published_metadata(self.upstream_url()?.as_str()).await? {
+                Some(metadata) => metadata,
+                None => {
+                    return Err(OauthError::Internal(format!("discover metadata: {error}")));
                 }
-            }
+            },
         };
 
         self.verify_issuer_binding(&metadata)?;
@@ -653,68 +644,90 @@ struct ProtectedResourceMetadata {
     authorization_servers: Option<Vec<String>>,
 }
 
-async fn discover_metadata_via_protected_resource(
+async fn discover_published_metadata(
     upstream_url: &str,
 ) -> Result<Option<AuthorizationMetadata>, OauthError> {
     tokio::time::timeout(
         OAUTH_METADATA_DISCOVERY_TIMEOUT,
-        discover_metadata_via_protected_resource_inner(upstream_url),
+        discover_published_metadata_inner(upstream_url),
     )
     .await
-    .map_err(|_| {
-        OauthError::Internal("OAuth metadata discovery exceeded its overall deadline".to_string())
+    .map_err(|_| OauthError::Egress {
+        kind: OAuthEgressKind::Timeout,
+        message: "OAuth metadata discovery exceeded its overall deadline".to_string(),
     })?
 }
 
-async fn discover_metadata_via_protected_resource_inner(
+async fn discover_published_metadata_inner(
     upstream_url: &str,
 ) -> Result<Option<AuthorizationMetadata>, OauthError> {
-    let upstream = url::Url::parse(upstream_url)
-        .map_err(|error| OauthError::Internal(format!("invalid upstream url: {error}")))?;
-    // See google.rs::GoogleProvider::new for why this call is needed
-    // under "rustls-no-provider" -- idempotent, safe to ignore Err.
-    drop(rustls::crypto::ring::default_provider().install_default());
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|error| OauthError::Internal(format!("build oauth metadata client: {error}")))?;
+    let upstream = url::Url::parse(upstream_url).map_err(|error| OauthError::Egress {
+        kind: OAuthEgressKind::ValidationFailed,
+        message: format!("invalid upstream OAuth URL: {error}"),
+    })?;
+    let client = TrustedOriginOAuthHttpClient::new(upstream_url)?;
+    let mut first_error = None;
 
     for metadata_url in protected_resource_metadata_candidates(&upstream) {
-        let response = match client.get(metadata_url.clone()).send().await {
-            Ok(response) => response,
-            Err(_) => continue,
-        };
-        if !response.status().is_success() {
-            continue;
-        }
-        let Ok(resource_metadata) = response.json::<ProtectedResourceMetadata>().await else {
+        let Some(resource_metadata) = fetch_metadata::<ProtectedResourceMetadata>(
+            &client,
+            metadata_url.clone(),
+            "protected-resource",
+            &mut first_error,
+        )
+        .await?
+        else {
             continue;
         };
         validate_protected_resource(&resource_metadata, &upstream)?;
         let authorization_servers = bounded_authorization_servers(resource_metadata)?;
 
         for authorization_server in authorization_servers {
-            let Ok(server_url) =
-                resolve_authorization_server_url(&metadata_url, authorization_server.trim())
-            else {
-                continue;
-            };
-            for authorization_metadata_url in authorization_metadata_candidates(&server_url) {
-                let response = match client.get(authorization_metadata_url).send().await {
-                    Ok(response) => response,
-                    Err(_) => continue,
-                };
-                if !response.status().is_success() {
+            let server_url = match resolve_authorization_server_url(
+                &metadata_url,
+                authorization_server.trim(),
+            ) {
+                Ok(url) => url,
+                Err(error) => {
+                    remember_metadata_error(
+                        &mut first_error,
+                        OauthError::Egress {
+                            kind: OAuthEgressKind::ValidationFailed,
+                            message: format!("invalid OAuth authorization server URL: {error}"),
+                        },
+                    );
                     continue;
                 }
-                if let Ok(metadata) = response.json::<AuthorizationMetadata>().await {
+            };
+            for authorization_metadata_url in authorization_metadata_candidates(&server_url) {
+                if let Some(metadata) = fetch_metadata::<AuthorizationMetadata>(
+                    &client,
+                    authorization_metadata_url,
+                    "authorization",
+                    &mut first_error,
+                )
+                .await?
+                {
                     return Ok(Some(metadata));
                 }
             }
         }
     }
 
-    Ok(None)
+    for authorization_metadata_url in authorization_metadata_candidates(&upstream) {
+        if let Some(metadata) = fetch_metadata::<AuthorizationMetadata>(
+            &client,
+            authorization_metadata_url,
+            "authorization",
+            &mut first_error,
+        )
+        .await?
+        {
+            return Ok(Some(metadata));
+        }
+    }
+
+    first_error.map_or(Ok(None), Err)
 }
 
 fn validate_protected_resource(
@@ -748,12 +761,81 @@ fn bounded_authorization_servers(
         .filter(|server| !server.is_empty() && seen.insert(server.clone()))
         .collect();
     if servers.len() > MAX_AUTHORIZATION_SERVERS {
-        return Err(OauthError::Internal(format!(
-            "OAuth protected-resource metadata lists {} authorization servers; maximum is {MAX_AUTHORIZATION_SERVERS}",
-            servers.len()
-        )));
+        return Err(OauthError::Egress {
+            kind: OAuthEgressKind::ValidationFailed,
+            message: format!(
+                "OAuth protected-resource metadata lists {} authorization servers; maximum is {MAX_AUTHORIZATION_SERVERS}",
+                servers.len()
+            ),
+        });
     }
     Ok(servers)
+}
+
+async fn fetch_metadata<T: DeserializeOwned>(
+    client: &TrustedOriginOAuthHttpClient,
+    url: url::Url,
+    metadata_kind: &str,
+    first_error: &mut Option<OauthError>,
+) -> Result<Option<T>, OauthError> {
+    let response = match client.get(url).await {
+        Ok(response) => response,
+        Err(error) => {
+            remember_or_return_metadata_error(first_error, error)?;
+            return Ok(None);
+        }
+    };
+    if metadata_not_found(&response) {
+        return Ok(None);
+    }
+    if !response.status().is_success() {
+        remember_metadata_error(first_error, metadata_http_error(response.status()));
+        return Ok(None);
+    }
+    match serde_json::from_slice(response.body()) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) => {
+            remember_metadata_error(first_error, invalid_metadata_error(metadata_kind, error));
+            Ok(None)
+        }
+    }
+}
+
+fn remember_metadata_error(first_error: &mut Option<OauthError>, error: OauthError) {
+    first_error.get_or_insert(error);
+}
+
+fn remember_or_return_metadata_error(
+    first_error: &mut Option<OauthError>,
+    error: OauthError,
+) -> Result<(), OauthError> {
+    if terminal_metadata_error(&error) {
+        return Err(error);
+    }
+    remember_metadata_error(first_error, error);
+    Ok(())
+}
+
+fn terminal_metadata_error(error: &OauthError) -> bool {
+    matches!(error, OauthError::Egress { kind, .. } if kind.is_terminal_discovery())
+}
+
+fn metadata_not_found(response: &oauth2::HttpResponse) -> bool {
+    matches!(response.status().as_u16(), 404 | 410)
+}
+
+fn metadata_http_error(status: oauth2::http::StatusCode) -> OauthError {
+    OauthError::Egress {
+        kind: OAuthEgressKind::UpstreamError,
+        message: format!("OAuth metadata returned HTTP {status}"),
+    }
+}
+
+fn invalid_metadata_error(kind: &str, error: serde_json::Error) -> OauthError {
+    OauthError::Egress {
+        kind: OAuthEgressKind::ValidationFailed,
+        message: format!("invalid OAuth {kind} metadata: {error}"),
+    }
 }
 
 fn protected_resource_metadata_candidates(upstream: &url::Url) -> Vec<url::Url> {
@@ -913,8 +995,11 @@ fn map_auth_error(e: rmcp::transport::AuthError) -> OauthError {
 mod url_tests {
     use super::{
         MAX_AUTHORIZATION_SERVERS, OauthError, ProtectedResourceMetadata,
-        bounded_authorization_servers, google_offline_access_url, validate_protected_resource,
+        bounded_authorization_servers, discover_published_metadata, google_offline_access_url,
+        validate_protected_resource,
     };
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn google_authorization_url_requests_offline_consent() {
@@ -1012,9 +1097,46 @@ mod url_tests {
                     .collect(),
             ),
         };
-        assert!(matches!(
-            bounded_authorization_servers(too_many),
-            Err(OauthError::Internal(message)) if message.contains("maximum")
-        ));
+        let error = bounded_authorization_servers(too_many).unwrap_err();
+        assert_eq!(error.kind(), "validation_failed");
+    }
+
+    #[tokio::test]
+    async fn published_metadata_rejects_invalid_upstream_as_validation_error() {
+        let error = discover_published_metadata("not a URL")
+            .await
+            .expect_err("invalid URL must fail before discovery");
+        assert_eq!(error.kind(), "validation_failed");
+        assert_eq!(error.http_status_code(), 400);
+    }
+
+    #[tokio::test]
+    async fn malformed_authorization_server_does_not_block_later_valid_entry() {
+        let server = MockServer::start().await;
+        let upstream = format!("{}/mcp", server.uri());
+        Mock::given(method("GET"))
+            .and(path("/.well-known/oauth-protected-resource/mcp"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "resource": upstream,
+                "authorization_servers": ["http://[", server.uri()]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/.well-known/oauth-authorization-server"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "issuer": server.uri(),
+                "authorization_endpoint": format!("{}/authorize", server.uri()),
+                "token_endpoint": format!("{}/token", server.uri()),
+                "code_challenge_methods_supported": ["S256"]
+            })))
+            .mount(&server)
+            .await;
+
+        let metadata = discover_published_metadata(&upstream)
+            .await
+            .expect("later valid authorization server must remain usable")
+            .expect("metadata");
+        assert_eq!(metadata.issuer.as_deref(), Some(server.uri().as_str()));
     }
 }

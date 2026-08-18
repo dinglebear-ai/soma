@@ -12,4 +12,4 @@
 //! `registration::resolve_client_redirect_uris` for why.
 
 pub mod document;
-pub mod ssrf;
+pub use crate::ssrf;

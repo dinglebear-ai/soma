@@ -38,6 +38,7 @@ pub mod routes;
 #[cfg(feature = "http-axum")]
 pub mod session;
 pub mod sqlite;
+pub mod ssrf;
 pub mod state;
 #[cfg(feature = "http-axum")]
 pub mod token;

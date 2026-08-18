@@ -3,6 +3,54 @@
 use serde::Serialize;
 use thiserror::Error;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OAuthEgressKind {
+    ValidationFailed,
+    SsrfBlocked,
+    DnsError,
+    NetworkError,
+    Timeout,
+    ResponseTooLarge,
+    UpstreamError,
+}
+
+impl OAuthEgressKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ValidationFailed => "validation_failed",
+            Self::SsrfBlocked => "ssrf_blocked",
+            Self::DnsError => "dns_error",
+            Self::NetworkError => "network_error",
+            Self::Timeout => "timeout",
+            Self::ResponseTooLarge => "response_too_large",
+            Self::UpstreamError => "upstream_error",
+        }
+    }
+
+    #[must_use]
+    pub const fn http_status_code(self) -> u16 {
+        match self {
+            Self::ValidationFailed | Self::SsrfBlocked => 400,
+            Self::Timeout => 504,
+            Self::DnsError | Self::NetworkError | Self::ResponseTooLarge | Self::UpstreamError => {
+                502
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn is_terminal_discovery(self) -> bool {
+        matches!(self, Self::SsrfBlocked | Self::ResponseTooLarge)
+    }
+}
+
+impl std::fmt::Display for OAuthEgressKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
 /// Stable error kinds for upstream OAuth flows.
 ///
 /// These must be kept in sync with `docs/dev/ERRORS.md`.
@@ -33,6 +81,13 @@ pub enum OauthError {
     #[error("oauth_unsupported_method: {0}")]
     UnsupportedMethod(String),
 
+    /// Outbound OAuth request was rejected or failed before a valid response.
+    #[error("{kind}: {message}")]
+    Egress {
+        kind: OAuthEgressKind,
+        message: String,
+    },
+
     /// Internal / configuration errors that are not caller-recoverable.
     #[error("internal_error: {0}")]
     Internal(String),
@@ -47,6 +102,7 @@ impl OauthError {
             Self::ResourceMismatch(_) => "oauth_resource_mismatch",
             Self::IssuerMismatch(_) => "oauth_issuer_mismatch",
             Self::UnsupportedMethod(_) => "oauth_unsupported_method",
+            Self::Egress { kind, .. } => kind.as_str(),
             Self::Internal(_) => "internal_error",
         }
     }
@@ -63,6 +119,7 @@ impl OauthError {
             Self::NeedsReauth(_) => 401,
             Self::StateInvalid(_) => 400,
             Self::ResourceMismatch(_) | Self::IssuerMismatch(_) | Self::UnsupportedMethod(_) => 502,
+            Self::Egress { kind, .. } => kind.http_status_code(),
             Self::Internal(_) => 500,
         }
     }

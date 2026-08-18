@@ -100,6 +100,12 @@ The server exposes standard OAuth discovery endpoints under `/mcp/.well-known/` 
 
 OAuth and bearer token can coexist: set both `SOMA_MCP_TOKEN` and the OAuth variables. When `SOMA_MCP_TOKEN` is unset, OAuth mode accepts only OAuth-issued bearer JWTs.
 
+### Upstream MCP OAuth egress policy
+
+When Soma acts as an OAuth client for an upstream MCP server, the configured MCP origin is an explicit operator trust decision and may resolve to private homelab addressing. OAuth traffic to any different origin is fail-closed: hostnames and every resolved address are checked against private, loopback, link-local, CGNAT, ULA, transition, multicast, reserved, and broadcast ranges before connection. Validated DNS results are pinned into reqwest, proxy discovery is disabled, redirects are restricted to the same origin, response bodies are capped, and metadata discovery has an overall deadline.
+
+Structured outbound failures use stable kinds such as `validation_failed`, `ssrf_blocked`, `dns_error`, `network_error`, `timeout`, `response_too_large`, and `upstream_error`. `ssrf_blocked` and `response_too_large` are terminal during metadata discovery rather than being silently skipped in favor of another candidate.
+
 ---
 
 ## Multi-provider OAuth
