@@ -5,5 +5,6 @@ pub fn artifact_call(path: &str) -> CodeModeExecutedCall {
         id: "artifact::write".to_string(),
         params: Some(serde_json::json!({"path": path})),
         result: None,
+        ui: None,
     }
 }

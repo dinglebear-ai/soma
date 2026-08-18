@@ -10,6 +10,7 @@ fn response_omits_empty_vectors() {
             id: "demo::ok".to_string(),
             params: None,
             result: Some(json!(true)),
+            ui: None,
         }],
         logs: Vec::new(),
         error: None,

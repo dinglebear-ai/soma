@@ -40,16 +40,22 @@ pub fn code_mode_execute_trace(response: &CodeModeExecutionResponse) -> Value {
                 .map_or(("", call.id.as_str()), |(namespace, tool)| {
                     (namespace, tool)
                 });
-            json!({
-                "id": call.id,
-                "namespace": namespace,
-                "tool": tool,
-                "params": call
-                    .params
-                    .as_ref()
-                    .map(|params| redact_trace_value(params, 4096)),
-                "ok": call.result.is_some(),
-            })
+            let mut entry = Map::from_iter([
+                ("id".to_string(), json!(call.id)),
+                ("namespace".to_string(), json!(namespace)),
+                ("tool".to_string(), json!(tool)),
+                (
+                    "params".to_string(),
+                    call.params
+                        .as_ref()
+                        .map_or(Value::Null, |params| redact_trace_value(params, 4096)),
+                ),
+                ("ok".to_string(), json!(call.result.is_some())),
+            ]);
+            if let Some(ui) = &call.ui {
+                entry.insert("ui".to_string(), json!(ui));
+            }
+            Value::Object(entry)
         })
         .collect::<Vec<_>>();
     let mut trace = Map::new();

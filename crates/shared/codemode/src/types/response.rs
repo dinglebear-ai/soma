@@ -10,6 +10,9 @@ pub struct CodeModeExecutedCall {
     pub params: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    /// MCP App / UI link captured from this specific nested tool call.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui: Option<UiLink>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

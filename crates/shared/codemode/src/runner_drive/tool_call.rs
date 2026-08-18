@@ -11,5 +11,6 @@ pub fn executed_call(
         id: id.into(),
         params,
         result,
+        ui: None,
     }
 }

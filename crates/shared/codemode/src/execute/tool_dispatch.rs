@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use super::budget::RunBudget;
 use crate::ToolError;
-use crate::host::{CodeModeHost, ExecCtx};
+use crate::host::{CodeModeHost, ExecCtx, ToolCallOutcome};
 use crate::local_provider::{
     LocalProviderCall, dispatch_local_provider, parse_local_provider_call,
 };
@@ -38,25 +38,32 @@ pub(crate) async fn handle_tool_call<H: CodeModeHost>(
                 required_scopes: vec!["soma:admin".to_string()],
             })
         } else {
-            dispatch_scoped_local_provider(ctx.host, call).await
+            dispatch_scoped_local_provider(ctx.host, call)
+                .await
+                .map(|value| ToolCallOutcome { value, ui: None })
         }
     } else {
         call_catalog_tool(ctx, seq, &id, params.clone()).await
     };
-    let result = result.map(|value| budget.cap_tool_result(value));
+    let result = result.map(|mut outcome| {
+        outcome.value = budget.cap_tool_result(outcome.value);
+        outcome
+    });
     match &result {
-        Ok(value) => ctx.calls.push(CodeModeExecutedCall {
+        Ok(outcome) => ctx.calls.push(CodeModeExecutedCall {
             id,
             params: Some(params),
-            result: Some(value.clone()),
+            result: Some(outcome.value.clone()),
+            ui: outcome.ui.clone(),
         }),
         Err(_) => ctx.calls.push(CodeModeExecutedCall {
             id,
             params: Some(params),
             result: None,
+            ui: None,
         }),
     }
-    result
+    result.map(|outcome| outcome.value)
 }
 
 async fn call_catalog_tool<H: CodeModeHost>(
@@ -64,7 +71,7 @@ async fn call_catalog_tool<H: CodeModeHost>(
     seq: u64,
     id: &str,
     params: Value,
-) -> Result<Value, ToolError> {
+) -> Result<ToolCallOutcome, ToolError> {
     let host = ctx.host.ok_or_else(|| unknown_tool(id, ctx.entries))?;
     let descriptor = ctx
         .entries
@@ -90,7 +97,7 @@ async fn call_catalog_tool<H: CodeModeHost>(
     {
         *guard = Some(ui);
     }
-    Ok(outcome.value)
+    Ok(outcome)
 }
 
 async fn dispatch_scoped_local_provider<H: CodeModeHost>(
