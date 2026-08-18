@@ -11,6 +11,13 @@ use crate::upstream::{
     UpstreamHealth, UpstreamSnapshot,
 };
 
+fn capability_is_absent(error: &str) -> bool {
+    error.contains("-32601")
+        || error.contains("Method not found")
+        || error.contains("method not found")
+}
+
+mod catalog_pagination;
 pub mod connect_stdio;
 pub mod discovery;
 pub mod health;

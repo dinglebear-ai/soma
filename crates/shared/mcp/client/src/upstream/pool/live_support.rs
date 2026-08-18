@@ -60,12 +60,6 @@ pub(super) fn bearer_token_from_env(config: &UpstreamConfig) -> Option<String> {
     (!token.is_empty()).then_some(token)
 }
 
-pub(super) fn capability_is_absent(error: &str) -> bool {
-    error.contains("-32601")
-        || error.contains("Method not found")
-        || error.contains("method not found")
-}
-
 pub(super) fn ensure_rustls_crypto_provider() {
     static INSTALL: Once = Once::new();
     INSTALL.call_once(|| {

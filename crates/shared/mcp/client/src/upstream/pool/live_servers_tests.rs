@@ -175,6 +175,26 @@ pub(super) fn task_fixture(task_id: &str, status: TaskStatus) -> Task {
 }
 
 #[derive(Clone)]
+pub(super) struct ResourcesOnlyServer;
+
+impl ServerHandler for ResourcesOnlyServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo::new(ServerCapabilities::builder().enable_resources().build())
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: rmcp::service::RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        Ok(ListResourcesResult {
+            resources: vec![Resource::new("test://resource-only", "resource-only")],
+            ..Default::default()
+        })
+    }
+}
+
+#[derive(Clone)]
 pub(super) struct EchoServer;
 
 impl ServerHandler for EchoServer {

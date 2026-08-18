@@ -39,7 +39,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures::{SinkExt, StreamExt};
-use live_servers_tests::{EchoServer, TaskFixtureState, TaskServer, websocket_fixture_response};
+use live_servers_tests::{
+    EchoServer, ResourcesOnlyServer, TaskFixtureState, TaskServer, websocket_fixture_response,
+};
 use rmcp::model::{
     ClientCapabilities, ElicitationCapability, FormElicitationCapability, Implementation,
     ProtocolVersion, RequestMetaObject,
@@ -315,6 +317,52 @@ async fn http_live_discovery_and_call_routes_echo() {
         .expect("tool call");
 
     assert_eq!(result, serde_json::json!({"echo": "http-smoke"}));
+    server.abort();
+}
+
+#[tokio::test]
+async fn resources_only_upstream_connects_without_a_tools_capability() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind resources-only smoke");
+    let addr = listener.local_addr().expect("local addr");
+    let service: StreamableHttpService<ResourcesOnlyServer, LocalSessionManager> =
+        StreamableHttpService::new(
+            || Ok(ResourcesOnlyServer),
+            Default::default(),
+            StreamableHttpServerConfig::default()
+                .with_legacy_session_mode(false)
+                .with_json_response(true),
+        );
+    let router = axum::Router::new().nest_service("/mcp", service);
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router)
+            .await
+            .expect("resources-only smoke server");
+    });
+
+    let pool = UpstreamPool::default();
+    pool.register_config(UpstreamConfig {
+        name: "resources-only".to_owned(),
+        url: Some(format!("http://{addr}/mcp")),
+        proxy_resources: true,
+        ..UpstreamConfig::default()
+    })
+    .expect("register resources-only upstream");
+
+    let snapshots = pool
+        .discover()
+        .await
+        .expect("discover resources-only upstream");
+    let snapshot = snapshots
+        .iter()
+        .find(|snapshot| snapshot.name == "resources-only")
+        .expect("resources-only snapshot");
+    assert!(snapshot.health.is_routable(), "{:?}", snapshot.health);
+    assert!(snapshot.tools.is_empty());
+    assert_eq!(snapshot.resources.len(), 1);
+    assert_eq!(snapshot.resources[0].uri, "test://resource-only");
+
     server.abort();
 }
 

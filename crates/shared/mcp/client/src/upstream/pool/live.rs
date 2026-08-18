@@ -36,8 +36,8 @@ use super::lifecycle_compat::{LifecycleAttempt, compatibility_retry, log_fallbac
 mod live_support;
 
 use live_support::{
-    bearer_token_from_env, capability_is_absent, drain_stderr, ensure_rustls_crypto_provider,
-    prompt_descriptor, resource_descriptor, stdio_env, tool_descriptor, websocket_authorization,
+    bearer_token_from_env, drain_stderr, ensure_rustls_crypto_provider, prompt_descriptor,
+    resource_descriptor, stdio_env, tool_descriptor, websocket_authorization,
 };
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -143,20 +143,30 @@ pub(super) async fn connect_live(
     guard: &SpawnGuard,
     context: LiveConnectContext<'_>,
 ) -> Result<(LiveUpstream, UpstreamSnapshot), UpstreamError> {
+    let tools_limit = context.response_caps.limit_for(CapScope::ToolsList);
+    let resources_limit = context.response_caps.limit_for(CapScope::ResourcesList);
+    let prompts_limit = context.response_caps.limit_for(CapScope::PromptsList);
     let (service, peer, kind) =
         connect_with_handler(config, guard, context, UpstreamClientHandler).await?;
 
-    let tools = peer
-        .list_all_tools()
+    let tools = super::catalog_pagination::list_tools(&peer, tools_limit)
         .await
-        .map_err(|error| UpstreamError::connect(config, error))?;
+        .map_err(|error| catalog_connect_error(config, "tools/list", CapScope::ToolsList, error))?;
     let resources = if config.proxy_resources {
-        list_resources_or_empty(config, &peer).await?
+        super::catalog_pagination::list_resources(&peer, resources_limit)
+            .await
+            .map_err(|error| {
+                catalog_connect_error(config, "resources/list", CapScope::ResourcesList, error)
+            })?
     } else {
         Vec::new()
     };
     let prompts = if config.proxy_prompts {
-        list_prompts_or_empty(config, &peer).await?
+        super::catalog_pagination::list_prompts(&peer, prompts_limit)
+            .await
+            .map_err(|error| {
+                catalog_connect_error(config, "prompts/list", CapScope::PromptsList, error)
+            })?
     } else {
         Vec::new()
     };
@@ -711,31 +721,24 @@ where
     Ok((service, peer, LiveKind::Stdio))
 }
 
-async fn list_resources_or_empty(
+fn catalog_connect_error(
     config: &UpstreamConfig,
-    peer: &rmcp::service::Peer<RoleClient>,
-) -> Result<Vec<rmcp::model::Resource>, UpstreamError> {
-    match peer.list_all_resources().await {
-        Ok(resources) => Ok(resources),
-        Err(error) if capability_is_absent(&error.to_string()) => Ok(Vec::new()),
-        Err(error) => Err(UpstreamError::LiveConnect {
+    operation: &str,
+    scope: CapScope,
+    error: super::catalog_pagination::CatalogPaginationError,
+) -> UpstreamError {
+    match error {
+        super::catalog_pagination::CatalogPaginationError::ByteLimit { observed, limit } => {
+            UpstreamError::ResponseTooLarge {
+                scope,
+                observed_bytes: observed,
+                limit,
+            }
+        }
+        error => UpstreamError::LiveConnect {
             upstream: config.name.clone(),
-            message: format!("resources/list failed: {error}"),
-        }),
-    }
-}
-
-async fn list_prompts_or_empty(
-    config: &UpstreamConfig,
-    peer: &rmcp::service::Peer<RoleClient>,
-) -> Result<Vec<rmcp::model::Prompt>, UpstreamError> {
-    match peer.list_all_prompts().await {
-        Ok(prompts) => Ok(prompts),
-        Err(error) if capability_is_absent(&error.to_string()) => Ok(Vec::new()),
-        Err(error) => Err(UpstreamError::LiveConnect {
-            upstream: config.name.clone(),
-            message: format!("prompts/list failed: {error}"),
-        }),
+            message: format!("{operation} failed: {error}"),
+        },
     }
 }
 

@@ -1,7 +1,6 @@
-use super::{
-    bearer_token_from_env, capability_is_absent, normalize_bearer_value, websocket_authorization,
-};
+use super::{bearer_token_from_env, normalize_bearer_value, websocket_authorization};
 use crate::config::UpstreamConfig;
+use crate::upstream::pool::capability_is_absent;
 
 #[test]
 fn bearer_value_normalization_accepts_raw_or_prefixed_tokens() {
