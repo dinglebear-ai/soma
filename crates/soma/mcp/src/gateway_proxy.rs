@@ -8,7 +8,7 @@ use soma_application::{
     SomaApplication,
 };
 use soma_mcp_server::protocol::{
-    prompt_from_descriptor, resource_from_descriptor, tool_from_descriptor,
+    prompt_from_descriptor, resource_from_descriptor, tool_from_descriptor_with_annotations,
 };
 
 pub async fn list_tools_for_subject_and_scope(
@@ -23,12 +23,12 @@ pub async fn list_tools_for_subject_and_scope(
     Ok(routes
         .into_iter()
         .map(|route| {
-            tool_from_descriptor(
+            tool_from_descriptor_with_annotations(
                 route.name,
                 route.description,
                 route.input_schema,
                 route.output_schema,
-                route.destructive,
+                route.annotations,
             )
         })
         .collect())

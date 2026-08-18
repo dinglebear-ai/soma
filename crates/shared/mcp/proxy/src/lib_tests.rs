@@ -61,6 +61,7 @@ fn tool(name: &str) -> ToolDescriptor {
         description: None,
         input_schema: Some(serde_json::json!({"type": "object"})),
         output_schema: None,
+        annotations: None,
         destructive: false,
     }
 }

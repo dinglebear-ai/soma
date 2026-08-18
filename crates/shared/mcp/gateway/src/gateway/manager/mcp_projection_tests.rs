@@ -20,13 +20,15 @@ async fn rmcp_tool_routes_carries_schema_and_destructive_flag() {
 
     assert_eq!(tools.len(), 1);
     assert_eq!(tools[0].name, "delete_thing");
+    let annotations = tools[0].annotations.as_ref().expect("annotations");
     assert_eq!(
-        tools[0]
-            .annotations
-            .as_ref()
-            .and_then(|annotations| annotations.destructive_hint),
-        Some(true)
+        annotations.title.as_deref(),
+        Some("Dangerous upstream tool")
     );
+    assert_eq!(annotations.read_only_hint, Some(false));
+    assert_eq!(annotations.destructive_hint, Some(true));
+    assert_eq!(annotations.idempotent_hint, Some(false));
+    assert_eq!(annotations.open_world_hint, Some(true));
 }
 
 #[tokio::test]
@@ -149,6 +151,13 @@ fn destructive_tool(name: &str) -> ToolDescriptor {
         description: None,
         input_schema: Some(serde_json::json!({"type": "object"})),
         output_schema: None,
+        annotations: Some(serde_json::json!({
+            "title": "Dangerous upstream tool",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": false,
+            "openWorldHint": true
+        })),
         destructive: true,
     }
 }

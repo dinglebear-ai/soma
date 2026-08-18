@@ -67,6 +67,14 @@ impl GatewayPort for RecordingGateway {
             description: Some(description.to_owned()),
             input_schema: Some(json!({"type": "object"})),
             output_schema: None,
+            annotations: (name == "echo").then(|| {
+                json!({
+                    "title": "Echo title",
+                    "readOnlyHint": true,
+                    "idempotentHint": true,
+                    "openWorldHint": false
+                })
+            }),
             destructive,
         })
         .collect())
@@ -301,7 +309,30 @@ async fn mcp_server_exposes_application_gateway_tools_resources_and_prompts() ->
 
     let tools = client.list_tools(Default::default()).await?;
     assert!(tools.tools.iter().any(|tool| tool.name == "soma"));
-    assert!(tools.tools.iter().any(|tool| tool.name == "echo"));
+    let echo_definition = tools
+        .tools
+        .iter()
+        .find(|tool| tool.name == "echo")
+        .expect("echo tool");
+    let echo_annotations = echo_definition
+        .annotations
+        .as_ref()
+        .expect("echo annotations");
+    assert_eq!(echo_annotations.title.as_deref(), Some("Echo title"));
+    assert_eq!(echo_annotations.read_only_hint, Some(true));
+    assert_eq!(echo_annotations.destructive_hint, None);
+    assert_eq!(echo_annotations.idempotent_hint, Some(true));
+    assert_eq!(echo_annotations.open_world_hint, Some(false));
+    let danger_definition = tools
+        .tools
+        .iter()
+        .find(|tool| tool.name == "danger")
+        .expect("danger tool");
+    assert!(
+        danger_definition.annotations.is_none(),
+        "internal destructive=true must not manufacture wire annotations"
+    );
+
     let echo = client
         .call_tool(
             CallToolRequestParams::new("echo").with_arguments(

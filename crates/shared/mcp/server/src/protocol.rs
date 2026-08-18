@@ -67,6 +67,28 @@ pub fn tool_from_descriptor(
     output_schema: Option<Value>,
     destructive: bool,
 ) -> Tool {
+    tool_from_descriptor_with_annotations(
+        name,
+        description,
+        input_schema,
+        output_schema,
+        Some(Value::Object(Map::from_iter([(
+            "destructiveHint".to_owned(),
+            Value::Bool(destructive),
+        )]))),
+    )
+}
+
+/// Build an [`rmcp::model::Tool`] while preserving an optional annotation
+/// block separately from any caller-side safety policy. `None` remains absent
+/// on the wire; an empty or partial object remains present and partial.
+pub fn tool_from_descriptor_with_annotations(
+    name: impl Into<Cow<'static, str>>,
+    description: Option<String>,
+    input_schema: Option<Value>,
+    output_schema: Option<Value>,
+    annotations: Option<Value>,
+) -> Tool {
     let mut tool = Tool::new_with_raw(
         name.into(),
         description.map(Cow::Owned),
@@ -75,7 +97,16 @@ pub fn tool_from_descriptor(
     if let Some(output_schema) = schema_object_opt(output_schema) {
         tool = tool.with_raw_output_schema(output_schema);
     }
-    tool.with_annotations(ToolAnnotations::new().destructive(destructive))
+    if let Some(annotations) = annotations {
+        match serde_json::from_value::<ToolAnnotations>(annotations) {
+            Ok(annotations) => tool = tool.with_annotations(annotations),
+            Err(error) => tracing::warn!(
+                error = %error,
+                "MCP tool annotations are malformed; dropping annotation block"
+            ),
+        }
+    }
+    tool
 }
 
 /// Build an [`rmcp::model::Resource`] from a resolved URI and display name.

@@ -129,6 +129,7 @@ impl GatewayPort for MutableGateway {
                 description: Some("subscription mutation proof".to_owned()),
                 input_schema: Some(serde_json::json!({"type": "object"})),
                 output_schema: None,
+                annotations: None,
                 destructive: false,
             })
             .into_iter()

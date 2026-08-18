@@ -1,7 +1,7 @@
 ---
 title: "MCP Draft Spec (2026-07-28) Compatibility"
 created: 2026-06-21
-updated: 2026-07-30
+updated: 2026-08-18
 ---
 
 # MCP Draft Spec (2026-07-28) Compatibility
@@ -25,6 +25,7 @@ with older MCP peers where the SDK can prove that a legacy lifecycle is required
 | Legacy `initialize` fallback | Retained for older upstream servers through `ClientLifecycleMode::Auto`; modern discovery is attempted first. |
 | `resultType` discriminators | Preserved for tools, prompts, resources, task results, and discovery responses. |
 | Multi-round-trip requests (`input_required`) | Implemented through the upstream pool, gateway, application port, product integration, and public MCP server. `inputResponses` and opaque `requestState` survive every proxy layer. |
+| Tool annotations | Implemented end to end for routed upstream tools. The advertised annotation block, including partial/empty blocks and its absence, is carried separately from Soma's internal safety verdict and re-projected without inventing missing hints. |
 | Tasks extension (`io.modelcontextprotocol/tasks`) | Implemented for routed upstream tools. Soma rewrites native task IDs to opaque, subject-bound gateway task IDs and routes `tasks/get`, `tasks/update`, and `tasks/cancel`. |
 | `subscriptions/listen` | Implemented with authentication, acknowledgement, filtering, and cancellation. Soma currently advertises no change-notification producers, so the accepted filter is empty instead of claiming events it cannot emit. |
 | Modern resource-not-found error semantics | Delegated to rmcp's negotiated-version handling. |
@@ -88,6 +89,28 @@ wire outcomes exactly:
 
 Malformed upstream result objects fail with structured proxy errors instead of
 being reported as successful structured content.
+
+### Tool annotations and gateway safety
+
+Routed upstream tools retain their MCP `annotations` block independently from
+Soma's internal `destructive` gate. A full, partial, or explicitly empty block
+is relayed as such; an upstream that advertises no annotation block remains
+unannotated downstream. Soma does not manufacture wire hints from its internal
+safety decision. This matters for chained gateways because inserting a hint the
+upstream did not publish can change a downstream gateway's authorization or
+confirmation behavior.
+
+The internal safety verdict intentionally fails closed. An upstream tool is
+treated as non-destructive only when it explicitly publishes
+`destructiveHint: false` or publishes `readOnlyHint: true` without an overriding
+`destructiveHint`. Missing annotations and annotation blocks that specify
+neither safety hint remain destructive for Soma's confirmation gates.
+
+`ToolAnnotations` is serialized at the rmcp boundary rather than copied field by
+field, so annotation fields added by the rmcp model flow through the neutral
+descriptor automatically. As with every SDK-backed implementation, fields that
+a future wire peer sends but the installed rmcp version itself does not parse
+cannot be preserved until the SDK understands them.
 
 ### Task routing and isolation
 

@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::sync::Once;
 
-use rmcp::model::Tool;
+use rmcp::model::{Tool, ToolAnnotations};
 use serde_json::Value;
 use tokio::io::AsyncReadExt;
 
@@ -19,11 +19,32 @@ pub(super) fn tool_descriptor(tool: Tool) -> ToolDescriptor {
         output_schema: tool
             .output_schema
             .map(|schema| Value::Object((*schema).clone())),
-        destructive: tool
-            .annotations
-            .as_ref()
-            .and_then(|annotations| annotations.destructive_hint)
-            .unwrap_or(true),
+        annotations: tool.annotations.as_ref().and_then(tool_annotations_value),
+        destructive: upstream_destructive_from_annotations(tool.annotations.as_ref()),
+    }
+}
+
+/// Derive the internal gateway safety verdict without changing the annotation
+/// block that will be relayed back to downstream MCP clients. Missing or
+/// underspecified annotations fail closed.
+pub(super) fn upstream_destructive_from_annotations(annotations: Option<&ToolAnnotations>) -> bool {
+    annotations.is_none_or(|annotations| {
+        annotations
+            .destructive_hint
+            .unwrap_or_else(|| !annotations.read_only_hint.unwrap_or(false))
+    })
+}
+
+fn tool_annotations_value(annotations: &ToolAnnotations) -> Option<Value> {
+    match serde_json::to_value(annotations) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            tracing::warn!(
+                error = %error,
+                "failed to serialize upstream MCP tool annotations; dropping annotation block"
+            );
+            None
+        }
     }
 }
 

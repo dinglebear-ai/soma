@@ -54,6 +54,10 @@ pub struct ToolDescriptor {
     pub input_schema: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<Value>,
+    /// Upstream MCP tool annotations exactly as advertised, preserving a
+    /// partial or empty block separately from the gateway's safety verdict.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<Value>,
     #[serde(default)]
     pub destructive: bool,
 }
@@ -66,6 +70,7 @@ impl ToolDescriptor {
             description: None,
             input_schema: None,
             output_schema: None,
+            annotations: None,
             destructive: true,
         }
     }

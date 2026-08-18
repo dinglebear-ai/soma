@@ -13,6 +13,7 @@ fn rmcp_tool_from_route_carries_schema_and_destructive_flag() {
                 description: Some("deletes a thing".to_owned()),
                 input_schema: Some(serde_json::json!({"type": "object"})),
                 output_schema: None,
+                annotations: Some(serde_json::json!({"destructiveHint": true})),
                 destructive: true,
             },
         )],
@@ -31,6 +32,61 @@ fn rmcp_tool_from_route_carries_schema_and_destructive_flag() {
 }
 
 #[test]
+fn rmcp_tool_from_route_preserves_partial_empty_and_absent_annotations() {
+    let descriptors = [
+        ToolDescriptor {
+            name: "partial".to_owned(),
+            description: None,
+            input_schema: None,
+            output_schema: None,
+            annotations: Some(serde_json::json!({
+                "title": "Partial title",
+                "idempotentHint": true
+            })),
+            destructive: true,
+        },
+        ToolDescriptor {
+            name: "empty".to_owned(),
+            description: None,
+            input_schema: None,
+            output_schema: None,
+            annotations: Some(serde_json::json!({})),
+            destructive: true,
+        },
+        ToolDescriptor {
+            name: "absent".to_owned(),
+            description: None,
+            input_schema: None,
+            output_schema: None,
+            annotations: None,
+            destructive: true,
+        },
+    ];
+    let routes = tool_routes_from_candidates(
+        descriptors
+            .into_iter()
+            .map(|descriptor| ("alpha".to_owned(), descriptor))
+            .collect(),
+        std::iter::empty::<&str>(),
+    );
+    let partial = rmcp_tool_from_route(&routes[0]);
+    let partial_annotations = partial.annotations.expect("partial annotations");
+    assert_eq!(partial_annotations.title.as_deref(), Some("Partial title"));
+    assert_eq!(partial_annotations.idempotent_hint, Some(true));
+    assert_eq!(partial_annotations.destructive_hint, None);
+    assert_eq!(partial_annotations.read_only_hint, None);
+
+    let empty = rmcp_tool_from_route(&routes[1]);
+    assert_eq!(empty.annotations, Some(rmcp::model::ToolAnnotations::new()));
+
+    let absent = rmcp_tool_from_route(&routes[2]);
+    assert!(
+        absent.annotations.is_none(),
+        "the internal destructive=true verdict must not synthesize a wire annotation block"
+    );
+}
+
+#[test]
 fn rmcp_tool_from_route_carries_output_schema() {
     let routes = tool_routes_from_candidates(
         vec![(
@@ -43,6 +99,7 @@ fn rmcp_tool_from_route_carries_output_schema() {
                     "type": "object",
                     "properties": { "summary": { "type": "string" } }
                 })),
+                annotations: None,
                 destructive: false,
             },
         )],

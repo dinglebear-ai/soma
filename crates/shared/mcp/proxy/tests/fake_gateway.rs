@@ -25,6 +25,7 @@ async fn fake_gateway_discovers_projects_and_calls_an_upstream_tool() {
             description: Some("today's forecast".to_owned()),
             input_schema: Some(serde_json::json!({"type": "object"})),
             output_schema: None,
+            annotations: None,
             destructive: false,
         },
         serde_json::json!({"forecast": "sunny"}),

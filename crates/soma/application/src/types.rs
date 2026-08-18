@@ -218,6 +218,8 @@ pub struct GatewayToolRoute {
     pub input_schema: Option<Value>,
     /// Optional JSON schema for the tool's output.
     pub output_schema: Option<Value>,
+    /// Optional MCP annotation block relayed from the upstream tool.
+    pub annotations: Option<Value>,
     /// Whether invoking the tool may have destructive effects.
     pub destructive: bool,
 }

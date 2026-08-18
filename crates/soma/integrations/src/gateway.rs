@@ -101,6 +101,7 @@ impl GatewayPort for GatewayApplicationPort {
                         description: route.descriptor.description,
                         input_schema: route.descriptor.input_schema,
                         output_schema: route.descriptor.output_schema,
+                        annotations: route.descriptor.annotations,
                         destructive: route.descriptor.destructive,
                     })
                     .collect()

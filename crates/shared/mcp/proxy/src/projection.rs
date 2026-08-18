@@ -11,7 +11,7 @@
 
 use rmcp::model::{Prompt, Resource, Tool};
 use soma_mcp_server::protocol::{
-    prompt_from_descriptor, resource_from_descriptor, tool_from_descriptor,
+    prompt_from_descriptor, resource_from_descriptor, tool_from_descriptor_with_annotations,
 };
 
 use crate::{McpPromptRoute, McpResourceRoute, McpToolRoute};
@@ -19,12 +19,12 @@ use crate::{McpPromptRoute, McpResourceRoute, McpToolRoute};
 /// Project a [`McpToolRoute`] into an [`rmcp::model::Tool`] ready for
 /// `tools/list`.
 pub fn rmcp_tool_from_route(route: &McpToolRoute) -> Tool {
-    tool_from_descriptor(
+    tool_from_descriptor_with_annotations(
         route.name.clone(),
         route.descriptor.description.clone(),
         route.descriptor.input_schema.clone(),
         route.descriptor.output_schema.clone(),
-        route.descriptor.destructive,
+        route.descriptor.annotations.clone(),
     )
 }
 

@@ -1,6 +1,70 @@
-use super::{bearer_token_from_env, normalize_bearer_value, websocket_authorization};
+use std::sync::Arc;
+
+use rmcp::model::{Tool, ToolAnnotations};
+use serde_json::Map;
+
+use super::{
+    bearer_token_from_env, normalize_bearer_value, tool_descriptor,
+    upstream_destructive_from_annotations, websocket_authorization,
+};
 use crate::config::UpstreamConfig;
 use crate::upstream::pool::capability_is_absent;
+
+#[test]
+fn tool_descriptor_preserves_annotation_shape_and_uses_fail_closed_safety() {
+    let full = Tool::new("full", "full annotations", Arc::new(Map::new())).with_annotations(
+        ToolAnnotations::from_raw(
+            Some("Full title".to_owned()),
+            Some(true),
+            None,
+            Some(true),
+            Some(false),
+        ),
+    );
+    let full = tool_descriptor(full);
+    assert_eq!(
+        full.annotations,
+        Some(serde_json::json!({
+            "title": "Full title",
+            "readOnlyHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+        }))
+    );
+    assert!(
+        !full.destructive,
+        "readOnlyHint=true must make the internal gate safe when destructiveHint is absent"
+    );
+
+    let partial =
+        Tool::new("partial", "partial annotations", Arc::new(Map::new())).with_annotations(
+            ToolAnnotations::from_raw(None, None, None, Some(true), None),
+        );
+    let partial = tool_descriptor(partial);
+    assert_eq!(
+        partial.annotations,
+        Some(serde_json::json!({"idempotentHint": true}))
+    );
+    assert!(
+        partial.destructive,
+        "an underspecified annotation block must fail closed"
+    );
+
+    let empty = Tool::new("empty", "empty annotations", Arc::new(Map::new()))
+        .with_annotations(ToolAnnotations::new());
+    let empty = tool_descriptor(empty);
+    assert_eq!(empty.annotations, Some(serde_json::json!({})));
+    assert!(empty.destructive);
+
+    let absent = tool_descriptor(Tool::new("absent", "no annotations", Arc::new(Map::new())));
+    assert!(absent.annotations.is_none());
+    assert!(absent.destructive);
+
+    assert!(!upstream_destructive_from_annotations(Some(
+        &ToolAnnotations::new().destructive(false)
+    )));
+    assert!(upstream_destructive_from_annotations(None));
+}
 
 #[test]
 fn bearer_value_normalization_accepts_raw_or_prefixed_tokens() {

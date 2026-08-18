@@ -111,6 +111,38 @@ fn tool_from_descriptor_carries_schemas_and_destructive_flag() {
 }
 
 #[test]
+fn tool_from_descriptor_with_annotations_preserves_partial_empty_and_absent_blocks() {
+    let partial = tool_from_descriptor_with_annotations(
+        "partial",
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "title": "Partial",
+            "readOnlyHint": true,
+            "idempotentHint": false
+        })),
+    );
+    let annotations = partial.annotations.expect("partial annotation block");
+    assert_eq!(annotations.title.as_deref(), Some("Partial"));
+    assert_eq!(annotations.read_only_hint, Some(true));
+    assert_eq!(annotations.destructive_hint, None);
+    assert_eq!(annotations.idempotent_hint, Some(false));
+
+    let empty = tool_from_descriptor_with_annotations(
+        "empty",
+        None,
+        None,
+        None,
+        Some(serde_json::json!({})),
+    );
+    assert_eq!(empty.annotations, Some(rmcp::model::ToolAnnotations::new()));
+
+    let absent = tool_from_descriptor_with_annotations("absent", None, None, None, None);
+    assert!(absent.annotations.is_none());
+}
+
+#[test]
 fn resource_from_descriptor_builds_named_resource() {
     let resource = resource_from_descriptor("mcp-gateway://upstream/one/thing", "thing");
     assert_eq!(resource.uri, "mcp-gateway://upstream/one/thing");
