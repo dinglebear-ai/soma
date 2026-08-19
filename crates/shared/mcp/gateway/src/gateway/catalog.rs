@@ -109,7 +109,7 @@ const STANDARD_ACTIONS: &[GatewayAction] = &[
     GatewayAction {
         name: "gateway.oauth.clear",
         admin_required: true,
-        destructive: true,
+        destructive: false,
         discovery: false,
         spawn_validation_required: false,
     },

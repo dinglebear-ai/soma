@@ -15,13 +15,28 @@ fn non_discovery_actions_require_admin_and_unknown_fails_closed() {
 }
 
 #[test]
-fn destructive_metadata_is_executable_test_data() {
-    let remove = GatewayActionCatalog::standard()
-        .get("gateway.remove")
-        .expect("remove action");
+fn destructive_metadata_is_reserved_for_irrecoverable_data_loss() {
+    let catalog = GatewayActionCatalog::standard();
+    let destructive = catalog
+        .list()
+        .into_iter()
+        .filter(|action| action.destructive)
+        .map(|action| action.name)
+        .collect::<Vec<_>>();
 
-    assert!(remove.destructive);
-    assert!(remove.admin_required);
+    assert_eq!(destructive, vec!["gateway.remove"]);
+    assert!(
+        catalog
+            .get("gateway.oauth.clear")
+            .expect("oauth clear action")
+            .admin_required
+    );
+    assert!(
+        !catalog
+            .get("gateway.oauth.clear")
+            .expect("oauth clear action")
+            .destructive
+    );
 }
 
 #[test]

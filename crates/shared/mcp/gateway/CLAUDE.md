@@ -16,6 +16,10 @@ Hard boundaries:
   taxonomy PR those move under `crates/shared/*`.
 - Product/API/MCP/CLI code parses, delegates, and returns. Gateway runtime logic
   stays in this crate.
+- `admin_required` and `destructive` are separate contracts. Admin gates privileged
+  gateway mutations; `destructive` is reserved for actions with unrecoverable
+  data loss that warrant an additional confirmation surface. Recoverable credential
+  clearing remains admin-only, not destructive.
 - Every new or touched Rust source module gets a sibling `_tests.rs` file.
 - No Rust source or test file should exceed 500 physical lines.
 - Do not add `mod.rs`.
