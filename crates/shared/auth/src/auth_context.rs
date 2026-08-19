@@ -43,8 +43,8 @@ pub struct AuthContext {
 #[must_use]
 pub fn www_authenticate_value(resource_url: &str, scope: Option<&str>) -> String {
     let mut value = format!(
-        "Bearer resource_metadata=\"{}/.well-known/oauth-protected-resource\"",
-        resource_url.trim_end_matches('/')
+        "Bearer resource_metadata=\"{}\"",
+        protected_resource_metadata_url(resource_url)
     );
     if let Some(scope) = scope
         && !scope.is_empty()
@@ -52,6 +52,23 @@ pub fn www_authenticate_value(resource_url: &str, scope: Option<&str>) -> String
         value.push_str(&format!(", scope=\"{scope}\""));
     }
     value
+}
+
+/// Build the RFC 9728 metadata endpoint from the resource's authorization
+/// origin. Resource paths, queries, and fragments are deliberately excluded:
+/// Soma mounts protected-resource metadata at the origin root.
+#[must_use]
+pub fn protected_resource_metadata_url(resource_url: &str) -> String {
+    let Ok(mut url) = url::Url::parse(resource_url) else {
+        return format!(
+            "{}/.well-known/oauth-protected-resource",
+            resource_url.trim_end_matches('/')
+        );
+    };
+    url.set_path("/.well-known/oauth-protected-resource");
+    url.set_query(None);
+    url.set_fragment(None);
+    url.to_string()
 }
 
 /// Convenience accessor for handlers that have already split a request into
@@ -63,7 +80,7 @@ pub fn auth_context(parts: &Parts) -> Option<&AuthContext> {
 
 #[cfg(test)]
 mod tests {
-    use super::www_authenticate_value;
+    use super::{protected_resource_metadata_url, www_authenticate_value};
 
     #[test]
     fn www_authenticate_value_appends_metadata_path_and_strips_trailing_slash() {
@@ -74,6 +91,28 @@ mod tests {
         assert_eq!(
             www_authenticate_value("https://lab.example.com", None),
             "Bearer resource_metadata=\"https://lab.example.com/.well-known/oauth-protected-resource\""
+        );
+    }
+
+    #[test]
+    fn metadata_url_uses_origin_and_preserves_scheme_host_and_port() {
+        assert_eq!(
+            protected_resource_metadata_url(
+                "https://proxy.example:53147/mcp/nested?code=secret#fragment"
+            ),
+            "https://proxy.example:53147/.well-known/oauth-protected-resource"
+        );
+        assert_eq!(
+            www_authenticate_value("http://127.0.0.1:8765/prefix/mcp", None),
+            "Bearer resource_metadata=\"http://127.0.0.1:8765/.well-known/oauth-protected-resource\""
+        );
+    }
+
+    #[test]
+    fn malformed_resource_url_keeps_backward_compatible_string_fallback() {
+        assert_eq!(
+            protected_resource_metadata_url("not a url/path/"),
+            "not a url/path/.well-known/oauth-protected-resource"
         );
     }
 

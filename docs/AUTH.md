@@ -1,7 +1,7 @@
 ---
 title: "Authentication"
 created: 2026-05-14
-updated: 2026-07-30
+updated: 2026-08-18
 ---
 
 # Authentication
@@ -228,6 +228,17 @@ Authorization-server metadata always advertises `none` and `private_key_jwt`
 as token endpoint authentication methods, along with the supported EdDSA,
 RS256, and ES256 signing algorithms. `client_secret_basic` is additionally
 advertised only when configured machine clients make it usable.
+
+### Protected-resource challenge URL
+
+`WWW-Authenticate` challenges derive RFC 9728 `resource_metadata` from the
+resource URL's **origin**, not from the full protected-resource path. For
+example, a resource at `https://gateway.example:53147/prefix/mcp?x=1#fragment`
+advertises `https://gateway.example:53147/.well-known/oauth-protected-resource`.
+Path, query, and fragment components are stripped while scheme, host, and
+explicit port are preserved. This keeps clients pointed at the metadata route
+Soma actually serves when MCP is mounted beneath a path prefix or reverse
+proxy.
 
 ---
 
