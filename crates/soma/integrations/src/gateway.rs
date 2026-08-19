@@ -153,10 +153,16 @@ impl GatewayPort for GatewayApplicationPort {
     async fn get_mcp_task(
         &self,
         task_id: &str,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<Value, PortError> {
+        let scope = scope.map(protected_route_scope);
         self.gateway
-            .get_mcp_task_for_subject(task_id, Some(gateway_subject(context)))
+            .get_mcp_task_for_subject_and_scope(
+                task_id,
+                Some(gateway_subject(context)),
+                scope.as_ref(),
+            )
             .await
             .map_err(|error| gateway_manager_port_error("tasks/get", error))
     }
@@ -165,10 +171,17 @@ impl GatewayPort for GatewayApplicationPort {
         &self,
         task_id: &str,
         input_responses: std::collections::BTreeMap<String, Value>,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<(), PortError> {
+        let scope = scope.map(protected_route_scope);
         self.gateway
-            .update_mcp_task_for_subject(task_id, input_responses, Some(gateway_subject(context)))
+            .update_mcp_task_for_subject_and_scope(
+                task_id,
+                input_responses,
+                Some(gateway_subject(context)),
+                scope.as_ref(),
+            )
             .await
             .map_err(|error| gateway_manager_port_error("tasks/update", error))
     }
@@ -176,10 +189,16 @@ impl GatewayPort for GatewayApplicationPort {
     async fn cancel_mcp_task(
         &self,
         task_id: &str,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<(), PortError> {
+        let scope = scope.map(protected_route_scope);
         self.gateway
-            .cancel_mcp_task_for_subject(task_id, Some(gateway_subject(context)))
+            .cancel_mcp_task_for_subject_and_scope(
+                task_id,
+                Some(gateway_subject(context)),
+                scope.as_ref(),
+            )
             .await
             .map_err(|error| gateway_manager_port_error("tasks/cancel", error))
     }

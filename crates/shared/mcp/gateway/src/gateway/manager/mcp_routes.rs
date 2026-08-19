@@ -4,6 +4,8 @@ pub use soma_mcp_proxy::{
     McpToolRoute as GatewayToolRoute, parse_upstream_resource_uri, upstream_resource_uri,
 };
 
+#[cfg(feature = "protected-routes")]
+use crate::gateway::protected_routes::ProtectedRouteScope;
 use crate::upstream::{
     McpRequestOutcome, McpRoundTrip, PromptDescriptor, ResourceDescriptor, ToolDescriptor,
     UpstreamHealth,
@@ -84,9 +86,23 @@ impl GatewayManager {
         let upstream = route.upstream.clone();
         let pool = self.ready_pool()?;
         let outcome = call_tool_once(&pool, route, params, round_trip, subject).await?;
-        Ok(Some(
-            self.register_task_outcome(outcome, &upstream, subject)?,
-        ))
+        self.register_task_outcome(outcome, &upstream, subject)
+            .map(Some)
+    }
+
+    #[cfg(feature = "protected-routes")]
+    pub(super) async fn call_mcp_tool_route_once_for_subject(
+        &self,
+        route: GatewayToolRoute,
+        params: Value,
+        round_trip: McpRoundTrip,
+        subject: Option<&str>,
+        task_scope: Option<&ProtectedRouteScope>,
+    ) -> Result<McpRequestOutcome, GatewayManagerError> {
+        let upstream = route.upstream.clone();
+        let pool = self.ready_pool()?;
+        let outcome = call_tool_once(&pool, route, params, round_trip, subject).await?;
+        self.register_task_outcome_for_scope(outcome, &upstream, subject, task_scope)
     }
 
     pub async fn resource_routes(&self) -> Result<Vec<GatewayResourceRoute>, GatewayManagerError> {

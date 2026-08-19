@@ -102,9 +102,10 @@ pub trait GatewayPort: Send + Sync {
     async fn get_mcp_task(
         &self,
         task_id: &str,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<Value, PortError> {
-        let _ = (task_id, context);
+        let _ = (task_id, scope, context);
         Err(PortError::new(
             "tasks_unsupported",
             "the configured gateway does not support MCP tasks",
@@ -116,9 +117,10 @@ pub trait GatewayPort: Send + Sync {
         &self,
         task_id: &str,
         input_responses: BTreeMap<String, Value>,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<(), PortError> {
-        let _ = (task_id, input_responses, context);
+        let _ = (task_id, input_responses, scope, context);
         Err(PortError::new(
             "tasks_unsupported",
             "the configured gateway does not support MCP tasks",
@@ -129,9 +131,10 @@ pub trait GatewayPort: Send + Sync {
     async fn cancel_mcp_task(
         &self,
         task_id: &str,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<(), PortError> {
-        let _ = (task_id, context);
+        let _ = (task_id, scope, context);
         Err(PortError::new(
             "tasks_unsupported",
             "the configured gateway does not support MCP tasks",

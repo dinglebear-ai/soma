@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     sync::{
         Arc, RwLock,
         atomic::{AtomicU64, Ordering},
@@ -63,11 +63,31 @@ impl From<soma_mcp_client::ConfigError> for GatewayManagerError {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct TaskRouteScopeKey {
+    upstreams: BTreeSet<String>,
+    services: BTreeSet<String>,
+    expose_code_mode: bool,
+}
+
+impl TaskRouteScopeKey {
+    #[cfg(feature = "protected-routes")]
+    fn from_scope(scope: &crate::gateway::protected_routes::ProtectedRouteScope) -> Self {
+        Self {
+            upstreams: scope.upstreams.iter().cloned().collect(),
+            services: scope.services.iter().cloned().collect(),
+            expose_code_mode: scope.expose_code_mode,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct TaskRoute {
     pub upstream: String,
     pub native_task_id: String,
     pub subject: Option<String>,
+    pub scope: Option<TaskRouteScopeKey>,
+    pub last_used: std::time::Instant,
 }
 
 pub struct GatewayManager {

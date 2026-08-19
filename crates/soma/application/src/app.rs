@@ -439,9 +439,14 @@ impl SomaApplication {
     pub async fn gateway_get_mcp_task(
         &self,
         task_id: &str,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<Value, ApplicationError> {
-        Ok(self.ports.gateway.get_mcp_task(task_id, context).await?)
+        Ok(self
+            .ports
+            .gateway
+            .get_mcp_task(task_id, scope, context)
+            .await?)
     }
 
     /// Supply follow-up input to a routed MCP task.
@@ -449,12 +454,13 @@ impl SomaApplication {
         &self,
         task_id: &str,
         input_responses: std::collections::BTreeMap<String, Value>,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<(), ApplicationError> {
         Ok(self
             .ports
             .gateway
-            .update_mcp_task(task_id, input_responses, context)
+            .update_mcp_task(task_id, input_responses, scope, context)
             .await?)
     }
 
@@ -462,9 +468,14 @@ impl SomaApplication {
     pub async fn gateway_cancel_mcp_task(
         &self,
         task_id: &str,
+        scope: Option<&GatewayRouteScope>,
         context: &ExecutionContext,
     ) -> Result<(), ApplicationError> {
-        Ok(self.ports.gateway.cancel_mcp_task(task_id, context).await?)
+        Ok(self
+            .ports
+            .gateway
+            .cancel_mcp_task(task_id, scope, context)
+            .await?)
     }
 
     /// List MCP resources exposed through the gateway, optionally filtered by scope.

@@ -50,16 +50,17 @@ impl GatewayManager {
         subject: Option<&str>,
         scope: Option<&ProtectedRouteScope>,
     ) -> Result<Option<McpRequestOutcome>, GatewayManagerError> {
-        let allowed = self
+        let Some(route) = self
             .tool_routes_for_subject_and_scope(subject, scope)
             .await?
             .into_iter()
-            .any(|route| route.name == name);
-        if !allowed {
+            .find(|route| route.name == name)
+        else {
             return Ok(None);
-        }
-        self.call_mcp_tool_once_for_subject(name, params, round_trip, subject)
+        };
+        self.call_mcp_tool_route_once_for_subject(route, params, round_trip, subject, scope)
             .await
+            .map(Some)
     }
 
     pub async fn resource_routes_for_subject_and_scope(

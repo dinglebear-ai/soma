@@ -151,6 +151,7 @@ impl GatewayPort for RecordingGateway {
     async fn get_mcp_task(
         &self,
         task_id: &str,
+        _scope: Option<&GatewayRouteScope>,
         _context: &ExecutionContext,
     ) -> Result<Value, PortError> {
         if task_id != "soma-task-test" {
@@ -205,6 +206,7 @@ impl GatewayPort for RecordingGateway {
         &self,
         task_id: &str,
         input_responses: std::collections::BTreeMap<String, Value>,
+        _scope: Option<&GatewayRouteScope>,
         _context: &ExecutionContext,
     ) -> Result<(), PortError> {
         if task_id != "soma-task-test" {
@@ -229,6 +231,7 @@ impl GatewayPort for RecordingGateway {
     async fn cancel_mcp_task(
         &self,
         task_id: &str,
+        _scope: Option<&GatewayRouteScope>,
         _context: &ExecutionContext,
     ) -> Result<(), PortError> {
         if task_id != "soma-task-test" {

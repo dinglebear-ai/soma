@@ -680,10 +680,11 @@ impl ServerHandler for SomaRmcpServer {
     ) -> Result<GetTaskResult, ErrorData> {
         let auth = require_auth_context(&self.state, &context)?;
         let execution_context = execution_context(&self.state, &context, auth);
+        let route_scope = protected_route_scope(&context);
         let value = self
             .state
             .application()
-            .gateway_get_mcp_task(&request.task_id, &execution_context)
+            .gateway_get_mcp_task(&request.task_id, route_scope, &execution_context)
             .await
             .map_err(task_application_error)?;
         serde_json::from_value(value).map_err(|error| {
@@ -701,11 +702,13 @@ impl ServerHandler for SomaRmcpServer {
     ) -> Result<(), ErrorData> {
         let auth = require_auth_context(&self.state, &context)?;
         let execution_context = execution_context(&self.state, &context, auth);
+        let route_scope = protected_route_scope(&context);
         self.state
             .application()
             .gateway_update_mcp_task(
                 &request.task_id,
                 request.input_responses,
+                route_scope,
                 &execution_context,
             )
             .await
@@ -719,9 +722,10 @@ impl ServerHandler for SomaRmcpServer {
     ) -> Result<(), ErrorData> {
         let auth = require_auth_context(&self.state, &context)?;
         let execution_context = execution_context(&self.state, &context, auth);
+        let route_scope = protected_route_scope(&context);
         self.state
             .application()
-            .gateway_cancel_mcp_task(&request.task_id, &execution_context)
+            .gateway_cancel_mcp_task(&request.task_id, route_scope, &execution_context)
             .await
             .map_err(task_application_error)
     }

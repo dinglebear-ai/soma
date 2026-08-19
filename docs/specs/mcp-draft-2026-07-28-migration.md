@@ -152,9 +152,17 @@ cannot be preserved until the SDK understands them.
 
 Native task IDs are scoped to an upstream server and may collide. The gateway
 therefore creates opaque public IDs and stores the originating upstream, native ID,
-and authorization subject. A task ID cannot be resolved by another subject, and
-gateway reload invalidates all in-memory task routes. Soma does not persist task
-routes across process restarts.
+authorization subject, and the canonical protected-route scope that minted the
+task. A task ID cannot be resolved by another subject, from the root MCP surface
+when it was created through a protected route, or from a different protected
+subset. Route-scope comparison canonicalizes upstream/service lists as sets, so
+harmless configuration ordering does not invalidate a handle.
+
+Task routes are intentionally in-memory capabilities rather than durable records.
+They idle-expire after 24 hours, the registry is capped at 4096 entries with
+least-recently-used eviction before insertion, gateway reload invalidates every
+route, and process restart discards them all. Task get/update/cancel refresh the
+route's idle timestamp only after subject and route-scope authorization succeed.
 
 ### Subscriptions
 
@@ -181,8 +189,8 @@ The migration is covered by real transport and routing tests, including:
 - typed complete results
 - a two-round elicitation exchange that echoes `requestState` and keyed responses
 - live task creation, input-required polling, update, completion, and cancellation
-- opaque gateway task IDs, subject isolation, invalid-result rejection, and reload invalidation
-- task operations through Soma's public MCP server surface
+- opaque gateway task IDs, subject + protected-route isolation, invalid-result rejection, bounded idle/LRU retention, and reload invalidation
+- task operations through Soma's public MCP server surface with route scope threaded through get/update/cancel
 - modern subscription acknowledgement and cancellation over HTTP
 - RFC 9207 issuer state persistence and callback forwarding
 - issuer-bound credential rejection, deletion, and reauthorization behavior
