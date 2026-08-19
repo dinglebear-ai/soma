@@ -28,7 +28,12 @@ Local providers are explicit and reserved: `state`, `git`, and, only with the
 mutable state; OpenAPI dispatch must remain outside that lock.
 
 Use Soma naming for runtime/home configuration: `SOMA_HOME`, `~/.soma`, and
-`SOMA_CODE_MODE_*` / `SOMA_CODE_MODE_POOL_*` environment variables.
+`SOMA_CODE_MODE_*` / `SOMA_CODE_MODE_POOL_*` environment variables. Artifact
+writes are bounded per file and per run, and the shared artifact store is pruned
+on the first write of each run. The default retention window is 200 runs with a
+4 GiB total-store budget; `SOMA_CODE_MODE_ARTIFACT_RETENTION_RUNS=0` disables
+count pruning and `SOMA_CODE_MODE_ARTIFACT_MAX_STORE_MIB=0` disables byte
+pruning. Active runs must remain protected from concurrent prune passes.
 
 Tests live in sibling `*_tests.rs` files. Do not add inline `mod tests`, `mod.rs`,
 or any Rust source/test file over 500 physical lines.

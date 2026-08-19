@@ -11,6 +11,9 @@ pub(crate) const MAX_SNIPPET_RESOLVED_BYTES_PER_RUN: usize = 256 * 1024;
 const DEFAULT_MAX_CALLTOOL_PER_RUN: u64 = 512;
 const MAX_CALLTOOL_PER_RUN_CEILING: u64 = 2048;
 const DEFAULT_CALLTOOL_RESULT_MAX_MIB: usize = 8;
+const DEFAULT_ARTIFACT_MAX_MIB: usize = 8;
+const DEFAULT_ARTIFACT_RETENTION_RUNS: usize = 200;
+const DEFAULT_ARTIFACT_MAX_STORE_MIB: u64 = 4096;
 
 static MAX_CALLS_PER_RUN_CONFIG_DEFAULT: std::sync::OnceLock<Option<u64>> =
     std::sync::OnceLock::new();
@@ -77,6 +80,15 @@ pub struct CodeModeConfig {
     pub max_calls_per_run: Option<u64>,
     #[serde(default)]
     pub calltool_result_max_mib: Option<usize>,
+    /// Maximum size of one Code Mode artifact, in MiB.
+    #[serde(default)]
+    pub artifact_max_mib: Option<usize>,
+    /// Number of newest artifact run directories retained. `0` disables count pruning.
+    #[serde(default)]
+    pub artifact_retention_runs: Option<usize>,
+    /// Total artifact-store budget in MiB. `0` disables byte-budget pruning.
+    #[serde(default)]
+    pub artifact_max_store_mib: Option<u64>,
 }
 
 impl Default for CodeModeConfig {
@@ -94,6 +106,9 @@ impl Default for CodeModeConfig {
             semantic_search: SemanticSearchConfig::default(),
             max_calls_per_run: None,
             calltool_result_max_mib: None,
+            artifact_max_mib: None,
+            artifact_retention_runs: None,
+            artifact_max_store_mib: None,
         }
     }
 }
@@ -179,6 +194,30 @@ pub(crate) fn effective_calltool_result_max_bytes(config: &CodeModeConfig) -> us
         .or(config.calltool_result_max_mib.filter(|mib| *mib > 0))
         .map(|mib| mib.saturating_mul(1024 * 1024))
         .unwrap_or_else(calltool_result_max_bytes)
+}
+
+pub(crate) fn effective_artifact_max_bytes(config: &CodeModeConfig) -> usize {
+    crate::home::env_non_empty("SOMA_CODE_MODE_ARTIFACT_MAX_MIB")
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .filter(|mib| *mib > 0)
+        .or(config.artifact_max_mib.filter(|mib| *mib > 0))
+        .unwrap_or(DEFAULT_ARTIFACT_MAX_MIB)
+        .saturating_mul(1024 * 1024)
+}
+
+pub(crate) fn effective_artifact_retention_runs(config: &CodeModeConfig) -> usize {
+    crate::home::env_non_empty("SOMA_CODE_MODE_ARTIFACT_RETENTION_RUNS")
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .or(config.artifact_retention_runs)
+        .unwrap_or(DEFAULT_ARTIFACT_RETENTION_RUNS)
+}
+
+pub(crate) fn effective_artifact_max_store_bytes(config: &CodeModeConfig) -> u64 {
+    crate::home::env_non_empty("SOMA_CODE_MODE_ARTIFACT_MAX_STORE_MIB")
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+        .or(config.artifact_max_store_mib)
+        .unwrap_or(DEFAULT_ARTIFACT_MAX_STORE_MIB)
+        .saturating_mul(1024 * 1024)
 }
 
 fn default_true() -> bool {

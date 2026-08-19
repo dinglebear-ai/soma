@@ -57,3 +57,59 @@ async fn artifact_store_enforces_run_quota() {
 
     assert_eq!(err.kind(), "invalid_param");
 }
+
+#[tokio::test]
+#[serial(code_mode_soma_home)]
+async fn artifact_store_prunes_only_when_first_write_occurs() {
+    let temp = tempfile::tempdir().unwrap();
+    let _home = EnvVarGuard::set(temp.path());
+    let root = temp.path().join("code-mode-artifacts");
+    tokio::fs::create_dir_all(root.join("old-one"))
+        .await
+        .unwrap();
+    tokio::fs::write(root.join("old-one/payload"), b"old")
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    tokio::fs::create_dir_all(root.join("old-two"))
+        .await
+        .unwrap();
+    tokio::fs::write(root.join("old-two/payload"), b"old")
+        .await
+        .unwrap();
+
+    let store = ArtifactStore::new("current")
+        .unwrap()
+        .with_retention_limits(1, 0);
+    assert!(root.join("old-one").exists());
+    assert!(root.join("old-two").exists());
+
+    store.write_text("out.txt", "new", None).await.unwrap();
+    assert!(!root.join("old-one").exists());
+    assert!(root.join("old-two").exists());
+    assert!(root.join("current/out.txt").exists());
+}
+
+#[tokio::test]
+#[serial(code_mode_soma_home)]
+async fn active_peer_store_survives_another_runs_prune() {
+    let temp = tempfile::tempdir().unwrap();
+    let _home = EnvVarGuard::set(temp.path());
+    let root = temp.path().join("code-mode-artifacts");
+
+    let peer = ArtifactStore::new("peer")
+        .unwrap()
+        .with_retention_limits(0, 0);
+    peer.write_text("peer.txt", "peer", None).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let current = ArtifactStore::new("current")
+        .unwrap()
+        .with_retention_limits(1, 1);
+    current
+        .write_text("current.txt", "current", None)
+        .await
+        .unwrap();
+
+    assert!(root.join("peer/peer.txt").exists());
+    assert!(root.join("current/current.txt").exists());
+}

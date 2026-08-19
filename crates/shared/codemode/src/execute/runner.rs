@@ -77,10 +77,12 @@ pub(crate) async fn execute_in_subprocess<H: CodeModeHost>(
         .as_deref()
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| ulid::Ulid::generate().to_string());
-    let artifact_store = ArtifactStore::new(artifact_run_id)?;
-    crate::artifacts::prune::prune_old_runs(&crate::soma_home().join("code-mode-artifacts"), 256)
-        .await
-        .map_err(|err| ToolError::internal_message(format!("prune artifacts: {err}")))?;
+    let artifact_store = ArtifactStore::new(artifact_run_id)?
+        .with_max_bytes(crate::config::effective_artifact_max_bytes(&config))
+        .with_retention_limits(
+            crate::config::effective_artifact_retention_runs(&config),
+            crate::config::effective_artifact_max_store_bytes(&config),
+        );
     let mut tool_ctx = ToolCallContext {
         host: request.host,
         entries: &entries,

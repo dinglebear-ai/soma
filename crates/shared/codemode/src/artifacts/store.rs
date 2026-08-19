@@ -7,11 +7,14 @@ use tokio::io::AsyncWriteExt;
 
 use crate::ToolError;
 
-use super::path::{artifact_root, safe_artifact_path};
+use super::path::{artifact_root, artifact_store_root, safe_artifact_path};
+use super::prune::{ActiveArtifactRun, active_artifact_runs_snapshot, prune_artifact_runs_in};
 
 const DEFAULT_MAX_FILE_BYTES: usize = 8 * 1024 * 1024;
 const DEFAULT_MAX_RUN_BYTES: usize = 64 * 1024 * 1024;
 const DEFAULT_MAX_FILES: usize = 128;
+const DEFAULT_RETENTION_RUNS: usize = 200;
+const DEFAULT_MAX_STORE_BYTES: u64 = 4096 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactReceipt {
@@ -28,6 +31,10 @@ pub struct ArtifactStore {
     max_bytes: usize,
     max_run_bytes: usize,
     max_files: usize,
+    retention_runs: usize,
+    max_store_bytes: u64,
+    prune_once: Arc<tokio::sync::OnceCell<()>>,
+    _active_run: Arc<ActiveArtifactRun>,
     usage: Arc<Mutex<ArtifactUsage>>,
 }
 
@@ -40,11 +47,16 @@ struct ArtifactUsage {
 impl ArtifactStore {
     pub fn new(run_id: impl Into<String>) -> Result<Self, ToolError> {
         let run_id = validate_run_id(run_id.into())?;
+        let active_run = Arc::new(ActiveArtifactRun::register(&run_id));
         Ok(Self {
             run_id,
             max_bytes: DEFAULT_MAX_FILE_BYTES,
             max_run_bytes: DEFAULT_MAX_RUN_BYTES,
             max_files: DEFAULT_MAX_FILES,
+            retention_runs: DEFAULT_RETENTION_RUNS,
+            max_store_bytes: DEFAULT_MAX_STORE_BYTES,
+            prune_once: Arc::new(tokio::sync::OnceCell::new()),
+            _active_run: active_run,
             usage: Arc::new(Mutex::new(ArtifactUsage::default())),
         })
     }
@@ -57,6 +69,12 @@ impl ArtifactStore {
     pub fn with_run_limits(mut self, max_run_bytes: usize, max_files: usize) -> Self {
         self.max_run_bytes = max_run_bytes.max(1);
         self.max_files = max_files.max(1);
+        self
+    }
+
+    pub fn with_retention_limits(mut self, retention_runs: usize, max_store_bytes: u64) -> Self {
+        self.retention_runs = retention_runs;
+        self.max_store_bytes = max_store_bytes;
         self
     }
 
@@ -77,6 +95,7 @@ impl ArtifactStore {
             });
         }
         self.check_run_quota(content.len())?;
+        self.prune_before_first_write().await;
         let root = self.root();
         let target = safe_artifact_path(&root, rel_path)?;
         if let Some(parent) = target.parent() {
@@ -98,6 +117,21 @@ impl ArtifactStore {
             bytes: content.len(),
             sha256: hex::encode(Sha256::digest(content.as_bytes())),
         })
+    }
+
+    async fn prune_before_first_write(&self) {
+        self.prune_once
+            .get_or_init(|| async {
+                let active = active_artifact_runs_snapshot();
+                prune_artifact_runs_in(
+                    &artifact_store_root(),
+                    self.retention_runs,
+                    self.max_store_bytes,
+                    &active,
+                )
+                .await;
+            })
+            .await;
     }
 
     fn check_run_quota(&self, next_bytes: usize) -> Result<(), ToolError> {
