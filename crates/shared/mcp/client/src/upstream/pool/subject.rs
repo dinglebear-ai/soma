@@ -92,26 +92,30 @@ impl UpstreamPool {
         }
         self.ensure_subject_connected(&call.upstream, subject)
             .await?;
-        let (peer, upstream) = self.with_subject_entry(&call.upstream, subject, |entry| {
-            ensure_subject_routable(&entry.snapshot)?;
-            if !entry
-                .snapshot
-                .tools
-                .iter()
-                .any(|candidate| candidate.name == call.tool)
-            {
-                return Err(UpstreamError::NotExposed {
-                    upstream: call.upstream.clone(),
-                    item: call.tool.clone(),
-                });
-            }
-            Ok((entry.live.peer(), entry.snapshot.name.clone()))
-        })?;
+        let (peer, upstream, safety) =
+            self.with_subject_entry(&call.upstream, subject, |entry| {
+                ensure_subject_routable(&entry.snapshot)?;
+                let descriptor = entry
+                    .snapshot
+                    .tools
+                    .iter()
+                    .find(|candidate| candidate.name == call.tool)
+                    .ok_or_else(|| UpstreamError::NotExposed {
+                        upstream: call.upstream.clone(),
+                        item: call.tool.clone(),
+                    })?;
+                Ok((
+                    entry.live.peer(),
+                    entry.snapshot.name.clone(),
+                    descriptor.safety_hints(),
+                ))
+            })?;
         let result = live::call_live_tool(
             &upstream,
             peer,
             call.tool,
             call.params,
+            safety,
             self.response_caps().limit_for(CapScope::ToolsList),
         )
         .await?;

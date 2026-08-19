@@ -26,8 +26,8 @@ use crate::upstream::transport::websocket::{
     WebSocketTransportConfig, connect as connect_websocket_transport,
 };
 use crate::upstream::{
-    CapScope, McpRequestOutcome, McpRoundTrip, ResponseCaps, TransportKind, UpstreamError,
-    UpstreamSnapshot,
+    CapScope, McpRequestOutcome, McpRoundTrip, ResponseCaps, ToolSafetyHints, TransportKind,
+    UpstreamError, UpstreamSnapshot, analyze_completed_tool_error,
 };
 
 use super::lifecycle_compat::{LifecycleAttempt, compatibility_retry, log_fallback};
@@ -36,8 +36,8 @@ use super::lifecycle_compat::{LifecycleAttempt, compatibility_retry, log_fallbac
 mod live_support;
 
 use live_support::{
-    bearer_token_from_env, completed_tool_error, drain_stderr, ensure_rustls_crypto_provider,
-    prompt_descriptor, resource_descriptor, stdio_env, tool_descriptor, websocket_authorization,
+    bearer_token_from_env, drain_stderr, ensure_rustls_crypto_provider, prompt_descriptor,
+    resource_descriptor, stdio_env, tool_descriptor, websocket_authorization,
 };
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -316,6 +316,7 @@ pub(super) async fn call_live_tool(
     peer: rmcp::service::Peer<RoleClient>,
     tool: String,
     params: Value,
+    safety: ToolSafetyHints,
     tools_list_limit: usize,
 ) -> Result<Value, UpstreamError> {
     let Value::Object(args) = params else {
@@ -323,12 +324,11 @@ pub(super) async fn call_live_tool(
     };
     let request = CallToolRequestParams::new(tool.clone()).with_arguments(args);
     let result = call_tool_with_header_recovery(&peer, upstream, request, tools_list_limit).await?;
-    if let Some((kind, message)) = completed_tool_error(&result) {
+    if let Some(analysis) = analyze_completed_tool_error(&result, safety) {
         return Err(UpstreamError::ToolExecution {
             upstream: upstream.to_owned(),
             tool,
-            kind,
-            message,
+            analysis: Box::new(analysis),
         });
     }
     if let Some(value) = result.structured_content.clone() {

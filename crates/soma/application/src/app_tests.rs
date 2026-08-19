@@ -910,6 +910,29 @@ fn rest_catalog_queries_and_openapi_stay_behind_the_application_facade() {
 }
 
 #[test]
+fn port_error_details_survive_application_conversion() {
+    let mut port = PortError::new("tool_execution_failed", "bad input");
+    port.retryable = false;
+    port.remediation = "revise the request".to_owned();
+    port.details = Some(json!({
+        "contract_version": 1,
+        "kind": "invalid_param",
+        "recovery": {"action": "revise_and_retry"},
+        "side_effects": "possible"
+    }));
+
+    let error = ApplicationError::from(port);
+    let ApplicationErrorDetails::Port { details } = error.details.as_ref() else {
+        panic!("structured port details must survive application conversion");
+    };
+    assert_eq!(error.code, "tool_execution_failed");
+    assert!(!error.retryable);
+    assert_eq!(error.remediation, "revise the request");
+    assert_eq!(details["kind"], "invalid_param");
+    assert_eq!(details["recovery"]["action"], "revise_and_retry");
+}
+
+#[test]
 fn application_errors_redact_sensitive_diagnostics() {
     let port_error = ApplicationError::from(PortError::new(
         "engine_failed",

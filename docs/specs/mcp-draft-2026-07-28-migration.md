@@ -110,9 +110,21 @@ contains `structuredContent`. The plain gateway/client path classifies it as a
 tool-execution failure, distinct from connection or JSON-RPC transport failure.
 Recognized tool-level kinds such as `invalid_param` may survive classification;
 unknown or infrastructure-looking upstream kinds collapse to `tool_error`, and
-the retained cause is bounded. Multi-round-trip relays keep the complete MCP
-result unchanged so downstream MCP clients still receive the protocol-native
-`isError` result.
+the retained cause is bounded. Plain tool-execution failures also carry a
+versioned `details` object for agent course correction: the canonical and
+original kinds, optional `retry_after_ms`, advisory `read_only` / destructive /
+idempotent / open-world hints, a recovery action, whether unchanged arguments
+are conditionally safe, discouraged, or forbidden, human guidance, and a
+side-effect posture. Only `retry_later` failures are marked automatically
+retryable; `revise_and_retry` requires changing the call first. Raw upstream
+content blocks are deliberately not copied into public recovery details, so the
+error path cannot become an unbounded or secret-bearing output channel. Before
+public exposure, the bounded cause is passed through Soma's standard diagnostic
+redactor, and arbitrary unknown `original_kind` strings are discarded rather
+than reflected. Safety hints are advisory only and never bypass Soma
+authorization or confirmation.
+Multi-round-trip relays keep the complete MCP result unchanged so downstream
+MCP clients still receive the protocol-native `isError` result.
 
 ### Tool annotations and gateway safety
 

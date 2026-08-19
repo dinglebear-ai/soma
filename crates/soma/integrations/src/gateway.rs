@@ -31,7 +31,7 @@ use soma_gateway::{
         manager::GatewayManager, manager::GatewayManagerError,
         protected_routes::ProtectedRouteScope,
     },
-    upstream::{McpRequestOutcome, McpRoundTrip},
+    upstream::{McpRequestOutcome, McpRoundTrip, UpstreamError},
 };
 
 /// `soma-gateway`'s `GatewayProductState` is `Arc<GatewayManager>` — this
@@ -378,6 +378,18 @@ fn gateway_port_error(action: &str, error: GatewayDispatchError) -> PortError {
 /// transient ones (e.g. a live connect/call failure).
 fn gateway_manager_port_error(operation: &str, error: GatewayManagerError) -> PortError {
     let message = format!("{operation} failed: {error}");
+    if let GatewayManagerError::Upstream(UpstreamError::ToolExecution { analysis, .. }) = &error {
+        let mut public_analysis = analysis.as_ref().clone();
+        public_analysis.cause =
+            soma_application::provider_errors::redact_public(&public_analysis.cause);
+        return PortError {
+            code: "tool_execution_failed".to_owned(),
+            message,
+            retryable: analysis.retryable(),
+            remediation: analysis.recovery.guidance.clone(),
+            details: serde_json::to_value(public_analysis).ok(),
+        };
+    }
     port_error_from_structured(
         GatewayDispatchError::from(error).structured(operation),
         message,
@@ -393,6 +405,7 @@ fn port_error_from_structured(
         message,
         retryable: matches!(structured.kind, "runtime"),
         remediation: structured.remediation.to_owned(),
+        details: None,
     }
 }
 

@@ -360,14 +360,32 @@ async fn http_live_completed_tool_error_is_never_promoted_to_success() {
         })
         .await
         .expect_err("completed isError result must remain an error");
+    let crate::upstream::UpstreamError::ToolExecution {
+        upstream,
+        tool,
+        analysis,
+    } = error
+    else {
+        panic!("expected ToolExecution error");
+    };
+    assert_eq!(upstream, "tool-error");
+    assert_eq!(tool, "fail_structured");
+    assert_eq!(analysis.kind, "invalid_param");
+    assert_eq!(analysis.original_kind.as_deref(), Some("invalid_param"));
+    assert_eq!(analysis.cause, "synthetic upstream validation failure");
+    assert_eq!(analysis.safety.read_only_hint, Some(true));
+    assert_eq!(analysis.safety.idempotent_hint, Some(true));
     assert_eq!(
-        error,
-        crate::upstream::UpstreamError::ToolExecution {
-            upstream: "tool-error".to_owned(),
-            tool: "fail_structured".to_owned(),
-            kind: "invalid_param".to_owned(),
-            message: "synthetic upstream validation failure".to_owned(),
-        }
+        analysis.recovery.action,
+        crate::upstream::ToolRecoveryAction::ReviseAndRetry
+    );
+    assert_eq!(
+        analysis.recovery.same_arguments,
+        crate::upstream::SameArgumentsRetry::Conditional
+    );
+    assert_eq!(
+        analysis.side_effects,
+        crate::upstream::ToolSideEffectRisk::NoneExpected
     );
     server.abort();
 }

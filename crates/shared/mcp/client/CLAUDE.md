@@ -24,3 +24,12 @@ Boundary rules:
   to `UpstreamError::ToolExecution`; MRTR calls retain the complete MCP result.
   Upstream-supplied error kinds are untrusted and must be canonicalized before
   they influence caller-facing classification.
+- `ToolExecutionAnalysis` is a versioned, transport-neutral recovery contract.
+  It may expose bounded cause/kind/retry metadata, advisory safety hints,
+  `recovery.action`, `recovery.same_arguments`, guidance, and side-effect
+  posture. Do not copy raw upstream content blocks into this analysis: public
+  recovery metadata must stay bounded and must not become a secret-exfiltration
+  path. Arbitrary unknown `original_kind` strings are not reflected, and product
+  surfaces must run `cause` through the normal public-diagnostic redactor before
+  exposing details. Safety annotations remain advisory; they never authorize a
+  tool call.

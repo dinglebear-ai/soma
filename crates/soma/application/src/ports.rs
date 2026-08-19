@@ -21,6 +21,9 @@ pub struct PortError {
     pub retryable: bool,
     /// Suggested remediation the caller can act on.
     pub remediation: String,
+    /// Optional structured source details preserved across the application
+    /// boundary for protocol surfaces that can expose machine-readable recovery.
+    pub details: Option<Value>,
 }
 
 impl PortError {
@@ -32,6 +35,7 @@ impl PortError {
             message: message.into(),
             retryable: false,
             remediation: "Check the engine configuration and retry.".to_owned(),
+            details: None,
         }
     }
 }

@@ -76,7 +76,7 @@ pub async fn call_tool_for_subject_and_scope(
         })),
         Ok(None) => None,
         Err(error) => Some(CallToolResponse::Complete(
-            CallToolResult::structured_error(error_payload("upstream_call_failed", name, error)),
+            CallToolResult::structured_error(error_payload(name, error)),
         )),
     }
 }
@@ -215,22 +215,23 @@ fn proxy_decode_error(error: serde_json::Error) -> rmcp::ErrorData {
 }
 
 fn protocol_error(error: ApplicationError) -> rmcp::ErrorData {
-    rmcp::ErrorData::internal_error(
-        error.to_string(),
-        Some(error_payload("gateway_proxy_failed", "gateway", error)),
-    )
+    rmcp::ErrorData::internal_error(error.to_string(), Some(error_payload("gateway", error)))
 }
 
-fn error_payload(code: &str, tool: &str, error: ApplicationError) -> Value {
-    json!({
+fn error_payload(tool: &str, error: ApplicationError) -> Value {
+    let mut payload = json!({
         "kind": "mcp_tool_error",
         "schema_version": 1,
-        "code": code,
+        "code": error.code,
         "tool": tool,
-        "message": error.to_string(),
-        "retryable": true,
-        "remediation": "Check the gateway upstream configuration and retry.",
-    })
+        "message": error.message,
+        "retryable": error.retryable,
+        "remediation": error.remediation,
+    });
+    if let soma_application::ApplicationErrorDetails::Port { details } = error.details.as_ref() {
+        payload["details"] = details.clone();
+    }
+    payload
 }
 
 #[cfg(test)]

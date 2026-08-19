@@ -204,7 +204,7 @@ impl UpstreamPool {
 
     pub async fn call_tool(&self, call: ToolCall) -> Result<Value, UpstreamError> {
         self.ensure_connected(&call.upstream).await?;
-        let live_peer = {
+        let (live_peer, safety) = {
             let entries = self.entries.read().expect("upstream pool lock poisoned");
             let entry =
                 entries
@@ -221,7 +221,14 @@ impl UpstreamPool {
                     .enforce(crate::upstream::CapScope::ToolsCall, bytes)?;
                 return Ok(result);
             }
-            entry.live.as_ref().map(|live| live.peer())
+            let safety = entry
+                .snapshot
+                .tools
+                .iter()
+                .find(|candidate| candidate.name == call.tool)
+                .map(ToolDescriptor::safety_hints)
+                .unwrap_or_default();
+            (entry.live.as_ref().map(|live| live.peer()), safety)
         };
         let Some(peer) = live_peer else {
             return Err(UpstreamError::Unsupported {
@@ -235,6 +242,7 @@ impl UpstreamPool {
             peer,
             call.tool,
             call.params,
+            safety,
             self.response_caps()
                 .limit_for(crate::upstream::CapScope::ToolsList),
         )

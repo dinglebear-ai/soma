@@ -13,7 +13,7 @@ use rmcp::model::{
     InputRequiredResult, ListPromptsResult, ListResourcesResult, ListToolsResult,
     PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams, ReadResourceResponse,
     ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo, Task,
-    TaskPayload, TaskStatus, Tool, UpdateTaskParams,
+    TaskPayload, TaskStatus, Tool, ToolAnnotations, UpdateTaskParams,
 };
 use rmcp::{ErrorData, RoleServer, ServerHandler};
 
@@ -226,7 +226,8 @@ impl ServerHandler for EchoServer {
                     "fail_structured",
                     "returns a completed structured tool error",
                     Arc::new(serde_json::Map::new()),
-                ),
+                )
+                .with_annotations(ToolAnnotations::new().read_only(true).idempotent(true)),
             ],
             ..Default::default()
         })

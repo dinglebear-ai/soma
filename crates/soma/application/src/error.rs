@@ -1,4 +1,5 @@
 use serde::Serialize;
+use serde_json::Value;
 use soma_domain::errors::ServiceErrorKind;
 
 use crate::{PortError, ProviderError};
@@ -28,6 +29,12 @@ pub struct ApplicationError {
 pub enum ApplicationErrorDetails {
     /// No additional structured detail.
     Generic,
+    /// Error originating from an engine port with structured recovery details.
+    Port {
+        /// Port-specific details preserved without coupling the application
+        /// crate to the engine implementation type.
+        details: Value,
+    },
     /// Error originating from a provider.
     Provider {
         /// Version of the provider error schema.
@@ -118,7 +125,9 @@ impl ApplicationError {
             ApplicationErrorDetails::Service {
                 service_error_kind, ..
             } => Some(service_error_kind),
-            ApplicationErrorDetails::Generic | ApplicationErrorDetails::Provider { .. } => None,
+            ApplicationErrorDetails::Generic
+            | ApplicationErrorDetails::Port { .. }
+            | ApplicationErrorDetails::Provider { .. } => None,
         }
     }
 
@@ -168,8 +177,19 @@ impl From<ProviderError> for ApplicationError {
 
 impl From<PortError> for ApplicationError {
     fn from(error: PortError) -> Self {
-        let message = crate::provider_errors::redact_public(&error.message);
-        Self::new(error.code, message, error.retryable, error.remediation)
+        let PortError {
+            code,
+            message,
+            retryable,
+            remediation,
+            details,
+        } = error;
+        let message = crate::provider_errors::redact_public(&message);
+        let mut error = Self::new(code, message, retryable, remediation);
+        if let Some(details) = details {
+            error.details = Box::new(ApplicationErrorDetails::Port { details });
+        }
+        error
     }
 }
 

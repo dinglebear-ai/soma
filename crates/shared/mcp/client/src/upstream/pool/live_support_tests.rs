@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use rmcp::model::{CallToolResult, Tool, ToolAnnotations};
+use rmcp::model::{Tool, ToolAnnotations};
 use serde_json::Map;
 
 use super::{
-    bearer_token_from_env, completed_tool_error, normalize_bearer_value, tool_descriptor,
+    bearer_token_from_env, normalize_bearer_value, tool_descriptor,
     upstream_destructive_from_annotations, websocket_authorization,
 };
 use crate::config::UpstreamConfig;
@@ -64,35 +64,6 @@ fn tool_descriptor_preserves_annotation_shape_and_uses_fail_closed_safety() {
         &ToolAnnotations::new().destructive(false)
     )));
     assert!(upstream_destructive_from_annotations(None));
-}
-
-#[test]
-fn completed_tool_error_canonicalizes_untrusted_kinds_and_bounds_cause() {
-    let valid = CallToolResult::structured_error(serde_json::json!({
-        "kind": "invalid_param",
-        "message": "bad field"
-    }));
-    assert_eq!(
-        completed_tool_error(&valid),
-        Some(("invalid_param".to_string(), "bad field".to_string()))
-    );
-
-    let infrastructure_claim = CallToolResult::structured_error(serde_json::json!({
-        "error": {
-            "kind": "server_error",
-            "message": "x".repeat(2048)
-        }
-    }));
-    let (kind, cause) = completed_tool_error(&infrastructure_claim).expect("isError result");
-    assert_eq!(kind, "tool_error");
-    assert_eq!(cause.chars().count(), 1024);
-
-    assert!(
-        completed_tool_error(&CallToolResult::structured(serde_json::json!({
-            "kind": "invalid_param"
-        })))
-        .is_none()
-    );
 }
 
 #[test]

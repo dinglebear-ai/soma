@@ -4,7 +4,7 @@ use soma_domain::{
     scopes::ADMIN_SCOPE,
 };
 
-use super::{gateway_access, gateway_subject};
+use super::{gateway_access, gateway_manager_port_error, gateway_subject};
 
 fn mounted_context(scopes: &[&str]) -> ExecutionContext {
     let mut context =
@@ -15,6 +15,46 @@ fn mounted_context(scopes: &[&str]) -> ExecutionContext {
         ScopeSet::new(scopes.iter().map(|scope| (*scope).to_owned())),
     ));
     context
+}
+
+#[test]
+fn tool_execution_analysis_becomes_actionable_port_error_details() {
+    let error = soma_gateway::gateway::manager::GatewayManagerError::Upstream(
+        soma_gateway::upstream::UpstreamError::ToolExecution {
+            upstream: "demo".to_owned(),
+            tool: "read".to_owned(),
+            analysis: Box::new(soma_gateway::upstream::ToolExecutionAnalysis {
+                contract_version: 1,
+                kind: "rate_limited".to_owned(),
+                original_kind: Some("rate_limited".to_owned()),
+                cause: "slow down token=super-secret".to_owned(),
+                retry_after_ms: Some(250),
+                safety: soma_gateway::upstream::ToolSafetyHints {
+                    read_only_hint: Some(true),
+                    ..Default::default()
+                },
+                recovery: soma_gateway::upstream::ToolRecoveryAdvice {
+                    action: soma_gateway::upstream::ToolRecoveryAction::RetryLater,
+                    same_arguments: soma_gateway::upstream::SameArgumentsRetry::Conditional,
+                    guidance: "wait and retry".to_owned(),
+                    retry_after_ms: Some(250),
+                },
+                side_effects: soma_gateway::upstream::ToolSideEffectRisk::NoneExpected,
+            }),
+        },
+    );
+
+    let port = gateway_manager_port_error("tools/call", error);
+    assert_eq!(port.code, "tool_execution_failed");
+    assert!(port.retryable);
+    assert_eq!(port.remediation, "wait and retry");
+    let details = port.details.expect("tool analysis details");
+    assert_eq!(details["kind"], "rate_limited");
+    assert_eq!(details["cause"], "[redacted provider diagnostic]");
+    assert!(!details.to_string().contains("super-secret"));
+    assert_eq!(details["retry_after_ms"], 250);
+    assert_eq!(details["recovery"]["action"], "retry_later");
+    assert_eq!(details["side_effects"], "none_expected");
 }
 
 #[test]

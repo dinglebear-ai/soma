@@ -46,8 +46,21 @@ fn completed_tool_execution_maps_separately_from_transport_failure() {
         crate::upstream::UpstreamError::ToolExecution {
             upstream: "demo".to_owned(),
             tool: "mutate".to_owned(),
-            kind: "invalid_param".to_owned(),
-            message: "bad input".to_owned(),
+            analysis: Box::new(crate::upstream::ToolExecutionAnalysis {
+                contract_version: 1,
+                kind: "invalid_param".to_owned(),
+                original_kind: Some("invalid_param".to_owned()),
+                cause: "bad input".to_owned(),
+                retry_after_ms: None,
+                safety: crate::upstream::ToolSafetyHints::default(),
+                recovery: crate::upstream::ToolRecoveryAdvice {
+                    action: crate::upstream::ToolRecoveryAction::ReviseAndRetry,
+                    same_arguments: crate::upstream::SameArgumentsRetry::Discouraged,
+                    guidance: "revise the request".to_owned(),
+                    retry_after_ms: None,
+                },
+                side_effects: crate::upstream::ToolSideEffectRisk::Possible,
+            }),
         },
     );
 

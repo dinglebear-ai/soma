@@ -88,7 +88,25 @@ impl GatewayPort for RecordingGateway {
         _context: &ExecutionContext,
     ) -> Result<Option<Value>, PortError> {
         if name == "fail" {
-            return Err(PortError::new("upstream_failed", "synthetic failure"));
+            let mut error = PortError::new("tool_execution_failed", "synthetic failure");
+            error.retryable = false;
+            error.remediation = "revise the request".to_owned();
+            error.details = Some(json!({
+                "contract_version": 1,
+                "kind": "invalid_param",
+                "cause": "synthetic failure",
+                "safety": {
+                    "read_only_hint": true,
+                    "idempotent_hint": true
+                },
+                "recovery": {
+                    "action": "revise_and_retry",
+                    "same_arguments": "conditional",
+                    "guidance": "revise the request"
+                },
+                "side_effects": "none_expected"
+            }));
+            return Err(error);
         }
         if name == "danger" {
             self.danger_called.store(true, Ordering::SeqCst);
@@ -349,6 +367,19 @@ async fn mcp_server_exposes_application_gateway_tools_resources_and_prompts() ->
     );
     let failed = client.call_tool(CallToolRequestParams::new("fail")).await?;
     assert_eq!(failed.is_error, Some(true));
+    let failed_json = failed
+        .structured_content
+        .as_ref()
+        .expect("gateway failure must include structured content");
+    assert_eq!(failed_json["code"], "tool_execution_failed");
+    assert_eq!(failed_json["retryable"], false);
+    assert_eq!(failed_json["remediation"], "revise the request");
+    assert_eq!(failed_json["details"]["kind"], "invalid_param");
+    assert_eq!(
+        failed_json["details"]["recovery"]["action"],
+        "revise_and_retry"
+    );
+    assert_eq!(failed_json["details"]["side_effects"], "none_expected");
 
     let confirmation = client
         .call_tool_once(CallToolRequestParams::new("danger"))

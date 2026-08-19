@@ -4,7 +4,14 @@ pub mod http_body_cap;
 pub mod http_client;
 pub mod pool;
 pub mod relay;
+pub mod tool_error;
 pub mod transport;
+
+pub use tool_error::{
+    SameArgumentsRetry, ToolExecutionAnalysis, ToolRecoveryAction, ToolRecoveryAdvice,
+    ToolSafetyHints, ToolSideEffectRisk, analyze_completed_tool_error,
+    canonicalize_untrusted_upstream_kind,
+};
 
 use std::collections::BTreeMap;
 
@@ -63,6 +70,11 @@ pub struct ToolDescriptor {
 }
 
 impl ToolDescriptor {
+    #[must_use]
+    pub fn safety_hints(&self) -> ToolSafetyHints {
+        ToolSafetyHints::from_annotations(self.annotations.as_ref())
+    }
+
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -250,12 +262,11 @@ pub enum UpstreamError {
     /// upstream tool reported `isError: true`. This is deliberately distinct
     /// from [`Self::LiveCall`]: the tool ran and failed, so callers must not
     /// treat it as a transport/runtime outage.
-    #[error("upstream `{upstream}` tool `{tool}` failed ({kind}): {message}")]
+    #[error("upstream `{upstream}` tool `{tool}` failed: {analysis}")]
     ToolExecution {
         upstream: String,
         tool: String,
-        kind: String,
-        message: String,
+        analysis: Box<ToolExecutionAnalysis>,
     },
     #[error("{scope:?} payload was {observed_bytes} bytes, exceeding {limit} bytes")]
     ResponseTooLarge {

@@ -66,6 +66,17 @@ pub(super) fn application_error_payload(
                 }
                 payload
             }
+            ApplicationErrorDetails::Port { details } => json!({
+                "kind": "mcp_tool_error",
+                "schema_version": 1,
+                "code": error.code,
+                "tool": tool,
+                "action": action,
+                "message": error.message,
+                "retryable": error.retryable,
+                "remediation": error.remediation,
+                "details": details,
+            }),
             ApplicationErrorDetails::Generic => json!({
                 "kind": "mcp_tool_error",
                 "schema_version": 1,
