@@ -12,4 +12,5 @@
 //! `registration::resolve_client_redirect_uris` for why.
 
 pub mod document;
+pub(crate) mod jwks;
 pub use crate::ssrf;

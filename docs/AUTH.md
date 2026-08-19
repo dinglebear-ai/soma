@@ -192,6 +192,45 @@ different replay row.
 
 ---
 
+## Client ID Metadata Document authentication
+
+An `https://`-shaped OAuth `client_id` is resolved as a Client ID Metadata
+Document (CIMD). A document may publish a preferred
+`token_endpoint_auth_method` plus `token_endpoint_auth_methods_supported`. Soma
+treats that list as a capability set: `/token` identifies the method the client
+actually presented and accepts it only when the document published it. This
+allows a client to prefer `private_key_jwt` while still legitimately using
+`none`, without silently downgrading a client that only published
+`private_key_jwt`.
+
+The authorization-code flow does not guess between multiple published methods.
+Only an unambiguous single method is recorded at `/authorize`; after the client
+successfully authenticates at `/token`, the refresh token records the method
+that actually authenticated that exchange. This preserves the offline public-
+client refresh optimization without turning a CIMD preference into a false
+long-lived contract.
+
+For `private_key_jwt`, CIMD clients may provide either inline `jwks` or a
+`jwks_uri`. Inline keys take precedence when both are present. A remote
+`jwks_uri` must be a public HTTPS URL with no userinfo, query, or fragment. It
+is fetched through the same hardened CIMD transport: no proxy, no redirects,
+DNS resolution validated against private/link-local ranges, the selected address
+is pinned into the HTTP client, the connected peer address is rechecked, and
+the response is streamed under the 64 KiB metadata cap. Network and SSRF
+details are collapsed to a generic client-authentication failure at `/token`.
+
+Remote key sets are cached by URL for five minutes with a 256-entry bound,
+coalesced per URL, and negative-cached for 30 seconds per `(URL, kid)` when a
+rotated key is not yet published. The assertion `kid` must exist in the selected
+key set before signature validation proceeds.
+
+Authorization-server metadata always advertises `none` and `private_key_jwt`
+as token endpoint authentication methods, along with the supported EdDSA,
+RS256, and ES256 signing algorithms. `client_secret_basic` is additionally
+advertised only when configured machine clients make it usable.
+
+---
+
 ## Machine clients
 
 `AuthConfig.machine_clients` (`{PREFIX}_AUTH_MACHINE_CLIENTS_JSON`, or the

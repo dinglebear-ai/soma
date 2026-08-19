@@ -214,8 +214,8 @@ async fn dispatch_grant(
 ) -> Result<TokenResponseWithCache, TokenEndpointError> {
     let response = match request.grant_type.as_str() {
         "authorization_code" => {
-            authenticate_client(&state, &request).await?;
-            authorization_code_grant(state, request).await
+            let authenticated_method = authenticate_client(&state, &request).await?;
+            authorization_code_grant(state, request, authenticated_method).await
         }
         "refresh_token" => {
             authenticate_client(&state, &request).await?;
@@ -245,15 +245,19 @@ async fn dispatch_grant(
 /// dynamic registration and CIMD produce by default) present no secret and no
 /// assertion and are accepted exactly as they were before this check existed.
 /// Confidential clients must satisfy the method they registered.
-async fn authenticate_client(state: &AuthState, request: &TokenRequest) -> Result<(), AuthError> {
+async fn authenticate_client(
+    state: &AuthState,
+    request: &TokenRequest,
+) -> Result<String, AuthError> {
     let client_id = request
         .client_id
         .as_deref()
         .ok_or_else(|| AuthError::Validation("missing `client_id` parameter".to_string()))?;
     if recorded_public_client(state, request, client_id).await? {
-        return authenticate_recorded_public_client(request);
+        authenticate_recorded_public_client(request)?;
+        return Ok("none".to_string());
     }
-    token_client_auth::authenticate_oauth_client(
+    token_client_auth::authenticate_oauth_client_method(
         state,
         client_id,
         request.client_secret.as_deref(),
@@ -453,6 +457,7 @@ impl IntoResponse for TokenResponseWithCache {
 async fn authorization_code_grant(
     state: AuthState,
     request: TokenRequest,
+    authenticated_method: String,
 ) -> Result<TokenResponse, AuthError> {
     let requested_resource = request
         .resource
@@ -524,10 +529,11 @@ async fn authorization_code_grant(
                     state.config.refresh_token_ttl,
                     &format!("{}_AUTH_REFRESH_TOKEN_TTL_SECS", state.config.env_prefix),
                 )?,
-                // The refresh token inherits the authorization code's contract
-                // so later refreshes authenticate the same way this exchange
-                // did, with no client resolution in between.
-                token_endpoint_auth_method: row.token_endpoint_auth_method.clone(),
+                // Persist the method that successfully authenticated this token
+                // exchange, not a preference guessed earlier at /authorize.
+                // Multi-method CIMD clients can legitimately choose any method
+                // they published, and refresh must inherit the one actually used.
+                token_endpoint_auth_method: Some(authenticated_method.clone()),
             })
             .await?;
         info!(
@@ -2857,10 +2863,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn authorization_code_grant_carries_the_recorded_method_onto_the_refresh_token() {
-        // The recorded method has to survive the hop from authorization code
-        // to refresh token, or the very first refresh falls back to resolving
-        // the client and the fix only lasts one exchange.
+    async fn authorization_code_grant_persists_the_method_that_actually_authenticated() {
+        // A multi-method CIMD client can prefer one method at /authorize and
+        // legitimately use another at /token. The refresh token must inherit
+        // the successful token-endpoint method, never a stale/preferred hint.
         let state = test_auth_state_with_registered_client().await;
         state
             .store
@@ -2877,7 +2883,10 @@ mod tests {
                 provider_refresh_token: Some("provider-refresh".to_string()),
                 created_at: 1_700_000_000,
                 expires_at: 4_102_444_800,
-                token_endpoint_auth_method: Some("none".to_string()),
+                // Deliberately inconsistent with the registered public client:
+                // the exchange below authenticates as `none`, proving the
+                // successful method overrides this stale/preferred hint.
+                token_endpoint_auth_method: Some("private_key_jwt".to_string()),
             })
             .await
             .unwrap();

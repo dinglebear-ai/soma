@@ -176,41 +176,127 @@ pub(super) async fn authenticate_oauth_client(
     client_assertion_type: Option<&str>,
     client_assertion: Option<&str>,
 ) -> Result<(), AuthError> {
+    authenticate_oauth_client_method(
+        state,
+        client_id,
+        client_secret,
+        client_assertion_type,
+        client_assertion,
+    )
+    .await
+    .map(|_| ())
+}
+
+pub(super) async fn authenticate_oauth_client_method(
+    state: &AuthState,
+    client_id: &str,
+    client_secret: Option<&str>,
+    client_assertion_type: Option<&str>,
+    client_assertion: Option<&str>,
+) -> Result<String, AuthError> {
     if let Some(client) = state
         .config
         .machine_clients
         .iter()
         .find(|client| client.client_id == client_id)
     {
-        return authenticate_machine_client(
+        authenticate_machine_client(
             state,
             client,
             client_secret,
             client_assertion_type,
             client_assertion,
         )
-        .await;
+        .await?;
+        if client_assertion.is_some_and(|value| !value.is_empty()) {
+            return Ok("private_key_jwt".to_string());
+        }
+        if client_secret.is_some_and(|value| !value.is_empty()) {
+            return Ok("client_secret_basic".to_string());
+        }
+        return Err(invalid_client());
     }
 
     let client = crate::registration::resolve_client(state, client_id)
         .await?
         .ok_or_else(invalid_client)?;
-    match client.token_endpoint_auth_method.as_str() {
-        "none" if client_secret.is_none() && client_assertion.is_none() => Ok(()),
+    authenticate_resolved_client(
+        state,
+        client_id,
+        client,
+        client_secret,
+        client_assertion_type,
+        client_assertion,
+    )
+    .await
+}
+
+async fn authenticate_resolved_client(
+    state: &AuthState,
+    client_id: &str,
+    client: crate::registration::ResolvedClient,
+    client_secret: Option<&str>,
+    client_assertion_type: Option<&str>,
+    client_assertion: Option<&str>,
+) -> Result<String, AuthError> {
+    let published = |method: &str| {
+        if client.token_endpoint_auth_methods.is_empty() {
+            client.client.token_endpoint_auth_method == method
+        } else {
+            client
+                .token_endpoint_auth_methods
+                .iter()
+                .any(|published| published == method)
+        }
+    };
+    let client_secret = client_secret.filter(|value| !value.is_empty());
+    let client_assertion = client_assertion.filter(|value| !value.is_empty());
+    let client_assertion_type = client_assertion_type.filter(|value| !value.is_empty());
+    let presented = if client_assertion.is_some() {
+        "private_key_jwt"
+    } else if client_secret.is_some() {
+        "client_secret"
+    } else {
+        "none"
+    };
+    if !published(presented) {
+        tracing::warn!(
+            client_id = %client_id,
+            presented_auth_method = presented,
+            declared_auth_method = %client.client.token_endpoint_auth_method,
+            published_auth_methods = ?client.token_endpoint_auth_methods,
+            "oauth token rejected: client authenticated with a method it did not publish"
+        );
+        return Err(invalid_client());
+    }
+    match presented {
+        "none" => Ok("none".to_string()),
         "private_key_jwt"
             if client_secret.is_none() && client_assertion_type == Some(CLIENT_ASSERTION_TYPE) =>
         {
-            let jwks: JwkSet = serde_json::from_value(client.jwks.ok_or_else(invalid_client)?)
-                .map_err(|_| invalid_client())?;
-            assertion::validate(
-                state,
-                client_assertion.ok_or_else(invalid_client)?,
-                client_id,
-                &jwks,
-            )
-            .await
+            let assertion = client_assertion.ok_or_else(invalid_client)?;
+            let jwks: JwkSet = if let Some(inline) = client.client.jwks.clone() {
+                serde_json::from_value(inline).map_err(|_| invalid_client())?
+            } else if let Some(uri) = client.jwks_uri.as_deref() {
+                let kid = assertion::required_kid(assertion)?;
+                state.cimd_jwks_cache.fetch_for_kid(uri, &kid).await?
+            } else {
+                return Err(invalid_client());
+            };
+            assertion::validate(state, assertion, client_id, &jwks).await?;
+            Ok("private_key_jwt".to_string())
         }
-        _ => Err(invalid_client()),
+        _ => {
+            tracing::warn!(
+                client_id = %client_id,
+                presented_auth_method = presented,
+                has_client_secret = client_secret.is_some(),
+                has_client_assertion = client_assertion.is_some(),
+                assertion_type_matches = client_assertion_type == Some(CLIENT_ASSERTION_TYPE),
+                "oauth token rejected: client authentication preconditions not met"
+            );
+            Err(invalid_client())
+        }
     }
 }
 

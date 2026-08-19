@@ -181,6 +181,9 @@ pub struct AuthState {
     /// is otherwise usable without that feature.
     #[cfg(feature = "http-axum")]
     pub(crate) cimd_cache: Arc<crate::cimd::document::DocumentCache>,
+    /// Bounded cache for remote JWKS referenced by CIMD private_key_jwt clients.
+    #[cfg(feature = "http-axum")]
+    pub(crate) cimd_jwks_cache: Arc<crate::cimd::jwks::JwksCache>,
 }
 
 impl AuthState {
@@ -277,6 +280,8 @@ impl AuthState {
             token_limiter,
             #[cfg(feature = "http-axum")]
             cimd_cache: Arc::new(crate::cimd::document::DocumentCache::new()),
+            #[cfg(feature = "http-axum")]
+            cimd_jwks_cache: Arc::new(crate::cimd::jwks::JwksCache::new()),
         })
     }
 
@@ -466,6 +471,8 @@ impl AuthState {
             token_limiter,
             #[cfg(feature = "http-axum")]
             cimd_cache: Arc::new(crate::cimd::document::DocumentCache::new()),
+            #[cfg(feature = "http-axum")]
+            cimd_jwks_cache: Arc::new(crate::cimd::jwks::JwksCache::new()),
         }
     }
 

@@ -26,6 +26,13 @@ pub(super) fn extract_client_id(assertion: Option<&str>) -> Option<String> {
         .map(|data| data.claims.sub)
 }
 
+pub(super) fn required_kid(assertion: &str) -> Result<String, AuthError> {
+    decode_header(assertion)
+        .map_err(|_| AuthError::AuthFailed("invalid client assertion".to_string()))?
+        .kid
+        .ok_or_else(|| AuthError::AuthFailed("client assertion is missing kid".to_string()))
+}
+
 pub(super) async fn validate(
     state: &AuthState,
     assertion: &str,

@@ -203,12 +203,25 @@ fn html_escape(text: &str) -> String {
 /// network round trip. A failure to resolve yields `None` ("unknown"), which
 /// leaves `/token` doing exactly what it did before this field existed - never
 /// a downgrade to public.
+fn grant_auth_method_hint(client: &crate::registration::ResolvedClient) -> Option<String> {
+    match client.token_endpoint_auth_methods.as_slice() {
+        // Persisted DCR clients have no transient method set; their singular
+        // registered method remains authoritative.
+        [] => Some(client.client.token_endpoint_auth_method.clone()),
+        // A single-method CIMD client is equally unambiguous.
+        [method] => Some(method.clone()),
+        // Multi-method CIMD metadata is a capability set, not a promise about
+        // which method the client will present later at /token. Do not guess.
+        _ => None,
+    }
+}
+
 async fn issued_client_auth_method(state: &AuthState, client_id: &str) -> Option<String> {
     crate::registration::resolve_client(state, client_id)
         .await
         .ok()
         .flatten()
-        .map(|client| client.token_endpoint_auth_method)
+        .and_then(|client| grant_auth_method_hint(&client))
 }
 
 pub async fn authorize(
@@ -768,7 +781,9 @@ pub mod tests {
     use crate::error::AuthError;
     use crate::google::GoogleProvider;
     use crate::redirect_uri::{host_pattern_matches, is_allowed_redirect_uri, wildcard_matches};
-    use crate::registration::{allowed_uris_from_cimd_document, allowlist_redirect_uris};
+    use crate::registration::{
+        ResolvedClient, allowed_uris_from_cimd_document, allowlist_redirect_uris,
+    };
     use crate::state::AuthState;
     use crate::types::{AuthorizationRequestRow, NativeAuthorizationResultRow, RegisteredClient};
 
@@ -785,6 +800,37 @@ pub mod tests {
     fn router(state: AuthState) -> Router {
         crate::routes::router(state)
             .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 9001))))
+    }
+
+    #[test]
+    fn grant_auth_method_hint_is_only_persisted_when_unambiguous() {
+        let resolved = |methods: Vec<&str>| ResolvedClient {
+            client: RegisteredClient {
+                client_id: "https://client.example/metadata.json".to_string(),
+                redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
+                created_at: 0,
+                token_endpoint_auth_method: "private_key_jwt".to_string(),
+                jwks: None,
+            },
+            token_endpoint_auth_methods: methods.into_iter().map(str::to_string).collect(),
+            jwks_uri: None,
+        };
+
+        assert_eq!(
+            super::grant_auth_method_hint(&resolved(Vec::new())).as_deref(),
+            Some("private_key_jwt"),
+            "persisted/DCR clients keep their singular method"
+        );
+        assert_eq!(
+            super::grant_auth_method_hint(&resolved(vec!["none"])).as_deref(),
+            Some("none"),
+            "single-method CIMD metadata is unambiguous"
+        );
+        assert_eq!(
+            super::grant_auth_method_hint(&resolved(vec!["private_key_jwt", "none"])),
+            None,
+            "multi-method CIMD metadata must not be guessed at /authorize"
+        );
     }
 
     #[test]
@@ -822,7 +868,9 @@ pub mod tests {
                 "https://attacker.evil/steal-code".to_string(),
             ],
             token_endpoint_auth_method: "none".to_string(),
+            token_endpoint_auth_methods_supported: None,
             jwks: None,
+            jwks_uri: None,
         };
         let allowed = allowed_uris_from_cimd_document(
             &document,
@@ -844,7 +892,9 @@ pub mod tests {
             client_name: "Example".to_string(),
             redirect_uris: vec!["https://attacker.evil/steal-code".to_string()],
             token_endpoint_auth_method: "none".to_string(),
+            token_endpoint_auth_methods_supported: None,
             jwks: None,
+            jwks_uri: None,
         };
         let err = allowed_uris_from_cimd_document(
             &document,

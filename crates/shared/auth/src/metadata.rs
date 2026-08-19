@@ -19,12 +19,12 @@ pub async fn authorization_server_metadata(
     if has_enterprise_issuers {
         grant_types_supported.push("urn:ietf:params:oauth:grant-type:jwt-bearer".to_string());
     }
-    let mut token_auth_methods = vec!["none".to_string()];
+    // Any CIMD client may declare private_key_jwt even when no configured
+    // machine clients exist. RFC 8414 requires matching signing algorithms
+    // whenever that auth method is advertised.
+    let mut token_auth_methods = vec!["none".to_string(), "private_key_jwt".to_string()];
     if has_machine_clients {
-        token_auth_methods.extend([
-            "client_secret_basic".to_string(),
-            "private_key_jwt".to_string(),
-        ]);
+        token_auth_methods.push("client_secret_basic".to_string());
     }
     Json(AuthorizationServerMetadata {
         issuer: base.clone(),
@@ -40,15 +40,11 @@ pub async fn authorization_server_metadata(
         grant_types_supported,
         code_challenge_methods_supported: vec!["S256".to_string()],
         token_endpoint_auth_methods_supported: token_auth_methods,
-        token_endpoint_auth_signing_alg_values_supported: if has_machine_clients {
-            vec![
-                "EdDSA".to_string(),
-                "RS256".to_string(),
-                "ES256".to_string(),
-            ]
-        } else {
-            Vec::new()
-        },
+        token_endpoint_auth_signing_alg_values_supported: vec![
+            "EdDSA".to_string(),
+            "RS256".to_string(),
+            "ES256".to_string(),
+        ],
         authorization_response_iss_parameter_supported: true,
         client_id_metadata_document_supported: true,
         authorization_grant_profiles_supported: if has_enterprise_issuers {
@@ -143,6 +139,14 @@ mod tests {
         );
         assert_eq!(json["authorization_response_iss_parameter_supported"], true);
         assert_eq!(json["client_id_metadata_document_supported"], true);
+        assert_eq!(
+            json["token_endpoint_auth_methods_supported"],
+            serde_json::json!(["none", "private_key_jwt"])
+        );
+        assert_eq!(
+            json["token_endpoint_auth_signing_alg_values_supported"],
+            serde_json::json!(["EdDSA", "RS256", "ES256"])
+        );
     }
 
     #[tokio::test]

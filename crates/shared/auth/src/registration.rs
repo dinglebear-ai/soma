@@ -258,6 +258,24 @@ pub(crate) fn allowed_uris_from_cimd_document(
 /// converted [`RegisteredClient`]: `/authorize` must run the document's
 /// `redirect_uris` through [`allowed_uris_from_cimd_document`], which is a
 /// pure, separately unit-tested function over the document itself.
+#[derive(Debug, Clone)]
+pub(crate) struct ResolvedClient {
+    pub(crate) client: RegisteredClient,
+    /// CIMD-only union of the preferred method and every additionally
+    /// published method. Empty for persisted DCR clients.
+    pub(crate) token_endpoint_auth_methods: Vec<String>,
+    /// CIMD-only remote key-set URL. Inline `client.jwks` wins when present.
+    pub(crate) jwks_uri: Option<String>,
+}
+
+impl std::ops::Deref for ResolvedClient {
+    type Target = RegisteredClient;
+
+    fn deref(&self) -> &Self::Target {
+        &self.client
+    }
+}
+
 enum ResolvedClientSource {
     /// `client_id` is a CIMD URL and its metadata document was fetched and
     /// validated.
@@ -315,18 +333,38 @@ async fn resolve_client_source(
 pub(crate) async fn resolve_client(
     state: &AuthState,
     client_id: &str,
-) -> Result<Option<RegisteredClient>, AuthError> {
+) -> Result<Option<ResolvedClient>, AuthError> {
     // No logging hook: unlike /authorize, this path deliberately stays quiet
     // about CIMD fetch failures.
     match resolve_client_source(state, client_id, |_| {}).await? {
-        ResolvedClientSource::Cimd(document) => Ok(Some(RegisteredClient {
-            client_id: document.client_id,
-            redirect_uris: document.redirect_uris,
-            created_at: 0,
-            token_endpoint_auth_method: document.token_endpoint_auth_method,
-            jwks: document.jwks,
+        ResolvedClientSource::Cimd(document) => {
+            let token_endpoint_auth_methods = document.accepted_auth_methods().map_err(|_| {
+                AuthError::Validation(
+                    "client_id metadata document is invalid or unreachable".to_string(),
+                )
+            })?;
+            let jwks_uri = document.usable_jwks_uri().map_err(|_| {
+                AuthError::Validation(
+                    "client_id metadata document is invalid or unreachable".to_string(),
+                )
+            })?;
+            Ok(Some(ResolvedClient {
+                client: RegisteredClient {
+                    client_id: document.client_id,
+                    redirect_uris: document.redirect_uris,
+                    created_at: 0,
+                    token_endpoint_auth_method: document.token_endpoint_auth_method,
+                    jwks: document.jwks,
+                },
+                token_endpoint_auth_methods,
+                jwks_uri,
+            }))
+        }
+        ResolvedClientSource::Registered(client) => Ok(client.map(|client| ResolvedClient {
+            client,
+            token_endpoint_auth_methods: Vec::new(),
+            jwks_uri: None,
         })),
-        ResolvedClientSource::Registered(client) => Ok(client),
     }
 }
 

@@ -83,12 +83,63 @@ pub struct ClientMetadataDocument {
     pub redirect_uris: Vec<String>,
     #[serde(default = "default_token_endpoint_auth_method")]
     pub token_endpoint_auth_method: String,
+    /// Additional methods the client can actually use. The singular field is
+    /// still the preference and is always unioned into this set by validation.
+    #[serde(default)]
+    pub token_endpoint_auth_methods_supported: Option<Vec<String>>,
     #[serde(default)]
     pub jwks: Option<serde_json::Value>,
+    /// HTTPS key-set URL for `private_key_jwt` clients that do not embed JWKS.
+    #[serde(default)]
+    pub jwks_uri: Option<String>,
 }
 
 fn default_token_endpoint_auth_method() -> String {
     "none".to_string()
+}
+
+impl ClientMetadataDocument {
+    /// Union the client's preferred auth method with every additional method
+    /// it publishes, preserving order while rejecting methods this server
+    /// cannot implement.
+    pub(crate) fn accepted_auth_methods(&self) -> Result<Vec<String>, CimdError> {
+        let mut methods = vec![self.token_endpoint_auth_method.clone()];
+        for method in self.token_endpoint_auth_methods_supported.iter().flatten() {
+            if !methods.contains(method) {
+                methods.push(method.clone());
+            }
+        }
+        if let Some(unsupported) = methods
+            .iter()
+            .find(|method| !matches!(method.as_str(), "none" | "private_key_jwt"))
+        {
+            return Err(CimdError::InvalidDocument(format!(
+                "unsupported token_endpoint_auth_method `{unsupported}`"
+            )));
+        }
+        Ok(methods)
+    }
+
+    /// Return the validated remote key-set URL only when inline keys are not
+    /// present. Inline keys win so an unnecessary outbound fetch is never
+    /// introduced by a document that publishes both forms.
+    pub(crate) fn usable_jwks_uri(&self) -> Result<Option<String>, CimdError> {
+        if self.jwks.is_some() {
+            return Ok(None);
+        }
+        self.jwks_uri
+            .as_deref()
+            .map(|uri| {
+                ssrf::validate_url_shape(uri)
+                    .map(|url| url.to_string())
+                    .map_err(|error| {
+                        CimdError::InvalidDocument(format!(
+                            "client metadata jwks_uri is not usable: {error}"
+                        ))
+                    })
+            })
+            .transpose()
+    }
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -224,27 +275,83 @@ pub(crate) async fn fetch_via_pinned_address(
     url: &str,
     addr: SocketAddr,
 ) -> Result<ClientMetadataDocument, CimdError> {
+    let client = build_pinned_client(url, addr)?;
+    fetch_document_at(&client, url, addr).await
+}
+
+/// Build the no-proxy/no-redirect HTTP client used by every CIMD-adjacent
+/// remote fetch after URL and DNS validation have already succeeded.
+/// Keeping this construction in one place prevents remote JWKS fetches from
+/// silently losing the DNS pin or proxy bypass that protects metadata fetches.
+pub(crate) fn build_pinned_client(
+    url: &str,
+    addr: SocketAddr,
+) -> Result<reqwest::Client, CimdError> {
     let parsed =
         url::Url::parse(url).map_err(|e| CimdError::Fetch(format!("parse `{url}`: {e}")))?;
     let host = parsed
         .host_str()
         .ok_or_else(|| CimdError::Fetch(format!("no host in `{url}`")))?;
-    let client = reqwest::Client::builder()
+    reqwest::Client::builder()
         .resolve(host, addr)
-        // Without this, an ambient HTTPS_PROXY/ALL_PROXY env var makes
-        // reqwest connect to a proxy that resolves `host` ITSELF, silently
-        // discarding the `.resolve()` pin above and reopening the exact
-        // DNS-rebinding window this whole module exists to close.
         .no_proxy()
-        // A redirect would fetch a URL other than `url`, which
-        // `fetch_document_at`'s exact-match check couldn't validate
-        // against `client_id` — treat any 3xx as a hard failure instead
-        // of following it.
         .redirect(reqwest::redirect::Policy::none())
         .timeout(FETCH_TIMEOUT)
         .build()
-        .map_err(|e| CimdError::Fetch(format!("build pinned client for `{url}`: {e}")))?;
-    fetch_document_at(&client, url, addr).await
+        .map_err(|e| CimdError::Fetch(format!("build pinned client for `{url}`: {e}")))
+}
+
+/// Fetch a bounded response body through an already-pinned client and verify
+/// that the actual TCP peer is exactly the address validated before connect.
+/// Metadata documents and remote JWKS both use this function so neither path
+/// can drift on proxy, redirect, peer-verification, or body-size policy.
+pub(crate) async fn fetch_body_at(
+    client: &reqwest::Client,
+    url: &str,
+    pinned_addr: SocketAddr,
+) -> Result<Vec<u8>, CimdError> {
+    let mut response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| CimdError::Fetch(format!("GET `{url}`: {e}")))?;
+
+    match response.remote_addr() {
+        Some(peer) if peer == pinned_addr => {}
+        Some(peer) => {
+            return Err(CimdError::PeerMismatch {
+                expected: pinned_addr,
+                actual: peer,
+            });
+        }
+        None => {
+            return Err(CimdError::Fetch(format!(
+                "no remote peer address available for `{url}`; refusing to trust an unverified connection"
+            )));
+        }
+    }
+
+    if !response.status().is_success() {
+        return Err(CimdError::Fetch(format!(
+            "GET `{url}` returned HTTP {}",
+            response.status()
+        )));
+    }
+
+    let mut buf = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| CimdError::Fetch(format!("read body from `{url}`: {e}")))?
+    {
+        buf.extend_from_slice(&chunk);
+        if buf.len() > MAX_DOCUMENT_BYTES {
+            return Err(CimdError::InvalidDocument(format!(
+                "document at `{url}` exceeds the {MAX_DOCUMENT_BYTES}-byte limit"
+            )));
+        }
+    }
+    Ok(buf)
 }
 
 /// Fetch and validate a CIMD document at `url` using an already
@@ -268,61 +375,7 @@ pub(crate) async fn fetch_document_at(
     url: &str,
     pinned_addr: SocketAddr,
 ) -> Result<ClientMetadataDocument, CimdError> {
-    let mut response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| CimdError::Fetch(format!("GET `{url}`: {e}")))?;
-
-    // No `check_ip_not_private` call on `peer` here: `pinned_addr` is
-    // guaranteed non-private by the caller before it ever reaches this
-    // function (either `resolve_and_validate_address`'s DNS-resolved
-    // result, or an IP-literal host that already passed
-    // `ssrf::validate_url_shape`'s own `check_ip_not_private` call). Once
-    // `peer == pinned_addr` holds, re-running the private-range check on
-    // `peer` would be redundant by construction — and would incorrectly
-    // reject every test that pins directly at a local `wiremock` server,
-    // which is the deliberate test seam this function's callers rely on.
-    //
-    // A missing `remote_addr()` fails CLOSED, not open: this peer-recheck is
-    // the load-bearing TOCTOU/DNS-rebinding backstop, so "peer unknowable"
-    // must never be treated as "peer trusted."
-    match response.remote_addr() {
-        Some(peer) if peer == pinned_addr => {}
-        Some(peer) => {
-            return Err(CimdError::PeerMismatch {
-                expected: pinned_addr,
-                actual: peer,
-            });
-        }
-        None => {
-            return Err(CimdError::Fetch(format!(
-                "no remote peer address available for `{url}`; refusing to trust an unverified connection"
-            )));
-        }
-    }
-
-    if !response.status().is_success() {
-        return Err(CimdError::Fetch(format!(
-            "GET `{url}` returned HTTP {}",
-            response.status()
-        )));
-    }
-
-    let mut buf: Vec<u8> = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|e| CimdError::Fetch(format!("read body from `{url}`: {e}")))?
-    {
-        buf.extend_from_slice(&chunk);
-        if buf.len() > MAX_DOCUMENT_BYTES {
-            return Err(CimdError::InvalidDocument(format!(
-                "document at `{url}` exceeds the {MAX_DOCUMENT_BYTES}-byte limit"
-            )));
-        }
-    }
-
+    let buf = fetch_body_at(client, url, pinned_addr).await?;
     let document: ClientMetadataDocument = serde_json::from_slice(&buf).map_err(|e| {
         CimdError::InvalidDocument(format!("document at `{url}` is not valid JSON: {e}"))
     })?;
@@ -331,24 +384,17 @@ pub(crate) async fn fetch_document_at(
             "document at `{url}` is missing required client_id or client_name"
         )));
     }
-    match document.token_endpoint_auth_method.as_str() {
-        "none" if document.jwks.is_none() => {}
-        "private_key_jwt" if document.jwks.is_some() => {}
-        "none" => {
-            return Err(CimdError::InvalidDocument(
-                "public clients must not declare jwks".to_string(),
-            ));
-        }
-        "private_key_jwt" => {
-            return Err(CimdError::InvalidDocument(
-                "private_key_jwt clients require jwks".to_string(),
-            ));
-        }
-        _ => {
-            return Err(CimdError::InvalidDocument(
-                "unsupported token_endpoint_auth_method".to_string(),
-            ));
-        }
+    let accepted_methods = document.accepted_auth_methods()?;
+    let jwks_uri = document.usable_jwks_uri()?;
+    if accepted_methods
+        .iter()
+        .any(|method| method == "private_key_jwt")
+        && document.jwks.is_none()
+        && jwks_uri.is_none()
+    {
+        return Err(CimdError::InvalidDocument(
+            "private_key_jwt clients require jwks or jwks_uri".to_string(),
+        ));
     }
     if document.redirect_uris.is_empty() {
         return Err(CimdError::InvalidDocument(format!(
@@ -733,8 +779,110 @@ mod tests {
         let CimdError::InvalidDocument(message) = &err else {
             panic!("expected an invalid-document rejection, got {err:?}");
         };
-        assert_eq!(message, "unsupported token_endpoint_auth_method");
+        assert_eq!(
+            message,
+            "unsupported token_endpoint_auth_method `client_secret_basic`"
+        );
         assert_eq!(err.kind(), "invalid_client_metadata");
+    }
+
+    #[test]
+    fn accepted_auth_methods_union_preference_and_supported_methods() {
+        let document: ClientMetadataDocument = serde_json::from_value(serde_json::json!({
+            "client_id": "https://client.example/metadata.json",
+            "client_name": "Example",
+            "redirect_uris": ["http://127.0.0.1:3000/callback"],
+            "token_endpoint_auth_method": "private_key_jwt",
+            "token_endpoint_auth_methods_supported": ["none", "private_key_jwt"]
+        }))
+        .unwrap();
+
+        assert_eq!(
+            document.accepted_auth_methods().unwrap(),
+            vec!["private_key_jwt".to_string(), "none".to_string()]
+        );
+    }
+
+    #[test]
+    fn accepted_auth_methods_reject_unsupported_additional_method() {
+        let document: ClientMetadataDocument = serde_json::from_value(serde_json::json!({
+            "client_id": "https://client.example/metadata.json",
+            "client_name": "Example",
+            "redirect_uris": ["http://127.0.0.1:3000/callback"],
+            "token_endpoint_auth_method": "none",
+            "token_endpoint_auth_methods_supported": ["client_secret_basic"]
+        }))
+        .unwrap();
+
+        assert!(matches!(
+            document.accepted_auth_methods(),
+            Err(CimdError::InvalidDocument(_))
+        ));
+    }
+
+    #[test]
+    fn inline_jwks_wins_over_an_unusable_jwks_uri() {
+        let document: ClientMetadataDocument = serde_json::from_value(serde_json::json!({
+            "client_id": "https://client.example/metadata.json",
+            "client_name": "Example",
+            "redirect_uris": ["http://127.0.0.1:3000/callback"],
+            "token_endpoint_auth_method": "private_key_jwt",
+            "jwks": {"keys": []},
+            "jwks_uri": "https://127.0.0.1/jwks.json"
+        }))
+        .unwrap();
+
+        assert_eq!(document.usable_jwks_uri().unwrap(), None);
+    }
+
+    #[test]
+    fn remote_jwks_uri_must_pass_ssrf_shape_validation() {
+        let public_document: ClientMetadataDocument = serde_json::from_value(serde_json::json!({
+            "client_id": "https://client.example/metadata.json",
+            "client_name": "Example",
+            "redirect_uris": ["http://127.0.0.1:3000/callback"],
+            "token_endpoint_auth_method": "private_key_jwt",
+            "jwks_uri": "https://keys.example.com/jwks.json"
+        }))
+        .unwrap();
+        assert_eq!(
+            public_document.usable_jwks_uri().unwrap().as_deref(),
+            Some("https://keys.example.com/jwks.json")
+        );
+
+        let private_document: ClientMetadataDocument = serde_json::from_value(serde_json::json!({
+            "client_id": "https://client.example/metadata.json",
+            "client_name": "Example",
+            "redirect_uris": ["http://127.0.0.1:3000/callback"],
+            "token_endpoint_auth_method": "private_key_jwt",
+            "jwks_uri": "https://127.0.0.1/jwks.json"
+        }))
+        .unwrap();
+        assert!(private_document.usable_jwks_uri().is_err());
+    }
+
+    #[tokio::test]
+    async fn private_key_jwt_requires_inline_or_remote_jwks() {
+        let server = MockServer::start().await;
+        let addr = *server.address();
+        let url = format!("{}/client.json", server.uri());
+        Mock::given(method("GET"))
+            .and(path("/client.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "client_id": url,
+                "client_name": "Example",
+                "redirect_uris": ["http://127.0.0.1:3000/callback"],
+                "token_endpoint_auth_method": "private_key_jwt"
+            })))
+            .mount(&server)
+            .await;
+
+        let error = fetch_via_pinned_address(&url, addr).await.unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("private_key_jwt clients require jwks or jwks_uri")
+        );
     }
 
     /// A document that omits the field entirely is a public client — the
@@ -822,7 +970,9 @@ mod tests {
             client_name: "Example".to_string(),
             redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
             token_endpoint_auth_method: "none".to_string(),
+            token_endpoint_auth_methods_supported: None,
             jwks: None,
+            jwks_uri: None,
         };
         cache.insert(
             "https://app.example.com/client.json".to_string(),
@@ -845,7 +995,9 @@ mod tests {
             client_name: "Example".to_string(),
             redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
             token_endpoint_auth_method: "none".to_string(),
+            token_endpoint_auth_methods_supported: None,
             jwks: None,
+            jwks_uri: None,
         };
         cache.insert(
             "https://app.example.com/client.json".to_string(),
@@ -889,7 +1041,9 @@ mod tests {
                 client_name: "Example".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
                 token_endpoint_auth_method: "none".to_string(),
+                token_endpoint_auth_methods_supported: None,
                 jwks: None,
+                jwks_uri: None,
             };
             cache.insert(url, &Ok(doc), CACHE_TTL);
         }
@@ -901,7 +1055,9 @@ mod tests {
             client_name: "Example".to_string(),
             redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
             token_endpoint_auth_method: "none".to_string(),
+            token_endpoint_auth_methods_supported: None,
             jwks: None,
+            jwks_uri: None,
         };
         cache.insert(overflow_url.clone(), &Ok(doc), CACHE_TTL);
 
@@ -973,7 +1129,9 @@ mod tests {
                 client_name: "Example".to_string(),
                 redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
                 token_endpoint_auth_method: "none".to_string(),
+                token_endpoint_auth_methods_supported: None,
                 jwks: None,
+                jwks_uri: None,
             };
             cache.insert(url.to_string(), &Ok(doc.clone()), CACHE_TTL);
             doc

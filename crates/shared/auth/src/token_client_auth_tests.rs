@@ -1,12 +1,16 @@
 use axum::http::{HeaderMap, HeaderValue, header};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use ed25519_dalek::pkcs8::EncodePrivateKey as _;
+use jsonwebtoken::jwk::JwkSet;
 
-use crate::types::TokenRequest;
+use crate::authorize::tests::test_auth_state;
+use crate::registration::ResolvedClient;
+use crate::types::{RegisteredClient, TokenRequest};
 
 use super::{
     CLIENT_ASSERTION_TYPE, adopt_jwt_bearer_assertion, apply_basic_client_credentials,
-    discard_blank_credentials, extract_assertion_client_id,
+    authenticate_resolved_client, discard_blank_credentials, extract_assertion_client_id,
 };
 
 fn jwt_bearer_request() -> TokenRequest {
@@ -24,6 +28,132 @@ fn jwt_bearer_request() -> TokenRequest {
         client_assertion: None,
         assertion: None,
     }
+}
+
+fn remote_assertion_signing_key() -> ed25519_dalek::SigningKey {
+    ed25519_dalek::SigningKey::from_bytes(&[11u8; 32])
+}
+
+const REMOTE_ASSERTION_KID: &str = "remote-client-kid";
+
+fn remote_assertion_jwks() -> JwkSet {
+    let public_key = remote_assertion_signing_key().verifying_key();
+    serde_json::from_value(serde_json::json!({
+        "keys": [{
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "alg": "EdDSA",
+            "use": "sig",
+            "kid": REMOTE_ASSERTION_KID,
+            "x": base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(public_key.as_bytes()),
+        }]
+    }))
+    .unwrap()
+}
+
+fn signed_remote_client_assertion(client_id: &str, jti: &str) -> String {
+    let now = crate::util::now_unix();
+    let claims = serde_json::json!({
+        "iss": client_id,
+        "sub": client_id,
+        "aud": "https://lab.example.com/token",
+        "iat": now,
+        "exp": now + 120,
+        "jti": jti,
+    });
+    let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA);
+    header.kid = Some(REMOTE_ASSERTION_KID.to_string());
+    let der = remote_assertion_signing_key().to_pkcs8_der().unwrap();
+    jsonwebtoken::encode(
+        &header,
+        &claims,
+        &jsonwebtoken::EncodingKey::from_ed_der(der.as_bytes()),
+    )
+    .unwrap()
+}
+
+fn cimd_resolved_client(methods: Vec<&str>) -> ResolvedClient {
+    ResolvedClient {
+        client: RegisteredClient {
+            client_id: "https://client.example/metadata.json".to_string(),
+            redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
+            created_at: 0,
+            token_endpoint_auth_method: "private_key_jwt".to_string(),
+            jwks: None,
+        },
+        token_endpoint_auth_methods: methods.into_iter().map(str::to_string).collect(),
+        jwks_uri: None,
+    }
+}
+
+#[tokio::test]
+async fn cimd_client_may_use_additional_published_none_auth_method() {
+    let state = test_auth_state().await;
+    let client = cimd_resolved_client(vec!["private_key_jwt", "none"]);
+
+    let method = authenticate_resolved_client(
+        &state,
+        "https://client.example/metadata.json",
+        client,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("published none method must be accepted even when private_key_jwt is preferred");
+    assert_eq!(method, "none");
+}
+
+#[tokio::test]
+async fn cimd_private_key_jwt_uses_cached_remote_jwks_uri() {
+    let state = test_auth_state().await;
+    let client_id = "https://client.example/metadata.json";
+    let jwks_uri = "https://client.example/jwks";
+    state
+        .cimd_jwks_cache
+        .seed_for_test(jwks_uri, remote_assertion_jwks());
+    let client = ResolvedClient {
+        client: RegisteredClient {
+            client_id: client_id.to_string(),
+            redirect_uris: vec!["http://127.0.0.1:7777/callback".to_string()],
+            created_at: 0,
+            token_endpoint_auth_method: "private_key_jwt".to_string(),
+            jwks: None,
+        },
+        token_endpoint_auth_methods: vec!["private_key_jwt".to_string()],
+        jwks_uri: Some(jwks_uri.to_string()),
+    };
+    let assertion = signed_remote_client_assertion(client_id, "remote-jwks-auth-jti");
+
+    let method = authenticate_resolved_client(
+        &state,
+        client_id,
+        client,
+        None,
+        Some(CLIENT_ASSERTION_TYPE),
+        Some(&assertion),
+    )
+    .await
+    .expect("cached remote JWKS must authenticate private_key_jwt");
+    assert_eq!(method, "private_key_jwt");
+}
+
+#[tokio::test]
+async fn cimd_preferred_private_key_method_is_not_silently_downgraded() {
+    let state = test_auth_state().await;
+    let client = cimd_resolved_client(Vec::new());
+
+    let error = authenticate_resolved_client(
+        &state,
+        "https://client.example/metadata.json",
+        client,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect_err("a client that only publishes private_key_jwt must not authenticate as public");
+    assert!(matches!(error, crate::error::AuthError::AuthFailed(_)));
 }
 
 #[test]
