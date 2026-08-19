@@ -666,12 +666,12 @@ just validate-plugin
 
 ### Workspace layout
 
-42 cargo members:
+44 cargo members:
 
 | Path | Contents |
 |---|---|
 | `crates/soma/*` | Product code for this server — domain, application, config, client, api, cli, mcp, runtime, integrations, palette, web, test-support |
-| `crates/shared/*` | Reusable engine crates other servers consume — auth, mcp (client/server/proxy/gateway), provider-core, provider-adapters, http-api, http-server, observability, openapi, self-update, traces, codemode, cli-core, and namespaced reusable families such as `cortex/domain` and `cortex/ingest-core` |
+| `crates/shared/*` | Reusable engine crates other servers consume — auth, mcp (client/server/proxy/gateway), provider-core, provider-adapters, http-api, http-server, observability, openapi, self-update, traces, codemode, cli-core, and namespaced reusable families such as `cortex/domain`, `cortex/ingest-core`, `cortex/inventory`, and `cortex/storage-sqlite` |
 | `crates/integrations/*` | Upstream service bridges — `gotify`, `unifi` |
 | `apps/soma` | The `soma` binary and its integration tests. **The only cargo member under `apps/`** — `apps/web` (Next.js) and `apps/palette` (assets) are not Rust crates. |
 | `packages/python` | pyo3 Python provider platform (`abi3-py311`) |

@@ -47,20 +47,26 @@ source reference for parity work.
 
 ## Current implementation
 
-The shared family now has two implemented crates. `cortex-ingest-core` contains
-message normalization/signature logic and bounded metadata redaction.
-`cortex-domain` contains all 65 donor public model declarations classified as
-semantic contracts, plus deterministic incident-finding rules and the narrow
-domain error taxonomy. Neither crate depends on SQLite, Axum, RMCP, Labby auth,
-process runtime, or deployment.
+The shared family now has four implemented/staged crates. `cortex-ingest-core`
+contains message normalization/signature logic, bounded metadata redaction, and
+the canonical ingest source-kind vocabulary. `cortex-domain` contains all 65
+donor public model declarations classified as semantic contracts plus the pure
+incident/signal, heartbeat, observatory-identity, and graph-confidence policy.
+`cortex-storage-sqlite` owns the donor SQLite pool, migrations, queries/FTS,
+retention/storage budget, event/incident persistence, graph projection, and
+observatory persistence behind explicit storage ports. `cortex-inventory` is
+staged early with only the pure snapshot schema/limits needed by storage graph
+projection; collectors/cache/orchestration remain Wave 4 work.
 
-The domain lane also records ownership for all 255 public donor model
-declarations. Transport DTOs, storage/query projections, runtime/collector
-state, and every database-row conversion remain explicitly assigned to later
-adapter crates instead of leaking into the reusable domain API. Both crates use
-workspace package inheritance, `layer = "shared"` architecture metadata,
-explicit features, `publish = false` during stabilization, README and crate-level
-docs, donor parity tests, and independent public-consumer tests.
+The domain lane records ownership for all 255 public donor model declarations.
+Exact semantic duplicates discovered during storage extraction are re-used from
+`cortex-domain`; storage/query projections with genuinely different join fields
+or serde behavior stay explicit. None of the lower crates depends upward on
+Cortex application/runtime namespaces. All four use workspace package
+inheritance, `layer = "shared"` architecture metadata, explicit features, and
+`publish = false` during stabilization; the completed Wave 0/1 crates and the
+Wave 2 storage adapter carry donor/public-consumer tests appropriate to their
+boundaries.
 
 ## Completion condition
 

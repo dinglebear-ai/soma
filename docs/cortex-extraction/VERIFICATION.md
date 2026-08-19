@@ -57,6 +57,30 @@ baseline is 255 public declarations, including 65 semantic contracts. Source and
 manifest review must show no dependency on database/pool, HTTP/MCP, auth,
 scanner, receiver, file-tail, config, or product runtime types.
 
+## Wave 2 SQLite storage gates
+
+The storage lane must prove both donor database behavior and the reusable public
+boundary. Run:
+
+```bash
+cargo fmt --all --check
+cargo check -p cortex-storage-sqlite --all-features
+cargo clippy -p cortex-storage-sqlite --all-targets --all-features -- -D warnings
+cargo test -p cortex-storage-sqlite --all-features --no-fail-fast
+RUSTDOCFLAGS="-D warnings" cargo doc -p cortex-storage-sqlite --no-deps --all-features
+cargo test -p cortex-domain -p cortex-ingest-core -p cortex-inventory
+cargo xtask check-test-siblings
+cargo xtask check-architecture
+```
+
+The SQLite suite includes the pinned schema-43 migration fixture and must finish
+at `KNOWN_SCHEMA_VERSION = 47`. `tests/public_api.rs` initializes a temporary
+database and round-trips a log using only public storage APIs. Source review must
+show no upward references to Cortex app, scanner, inventory runtime, enrichment,
+agent, or observatory implementation namespaces. The integration adaptation to
+Soma uses `rusqlite 0.40` with `r2d2_sqlite 0.35`; donor behavior, migration
+ordering, PRAGMAs, and single-writer coordination remain parity requirements.
+
 ## Workspace gates
 
 ADR 0010 defines the backend integration truth:

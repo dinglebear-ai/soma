@@ -15,13 +15,18 @@ pub mod ai;
 pub mod error;
 pub mod evidence;
 pub mod graph;
+pub mod graph_confidence;
 pub mod heartbeat;
 pub mod hook_incident_findings;
+pub mod hook_signal_detectors;
 pub mod incident_findings;
 pub mod investigation;
 pub mod logs;
 pub mod mcp_incident_findings;
+pub mod mcp_signal_detectors;
+pub mod observatory_identity;
 pub mod skill_incident_findings;
+pub mod skill_signal_detectors;
 pub mod topology;
 
 pub use actor::RequestActor;

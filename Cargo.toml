@@ -16,6 +16,8 @@ members = [
   "crates/shared/codex-app-server-client",
   "crates/shared/cortex/domain",
   "crates/shared/cortex/ingest-core",
+  "crates/shared/cortex/inventory",
+  "crates/shared/cortex/storage-sqlite",
   "crates/shared/http-api",
   "crates/shared/http-server",
   "crates/shared/incus-client",
@@ -123,6 +125,8 @@ zeroize = { version = "1", features = ["zeroize_derive"] }
 # Shared crates
 cortex-domain = { path = "crates/shared/cortex/domain" }
 cortex-ingest-core = { path = "crates/shared/cortex/ingest-core" }
+cortex-inventory = { path = "crates/shared/cortex/inventory" }
+cortex-storage-sqlite = { path = "crates/shared/cortex/storage-sqlite" }
 rmcp-traces = { path = "crates/shared/traces" }
 soma-auth = { path = "crates/shared/auth" }
 soma-cli-core = { path = "crates/shared/cli-core" }

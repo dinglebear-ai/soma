@@ -328,7 +328,10 @@ still surface, storage, or runtime-specific.
 
 **Resolution:** these types remain explicitly assigned to later API/MCP/CLI,
 application/query, SQLite, inventory, or runtime lanes in the model inventory.
-The domain manifest contains only `serde`, `serde_json`, and `thiserror`.
+At the Wave 1 checkpoint the domain manifest contained only `serde`,
+`serde_json`, and `thiserror`. Wave 2 adds `chrono` solely for pure heartbeat
+time/skew policy; it still has no storage, transport, auth, scanner, collector,
+or runtime dependency.
 
 ### Finding C7: fanout timeout fixture raced two short timers under load
 
@@ -375,3 +378,181 @@ Nextest run passed 3,038/3,038. Production fanout logic is unchanged.
 - The crate source and manifest contain no database/pool, HTTP/MCP, auth, scanner,
   receiver, file-tail, config, or product-runtime dependency.
 - The Rust source tree is ASCII-clean after comment-only normalization.
+
+## Review 4: Wave 2 SQLite boundary
+
+### Finding D1: donor SQLite dependency versions cannot coexist unchanged in Soma
+
+**Severity:** P1 integration blocker.
+
+Cortex donor storage uses `rusqlite 0.39`/`r2d2_sqlite 0.34`, while Soma already
+links SQLite through `rusqlite 0.40`. Cargo permits only one crate with the
+`links = "sqlite3"` native linkage in this workspace.
+
+**Resolution:** retain donor storage behavior while aligning the adapter to
+`rusqlite 0.40` and `r2d2_sqlite 0.35`, the matching pool adapter release. The
+extracted storage crate compiles cleanly against that pair; migration and donor
+DB tests remain the behavioral guard for this integration-only version change.
+
+### Finding D2: copied DB modules contained forty upward product references
+
+**Severity:** P1 architecture violation.
+
+The mechanical DB extraction initially referenced application signal detectors,
+scanner event types, inventory runtime schema, enrichment `SourceKind`, agent
+Docker constants, observatory identity helpers, and application heartbeat/error
+policy. Preserving those imports would turn the storage crate into a disguised
+copy of the Cortex monolith.
+
+**Resolution:** introduce storage-neutral normalized event inputs; move pure
+incident detectors, heartbeat policy, observatory identity keys, and graph
+confidence math into `cortex-domain`; move canonical ingest source-kind values
+into `cortex-ingest-core`; and stage the pure inventory snapshot schema/limits in
+`cortex-inventory`. The tracked upward-reference scan now reports zero matches
+for app, scanner, inventory runtime, enrichment, agent, observatory identity,
+normalization, or the old db namespace.
+
+### Finding D3: storage reintroduced domain-owned semantic response types
+
+**Severity:** P1 boundary drift.
+
+The copied DB model module still defined semantic types already classified and
+extracted in Wave 1. Keeping independent copies would allow storage and domain
+wire shapes to diverge while presenting both as canonical Cortex concepts.
+
+**Resolution:** exact duplicates now reuse the domain contracts directly:
+`LogEntry`, `AbuseIncident`, `AiAbuseMatch` (as the domain `AbuseMatch`),
+`SeverityCount`, and `AppLogCount`; the hook/MCP/skill event entries; the
+hook/MCP/skill incident and signal-count contracts; and exact graph entity /
+entity-candidate rows. Query projections whose field names, join payload, or
+serde behavior intentionally differ remain storage-owned until the application
+facade maps them. A mechanical same-name scan now finds zero structs defined in
+both crates. The error-signature read path was tightened further: the raw
+`SignatureRow` adapter type was removed and storage now returns
+`cortex_domain::ErrorSignatureEntry` directly while keeping
+`normalizer_version` only as a persistence key/input.
+
+### Finding D4: later-wave storage consumers looked like dead code after extraction
+
+**Severity:** P2 lint/API-design risk.
+
+Several donor DB capabilities are consumed by application/runtime modules that
+have not moved yet: error-signature scanning, notification outbox/firings, LLM
+invocation persistence, stream health, observatory paging, pattern clustering,
+and PRAGMA diagnostics. As crate-private functions they became dead-code
+warnings; deleting them would break later product parity, while a blanket lint
+allowance would hide real stale code.
+
+**Resolution:** make the donor-used persistence capabilities deliberate public
+storage ports and remove obsolete monolith-only crate-root reexports. PRAGMA
+interpolation was tightened to a closed `PragmaName` enum rather than exposing
+arbitrary identifiers. Pure graph-confidence math was removed from SQLite and
+relocated to `cortex-domain`. With the temporary unused-import allowance
+removed, `cargo check -p cortex-storage-sqlite` completes with zero warnings.
+
+### Finding D5: donor DB tests crossed extraction boundaries
+
+**Severity:** P1 if silently dropped or copied with fake product namespaces.
+
+The first extracted test compile found three harness gaps: the frozen schema-43
+fixture still used its donor-relative path, query tests required a test-only
+`regex` dependency, and one maintenance test called the application
+notification rule evaluator after proving the storage-budget invariant.
+
+**Resolution:** copy the immutable schema-43 fixture into the storage crate and
+adjust only its relative include path; add `regex` as a dev dependency; and
+keep the maintenance test scoped to persistence behavior (external disk pressure
+blocks writes without deleting retained rows). Notification firing remains an
+application-layer policy test for its later extraction wave rather than creating
+a fake `notifications::rules` namespace inside storage. The frozen storage
+suite subsequently passes 440 tests with one intentionally ignored benchmark,
+plus the independent temporary-database consumer test.
+
+### Finding D6: the mechanical DB copy did not satisfy Soma sibling-test layout
+
+**Severity:** P1 repository-contract failure.
+
+Registering the SQLite source tree with the repository sibling checker exposed
+16 modules without focused `_tests.rs` siblings and two extra donor test modules
+whose names did not correspond to source files. The large donor suites covered
+much of this code indirectly, but the extraction would still violate Soma's explicit source/test ownership convention.
+
+**Resolution:** add focused tests for resolver vocabulary/observations/adapters,
+inventory SQL helpers, storage configuration, OTLP rows, ingest health, and the
+Agent Observatory projection lookup/SQL/ref/type/tie-break/counter helpers. The
+existing observatory model suite was renamed to the real `agent_observatory.rs`
+sibling. `queries_graph_tests.rs` remains a deliberate second split suite for
+`queries.rs` and is documented as such in the orphan-exemption list. The gate
+now passes with 26 checked source trees. The added counter test exercises a real
+atomic projection write and verifies event/error counter updates.
+
+### Finding D7: public extraction docs linked private implementation helpers
+
+**Severity:** P2 strict-rustdoc failure.
+
+Making storage APIs public caused seven inherited donor doc comments to create
+rustdoc links to private constants/helpers. Widening those private helpers only
+for documentation would have enlarged the API for the wrong reason.
+
+**Resolution:** rewrite the seven links as plain code names/descriptions while
+keeping implementation visibility private. Strict rustdoc then passes for all
+four Cortex shared crates; the only emitted warning is the known fleet-required
+`missing_crate_level_docs` rename diagnostic, which explicitly ignores
+`-D warnings`.
+
+### Finding D8: module-wide dead-code suppression hid extraction state
+
+**Severity:** P2 reviewability/API-risk.
+
+Four copied modules (`graph`, Agent Observatory, OTLP metrics, and OTLP traces)
+still carried donor-level `#![allow(dead_code)]` attributes. Those blanket
+suppressions made it impossible for strict linting to distinguish intentionally
+exported later-wave storage ports from genuinely orphaned extraction code.
+
+**Resolution:** remove all four module-wide suppressions and rerun strict Clippy.
+The only newly surfaced dead code was four Agent Observatory cursor/health
+persistence helpers; those are real later-wave storage capabilities, so they are
+now explicit documented public ports rather than lint-hidden internals. Only
+narrow, locally documented `dead_code` allowances remain for reserved resolver
+vocabulary/test-only plan contracts and diagnostic fields.
+
+### Finding D9: projection cursor initialization bypassed the global SQLite writer lock
+
+**Severity:** P1 single-writer contract violation.
+
+`projection_cursor` lazily initializes a missing cursor with `INSERT OR IGNORE`,
+but unlike the adjacent cursor-advance and health-write functions it did not
+acquire the process-wide `write_lock()`. A future Observatory projector could
+therefore perform this SQLite write outside the adapter's single-writer
+coordination path.
+
+**Resolution:** acquire `write_lock()` before cursor initialization, expose the
+cursor/health helpers as deliberate storage ports, and add a temporary-database
+round-trip test covering cursor initialization/advance plus health attempt
+accumulation. The focused regression test and strict all-target Clippy pass.
+
+### Finding D10: donor Unicode fixtures violated Soma source hygiene
+
+**Severity:** P1 repository-contract failure.
+
+The exact-head ASCII gate found non-ASCII math notation in extracted confidence comments plus Unicode behavior fixtures in domain, inventory, and SQLite tests. The runtime values were legitimate test inputs, so blindly transliterating them would have weakened parity coverage.
+
+**Resolution:** rewrite mathematical comments/formulas with ASCII notation and encode intentional Unicode fixture values with Rust Unicode escapes. This keeps the runtime strings byte-for-byte equivalent while satisfying the source policy. The ASCII gate passes, and the affected domain/inventory parity suites remain green.
+
+## Wave 2 final verification
+
+- `cargo fmt --all -- --check` passed.
+- Strict Clippy passed for `cortex-domain`, `cortex-ingest-core`, `cortex-inventory`, and `cortex-storage-sqlite` with `--all-targets --all-features -- -D warnings`.
+- Strict rustdoc passed for all four crates with only the fleet-required renamed-lint notice that explicitly ignores `-D warnings`.
+- The final frozen `cortex-storage-sqlite` suite passed 441 runnable tests with one intentionally ignored benchmark; its external-consumer integration test passed 1/1.
+- `cargo check --workspace --all-features` passed across all 44 workspace packages.
+- `cargo nextest run --workspace --all-features --no-fail-fast` passed 3,527/3,527 runnable tests with 4 skipped.
+- `cargo xtask check-architecture` passed with 44 workspace packages and 95 internal edges.
+- `cargo xtask check-test-siblings` passed with 26 checked source trees after adding focused Wave 2 siblings.
+- ASCII hygiene, documentation generation/policy, and coupled-file ownership checks passed.
+- Full `cargo deny check` passed.
+- The exact fleet contract pinned at `ac57c3208cf92d71c5971bb936df51c400cb1ccf` reports `fleet contract valid`.
+- The storage source has zero tracked upward references to application/scanner/inventory-runtime/enrichment/agent/observatory-identity/normalization/legacy-db namespaces, and no same-name semantic structs remain duplicated between `cortex-domain` and `cortex-storage-sqlite`.
+- Donor DB inventory comparison finds all 83 donor Rust files represented in storage; the only donor-relative paths absent are the renamed observatory model test and `graph_confidence.rs` plus its tests, which intentionally moved to `cortex-domain`.
+- No module-wide `dead_code` suppression remains in the extracted storage crate.
+- Critical integration pins on the rebased head are `futures 0.3.34`, `h2 0.4.16`, `rusqlite 0.40.2`, and `r2d2_sqlite 0.35.0`.

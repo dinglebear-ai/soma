@@ -12,6 +12,10 @@ const ORPHAN_EXEMPT: &[&str] = &[
     "mcp_tests.rs",
     "http_oauth_stubs_tests.rs",
     "live_servers_tests.rs",
+    // `queries.rs` intentionally has two split suites: `queries_tests.rs` is
+    // the canonical sibling and this graph-focused module carries the larger
+    // traversal/fan-out cases without creating a fake `queries_graph.rs`.
+    "queries_graph_tests.rs",
 ];
 
 pub(crate) fn check() -> Result<()> {
@@ -144,6 +148,8 @@ const CHECKED_SRC_ROOTS: &[&str] = &[
     "crates/shared/codemode/src",
     "crates/shared/cortex/domain/src",
     "crates/shared/cortex/ingest-core/src",
+    "crates/shared/cortex/inventory/src",
+    "crates/shared/cortex/storage-sqlite/src",
     "crates/shared/incus-client/src",
     "crates/shared/mcp/client/src",
     "crates/shared/mcp/gateway/src",

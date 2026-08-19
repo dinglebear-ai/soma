@@ -52,13 +52,14 @@ apps/cortex
                                   |
                                   +--> cortex-domain
                                   +--> cortex-ingest-core
+                                  +--> cortex-inventory (pure snapshot contract)
 
           cortex-ingest --------> cortex-domain + cortex-ingest-core + ports
           cortex-agent ---------> cortex-domain + cortex-ingest-core + ports
-          cortex-inventory -----> cortex-domain
+          cortex-inventory -----> standalone snapshot contract in Wave 2; collector behavior remains Wave 4
           cortex-observatory ---> cortex-domain
-          cortex-domain --------> serde + serde_json + thiserror only in wave 1
-          cortex-ingest-core ---> serde_json + sha2 only in wave 0
+          cortex-domain --------> serde + serde_json + thiserror + chrono (pure time policy)
+          cortex-ingest-core ---> serde + serde_json + sha2
 ```
 
 The exact dependency graph may become even narrower as ports are introduced. It

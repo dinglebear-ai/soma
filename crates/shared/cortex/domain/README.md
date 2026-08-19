@@ -9,11 +9,13 @@ implementations, file-tail runtime state, or host configuration.
 
 - request identity used by application/domain policy;
 - normalized log and incident entities;
-- heartbeat state and derived fleet/correlation summaries;
-- graph entities, relationships, evidence, and deterministic narratives;
+- heartbeat state, pressure/status policy, and derived fleet/correlation summaries;
+- graph entities, relationships, evidence, deterministic narratives, and confidence policy;
 - AI incident/event entities used by deterministic finding engines;
 - investigation claims and evidence summaries;
 - topology findings and stable reason/category constants;
+- deterministic hook/MCP/skill signal detectors;
+- stable observatory identity-key construction;
 - domain validation/not-found errors.
 
 The deterministic incident, hook, MCP, and skill finding engines were moved with
@@ -25,8 +27,9 @@ queries and no model calls.
 Transport request/response envelopes, REST/MCP-specific limit policy, SQLite
 rows and maintenance results, database statistics, persistence conversions, OS
 journal responses, file-tail operations, scanner health implementation types,
-receiver counters, inventory collector schemas, notification runtime config, and
-process/runtime state are intentionally excluded.
+receiver counters, inventory collection/runtime state, notification runtime config, and
+process/runtime state are intentionally excluded. Pure inventory snapshot contracts live in
+`cortex-inventory`, not in the domain crate.
 
 Database row conversions are owned by the planned `cortex-storage-sqlite`
 adapter. Transport envelopes are owned by the planned `cortex-api` and

@@ -24,7 +24,8 @@ evidence exists on the branch or in the linked lane PR.
 - Soma integration branch: `feat/cortex-shared-extraction`
 - Foundation PR: [#363](https://github.com/dinglebear-ai/soma/pull/363)
 - Wave 1 lane: `feat/cortex-domain-extraction`
-- Wave 1 PR: [#364](https://github.com/dinglebear-ai/soma/pull/364)
+- Wave 1/Wave 2 integration PR: [#364](https://github.com/dinglebear-ai/soma/pull/364)
+- Runner-capacity decision: Wave 2 is intentionally batched into #364 rather than opening another stacked lane while the shared Rust runner pool is saturated.
 - Public model ownership inventory: [MODEL-CLASSIFICATION.md](MODEL-CLASSIFICATION.md)
 - Working topology: [SPEC.md](SPEC.md)
 - Normative rules: [CONTRACTS.md](CONTRACTS.md)
@@ -62,14 +63,14 @@ evidence exists on the branch or in the linked lane PR.
 
 ## Wave 2: SQLite storage adapter
 
-- [ ] Create `cortex-storage-sqlite`.
-- [ ] Move pool initialization and SQLite configuration.
-- [ ] Move migrations with exact migration-order/version parity tests.
-- [ ] Move query, FTS, retention, storage-budget, incident/event, graph, and observatory persistence.
-- [ ] Implement domain/application repository ports without exposing raw row types upward.
-- [ ] Preserve single-writer/maintenance coordination semantics.
-- [ ] Add temporary-database consumer fixtures.
-- [ ] Pass donor DB suite plus workspace gates.
+- [x] Create `cortex-storage-sqlite`.
+- [x] Move pool initialization and SQLite configuration.
+- [x] Move migrations with exact migration-order/version parity tests.
+- [x] Move query, FTS, retention, storage-budget, incident/event, graph, and observatory persistence.
+- [x] Implement domain/application repository ports without exposing raw row types upward.
+- [x] Preserve single-writer/maintenance coordination semantics.
+- [x] Add temporary-database consumer fixtures.
+- [x] Pass donor DB suite plus workspace gates. Final SQLite suite: 441 passed, 1 intentionally ignored; external-consumer test: 1/1 passed; workspace all-features check passed; workspace Nextest: 3,527/3,527 passed with 4 skipped.
 
 ## Wave 3: Ingest engines
 
@@ -85,7 +86,7 @@ evidence exists on the branch or in the linked lane PR.
 
 ## Wave 4: Inventory, observatory, and agent
 
-- [ ] Create `cortex-inventory` and move normalized inventory/cache/collector behavior.
+- [ ] Create `cortex-inventory` and move normalized inventory/cache/collector behavior. Pure snapshot schema/limits are staged early in Wave 2 so SQLite graph projection depends downward on a stable contract; collectors/cache/orchestration remain Wave 4 work.
 - [ ] Feature-gate service-specific collectors where practical.
 - [ ] Create `cortex-observatory` with persistence ports.
 - [ ] Move identity, attribution, classification, lifecycle, and projector behavior.

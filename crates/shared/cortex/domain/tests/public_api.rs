@@ -1,6 +1,7 @@
 use cortex_domain::{
     DomainError, GraphEntity, GraphEntitySummary, HeartbeatStateFlags, RequestActor,
-    topology_findings,
+    graph_confidence, hook_signal_detectors, mcp_signal_detectors, observatory_identity,
+    skill_signal_detectors, topology_findings,
 };
 
 #[test]
@@ -22,6 +23,18 @@ fn independent_consumer_can_use_domain_without_cortex_runtime() {
     assert_eq!(GraphEntitySummary::from(&entity).canonical_key, "dookie");
     assert!(!HeartbeatStateFlags::default().cpu_pressure);
     assert!(topology_findings::TYPES.contains(&topology_findings::TYPE_RISKY_MOUNTS));
+    assert!(hook_signal_detectors::is_hook_failure_status("failed"));
+    assert!((graph_confidence::noisy_or_combine(&[0.5, 0.5]) - 0.75).abs() < 1e-9);
+    assert!(mcp_signal_detectors::detect_timeout_or_rate_limit(
+        "tool timed out"
+    ));
+    assert!(skill_signal_detectors::detect_tool_failure(
+        "command failed to start"
+    ));
+    assert_eq!(
+        observatory_identity::run_key("dookie", "Codex", "session-1").unwrap(),
+        "v1|6:dookie|5:codex|9:session-1"
+    );
     assert_eq!(
         DomainError::NotFound("missing".into()).to_string(),
         "missing"
