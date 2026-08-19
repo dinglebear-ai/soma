@@ -19,3 +19,8 @@ Boundary rules:
 - A typed `HEADER_MISMATCH` from `tools/call` may trigger exactly one bounded
   `tools/list` cache refresh and one replay. Recovery uses the configured
   tools-list response cap; a second mismatch is returned to the caller.
+- A completed `tools/call` with `isError: true` is a tool-execution failure, not
+  a successful structured value and not a transport failure. Plain calls map it
+  to `UpstreamError::ToolExecution`; MRTR calls retain the complete MCP result.
+  Upstream-supplied error kinds are untrusted and must be canonicalized before
+  they influence caller-facing classification.

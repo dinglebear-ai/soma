@@ -104,7 +104,15 @@ wire outcomes exactly:
 - task handles
 
 Malformed upstream result objects fail with structured proxy errors instead of
-being reported as successful structured content.
+being reported as successful structured content. Likewise, a completed upstream
+`tools/call` with `isError: true` is never promoted to success merely because it
+contains `structuredContent`. The plain gateway/client path classifies it as a
+tool-execution failure, distinct from connection or JSON-RPC transport failure.
+Recognized tool-level kinds such as `invalid_param` may survive classification;
+unknown or infrastructure-looking upstream kinds collapse to `tool_error`, and
+the retained cause is bounded. Multi-round-trip relays keep the complete MCP
+result unchanged so downstream MCP clients still receive the protocol-native
+`isError` result.
 
 ### Tool annotations and gateway safety
 

@@ -36,8 +36,8 @@ use super::lifecycle_compat::{LifecycleAttempt, compatibility_retry, log_fallbac
 mod live_support;
 
 use live_support::{
-    bearer_token_from_env, drain_stderr, ensure_rustls_crypto_provider, prompt_descriptor,
-    resource_descriptor, stdio_env, tool_descriptor, websocket_authorization,
+    bearer_token_from_env, completed_tool_error, drain_stderr, ensure_rustls_crypto_provider,
+    prompt_descriptor, resource_descriptor, stdio_env, tool_descriptor, websocket_authorization,
 };
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -321,8 +321,16 @@ pub(super) async fn call_live_tool(
     let Value::Object(args) = params else {
         return Err(UpstreamError::ParamsMustBeObject);
     };
-    let request = CallToolRequestParams::new(tool).with_arguments(args);
+    let request = CallToolRequestParams::new(tool.clone()).with_arguments(args);
     let result = call_tool_with_header_recovery(&peer, upstream, request, tools_list_limit).await?;
+    if let Some((kind, message)) = completed_tool_error(&result) {
+        return Err(UpstreamError::ToolExecution {
+            upstream: upstream.to_owned(),
+            tool,
+            kind,
+            message,
+        });
+    }
     if let Some(value) = result.structured_content.clone() {
         return Ok(value);
     }

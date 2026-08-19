@@ -246,6 +246,17 @@ pub enum UpstreamError {
         operation: &'static str,
         message: String,
     },
+    /// The MCP request completed successfully at the protocol layer, but the
+    /// upstream tool reported `isError: true`. This is deliberately distinct
+    /// from [`Self::LiveCall`]: the tool ran and failed, so callers must not
+    /// treat it as a transport/runtime outage.
+    #[error("upstream `{upstream}` tool `{tool}` failed ({kind}): {message}")]
+    ToolExecution {
+        upstream: String,
+        tool: String,
+        kind: String,
+        message: String,
+    },
     #[error("{scope:?} payload was {observed_bytes} bytes, exceeding {limit} bytes")]
     ResponseTooLarge {
         scope: CapScope,

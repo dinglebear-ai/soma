@@ -222,6 +222,11 @@ impl ServerHandler for EchoServer {
                     "requires one elicitation round",
                     Arc::new(serde_json::Map::new()),
                 ),
+                Tool::new(
+                    "fail_structured",
+                    "returns a completed structured tool error",
+                    Arc::new(serde_json::Map::new()),
+                ),
             ],
             ..Default::default()
         })
@@ -232,6 +237,14 @@ impl ServerHandler for EchoServer {
         request: CallToolRequestParams,
         context: rmcp::service::RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
+        if request.name.as_ref() == "fail_structured" {
+            return Ok(CallToolResult::structured_error(serde_json::json!({
+                "kind": "invalid_param",
+                "message": "synthetic upstream validation failure",
+                "detail": {"field": "message"}
+            }))
+            .into());
+        }
         if request.name.as_ref() == "needs_input" {
             let Some(input_responses) = request.input_responses else {
                 return Ok(mrtr_input_required().into());

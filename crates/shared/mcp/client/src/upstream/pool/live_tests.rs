@@ -321,6 +321,58 @@ async fn http_live_discovery_and_call_routes_echo() {
 }
 
 #[tokio::test]
+async fn http_live_completed_tool_error_is_never_promoted_to_success() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind completed-error smoke");
+    let addr = listener.local_addr().expect("local addr");
+    let service: StreamableHttpService<EchoServer, LocalSessionManager> =
+        StreamableHttpService::new(
+            || Ok(EchoServer),
+            Default::default(),
+            StreamableHttpServerConfig::default()
+                .with_legacy_session_mode(false)
+                .with_json_response(true),
+        );
+    let router = axum::Router::new().nest_service("/mcp", service);
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router)
+            .await
+            .expect("completed-error smoke server");
+    });
+
+    let pool = UpstreamPool::default();
+    pool.register_config(UpstreamConfig {
+        name: "tool-error".to_owned(),
+        url: Some(format!("http://{addr}/mcp")),
+        ..UpstreamConfig::default()
+    })
+    .expect("register completed-error upstream");
+    pool.discover()
+        .await
+        .expect("discover completed-error upstream");
+
+    let error = pool
+        .call_tool(ToolCall {
+            upstream: "tool-error".to_owned(),
+            tool: "fail_structured".to_owned(),
+            params: serde_json::json!({}),
+        })
+        .await
+        .expect_err("completed isError result must remain an error");
+    assert_eq!(
+        error,
+        crate::upstream::UpstreamError::ToolExecution {
+            upstream: "tool-error".to_owned(),
+            tool: "fail_structured".to_owned(),
+            kind: "invalid_param".to_owned(),
+            message: "synthetic upstream validation failure".to_owned(),
+        }
+    );
+    server.abort();
+}
+
+#[tokio::test]
 async fn resources_only_upstream_connects_without_a_tools_capability() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

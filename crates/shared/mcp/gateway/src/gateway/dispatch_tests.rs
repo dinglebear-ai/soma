@@ -40,6 +40,23 @@ fn default_python_command() -> String {
         "python3".to_owned()
     }
 }
+#[test]
+fn completed_tool_execution_maps_separately_from_transport_failure() {
+    let error = crate::gateway::manager::GatewayManagerError::Upstream(
+        crate::upstream::UpstreamError::ToolExecution {
+            upstream: "demo".to_owned(),
+            tool: "mutate".to_owned(),
+            kind: "invalid_param".to_owned(),
+            message: "bad input".to_owned(),
+        },
+    );
+
+    let shape = manager_error_shape("gateway.call", &error);
+    assert_eq!(shape.code, "tool_execution_failed");
+    assert_eq!(shape.kind, "tool_execution");
+    assert!(shape.remediation.contains("revise the request"));
+}
+
 #[tokio::test]
 async fn read_access_can_list_but_cannot_admin_test() {
     let manager = default_manager();

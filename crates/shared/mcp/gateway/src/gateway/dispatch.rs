@@ -348,6 +348,12 @@ fn manager_error_shape(
             "runtime",
             "retry after verifying the upstream server and requested capability",
         ),
+        GatewayManagerError::Upstream(UpstreamError::ToolExecution { .. }) => structured_error(
+            action,
+            "tool_execution_failed",
+            "tool_execution",
+            "inspect the upstream tool error and revise the request before retrying",
+        ),
         GatewayManagerError::Upstream(UpstreamError::ResponseTooLarge { .. }) => structured_error(
             action,
             "response_too_large",

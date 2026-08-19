@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::sync::Once;
 
-use rmcp::model::{Tool, ToolAnnotations};
+use rmcp::model::{CallToolResult, Tool, ToolAnnotations};
 use serde_json::Value;
 use tokio::io::AsyncReadExt;
 
@@ -45,6 +45,74 @@ fn tool_annotations_value(annotations: &ToolAnnotations) -> Option<Value> {
             );
             None
         }
+    }
+}
+
+/// Interpret a completed MCP tool result as a tool-execution failure without
+/// trusting the upstream to classify its own failure as infrastructure.
+///
+/// Upstream `kind` values are untrusted. Only the stable caller-facing subset
+/// survives; infrastructure-looking or unknown values collapse to
+/// `tool_error`. The cause is bounded so a malicious tool cannot inflate an
+/// error envelope after the normal response cap has already accepted it.
+pub(super) fn completed_tool_error(result: &CallToolResult) -> Option<(String, String)> {
+    if result.is_error != Some(true) {
+        return None;
+    }
+    let object = result
+        .structured_content
+        .as_ref()
+        .and_then(Value::as_object)
+        .and_then(|object| {
+            object
+                .get("error")
+                .and_then(Value::as_object)
+                .or(Some(object))
+        });
+    let raw_kind = object
+        .and_then(|object| object.get("kind"))
+        .and_then(Value::as_str);
+    let kind = canonical_completed_tool_error_kind(raw_kind).to_string();
+    let cause = object
+        .and_then(|object| {
+            object
+                .get("message")
+                .or_else(|| object.get("cause"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or("upstream tool reported an error");
+    Some((kind, cause.chars().take(1024).collect()))
+}
+
+fn canonical_completed_tool_error_kind(kind: Option<&str>) -> &str {
+    match kind {
+        Some(
+            "unknown_action"
+            | "unknown_subaction"
+            | "missing_param"
+            | "invalid_param"
+            | "unknown_instance"
+            | "confirmation_required"
+            | "conflict"
+            | "forbidden"
+            | "unknown_tool"
+            | "route_scope_denied"
+            | "path_traversal"
+            | "permission_denied"
+            | "timeout"
+            | "budget_exceeded"
+            | "quota_exceeded"
+            | "invalid_code_mode_id"
+            | "snippet_not_found"
+            | "artifact_too_large"
+            | "auth_failed"
+            | "oauth_needs_reauth"
+            | "not_found"
+            | "rate_limited"
+            | "validation_failed"
+            | "code_mode_timeout",
+        ) => kind.unwrap_or("tool_error"),
+        _ => "tool_error",
     }
 }
 
