@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::ConfigError;
-use crate::process::guard::SpawnGuard;
-use crate::process::stdio::StdioProcessSpec;
+use crate::process::guard::{SpawnGuard, SpawnGuardError};
+use crate::process::stdio::{StdioProcessSpec, StdioSpecError};
+use crate::security::env;
 use crate::security::redact::{is_sensitive_key, redact_stdio_args, redact_url};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,7 +204,20 @@ fn validate_transport_shape(config: &UpstreamConfig) -> Result<(), ConfigError> 
             env: config.env.clone(),
         };
         spec.validate(&SpawnGuard::default())
-            .map_err(|_| ConfigError::invalid("command", "stdio command is not allowed"))?;
+            .map_err(|error| match error {
+                StdioSpecError::Guard(
+                    SpawnGuardError::InvalidArgument | SpawnGuardError::DangerousArgument { .. },
+                ) => ConfigError::invalid("args", "stdio arguments are not allowed"),
+                StdioSpecError::Env(env::EnvPolicyError::SpawnGuardOverride) => {
+                    ConfigError::invalid("args", "stdio arguments are not allowed")
+                }
+                StdioSpecError::Env(_) => {
+                    ConfigError::invalid("env", "stdio environment is not allowed")
+                }
+                StdioSpecError::Guard(_) => {
+                    ConfigError::invalid("command", "stdio command is not allowed")
+                }
+            })?;
     }
     Ok(())
 }
@@ -251,6 +265,12 @@ fn validate_name(name: &str) -> Result<(), ConfigError> {
 
 pub fn validate_bearer_token_env(value: &str) -> Result<(), ConfigError> {
     let trimmed = value.trim();
+    if trimmed != value {
+        return Err(ConfigError::invalid(
+            "bearer_token_env",
+            "must not contain surrounding whitespace",
+        ));
+    }
     let looks_like_secret = trimmed.starts_with("Bearer ")
         || trimmed.starts_with("sk-")
         || trimmed.starts_with("ghp_")
@@ -279,6 +299,12 @@ pub fn validate_bearer_token_env(value: &str) -> Result<(), ConfigError> {
         return Err(ConfigError::invalid(
             "bearer_token_env",
             "must contain only uppercase ASCII letters, digits, and underscores",
+        ));
+    }
+    if env::validate_env_name(trimmed).is_err() {
+        return Err(ConfigError::invalid(
+            "bearer_token_env",
+            "must not name a protected process environment variable",
         ));
     }
     Ok(())

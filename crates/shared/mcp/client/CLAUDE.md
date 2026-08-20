@@ -13,6 +13,15 @@ Boundary rules:
   generic upstream OAuth client behavior.
 - Product-specific env prefixes, scopes, tool names, and defaults must be
   supplied by the host application, not hard-coded here.
+- Stdio runtimes are allowlisted by bare executable name and their argv is
+  runtime-guarded before spawn. Node/npx/Bun inline execution, preload/debug
+  flags, Docker host-access flags, Python inline/stdin execution, Deno blanket
+  permissions/eval, and argv control characters must fail closed. Upstream env
+  must not replace trusted process-discovery/runtime controls such as `PATH`,
+  dynamic-loader variables, `NODE_OPTIONS`, `PYTHONPATH`, or `PYTHONHOME`, and
+  env values may not contain line/NULL separators. Extra allowlisted commands
+  remain subject to the generic argv/env policy even when they have no built-in
+  runtime-specific flag set.
 - Streamable HTTP is the final SEP-2243 wire boundary. `Mcp-Method` and
   `Mcp-Name` must be derived from the exact JSON-RPC body there, while RMCP's
   schema-derived `Mcp-Param-*` headers pass through unchanged.

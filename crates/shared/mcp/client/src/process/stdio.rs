@@ -23,6 +23,7 @@ pub enum StdioSpecError {
 impl StdioProcessSpec {
     pub fn validate(&self, guard: &SpawnGuard) -> Result<(), StdioSpecError> {
         guard.validate_command(&self.command)?;
+        guard.validate_args(&self.command, &self.args)?;
         env::validate_spawn_env(&self.env)?;
         env::reject_spawn_guard_overrides(&self.args)?;
         Ok(())

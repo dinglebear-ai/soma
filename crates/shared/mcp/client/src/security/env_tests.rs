@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn rejects_lowercase_ld_preload_and_gateway_env_names() {
+fn rejects_invalid_and_protected_env_names() {
     assert_eq!(
         validate_env_name("lowercase").unwrap_err(),
         EnvPolicyError::InvalidName
@@ -10,11 +10,34 @@ fn rejects_lowercase_ld_preload_and_gateway_env_names() {
         validate_env_name("LD_PRELOAD").unwrap_err(),
         EnvPolicyError::ProtectedName
     );
-    assert_eq!(
-        validate_env_name("MCP_GATEWAY_TOKEN").unwrap_err(),
-        EnvPolicyError::ProtectedName
-    );
+    for name in [
+        "PATH",
+        "HOME",
+        "LD_LIBRARY_PATH",
+        "DYLD_LIBRARY_PATH",
+        "NODE_OPTIONS",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "MCP_GATEWAY_TOKEN",
+    ] {
+        assert_eq!(
+            validate_env_name(name).unwrap_err(),
+            EnvPolicyError::ProtectedName,
+            "expected {name} to be protected"
+        );
+    }
     validate_env_name("UPSTREAM_TOKEN").unwrap();
+}
+
+#[test]
+fn rejects_control_characters_in_env_values() {
+    for value in ["line\nbreak", "carriage\rreturn", "nul\0byte"] {
+        assert_eq!(
+            validate_env_value(value).unwrap_err(),
+            EnvPolicyError::InvalidValue
+        );
+    }
+    validate_env_value("ordinary secret value").unwrap();
 }
 
 #[test]

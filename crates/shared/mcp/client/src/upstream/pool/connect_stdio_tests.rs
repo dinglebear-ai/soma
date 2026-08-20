@@ -14,6 +14,21 @@ fn stdio_connection_plan_runs_spawn_and_env_validation() {
 }
 
 #[test]
+fn stdio_connection_plan_rejects_protected_bearer_env() {
+    let cfg = UpstreamConfig {
+        name: "demo".to_owned(),
+        command: Some("node".to_owned()),
+        bearer_token_env: Some("PATH".to_owned()),
+        ..UpstreamConfig::default()
+    };
+
+    assert_eq!(
+        plan_stdio_connection(&cfg, &SpawnGuard::default()).unwrap_err(),
+        ConnectStdioError::BearerEnv(EnvPolicyError::ProtectedName)
+    );
+}
+
+#[test]
 fn stdio_connection_plan_rejects_path_poisoning() {
     let cfg = UpstreamConfig {
         name: "demo".to_owned(),

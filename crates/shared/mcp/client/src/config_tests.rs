@@ -48,6 +48,10 @@ fn bearer_token_env_rejects_token_values() {
     ] {
         assert!(validate_bearer_token_env(value).is_err(), "{value}");
     }
+    for protected in ["PATH", "NODE_OPTIONS", "PYTHONPATH"] {
+        assert!(validate_bearer_token_env(protected).is_err(), "{protected}");
+    }
+    assert!(validate_bearer_token_env(" AXON_TOKEN ").is_err());
     validate_bearer_token_env("AXON_TOKEN").unwrap();
 }
 
@@ -66,6 +70,48 @@ fn redacted_view_masks_targets_args_and_env_values() {
     assert!(!view.contains("user:pass"));
     assert!(!view.contains("AXON_TOKEN"));
     assert!(view.contains("page=1"));
+}
+
+#[test]
+fn stdio_policy_errors_are_attributed_to_the_rejected_field() {
+    let args_error = UpstreamConfig {
+        name: "bad-args".to_owned(),
+        command: Some("bun".to_owned()),
+        args: vec!["-eprocess.exit()".to_owned()],
+        ..UpstreamConfig::default()
+    }
+    .validate()
+    .unwrap_err();
+    assert!(matches!(
+        args_error,
+        ConfigError::InvalidField { field: "args", .. }
+    ));
+
+    let override_error = UpstreamConfig {
+        name: "guard-override".to_owned(),
+        command: Some("node".to_owned()),
+        args: vec!["--disable-spawn-guard".to_owned()],
+        ..UpstreamConfig::default()
+    }
+    .validate()
+    .unwrap_err();
+    assert!(matches!(
+        override_error,
+        ConfigError::InvalidField { field: "args", .. }
+    ));
+
+    let env_error = UpstreamConfig {
+        name: "bad-env".to_owned(),
+        command: Some("node".to_owned()),
+        env: [("LD_PRELOAD".to_owned(), "x.so".to_owned())].into(),
+        ..UpstreamConfig::default()
+    }
+    .validate()
+    .unwrap_err();
+    assert!(matches!(
+        env_error,
+        ConfigError::InvalidField { field: "env", .. }
+    ));
 }
 
 #[test]

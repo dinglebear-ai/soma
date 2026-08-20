@@ -3,6 +3,7 @@ use thiserror::Error;
 use crate::config::UpstreamConfig;
 use crate::process::guard::{SpawnGuard, SpawnGuardError};
 use crate::process::stdio::{StdioProcessSpec, StdioSpecError};
+use crate::security::env::{self, EnvPolicyError};
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ConnectStdioError {
@@ -12,6 +13,8 @@ pub enum ConnectStdioError {
     Spec(#[from] StdioSpecError),
     #[error(transparent)]
     Guard(#[from] SpawnGuardError),
+    #[error(transparent)]
+    BearerEnv(#[from] EnvPolicyError),
 }
 
 pub fn plan_stdio_connection(
@@ -19,6 +22,9 @@ pub fn plan_stdio_connection(
     guard: &SpawnGuard,
 ) -> Result<StdioProcessSpec, ConnectStdioError> {
     let command = config.command.clone().ok_or(ConnectStdioError::NotStdio)?;
+    if let Some(env_name) = config.bearer_token_env.as_deref() {
+        env::validate_env_name(env_name)?;
+    }
     let spec = StdioProcessSpec {
         command,
         args: config.args.clone(),
