@@ -1,0 +1,32 @@
+[package]
+name = "cortex-domain"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Storage- and transport-neutral domain contracts and deterministic reasoning primitives extracted from Cortex."
+homepage.workspace = true
+license = "AGPL-3.0-only"
+repository.workspace = true
+readme = "README.md"
+keywords = ["observability", "logs", "incidents", "domain"]
+categories = ["development-tools::debugging", "data-structures"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+
+[dependencies]
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[lints]
+workspace = true

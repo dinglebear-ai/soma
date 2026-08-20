@@ -1,7 +1,7 @@
 ---
 title: "Cortex Extraction Progress"
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-18
 doc_type: "report"
 status: "active"
 owner: "soma"
@@ -10,7 +10,7 @@ audience:
   - "agents"
 scope: "family"
 source_of_truth: true
-last_reviewed: "2026-08-17"
+last_reviewed: "2026-08-18"
 ---
 
 # Cortex Extraction Progress
@@ -22,6 +22,11 @@ evidence exists on the branch or in the linked lane PR.
 
 - Donor baseline: `7edf23fadb94650c2d2a2f9c80111fb44319eea8`
 - Soma integration branch: `feat/cortex-shared-extraction`
+- Foundation PR: [#363](https://github.com/dinglebear-ai/soma/pull/363)
+- Wave 1 lane: `feat/cortex-domain-extraction`
+- Wave 1/Wave 2 integration PR: [#364](https://github.com/dinglebear-ai/soma/pull/364)
+- Runner-capacity decision: Wave 2 is intentionally batched into #364 rather than opening another stacked lane while the shared Rust runner pool is saturated.
+- Public model ownership inventory: [MODEL-CLASSIFICATION.md](MODEL-CLASSIFICATION.md)
 - Working topology: [SPEC.md](SPEC.md)
 - Normative rules: [CONTRACTS.md](CONTRACTS.md)
 - Verification gates: [VERIFICATION.md](VERIFICATION.md)
@@ -47,25 +52,26 @@ evidence exists on the branch or in the linked lane PR.
 
 ## Wave 1: Domain seam
 
-- [ ] Classify every public `app/models/**` type as semantic contract, storage projection, transport DTO, or runtime state.
-- [ ] Introduce `cortex-domain` with only storage/transport-neutral contracts.
-- [ ] Move service error taxonomy/invariants that truly belong to domain.
-- [ ] Relocate `From<db::...>` mappings out of the domain dependency direction.
-- [ ] Remove raw DB, scanner, receiver-counter, filetail, and runtime-config types from public domain responses.
-- [ ] Add serialization/parity fixtures for user-visible response models.
-- [ ] Add independent consumer tests and README/rustdoc.
-- [ ] Pass architecture/all-features gates.
+- [x] Classify every public `app/models/**` type as semantic contract, storage projection, transport DTO, or runtime state.
+- [x] Introduce `cortex-domain` with only storage/transport-neutral contracts.
+- [x] Move service error taxonomy/invariants that truly belong to domain.
+- [x] Relocate `From<db::...>` mappings out of the domain dependency direction.
+- [x] Remove raw DB, scanner, receiver-counter, filetail, and runtime-config types from public domain responses.
+- [x] Add serialization/parity fixtures for user-visible response models.
+- [x] Add independent consumer tests and README/rustdoc.
+- [x] Pass architecture/all-features gates.
 
 ## Wave 2: SQLite storage adapter
 
-- [ ] Create `cortex-storage-sqlite`.
-- [ ] Move pool initialization and SQLite configuration.
-- [ ] Move migrations with exact migration-order/version parity tests.
-- [ ] Move query, FTS, retention, storage-budget, incident/event, graph, and observatory persistence.
-- [ ] Implement domain/application repository ports without exposing raw row types upward.
-- [ ] Preserve single-writer/maintenance coordination semantics.
-- [ ] Add temporary-database consumer fixtures.
-- [ ] Pass donor DB suite plus workspace gates.
+- [x] Create `cortex-storage-sqlite`.
+- [x] Move pool initialization and SQLite configuration.
+- [x] Move migrations with exact migration-order/version parity tests.
+- [x] Move query, FTS, retention, storage-budget, incident/event, graph, and observatory persistence.
+- [x] Implement domain/application repository ports without exposing raw row types upward.
+- [x] Preserve single-writer/maintenance coordination semantics.
+- [x] Add temporary-database consumer fixtures.
+- [x] Keep donor-parity oversized modules warning-visible with narrow path-specific PATTERNS budgets rather than a crate-wide exemption.
+- [x] Pass donor DB suite plus workspace gates. Final SQLite suite: 441 passed, 1 intentionally ignored; external-consumer test: 1/1 passed; workspace all-features check passed; workspace Nextest: 3,528/3,528 passed with 4 skipped.
 
 ## Wave 3: Ingest engines
 
@@ -81,7 +87,7 @@ evidence exists on the branch or in the linked lane PR.
 
 ## Wave 4: Inventory, observatory, and agent
 
-- [ ] Create `cortex-inventory` and move normalized inventory/cache/collector behavior.
+- [ ] Create `cortex-inventory` and move normalized inventory/cache/collector behavior. Pure snapshot schema/limits are staged early in Wave 2 so SQLite graph projection depends downward on a stable contract; collectors/cache/orchestration remain Wave 4 work.
 - [ ] Feature-gate service-specific collectors where practical.
 - [ ] Create `cortex-observatory` with persistence ports.
 - [ ] Move identity, attribution, classification, lifecycle, and projector behavior.
@@ -121,6 +127,9 @@ evidence exists on the branch or in the linked lane PR.
 - [ ] Run complete Cortex donor behavior/surface suite against composed Soma workspace crates.
 - [ ] Run live-safe smoke tests that do not mutate homelab state.
 - [ ] Remove obsolete duplicated donor modules.
+- [ ] Split the six Wave 2 parity-preserved oversized SQLite modules along stable seams and remove their transitional PATTERNS budgets.
+- [ ] Re-audit D11 after all extraction/cutover work: no raw SQLite/internal projection row type may escape the storage public API.
+- [ ] Re-audit D12 after all extraction/cutover work: `cortex-storage-sqlite` must still contain zero `dead_code` suppressions.
 - [ ] Prove no business logic remains duplicated between Cortex app and shared crates.
 - [ ] Sweep all docs, examples, manifests, CI, release metadata, and dependency references.
 - [ ] Re-run full Soma workspace gates.

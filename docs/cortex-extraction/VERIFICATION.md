@@ -1,7 +1,7 @@
 ---
 title: "Cortex Extraction Verification"
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-18
 doc_type: "guide"
 status: "active"
 owner: "soma"
@@ -10,7 +10,7 @@ audience:
   - "agents"
 scope: "family"
 source_of_truth: true
-last_reviewed: "2026-08-17"
+last_reviewed: "2026-08-18"
 ---
 
 # Cortex Extraction Verification
@@ -35,6 +35,51 @@ cargo xtask check-docs
 The crate test command includes the donor unit tests and
 `tests/public_api.rs`, which acts as an external consumer and proves no
 Cortex product/runtime dependency is needed.
+
+## Wave 1 domain gates
+
+Run the domain lane with strict lint/doc policy and the repository source
+hygiene/test-layout contracts:
+
+```bash
+cargo fmt --all --check
+cargo clippy -p cortex-domain --all-targets --all-features -- -D warnings
+cargo test -p cortex-domain --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc -p cortex-domain --no-deps --all-features
+cargo xtask check-test-siblings
+cargo xtask run-ascii-check
+```
+
+The model-ownership review must also prove that every public donor declaration
+under `src/app/models/*.rs` is classified exactly once and that every type
+classified as a semantic contract is represented in `cortex-domain`. The Wave 1
+baseline is 255 public declarations, including 65 semantic contracts. Source and
+manifest review must show no dependency on database/pool, HTTP/MCP, auth,
+scanner, receiver, file-tail, config, or product runtime types.
+
+## Wave 2 SQLite storage gates
+
+The storage lane must prove both donor database behavior and the reusable public
+boundary. Run:
+
+```bash
+cargo fmt --all --check
+cargo check -p cortex-storage-sqlite --all-features
+cargo clippy -p cortex-storage-sqlite --all-targets --all-features -- -D warnings
+cargo test -p cortex-storage-sqlite --all-features --no-fail-fast
+RUSTDOCFLAGS="-D warnings" cargo doc -p cortex-storage-sqlite --no-deps --all-features
+cargo test -p cortex-domain -p cortex-ingest-core -p cortex-inventory
+cargo xtask check-test-siblings
+cargo xtask check-architecture
+```
+
+The SQLite suite includes the pinned schema-43 migration fixture and must finish
+at `KNOWN_SCHEMA_VERSION = 47`. `tests/public_api.rs` initializes a temporary
+database and round-trips a log using only public storage APIs. Source review must
+show no upward references to Cortex app, scanner, inventory runtime, enrichment,
+agent, or observatory implementation namespaces. The integration adaptation to
+Soma uses `rusqlite 0.40` with `r2d2_sqlite 0.35`; donor behavior, migration
+ordering, PRAGMAs, and single-writer coordination remain parity requirements.
 
 ## Workspace gates
 

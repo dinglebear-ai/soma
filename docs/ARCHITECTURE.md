@@ -1,7 +1,7 @@
 ---
 title: "Architecture"
 created: 2026-05-15
-updated: 2026-08-17
+updated: 2026-08-18
 doc_type: "guide"
 status: "active"
 owner: "soma"
@@ -12,7 +12,7 @@ scope: "soma"
 source_of_truth: false
 upstream_refs:
   - "docs/PATTERNS.md"
-last_reviewed: "2026-08-17"
+last_reviewed: "2026-08-18"
 ---
 
 # Architecture
@@ -63,6 +63,7 @@ crates/
     cli-core/              ← reusable terminal/output/confirmation mechanics
     codemode/              ← reusable Code Mode runtime and runner support
     cortex/
+      domain/              <- reusable Cortex semantic contracts and deterministic incident rules
       ingest-core/         ← reusable Cortex normalization/signature/metadata safety primitives
     http-api/              ← reusable API response/error/probe helpers
     http-server/           ← reusable Axum lifecycle/middleware helpers
@@ -84,9 +85,12 @@ crates/
 Shared crates are reusable building blocks below the Soma product layer and must
 not depend back on `apps/soma` or `crates/soma/**`. Namespaced capability families
 may also live below `crates/shared/` when they are intentionally reusable across
-products. The first Cortex extraction proof lives at
-`crates/shared/cortex/ingest-core`; its full extraction contract and target
-composition are tracked in [`docs/cortex-extraction/`](cortex-extraction/README.md).
+products. The Cortex shared family currently contains `cortex-domain` and
+`cortex-ingest-core`. The former owns storage/transport-neutral semantic
+contracts and deterministic incident rules; the latter owns ingest
+normalization/signature/metadata safety primitives. Their extraction contract
+and target composition are tracked in
+[`docs/cortex-extraction/`](cortex-extraction/README.md).
 
 Two pieces sit outside the client → application → shim pattern:
 
