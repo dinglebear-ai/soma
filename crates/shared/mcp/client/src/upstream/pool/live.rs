@@ -26,8 +26,9 @@ use crate::upstream::transport::websocket::{
     WebSocketTransportConfig, connect as connect_websocket_transport,
 };
 use crate::upstream::{
-    CapScope, McpRequestOutcome, McpRoundTrip, ResponseCaps, ToolSafetyHints, TransportKind,
-    UpstreamError, UpstreamSnapshot, analyze_completed_tool_error,
+    CapScope, McpRequestOutcome, McpRoundTrip, PromptDescriptor, ResourceDescriptor, ResponseCaps,
+    ToolDescriptor, ToolSafetyHints, TransportKind, UpstreamError, UpstreamSnapshot,
+    analyze_completed_tool_error,
 };
 
 use super::lifecycle_compat::{LifecycleAttempt, compatibility_retry, log_fallback};
@@ -39,6 +40,18 @@ use live_support::{
     bearer_token_from_env, drain_stderr, ensure_rustls_crypto_provider, prompt_descriptor,
     resource_descriptor, stdio_env, tool_descriptor, websocket_authorization,
 };
+
+pub(super) fn tool_descriptor_for_pool(tool: rmcp::model::Tool) -> ToolDescriptor {
+    tool_descriptor(tool)
+}
+
+pub(super) fn resource_descriptor_for_pool(resource: rmcp::model::Resource) -> ResourceDescriptor {
+    resource_descriptor(resource)
+}
+
+pub(super) fn prompt_descriptor_for_pool(prompt: rmcp::model::Prompt) -> PromptDescriptor {
+    prompt_descriptor(prompt)
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 struct UpstreamClientHandler;

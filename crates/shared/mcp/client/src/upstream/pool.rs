@@ -23,6 +23,7 @@ pub mod discovery;
 pub mod health;
 mod lifecycle_compat;
 pub mod live;
+pub mod notifications;
 pub mod prompts;
 pub mod resources;
 #[cfg(feature = "oauth")]
@@ -122,6 +123,8 @@ pub struct UpstreamPool {
     subject_entries: Arc<RwLock<BTreeMap<(String, String), SubjectPoolEntry>>>,
     #[cfg(feature = "oauth")]
     oauth_provider: Arc<RwLock<Option<Arc<dyn crate::oauth::UpstreamOAuthProvider>>>>,
+    notification_tx: tokio::sync::broadcast::Sender<notifications::UpstreamNotificationEvent>,
+    subscription_tasks: Arc<notifications::SubscriptionRegistry>,
     options: PoolOptions,
 }
 
@@ -134,12 +137,15 @@ impl Default for UpstreamPool {
 impl UpstreamPool {
     #[must_use]
     pub fn new(options: PoolOptions) -> Self {
+        let (notification_tx, _notification_rx) = notifications::notification_channel();
         Self {
             entries: Arc::new(RwLock::new(BTreeMap::new())),
             #[cfg(feature = "oauth")]
             subject_entries: Arc::new(RwLock::new(BTreeMap::new())),
             #[cfg(feature = "oauth")]
             oauth_provider: Arc::new(RwLock::new(None)),
+            notification_tx,
+            subscription_tasks: Arc::new(RwLock::new(BTreeMap::new())),
             options: options.normalized(),
         }
     }
@@ -155,6 +161,7 @@ impl UpstreamPool {
     }
 
     pub fn register_config(&self, config: UpstreamConfig) -> Result<(), UpstreamError> {
+        self.cancel_upstream_subscription(&config.name);
         let transport = transport_for_config(&config);
         let health = if config.enabled {
             health_for_config(config.name.as_str(), transport)
@@ -181,6 +188,7 @@ impl UpstreamPool {
         config: UpstreamConfig,
         upstream: InProcessUpstream,
     ) -> Result<(), UpstreamError> {
+        self.cancel_upstream_subscription(&config.name);
         let mut snapshot = upstream.snapshot.clone();
         snapshot.name = config.name.clone();
         snapshot.transport = TransportKind::InProcess;
@@ -339,14 +347,18 @@ impl UpstreamPool {
         };
         let context = live::LiveConnectContext::shared(self.response_caps());
         let (live, snapshot) = live::connect_live(&config, &SpawnGuard::default(), context).await?;
-        let mut entries = self.entries.write().expect("upstream pool lock poisoned");
-        let entry = entries
-            .get_mut(upstream)
-            .ok_or_else(|| UpstreamError::UnknownUpstream {
-                upstream: upstream.to_owned(),
-            })?;
-        entry.snapshot = snapshot;
-        entry.live = Some(Arc::new(live));
+        {
+            let mut entries = self.entries.write().expect("upstream pool lock poisoned");
+            let entry =
+                entries
+                    .get_mut(upstream)
+                    .ok_or_else(|| UpstreamError::UnknownUpstream {
+                        upstream: upstream.to_owned(),
+                    })?;
+            entry.snapshot = snapshot;
+            entry.live = Some(Arc::new(live));
+        }
+        self.refresh_upstream_subscription(upstream).await;
         Ok(())
     }
 

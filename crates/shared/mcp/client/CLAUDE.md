@@ -22,6 +22,13 @@ Boundary rules:
   env values may not contain line/NULL separators. Extra allowlisted commands
   remain subject to the generic argv/env policy even when they have no built-in
   runtime-specific flag set.
+- Shared 2026-07-28 upstream connections may open one generation-bound
+  `subscriptions/listen` stream. The client normalizes tool/prompt/resource list
+  changes and resource updates onto a bounded broadcast bus; legacy protocol
+  versions are never sent the modern listen request. Subscription filters mirror
+  proxy/exposure policy, list-change refreshes are bounded and exact-peer-safe,
+  visible resource-URI changes replace the listen generation, and replacing an
+  upstream config cancels its prior generation.
 - Streamable HTTP is the final SEP-2243 wire boundary. `Mcp-Method` and
   `Mcp-Name` must be derived from the exact JSON-RPC body there, while RMCP's
   schema-derived `Mcp-Param-*` headers pass through unchanged.

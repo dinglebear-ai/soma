@@ -32,6 +32,7 @@ sse-stream = "0.2"
 thiserror = "2"
 tokio = { version = "1", features = ["io-util", "macros", "process", "rt-multi-thread", "sync", "time"] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
 url = "2"
 
