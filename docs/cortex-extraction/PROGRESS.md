@@ -70,6 +70,7 @@ evidence exists on the branch or in the linked lane PR.
 - [x] Implement domain/application repository ports without exposing raw row types upward.
 - [x] Preserve single-writer/maintenance coordination semantics.
 - [x] Add temporary-database consumer fixtures.
+- [x] Keep donor-parity oversized modules warning-visible with narrow path-specific PATTERNS budgets rather than a crate-wide exemption.
 - [x] Pass donor DB suite plus workspace gates. Final SQLite suite: 441 passed, 1 intentionally ignored; external-consumer test: 1/1 passed; workspace all-features check passed; workspace Nextest: 3,528/3,528 passed with 4 skipped.
 
 ## Wave 3: Ingest engines
@@ -126,6 +127,9 @@ evidence exists on the branch or in the linked lane PR.
 - [ ] Run complete Cortex donor behavior/surface suite against composed Soma workspace crates.
 - [ ] Run live-safe smoke tests that do not mutate homelab state.
 - [ ] Remove obsolete duplicated donor modules.
+- [ ] Split the six Wave 2 parity-preserved oversized SQLite modules along stable seams and remove their transitional PATTERNS budgets.
+- [ ] Re-audit D11 after all extraction/cutover work: no raw SQLite/internal projection row type may escape the storage public API.
+- [ ] Re-audit D12 after all extraction/cutover work: `cortex-storage-sqlite` must still contain zero `dead_code` suppressions.
 - [ ] Prove no business logic remains duplicated between Cortex app and shared crates.
 - [ ] Sweep all docs, examples, manifests, CI, release metadata, and dependency references.
 - [ ] Re-run full Soma workspace gates.

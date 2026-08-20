@@ -569,6 +569,26 @@ exception.
 `cortex-storage-sqlite` and rerun strict all-target Clippy. The crate now needs
 zero dead-code suppression.
 
+### Finding D13: donor-parity modules exceeded Soma hard file-size limits
+
+**Severity:** P1 repository-contract failure.
+
+The fresh `Soma Contracts` CI run correctly rejected six mechanically extracted
+SQLite donor modules whose effective line counts exceeded twice Soma's ordinary
+Rust module target: `analytics.rs`, `graph.rs`, `graph_inventory.rs`,
+`maintenance.rs`, `pool.rs`, and `queries.rs`. A six-module behavioral split at
+the end of the extraction lane would materially increase parity risk and make
+the already-green donor/storage evidence stale.
+
+**Resolution:** use the repository's existing path-specific transitional size
+budget mechanism rather than a blanket exemption. Each of the six modules gets
+a tight warning-visible budget sized just above half of its current extracted
+size, so current donor parity can land while any meaningful further growth still
+hard-fails. A focused xtask regression test pins all six exact paths and proves a
+neighboring storage module remains on the ordinary 350-line target. The modules
+remain explicitly scheduled for real decomposition before final cutover and
+publication; the policy exception must shrink or disappear as those seams land.
+
 ## Wave 2 final verification
 
 - `cargo fmt --all -- --check` passed.
