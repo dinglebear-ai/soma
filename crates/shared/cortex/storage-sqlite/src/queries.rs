@@ -927,7 +927,6 @@ pub struct TimelineRollupStatus {
     /// Highest `logs.id` aggregated into the rollup so far. Reads add the live
     /// delta `WHERE id > source_max_id` on top of the rollup for fresh totals.
     /// Exposed for diagnostics/tests; the read paths query the meta row directly.
-    #[allow(dead_code)]
     pub source_max_id: i64,
 }
 

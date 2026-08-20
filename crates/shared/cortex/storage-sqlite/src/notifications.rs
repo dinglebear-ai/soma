@@ -35,10 +35,8 @@ pub struct OutboxRow {
     pub title: String,
     pub body: String,
     pub apprise_urls_json: String,
-    #[allow(dead_code)]
     pub next_attempt_at: String,
     pub attempt_count: i64,
-    #[allow(dead_code)]
     pub status: String,
 }
 

@@ -859,7 +859,7 @@ pub struct PatternEntry {
 pub const PATTERN_SCAN_LIMIT_MAX: u32 = 10_000;
 
 #[derive(Debug, Clone)]
-pub struct PatternSourceRow {
+pub(crate) struct PatternSourceRow {
     timestamp: String,
     hostname: String,
     message: String,
@@ -874,8 +874,30 @@ fn split_csv(value: Option<String>) -> Vec<String> {
         .collect()
 }
 
+/// Fetch and cluster bounded log patterns without exposing storage rows.
+///
+/// The adapter keeps the intermediate SQLite projection private and returns
+/// only transport-neutral pattern entries plus the scanned-row count and
+/// truncation flag required by application callers.
 #[allow(clippy::too_many_arguments)]
-pub fn fetch_pattern_rows(
+pub fn fetch_patterns(
+    pool: &DbPool,
+    from: Option<&str>,
+    to: Option<&str>,
+    hostname: Option<&str>,
+    app_name: Option<&str>,
+    severity_in: Option<&[String]>,
+    scan_limit: u32,
+    top_n: u32,
+) -> Result<(Vec<PatternEntry>, i64, bool)> {
+    let (rows, truncated) =
+        fetch_pattern_rows(pool, from, to, hostname, app_name, severity_in, scan_limit)?;
+    let (patterns, scanned) = cluster_pattern_rows(rows, top_n);
+    Ok((patterns, scanned, truncated))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn fetch_pattern_rows(
     pool: &DbPool,
     from: Option<&str>,
     to: Option<&str>,
@@ -952,7 +974,10 @@ fn pattern_rows_sql(
     (sql, bindings, scan_limit)
 }
 
-pub fn cluster_pattern_rows(rows: Vec<PatternSourceRow>, top_n: u32) -> (Vec<PatternEntry>, i64) {
+pub(crate) fn cluster_pattern_rows(
+    rows: Vec<PatternSourceRow>,
+    top_n: u32,
+) -> (Vec<PatternEntry>, i64) {
     struct Acc {
         count: i64,
         sample: String,

@@ -512,9 +512,9 @@ exported later-wave storage ports from genuinely orphaned extraction code.
 **Resolution:** remove all four module-wide suppressions and rerun strict Clippy.
 The only newly surfaced dead code was four Agent Observatory cursor/health
 persistence helpers; those are real later-wave storage capabilities, so they are
-now explicit documented public ports rather than lint-hidden internals. Only
-narrow, locally documented `dead_code` allowances remain for reserved resolver
-vocabulary/test-only plan contracts and diagnostic fields.
+now explicit documented public ports rather than lint-hidden internals. A later
+exact-head review removed the remaining narrow allowances after verifying that
+their public/test contract reachability did not require suppression; see D12.
 
 ### Finding D9: projection cursor initialization bypassed the global SQLite writer lock
 
@@ -539,6 +539,36 @@ The exact-head ASCII gate found non-ASCII math notation in extracted confidence 
 
 **Resolution:** rewrite mathematical comments/formulas with ASCII notation and encode intentional Unicode fixture values with Rust Unicode escapes. This keeps the runtime strings byte-for-byte equivalent while satisfying the source policy. The ASCII gate passes, and the affected domain/inventory parity suites remain green.
 
+### Finding D11: an opaque pattern source row escaped the storage boundary
+
+**Severity:** P1 adapter-boundary violation.
+
+`PatternSourceRow` was publicly re-exported even though callers could not read its
+private fields. Application code therefore had to accept a SQLite-shaped
+intermediate value from `fetch_pattern_rows` only to hand it back to
+`cluster_pattern_rows`, contradicting the Wave 2 rule that raw storage rows do
+not escape upward.
+
+**Resolution:** add the public `fetch_patterns` storage port, keep
+`PatternSourceRow`, `fetch_pattern_rows`, and `cluster_pattern_rows`
+crate-private, and extend both the focused analytics suite and the independent
+consumer test through the new public port. The application-facing result now
+contains only `PatternEntry` values, scanned-row count, and truncation state.
+
+### Finding D12: narrow dead-code suppressions outlived the extraction
+
+**Severity:** P2 reviewability/API hygiene.
+
+Five targeted `dead_code` allowances remained after the module-wide cleanup: a
+resolver helper, reserved resolver variants, two notification row fields, and a
+timeline diagnostic field. All five are now reachable through public storage
+contracts or focused tests, so suppressing the lint no longer documents a real
+exception.
+
+**Resolution:** remove every remaining `dead_code` allowance from
+`cortex-storage-sqlite` and rerun strict all-target Clippy. The crate now needs
+zero dead-code suppression.
+
 ## Wave 2 final verification
 
 - `cargo fmt --all -- --check` passed.
@@ -546,7 +576,7 @@ The exact-head ASCII gate found non-ASCII math notation in extracted confidence 
 - Strict rustdoc passed for all four crates with only the fleet-required renamed-lint notice that explicitly ignores `-D warnings`.
 - The final frozen `cortex-storage-sqlite` suite passed 441 runnable tests with one intentionally ignored benchmark; its external-consumer integration test passed 1/1.
 - `cargo check --workspace --all-features` passed across all 44 workspace packages.
-- `cargo nextest run --workspace --all-features --no-fail-fast` passed 3,527/3,527 runnable tests with 4 skipped.
+- `cargo nextest run --workspace --all-features --no-fail-fast` passed 3,528/3,528 runnable tests with 4 skipped.
 - `cargo xtask check-architecture` passed with 44 workspace packages and 95 internal edges.
 - `cargo xtask check-test-siblings` passed with 26 checked source trees after adding focused Wave 2 siblings.
 - ASCII hygiene, documentation generation/policy, and coupled-file ownership checks passed.
@@ -554,5 +584,5 @@ The exact-head ASCII gate found non-ASCII math notation in extracted confidence 
 - The exact fleet contract pinned at `ac57c3208cf92d71c5971bb936df51c400cb1ccf` reports `fleet contract valid`.
 - The storage source has zero tracked upward references to application/scanner/inventory-runtime/enrichment/agent/observatory-identity/normalization/legacy-db namespaces, and no same-name semantic structs remain duplicated between `cortex-domain` and `cortex-storage-sqlite`.
 - Donor DB inventory comparison finds all 83 donor Rust files represented in storage; the only donor-relative paths absent are the renamed observatory model test and `graph_confidence.rs` plus its tests, which intentionally moved to `cortex-domain`.
-- No module-wide `dead_code` suppression remains in the extracted storage crate.
+- No `dead_code` suppression remains anywhere in the extracted storage crate.
 - Critical integration pins on the rebased head are `futures 0.3.34`, `h2 0.4.16`, `rusqlite 0.40.2`, and `r2d2_sqlite 0.35.0`.

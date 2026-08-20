@@ -1,6 +1,6 @@
 use cortex_storage_sqlite::{
-    KNOWN_SCHEMA_VERSION, LogBatchEntry, StorageConfig, init_pool, insert_logs_batch,
-    read_schema_version_info, tail_logs,
+    KNOWN_SCHEMA_VERSION, LogBatchEntry, StorageConfig, fetch_patterns, init_pool,
+    insert_logs_batch, read_schema_version_info, tail_logs,
 };
 
 #[test]
@@ -47,4 +47,11 @@ fn independent_consumer_initializes_schema_and_round_trips_logs() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].message, "storage consumer round trip");
     assert_eq!(rows[0].hostname, "dookie");
+
+    let (patterns, scanned, truncated) =
+        fetch_patterns(&pool, None, None, None, None, None, 100, 10).unwrap();
+    assert_eq!(scanned, 1);
+    assert!(!truncated);
+    assert_eq!(patterns.len(), 1);
+    assert_eq!(patterns[0].count, 1);
 }

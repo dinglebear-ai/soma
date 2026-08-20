@@ -583,8 +583,8 @@ fn patterns_clusters_by_template() {
         ],
     )
     .unwrap();
-    let (rows, truncated) = fetch_pattern_rows(&pool, None, None, None, None, None, 100).unwrap();
-    let (pats, scanned) = cluster_pattern_rows(rows, 10);
+    let (pats, scanned, truncated) =
+        fetch_patterns(&pool, None, None, None, None, None, 100, 10).unwrap();
     assert!(!truncated);
     assert_eq!(scanned, 4);
     let top = &pats[0];

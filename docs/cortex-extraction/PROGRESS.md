@@ -70,7 +70,7 @@ evidence exists on the branch or in the linked lane PR.
 - [x] Implement domain/application repository ports without exposing raw row types upward.
 - [x] Preserve single-writer/maintenance coordination semantics.
 - [x] Add temporary-database consumer fixtures.
-- [x] Pass donor DB suite plus workspace gates. Final SQLite suite: 441 passed, 1 intentionally ignored; external-consumer test: 1/1 passed; workspace all-features check passed; workspace Nextest: 3,527/3,527 passed with 4 skipped.
+- [x] Pass donor DB suite plus workspace gates. Final SQLite suite: 441 passed, 1 intentionally ignored; external-consumer test: 1/1 passed; workspace all-features check passed; workspace Nextest: 3,528/3,528 passed with 4 skipped.
 
 ## Wave 3: Ingest engines
 
