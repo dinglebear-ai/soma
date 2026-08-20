@@ -23,6 +23,12 @@ runner protocol activity clears that watch. If the outer deadline is earlier or
 exactly equal to the settlement deadline, it remains an ordinary execution
 timeout; only a genuinely grace-limited expiry is reported as runner settlement.
 
+Final response shaping is budget-aware. Replace a result with a truncation marker
+only when the marker is smaller than the original result. If logs dominate the
+envelope, drop the oldest lines first, preserve the newest context that fits, and
+prepend a bounded dropped-line sentinel when that sentinel itself fits. Do not
+silently grow a response while trying to truncate it.
+
 Local providers are explicit and reserved: `state`, `git`, and, only with the
 `openapi` feature, `openapi`. State and git calls may serialize around local
 mutable state; OpenAPI dispatch must remain outside that lock.

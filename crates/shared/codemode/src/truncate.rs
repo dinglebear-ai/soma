@@ -73,10 +73,29 @@ pub(crate) fn truncate_execution_response(
     ) {
         return response;
     }
-    if let Some(result) = response.result.take() {
-        response.result = Some(truncation_marker(&result, token_estimate_divisor));
+
+    // Only replace the final result when the marker actually shrinks it. A
+    // logs-dominant response can otherwise turn a tiny valid result into a
+    // larger marker and make the envelope harder to fit.
+    if let Some(result) = response.result.as_ref() {
+        let original_len = serde_json::to_string(result).map_or(0, |value| value.len());
+        let marker = truncation_marker(
+            result,
+            token_estimate_divisor,
+            marker_byte_budget(
+                &response,
+                max_response_bytes,
+                max_response_tokens,
+                token_estimate_divisor,
+            ),
+        );
+        let marker_len = serde_json::to_string(&marker).map_or(usize::MAX, |value| value.len());
+        if marker_len < original_len {
+            response.result = Some(marker);
+        }
     }
-    while !response.logs.is_empty()
+
+    if !response.logs.is_empty()
         && !response_within_budget(
             &response,
             max_response_bytes,
@@ -84,9 +103,69 @@ pub(crate) fn truncate_execution_response(
             token_estimate_divisor,
         )
     {
-        response.logs.remove(0);
+        trim_logs_to_budget(
+            &mut response,
+            max_response_bytes,
+            max_response_tokens,
+            token_estimate_divisor,
+        );
     }
+
     response
+}
+
+fn trim_logs_to_budget(
+    response: &mut CodeModeExecutionResponse,
+    max_response_bytes: usize,
+    max_response_tokens: usize,
+    token_estimate_divisor: u32,
+) {
+    let original = std::mem::take(&mut response.logs);
+    let total = original.len();
+    let Ok(base) = serde_json::to_vec(&*response) else {
+        return;
+    };
+    let base_len = base.len();
+    let base_is_empty_object = base == b"{}";
+    let fits = |len: usize| {
+        len <= max_response_bytes
+            && estimated_tokens(len, token_estimate_divisor) <= max_response_tokens.max(1)
+    };
+
+    // If the non-log response is already over budget, logs cannot repair it.
+    // Keep them dropped rather than making the overflow worse.
+    if !fits(base_len) {
+        return;
+    }
+
+    let line_lens = original
+        .iter()
+        .map(|line| serde_json::to_string(line).map_or(line.len() + 2, |value| value.len()))
+        .collect::<Vec<_>>();
+    let mut kept_sum = line_lens.iter().copied().sum::<usize>();
+
+    for drop_count in 1..=total {
+        kept_sum = kept_sum.saturating_sub(line_lens[drop_count - 1]);
+        let kept = total - drop_count;
+        let sentinel =
+            format!("[logs truncated to fit response budget: {drop_count} line(s) dropped]");
+        let sentinel_len =
+            serde_json::to_string(&sentinel).map_or(sentinel.len() + 2, |value| value.len());
+        let item_count = kept + 1;
+        let logs_field_overhead = if base_is_empty_object { 9 } else { 10 };
+        let candidate_len = base_len
+            .saturating_add(logs_field_overhead)
+            .saturating_add(sentinel_len)
+            .saturating_add(kept_sum)
+            .saturating_add(item_count.saturating_sub(1));
+        if fits(candidate_len) {
+            let mut candidate = Vec::with_capacity(item_count);
+            candidate.push(sentinel);
+            candidate.extend_from_slice(&original[drop_count..]);
+            response.logs = candidate;
+            return;
+        }
+    }
 }
 
 pub(crate) fn response_within_budget(
@@ -95,20 +174,90 @@ pub(crate) fn response_within_budget(
     max_response_tokens: usize,
     token_estimate_divisor: u32,
 ) -> bool {
-    serde_json::to_vec(response).is_ok_and(|bytes| {
-        bytes.len() <= max_response_bytes
-            && estimated_tokens(bytes.len(), token_estimate_divisor) <= max_response_tokens.max(1)
-    })
+    match serde_json::to_vec(response) {
+        Ok(bytes) => {
+            bytes.len() <= max_response_bytes
+                && estimated_tokens(bytes.len(), token_estimate_divisor)
+                    <= max_response_tokens.max(1)
+        }
+        Err(error) => {
+            tracing::warn!(
+                error = %error,
+                "failed to serialize Code Mode response while enforcing the response budget"
+            );
+            false
+        }
+    }
 }
 
-fn truncation_marker(value: &Value, divisor: u32) -> Value {
+fn marker_byte_budget(
+    response: &CodeModeExecutionResponse,
+    max_response_bytes: usize,
+    max_response_tokens: usize,
+    divisor: u32,
+) -> usize {
+    // Size the marker against the exact non-result envelope that remains after
+    // log trimming. This avoids both an arbitrary safety margin and a marker
+    // that fits in isolation but overflows once calls/error/UI metadata are added.
+    let mut base = response.clone();
+    base.result = None;
+    base.logs.clear();
+    let base = match serde_json::to_vec(&base) {
+        Ok(base) => base,
+        Err(_) => return 0,
+    };
+    let effective_budget = max_response_bytes.min(
+        max_response_tokens
+            .max(1)
+            .saturating_mul(divisor.max(1) as usize),
+    );
+    // Adding a result to an empty object costs 9 bytes beyond the existing braces;
+    // adding it to a non-empty object costs 10 bytes for the comma and field name.
+    let result_field_overhead = if base == b"{}" { 9 } else { 10 };
+    effective_budget
+        .saturating_sub(base.len())
+        .saturating_sub(result_field_overhead)
+}
+
+fn truncation_marker(value: &Value, divisor: u32, max_bytes: usize) -> Value {
     let serialized = serde_json::to_string(value).unwrap_or_else(|_| "null".to_string());
-    json!({
+    let original_size = serialized.len();
+    let original_tokens = estimated_tokens(original_size, divisor);
+    let full_marker = |preview: &str| {
+        json!({
+            "truncated": true,
+            "original_size": original_size,
+            "original_tokens": original_tokens,
+            "preview": preview,
+            "next_action": "Use a narrower query, request fewer fields, or split the work across multiple codemode calls."
+        })
+    };
+
+    if crate::util::serialized_size(&full_marker("")) <= max_bytes {
+        let mut low = 0usize;
+        let mut high = original_size.min(1024);
+        while low < high {
+            let mid = low + (high - low).div_ceil(2);
+            let preview = crate::util::utf8_prefix_by_bytes(&serialized, mid);
+            if crate::util::serialized_size(&full_marker(preview)) <= max_bytes {
+                low = mid;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return full_marker(crate::util::utf8_prefix_by_bytes(&serialized, low));
+    }
+
+    let compact = json!({
         "truncated": true,
-        "original_size": serialized.len(),
-        "original_tokens": estimated_tokens(serialized.len(), divisor),
-        "preview": crate::util::utf8_prefix_by_bytes(&serialized, 1024),
-    })
+        "original_size": original_size,
+        "original_tokens": original_tokens,
+    });
+    if crate::util::serialized_size(&compact) <= max_bytes {
+        compact
+    } else {
+        json!({"truncated": true})
+    }
 }
 
 fn estimated_tokens(byte_len: usize, divisor: u32) -> usize {
