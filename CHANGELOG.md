@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* **docs:** preserve the proposed agent-runtime architecture package, contracts, schemas, examples, and implementation blueprints for review
 * **ci:** validate release-please PRs with a hosted version-surface contract while preserving the full self-hosted matrix for normal changes
 * **ci:** isolate the Fast Rust test-phase Cargo home so parallel runner containers cannot race while unpacking shared registry sources
 - Relicense Dinglebear-owned original work under AGPL-3.0-only and document separate commercial licensing; third-party material retains its original terms.
@@ -43,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* **ci:** align schema-backed documentation, isolated external-consumer fixtures, and `soma-ops` dependency pins with the fleet repository contract
 * **release:** regenerate the OpenAPI document during release-please fixups so version bumps cannot leave the generated contract stale
 * **python:** retry `ETXTBSY` when spawning a Python interpreter or sidecar. A freshly materialized generation could be exec'd while a write descriptor on the image was still open, surfacing as a spurious `invalid Python provider: Text file busy` load failure
 * **tests:** replace fixed-interval waits and tight wall-clock deadlines in the Python supervisor, provider-refresh, broker-state, and wasm tests with polls on the actual precondition, so scheduler pressure is no longer a false failure
