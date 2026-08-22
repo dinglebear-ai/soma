@@ -52,6 +52,11 @@ impl StagedArtifact {
     }
 
     #[cfg(unix)]
+    pub(crate) fn source_was_present(&self) -> bool {
+        matches!(self.source_identity, ExecutableIdentity::Present { .. })
+    }
+
+    #[cfg(unix)]
     pub(crate) fn revalidate_source_executable(&self, path: &Path) -> Result<()> {
         let (_, current) = executable_mode_and_identity(path)?;
         if current != self.source_identity {

@@ -754,12 +754,14 @@ impl PythonWorkerSupervisor {
         if let Some(launch) = &brokered_launch {
             launch.retain_until_spawn();
         }
-        let mut child = process.spawn().map_err(|_| {
-            PythonSupervisorError::new(
-                "python_worker_start_failed",
-                "Python worker could not be started",
-            )
-        })?;
+        let mut child = crate::sidecar::spawn_retrying_busy_image(&mut process)
+            .await
+            .map_err(|_| {
+                PythonSupervisorError::new(
+                    "python_worker_start_failed",
+                    "Python worker could not be started",
+                )
+            })?;
         let child_pid = child.id();
         let mut startup_guard = ProcessTreeStartupGuard::new(child_pid);
         let stderr = child.stderr.take().ok_or_else(protocol_error)?;
@@ -1047,6 +1049,30 @@ mod tests {
     use std::{fs, path::Path};
     use tokio::io::AsyncWriteExt;
 
+    /// Deadline for anything these tests expect to *succeed*. Booting a Python
+    /// worker on a machine running the rest of the suite in parallel is not
+    /// bounded by any interesting constant, and a tight deadline here only
+    /// converts scheduler pressure into a false failure. Deliberately short
+    /// deadlines belong on the calls that are asserted to time out.
+    const GENEROUS: Duration = Duration::from_secs(60);
+
+    /// Polls `condition` until it reports true or `deadline` elapses, yielding
+    /// between attempts. Returns whether the condition was observed.
+    ///
+    /// Prefer this over sleeping a fixed interval and hoping the state has
+    /// settled: the sleep encodes a guess about machine speed, this encodes the
+    /// actual precondition.
+    async fn wait_for(deadline: Duration, mut condition: impl FnMut() -> bool) -> bool {
+        let expiry = tokio::time::Instant::now() + deadline;
+        while tokio::time::Instant::now() < expiry {
+            if condition() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        condition()
+    }
+
     fn installed_test_python() -> PathBuf {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../packages/python/.venv");
         let path = if cfg!(windows) {
@@ -1093,8 +1119,13 @@ def execute(value: str, delay_ms: int = 0) -> dict:
 "#,
         )
         .expect("write provider");
+        // `invoke` waits `config.request_timeout.min(per_call_timeout)`, so the
+        // config value caps every call including the two that must succeed.
+        // Keep it generous and let each call's own override decide: the slow
+        // call below passes a deliberately short one to force the timeout.
         let config = PythonSupervisorConfig {
-            request_timeout: Duration::from_millis(100),
+            request_timeout: GENEROUS,
+            startup_timeout: GENEROUS,
             restart_backoff: Duration::ZERO,
             ..PythonSupervisorConfig::default()
         };
@@ -1113,7 +1144,7 @@ def execute(value: str, delay_ms: int = 0) -> dict:
                 json!({"value": "first"}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("first invocation");
@@ -1139,7 +1170,7 @@ def execute(value: str, delay_ms: int = 0) -> dict:
                 json!({"value": "restarted"}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("later invocation restarts without replay");
@@ -1190,7 +1221,7 @@ def execute(value: str) -> dict:
                 json!({"value": "contained"}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("brokered invocation");
@@ -1230,15 +1261,22 @@ def wait(delay_ms: int) -> dict:
                     .invoke(
                         "busy-test",
                         "wait",
-                        json!({"delay_ms": 250}),
+                        // Wide enough that the busy window below cannot close
+                        // before the contending call is issued.
+                        json!({"delay_ms": 3_000}),
                         soma_provider_core::ProviderSurface::Mcp,
                         "snapshot-a",
-                        Duration::from_secs(1),
+                        GENEROUS,
                     )
                     .await
             })
         };
-        tokio::time::sleep(Duration::from_millis(30)).await;
+        // Wait for the first call to actually occupy the worker instead of
+        // assuming a fixed interval was long enough to get there.
+        assert!(
+            wait_for(GENEROUS, || supervisor.status().busy).await,
+            "first invocation never occupied the worker"
+        );
         let busy = supervisor
             .invoke(
                 "busy-test",
@@ -1246,7 +1284,7 @@ def wait(delay_ms: int) -> dict:
                 json!({"delay_ms": 0}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect_err("second invocation must not queue");
@@ -1287,16 +1325,21 @@ def wait(delay_ms: int) -> dict:
                     .invoke(
                         "cancel-test",
                         "wait",
-                        json!({"delay_ms": 5_000}),
+                        json!({"delay_ms": 30_000}),
                         soma_provider_core::ProviderSurface::Mcp,
                         "snapshot-a",
-                        Duration::from_secs(10),
+                        GENEROUS,
                     )
                     .await
             })
         };
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        assert!(supervisor.cancel_active());
+        // Same precondition race as
+        // `closing_stderr_does_not_revoke_active_cancellation`: poll until the
+        // invocation is genuinely cancellable rather than sleeping a guess.
+        assert!(
+            wait_for(GENEROUS, || supervisor.cancel_active()).await,
+            "active invocation never became cancellable"
+        );
         let error = active
             .await
             .expect("join")
@@ -1310,7 +1353,7 @@ def wait(delay_ms: int) -> dict:
                 json!({"delay_ms": 0}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("later work starts a clean worker");
@@ -1323,7 +1366,7 @@ def wait(delay_ms: int) -> dict:
                 json!({"delay_ms": 0}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect_err("retained generation must reject new work");
@@ -1336,7 +1379,7 @@ def wait(delay_ms: int) -> dict:
                 json!({"delay_ms": 0}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("rollback activation permits new work");
@@ -1374,20 +1417,39 @@ def close_and_wait(delay_ms: int) -> dict:
                     .invoke(
                         "close-stderr-test",
                         "close_and_wait",
-                        json!({"delay_ms": 5_000}),
+                        // Long enough that returning within CANCEL_BOUND below
+                        // can only mean cancellation cut the call short.
+                        json!({"delay_ms": 30_000}),
                         soma_provider_core::ProviderSurface::Mcp,
                         "snapshot-a",
-                        Duration::from_secs(10),
+                        GENEROUS,
                     )
                     .await
             })
         };
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // `cancel_active` reports false until the invocation has both marked
+        // the supervisor busy and recorded the worker pid, and both of those
+        // happen after the spawn above returns. Sleeping a fixed interval
+        // races that setup under load; poll the real precondition instead.
+        // A false return is side-effect free (it bails before touching any
+        // state), so retrying it is safe.
+        assert!(
+            wait_for(GENEROUS, || supervisor.status().busy).await,
+            "invocation never reached the worker"
+        );
         assert!(supervisor.status().running);
-        assert!(supervisor.cancel_active());
-        let error = tokio::time::timeout(Duration::from_secs(1), active)
+        assert!(
+            wait_for(GENEROUS, || supervisor.cancel_active()).await,
+            "active invocation never became cancellable"
+        );
+
+        // Well under the 30s the provider would otherwise sleep, so this still
+        // proves cancellation short-circuited the call rather than waiting it
+        // out, but with enough headroom to survive a loaded machine.
+        const CANCEL_BOUND: Duration = Duration::from_secs(10);
+        let error = tokio::time::timeout(CANCEL_BOUND, active)
             .await
-            .expect("cancellation must not wait for the invocation timeout")
+            .expect("cancellation must not wait for the invocation to finish")
             .expect("join")
             .expect_err("active invocation is cancelled");
         assert_eq!(error.code(), "python_provider_cancelled");
@@ -1437,7 +1499,7 @@ def value() -> dict:
                 json!({}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("first post-crash invocation starts a replacement");
@@ -1483,7 +1545,7 @@ def value() -> dict:
                 json!({}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("already-routed call drains");
@@ -1500,7 +1562,7 @@ def value() -> dict:
                 json!({}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-b",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("rollback starts a planned fresh worker");
@@ -1645,8 +1707,14 @@ def emit() -> dict:
         let supervisor = PythonWorkerSupervisor::new(
             identity(&provider),
             PythonInterpreter::Prepared(fake_python),
+            // The fake worker never connects, so startup fails at *any*
+            // timeout — this value is not the property under test. It does
+            // gate how long the fake shell has to fork its descendant and
+            // record the pid the assertions below read, and a 150ms budget
+            // lost that race whenever the machine was busy, leaving an empty
+            // pid file.
             PythonSupervisorConfig {
-                startup_timeout: Duration::from_millis(150),
+                startup_timeout: Duration::from_secs(5),
                 ..PythonSupervisorConfig::default()
             },
         );
@@ -1688,8 +1756,13 @@ def wait(delay_ms: int) -> dict:
         let supervisor = PythonWorkerSupervisor::new(
             identity(&provider),
             PythonInterpreter::Prepared(python),
+            // As in `installed_runner_preflights_invokes_times_out_and_restarts`,
+            // `invoke` waits `request_timeout.min(per_call)`. A short config
+            // value here also capped the post-reset call, which has to boot a
+            // brand-new interpreter — the timeout below supplies its own short
+            // per-call deadline instead.
             PythonSupervisorConfig {
-                request_timeout: Duration::from_millis(200),
+                request_timeout: GENEROUS,
                 max_restarts: 0,
                 restart_backoff: Duration::ZERO,
                 ..PythonSupervisorConfig::default()
@@ -1715,7 +1788,7 @@ def wait(delay_ms: int) -> dict:
                 json!({"delay_ms": 0}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect_err("restart budget is exhausted");
@@ -1731,7 +1804,7 @@ def wait(delay_ms: int) -> dict:
                 json!({"delay_ms": 0}),
                 soma_provider_core::ProviderSurface::Mcp,
                 "snapshot-a",
-                Duration::from_secs(1),
+                GENEROUS,
             )
             .await
             .expect("operator reset permits a fresh worker");

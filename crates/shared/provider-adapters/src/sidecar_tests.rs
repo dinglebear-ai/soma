@@ -75,3 +75,54 @@ fn collect_provider_env_errors_on_missing_required_value() {
         .expect_err("missing required env should fail");
     assert_eq!(&*error.code, "missing_provider_env");
 }
+
+/// Reproduces the real `ETXTBSY` window: an executable image that is still
+/// open for writing cannot be exec'd until that descriptor closes. The retry
+/// helper must ride out the window instead of surfacing a spurious
+/// "broken provider" error.
+#[cfg(unix)]
+#[tokio::test]
+async fn spawn_retries_an_image_that_is_still_open_for_writing() {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let script = temp.path().join("busy-image.sh");
+    let mut writer = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o700)
+        .open(&script)
+        .expect("create executable");
+    writer.write_all(b"#!/bin/sh\nexit 0\n").expect("write");
+    writer.flush().expect("flush");
+
+    // Precondition: while the write descriptor is open, a plain spawn fails
+    // with exactly the condition the helper is meant to absorb. Without this
+    // the test could pass for the wrong reason on a platform that never
+    // reports ETXTBSY.
+    let immediate = std::process::Command::new(&script).spawn();
+    let Err(error) = immediate else {
+        // Some filesystems (and non-Linux unices) do not enforce ETXTBSY.
+        // The helper is still correct; there is simply nothing to retry here.
+        return;
+    };
+    assert_eq!(error.kind(), std::io::ErrorKind::ExecutableFileBusy);
+
+    // Release the descriptor partway through the retry budget.
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(15));
+        drop(writer);
+    });
+
+    let mut command = Command::new(&script);
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let mut child = spawn_retrying_busy_image(&mut command)
+        .await
+        .expect("retry must outlast the transient busy window");
+    let status = child.wait().await.expect("wait");
+    assert!(status.success());
+}

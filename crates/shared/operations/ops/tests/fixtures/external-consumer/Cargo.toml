@@ -1,10 +1,15 @@
 [workspace]
 
+[workspace.lints]
+
 [package]
 name = "soma-ops-external-consumer"
 version = "0.0.0"
 edition = "2024"
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

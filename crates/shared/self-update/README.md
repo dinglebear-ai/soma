@@ -34,6 +34,18 @@ call `validate_artifact_response_url` for every redirect target and the final
 response URL; validating only the initial URL does not constrain a client's
 redirect behavior.
 
+## Single-host, local-filesystem requirement
+
+The executable directory and state directory must live on filesystems that are
+local to the host running the updater. Two mechanisms silently stop working
+across hosts: stale-artifact reclamation proves staleness by checking whether
+the PID embedded in an artifact name is alive, and a PID from another machine
+means nothing on this one; transaction serialization uses advisory `flock`
+locks, which are unreliable or unenforced on network filesystems such as NFS.
+Do not place the executable or state file on an NFS/SMB mount shared between
+hosts — two hosts updating the same paths can corrupt each other's transaction
+state without any error being reported.
+
 ## Platform support
 
 Transport-neutral directive, staging, and validation APIs compile everywhere.
@@ -56,6 +68,24 @@ Construct an `UpdateDirective`, stage and validate its artifact, install it,
 restart, recover pending state on startup, and confirm only after the new
 service reports healthy.
 
+Staging and validation tolerate an absent target executable so they can be
+exercised standalone, but the provided installer backs up and atomically
+replaces an existing file: `install` rejects an artifact staged while the
+target was absent with a typed error before creating any lock or transaction
+state. Fresh installation (no current binary) is out of scope — deploy the
+first binary through ordinary provisioning.
+
+Integrity is re-proven by hashing, not trusted from state: every startup
+recovery, unconfirmed-restart increment, and confirmation re-hashes the full
+installed executable (and rollback paths re-hash the backup). Budget one
+SHA-256 pass over the binary per startup while an update is pending.
+
+`confirm_success` deliberately refuses to confirm while the rollback backup is
+missing or invalid — a lost backup means the transaction can no longer roll
+back, and an operator must inspect and clear that state by hand. Adopters
+should log a failed confirmation loudly (it repeats on every attempt) rather
+than retrying silently.
+
 The configured executable leaf must be a regular path, not a symlink. The
 crate rejects leaf symlinks before staging or recovery so the staging grammar,
 marker identity, backup identity, and installed target cannot diverge. Symlinked
@@ -68,8 +98,9 @@ target.
 
 `recover_on_startup` also reclaims prior-process staging and orphan rollback
 files only when their exact target-derived grammar, regular-file type,
-directory, Unix owner, and dead creator PID prove they are stale crate-owned
-artifacts. Live concurrent stages are preserved. Protected identities are
+directory, Unix owner (the process effective uid that staged them, or the
+installed executable's owner for hard-link backups), and dead creator PID
+prove they are stale crate-owned artifacts. Live concurrent stages are preserved. Protected identities are
 canonicalized, matching symlinks are never followed, and another executable's
 files are untouched. Calling startup recovery before each service loop therefore
 bounds crash leftovers across process restarts. Marker input is capped at 64

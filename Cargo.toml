@@ -14,6 +14,7 @@ members = [
   "crates/shared/cli-core",
   "crates/shared/codemode",
   "crates/shared/codex-app-server-client",
+  "crates/shared/cortex/ingest-core",
   "crates/shared/http-api",
   "crates/shared/http-server",
   "crates/shared/incus-client",
@@ -119,6 +120,7 @@ pyo3 = { version = "0.29", features = ["abi3-py311"] }
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
 # Shared crates
+cortex-ingest-core = { path = "crates/shared/cortex/ingest-core" }
 rmcp-traces = { path = "crates/shared/traces" }
 soma-auth = { path = "crates/shared/auth" }
 soma-cli-core = { path = "crates/shared/cli-core" }
@@ -140,6 +142,7 @@ soma-infra = { path = "crates/shared/operations/infra" }
 soma-ops = { path = "crates/shared/operations/ops", default-features = false }
 soma-provider-adapters = { path = "crates/shared/provider-adapters" }
 soma-provider-core = { path = "crates/shared/provider-core", default-features = false }
+soma-self-update = { path = "crates/shared/self-update" }
 soma-tauri-shell = { path = "crates/shared/tauri-shell" }
 
 # Soma product crates

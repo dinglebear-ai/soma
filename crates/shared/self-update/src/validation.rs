@@ -56,6 +56,11 @@ impl ValidatedArtifact {
     }
 
     #[cfg(unix)]
+    pub(crate) fn source_was_present(&self) -> bool {
+        self.staged.source_was_present()
+    }
+
+    #[cfg(unix)]
     pub(crate) fn revalidate_source_executable(&self, path: &std::path::Path) -> Result<()> {
         self.staged.revalidate_source_executable(path)
     }
@@ -218,15 +223,16 @@ fn validated_path_identity(path: &std::path::Path) -> Result<ArtifactIdentity> {
 }
 
 async fn spawn_validator(path: &std::path::Path) -> Result<Box<dyn ChildWrapper>> {
-    // Tokio's asynchronous file close can briefly race exec on Linux and
-    // surface ETXTBSY even after the staged writer has been flushed and
-    // converted back to a closed std file. Retry only that transient kernel
-    // condition; every other spawn error remains immediate and typed.
+    // Tokio's asynchronous file close can briefly race exec and leave the
+    // staged artifact still open for writing even after the writer has been
+    // flushed and converted back to a closed std file; the kernel then refuses
+    // the exec. Retry only that transient condition; every other spawn error
+    // remains immediate and typed.
     for _ in 0..10 {
         let result = validator_command(path).spawn();
         match result {
             Ok(child) => return Ok(child),
-            Err(error) if error.raw_os_error() == Some(26) => {
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
                 tokio::time::sleep(std::time::Duration::from_millis(5)).await;
             }
             Err(error) => return Err(UpdateError::io(path, error)),
