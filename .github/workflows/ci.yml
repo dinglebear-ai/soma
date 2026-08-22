@@ -159,7 +159,7 @@ jobs:
       # This job runs `just test-python*` below but never installed `just` - it
       # inherited whatever the runner happened to have. Provision it explicitly.
       - name: Set up mise tools
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
         with:
           install_args: just
           cache: true
@@ -318,7 +318,7 @@ jobs:
         uses: ./.github/actions/setup-rust-kache
 
       - name: Set up mise tools
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
         with:
           install_args: node npm:mcporter
           cache: true
@@ -400,7 +400,7 @@ jobs:
         uses: ./.github/actions/setup-rust-kache
 
       - name: Install taplo
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
         with:
           install_args: cargo:taplo-cli
           cache: true
@@ -441,7 +441,7 @@ jobs:
       # missing from PATH for any reason, so this step is not load-bearing
       # for the rest of this job's Rust-only checks.
       - name: Set up mise tools
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4
         with:
           install_args: node pnpm
           cache: true
