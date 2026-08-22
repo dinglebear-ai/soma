@@ -23,7 +23,6 @@ anyhow = "1"
 async-trait = "0.1"
 atomicwrites = "0.4"
 base64 = "0.23"
-fs2 = "0.4"
 jsonschema = "0.49"
 metrics = { version = "0.24", optional = true }
 serde = { version = "1", features = ["derive"] }

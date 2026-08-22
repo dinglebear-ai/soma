@@ -8,7 +8,7 @@ audience:
   - "agents"
 scope: "soma"
 source_of_truth: true
-last_reviewed: "2026-07-26"
+last_reviewed: "2026-08-17"
 ---
 
 # Architecture Decision Records
@@ -35,3 +35,4 @@ roadmaps, and temporary migration notes. They complement the topic docs under
 - [0011: Keep Soma product-first and template-second](./0011-product-first-template-second.md)
 - [0012: rmcp-traces targets RMCP 2.2.0](./0012-rmcp-traces-rmcp-2-2.md)
 - [0013: Keep Python provider authoring embedded and contract-first](./0013-python-provider-authoring-boundary.md)
+- [0014: Extract Cortex as reusable shared crates](./0014-extract-cortex-as-reusable-shared-crates.md)

@@ -666,12 +666,12 @@ just validate-plugin
 
 ### Workspace layout
 
-35 cargo members:
+41 cargo members:
 
 | Path | Contents |
 |---|---|
 | `crates/soma/*` | Product code for this server — domain, application, config, client, api, cli, mcp, runtime, integrations, palette, web, test-support |
-| `crates/shared/*` | Reusable engine crates other servers consume — auth, mcp (client/server/proxy/gateway), provider-core, provider-adapters, http-api, http-server, observability, openapi, self-update, traces, codemode, cli-core |
+| `crates/shared/*` | Reusable engine crates other servers consume — auth, mcp (client/server/proxy/gateway), provider-core, provider-adapters, http-api, http-server, observability, openapi, self-update, traces, codemode, cli-core, and namespaced reusable families such as `cortex/ingest-core` |
 | `crates/integrations/*` | Upstream service bridges — `gotify`, `unifi` |
 | `apps/soma` | The `soma` binary and its integration tests. **The only cargo member under `apps/`** — `apps/web` (Next.js) and `apps/palette` (assets) are not Rust crates. |
 | `packages/python` | pyo3 Python provider platform (`abi3-py311`) |
@@ -681,11 +681,11 @@ just validate-plugin
 in `[workspace.dependencies]`, duplicated on the `rmcp-client` alias entry
 because TOML cannot cross-reference. Bump both together.
 
-**Known inconsistency:** `[workspace.package]` declares no `edition`, so each
-member sets its own — currently 31 on edition 2021 and 4 on edition 2024. Since
-generated projects inherit this manifest shape, prefer hoisting
-`edition = "2024"` into `[workspace.package]` (with members using
-`edition.workspace = true`) over adding another per-crate `edition` line.
+`[workspace.package]` is the source of truth for Rust edition and MSRV: new
+members inherit `edition = "2024"` and `rust-version = "1.97.1"` with
+`edition.workspace = true` and `rust-version.workspace = true`. Shared crates
+also inherit workspace lints so architecture and module-layout policy stays
+consistent across the fleet.
 
 ## Client Configuration
 
@@ -862,6 +862,7 @@ configuration, and secret-scanning allowlists before publishing.
 | Topic | Docs |
 |---|---|
 | Architecture and layering | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/PATTERNS.md](docs/PATTERNS.md) |
+| Cortex shared-crate extraction | [docs/cortex-extraction/README.md](docs/cortex-extraction/README.md), [ADR 0014](docs/adr/0014-extract-cortex-as-reusable-shared-crates.md) |
 | Dynamic provider runtime | [docs/specs/dynamic-provider-runtime.md](docs/specs/dynamic-provider-runtime.md), [docs/generated/provider-surfaces.md](docs/generated/provider-surfaces.md) |
 | Provider manifest contract | [docs/contracts/provider-manifest.schema.json](docs/contracts/provider-manifest.schema.json), [docs/contracts/examples/provider-manifests](docs/contracts/examples/provider-manifests) |
 | Scaffold workflow | [docs/SCAFFOLD.md](docs/SCAFFOLD.md), [docs/CARGO_GENERATE.md](docs/CARGO_GENERATE.md) |

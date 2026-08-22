@@ -149,7 +149,7 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ci-pool-rust
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -161,7 +161,6 @@ jobs:
       # already provide compile caching, and the old
       # <repo>-test-<lockhash> key saved once then exact-hit forever,
       # permanently pinning stale multi-GB entries against the 10 GB quota.
-
       - name: Install cargo-nextest
         uses: taiki-e/install-action@95cc2373c3f00275e315c306e56fef1c7a8854c0 # cargo-nextest
 
@@ -515,56 +514,67 @@ jobs:
           install_args: node pnpm
           cache: true
 
+      - name: Build xtask once
+        # Every check below is one `cargo xtask` call, and the alias expands to
+        # `cargo run --package xtask --`. Cargo re-verifies freshness across
+        # xtask's whole dependency graph on each of those calls — ~40s a piece
+        # on this runner, which dominated this job's runtime even
+        # when nothing needs recompiling. Build the binary once and invoke it
+        # directly instead (~0.2s per call).
+        run: |
+          cargo build --package xtask
+          echo "XTASK=$PWD/target/debug/xtask" >> "$GITHUB_ENV"
+
       - name: Check PATTERNS.md contracts
-        run: cargo xtask patterns
+        run: '"$XTASK" patterns'
 
       - name: Check test sibling coverage
-        run: cargo xtask check-test-siblings
+        run: '"$XTASK" check-test-siblings'
 
       - name: Validate plugin layout
-        run: cargo xtask validate-plugin-layout
+        run: '"$XTASK" validate-plugin-layout'
 
       - name: Check generated docs
-        run: cargo xtask check-docs
+        run: '"$XTASK" check-docs'
 
       - name: Check stale Soma claims
-        run: cargo xtask check-stale-claims
+        run: '"$XTASK" check-stale-claims'
 
       - name: Check schema docs
-        run: cargo xtask check-schema-docs --check
+        run: '"$XTASK" check-schema-docs --check'
 
       - name: Check OpenAPI docs
-        run: cargo xtask check-openapi --check
+        run: '"$XTASK" check-openapi --check'
 
       - name: Check TypeScript REST client
-        run: cargo xtask check-ts-client --check
+        run: '"$XTASK" check-ts-client --check'
 
       - name: Check MCP registry manifest
-        run: cargo xtask check-mcp-registry
+        run: '"$XTASK" check-mcp-registry'
 
       - name: Check provider manifest contract
-        run: cargo xtask check-provider-manifest-contract
+        run: '"$XTASK" check-provider-manifest-contract'
 
       - name: Check Palette manifest
-        run: cargo xtask check-palette-manifest --check
+        run: '"$XTASK" check-palette-manifest --check'
 
       - name: Check scaffold intent contract
-        run: cargo xtask check-scaffold-intent-contract
+        run: '"$XTASK" check-scaffold-intent-contract'
 
       - name: Check version-bearing files are in sync
-        run: cargo xtask check-version-sync
+        run: '"$XTASK" check-version-sync'
 
       - name: Run Soma feature smoke tests
-        run: cargo xtask test-soma-features
+        run: '"$XTASK" test-soma-features'
 
       - name: Check blob sizes
-        run: cargo xtask check-blob-size --base origin/main --head HEAD
+        run: '"$XTASK" check-blob-size --base origin/main --head HEAD'
 
       - name: Check coupled files
-        run: cargo xtask check-coupled-files origin/main HEAD
+        run: '"$XTASK" check-coupled-files origin/main HEAD'
 
       - name: ASCII hygiene
-        run: cargo xtask run-ascii-check
+        run: '"$XTASK" run-ascii-check'
 
   audit:
     name: Cargo Deny

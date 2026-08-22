@@ -27,12 +27,13 @@ unless Jacob asks for that variant by name.
 | Remote | `git@github.com:dinglebear-ai/soma.git` |
 | Default branch | `main` |
 | Former names | `rmcp-template`, then `rtemplate-mcp` — both GitHub names now redirect here. Fix any local remote still pointing at `jmagar/*`. |
-| Workspace | 40 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `crates/integrations/*`, `apps/soma`, `packages/python`, plus `xtask`. Note `apps/web` and `apps/palette` are **not** cargo members — they are frontend assets. |
+| Workspace | 41 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `crates/integrations/*`, `apps/soma`, `packages/python`, plus `xtask`. Note `apps/web` and `apps/palette` are **not** cargo members — they are frontend assets. |
 | rmcp pin | `rmcp = { version = "=3.1.0", default-features = false }` — an **exact** pin in `[workspace.dependencies]`, deliberately duplicated on the `rmcp-client` alias entry (`Cargo.toml:81`) because TOML cannot cross-reference. Bump both together. |
 
 `crates/soma/*` is product code (this server). `crates/shared/*` is reusable
 engine code (auth, gateway, mcp client/server/proxy, provider adapters,
-observability, self-update) that other repos consume. Put anything
+observability, self-update, plus namespaced Cortex extraction crates under
+`crates/shared/cortex/*`) that other repos consume. Put anything
 Soma-specific in `crates/soma/`; put anything a derived server would also want
 in `crates/shared/`.
 
@@ -311,7 +312,8 @@ PR mode uses the merge-base of the PR branch and `origin/main`; main mode compar
 - **`help` action is public** — `required_scope_for("help")` returns `None`. All other actions require at least `soma:read`.
 - **Default port is 40060** — set in `default_mcp_port()` in `config.rs`. Override with `SOMA_MCP_PORT`.
 - **`elicit_name` is MCP-only** — elicitation requires a live client connection; it cannot be invoked from the CLI. This is the one intentional parity exception.
-- **`watch`, `serve`, and `doctor` are CLI infrastructure** — they are not MCP actions and have no parity requirement. `watch` polls `/health` and emits state-change lines to stdout (used by the plugin monitor). `serve` starts the HTTP server. `doctor` runs pre-flight checks. None belong in the MCP parity table.
+- **`watch`, `serve`, `doctor`, and `self-update` are CLI infrastructure** — they are not MCP actions and have no parity requirement. `watch` polls `/health` and emits state-change lines to stdout (used by the plugin monitor). `serve` starts the HTTP server. `doctor` runs pre-flight checks. `self-update` drives the `soma-self-update` transaction crate (`run`/`recover`/`confirm`) to replace the running binary. None belong in the MCP parity table.
+- **`self-update` is operator-driven and deliberately unauthenticated at the directive layer** — `crates/soma/cli/src/self_update.rs` is a thin adapter; the operator supplies `--version/--url/--sha256` and is responsible for authenticating that directive out of band. Artifacts are HTTPS-only and same-origin by default (`--allow-http-loopback` opts into loopback HTTP), redirects are refused rather than followed, and the executable/state directories must be host-local — advisory `flock` and PID-liveness checks are meaningless across NFS. See `crates/shared/self-update/README.md`.
 - **PR CI uses the self-hosted Rust runner pool; native artifacts are release-only** — Linux Rust jobs use `ci-pool-rust`, and `ci.yml` routes jobs through `cargo xtask changed-paths`. PR CI currently has no native Windows job; published releases build native artifacts on GitHub-hosted runners. Soma is public, so live branch protection is API-visible. Keep strict branch protection configured with `Repository Contract` and `CI Gate`; do not require individual path-skipped jobs. **There is no `MSRV Gate`** — `msrv.yml` was deleted because its pinned toolchain was identical to the stable toolchain `ci.yml` already builds with, so it produced no differential signal for ~40 min of duplicate compilation per push and PR. If MSRV is ever set below the pinned toolchain, reintroduce the workflow and the gate together. Full setup and troubleshooting are in [`docs/CI.md`](docs/CI.md), [`docs/LINUX-RUNNER.md`](docs/LINUX-RUNNER.md), and [`docs/WINDOWS-RUNNER.md`](docs/WINDOWS-RUNNER.md).
 - **rustdoc is gated** — `cargo doc --workspace --no-deps --all-features` runs with `RUSTDOCFLAGS=-D warnings` both in `cargo xtask ci` (step 4/15) and in `.github/workflows/docs.yml`. The latter also deploys to GitHub Pages on `main` (requires Settings → Pages → Source = "GitHub Actions" as a one-time setup). The standalone Docs workflow is path-filtered and currently has no always-present aggregate job, so do not add `Build rustdoc` or a nonexistent `Docs` context to branch protection. Run `just doc-check` locally before pushing to catch broken doc-links early.
 

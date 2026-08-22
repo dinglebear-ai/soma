@@ -1,0 +1,30 @@
+[package]
+name = "cortex-ingest-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Reusable, transport-neutral Cortex ingest normalization and metadata safety primitives."
+homepage.workspace = true
+license = "AGPL-3.0-only"
+repository.workspace = true
+readme = "README.md"
+keywords = ["logs", "observability", "normalization", "redaction"]
+categories = ["development-tools::debugging", "parsing"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+
+[dependencies]
+serde_json = "1"
+sha2 = "0.10"
+
+[lints]
+workspace = true

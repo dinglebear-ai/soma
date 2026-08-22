@@ -1,7 +1,7 @@
 ---
 title: "Python Provider Platform Plan"
 created: 2026-07-29
-updated: 2026-07-31
+updated: 2026-08-17
 doc_type: "spec"
 status: "active"
 owner: "soma"
@@ -18,7 +18,7 @@ upstream_refs:
   - "crates/shared/provider-adapters/src/python_protocol.rs"
   - "crates/shared/provider-adapters/src/python/"
   - "packages/python/"
-last_reviewed: "2026-07-31"
+last_reviewed: "2026-08-17"
 ---
 
 # Python Provider Platform Plan
@@ -495,9 +495,13 @@ remain available through CLI, API, MCP, and web contracts, with regression tests
 covering interrupted transactions and failed-cache restoration.
 
 Cold import, catalog, invocation, reload, and memory-soak budgets are enforced by
-`scripts/python-platform-gates.py`. A scheduled and manually dispatchable soak
-workflow runs the full budgets plus the real isolated componentize-py-to-Soma
-Wasmtime integration test on the Python runner pool.
+`scripts/python-platform-gates.py`. The cold-import gate launches the policy-defined
+number of fresh isolated Python interpreters and enforces the best sample against
+the import budget. This keeps the budget sensitive to intrinsic SDK import cost
+without failing merely because a shared development or CI host preempted one
+probe. All samples are emitted in the gate result for diagnosis. A scheduled and
+manually dispatchable soak workflow runs the full budgets plus the real isolated
+componentize-py-to-Soma Wasmtime integration test on the Python runner pool.
 
 ## Phase 13: SDK Completeness
 

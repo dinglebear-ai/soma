@@ -232,7 +232,12 @@ pub(super) fn cleanup_owned_artifacts(
     let directory = executable.parent().ok_or(UpdateError::InvalidPolicy(
         "executable must have a parent directory",
     ))?;
-    let expected_uid = std::fs::metadata(executable)
+    // Staging partials and copy backups are created with the effective uid of
+    // the process that staged them; hard-link backups keep the installed
+    // executable's owner. A stale artifact is crate-owned when it matches
+    // either identity.
+    let effective_uid = nix::unistd::geteuid().as_raw();
+    let installed_uid = std::fs::metadata(executable)
         .or_else(|_| std::fs::metadata(directory))
         .map_err(|error| UpdateError::io(directory, error))?
         .uid();
@@ -272,7 +277,9 @@ pub(super) fn cleanup_owned_artifacts(
         }
         let metadata =
             std::fs::symlink_metadata(&path).map_err(|error| UpdateError::io(&path, error))?;
-        if !metadata.file_type().is_file() || metadata.uid() != expected_uid {
+        if !metadata.file_type().is_file()
+            || !stale_artifact_owner_is_reclaimable(metadata.uid(), effective_uid, installed_uid)
+        {
             continue;
         }
         std::fs::remove_file(&path).map_err(|error| UpdateError::io(&path, error))?;
@@ -303,6 +310,14 @@ pub(super) fn ensure_no_recovery_artifacts(executable: &Path) -> Result<()> {
     Ok(())
 }
 
+fn stale_artifact_owner_is_reclaimable(
+    owner_uid: u32,
+    effective_uid: u32,
+    installed_uid: u32,
+) -> bool {
+    owner_uid == effective_uid || owner_uid == installed_uid
+}
+
 fn same_existing_identity(first: &Path, second: &Path) -> bool {
     match (std::fs::canonicalize(first), std::fs::canonicalize(second)) {
         (Ok(first), Ok(second)) => first == second,
@@ -327,7 +342,32 @@ fn process_is_alive(pid: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::backup_owner_matches_recorded;
+    use super::{backup_owner_matches_recorded, stale_artifact_owner_is_reclaimable};
+
+    #[test]
+    fn stale_artifact_reclamation_accepts_process_and_installed_owners() {
+        let effective_uid = 1_000;
+        let installed_uid = 0;
+
+        // Staging partials and copy backups are owned by the staging process.
+        assert!(stale_artifact_owner_is_reclaimable(
+            effective_uid,
+            effective_uid,
+            installed_uid
+        ));
+        // Hard-link backups keep the installed executable's owner.
+        assert!(stale_artifact_owner_is_reclaimable(
+            installed_uid,
+            effective_uid,
+            installed_uid
+        ));
+        // A foreign owner is never reclaimed.
+        assert!(!stale_artifact_owner_is_reclaimable(
+            2_000,
+            effective_uid,
+            installed_uid
+        ));
+    }
 
     #[test]
     fn backup_owner_validation_uses_recorded_owner_not_installed_owner() {
