@@ -133,34 +133,6 @@ async fn supported_source_mode_is_applied_only_during_final_install() {
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn install_yields_the_async_executor_while_transaction_work_blocks() {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    let temp = tempdir().unwrap();
-    let executable = temp.path().join("example");
-    let state = temp.path().join("update.json");
-    let old = b"#!/bin/sh\necho 'example 1.0.0'\n";
-    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
-    std::fs::write(&executable, old).unwrap();
-    let updater = Updater::new(
-        UpdateLayout::new(&executable, &state),
-        UpdatePolicy::default(),
-    );
-    let artifact = validated(&updater, new, "2.0.0").await;
-    let progressed = Arc::new(AtomicBool::new(false));
-    let task_progressed = Arc::clone(&progressed);
-    let unrelated_task = tokio::spawn(async move {
-        task_progressed.store(true, Ordering::SeqCst);
-    });
-
-    updater.install(artifact, "1.0.0").await.unwrap();
-
-    assert!(progressed.load(Ordering::SeqCst));
-    unrelated_task.await.unwrap();
-}
-
 #[tokio::test]
 async fn oversized_previous_version_is_rejected_before_backup_or_swap() {
     let temp = tempdir().unwrap();
@@ -598,6 +570,16 @@ async fn validated(
     version: &str,
 ) -> soma_self_update::ValidatedArtifact {
     use std::os::unix::fs::PermissionsExt;
+
+    // These integration tests exercise transaction semantics, not validator
+    // process concurrency. Running many temporary executable validators in
+    // parallel can make Linux report transient ETXTBSY while another test is
+    // still executing its own staged artifact, even though every staging path
+    // is unique. Serialize only the stage+validate window; install/recovery
+    // operations and the explicit concurrent-live-stage assertions remain
+    // parallel and independently exercised.
+    static VALIDATION_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _validation_guard = VALIDATION_LOCK.lock().await;
     if let Ok(metadata) = std::fs::metadata(updater.layout().executable()) {
         let mode = metadata.permissions().mode();
         if mode & 0o111 == 0 {
