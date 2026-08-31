@@ -300,14 +300,14 @@ jobs:
           cat artifacts/SHA256SUMS
 
       - name: Attest release provenance
-        uses: actions/attest-build-provenance@e3fe62ef559997059fe8380e7d2b4c909e2d65f4
+        uses: actions/attest-build-provenance@9d57eef8c06cd9d6b433effeeb7a6a77b3ff94ad
         with:
           subject-path: |
             artifacts/*.tar.gz
             artifacts/*.whl
 
       - name: Attest release SBOM
-        uses: actions/attest-sbom@5729fe4dc697fb7538e4e94fd44d040aac1367b2
+        uses: actions/attest-sbom@9be8a82858ea94d88535e2c2cd1639280db45d05
         with:
           subject-path: |
             artifacts/*.tar.gz
