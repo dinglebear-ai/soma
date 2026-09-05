@@ -74,7 +74,7 @@ jobs:
   container:
     name: Build, verify, and publish amd64 image
     needs: [validate]
-    uses: dinglebear-ai/workflows/.github/workflows/hosted-container-release.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
+    uses: dinglebear-ai/workflows/.github/workflows/hosted-container-release.yml@137fff9d3a486208e0aa904d4a301aaf5084b5ff
     with:
       checkout-ref: ${{ needs.validate.outputs.release_ref }}
       image: ghcr.io/dinglebear-ai/soma
