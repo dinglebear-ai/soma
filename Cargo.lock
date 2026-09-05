@@ -4311,6 +4311,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "process-wrap"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e3f4237d0e4741eb50bc5584db701f1299c85fa31ff0274dd6445e79dc42d12"
+dependencies = [
+ "futures",
+ "indexmap 2.14.0",
+ "nix",
+ "tokio",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "pulley-interpreter"
 version = "47.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4863,7 +4876,7 @@ dependencies = [
  "oauth2",
  "pastey",
  "pin-project-lite",
- "process-wrap",
+ "process-wrap 9.1.0",
  "rand 0.10.2",
  "reqwest 0.13.4",
  "rmcp-macros",
@@ -5945,7 +5958,7 @@ dependencies = [
  "bytes",
  "futures",
  "http",
- "process-wrap",
+ "process-wrap 10.0.0",
  "reqwest 0.13.4",
  "rmcp",
  "rustls",
@@ -6064,7 +6077,7 @@ dependencies = [
  "bytes",
  "futures",
  "http",
- "process-wrap",
+ "process-wrap 10.0.0",
  "reqwest 0.13.4",
  "rmcp",
  "rustls",
@@ -6257,7 +6270,7 @@ name = "soma-self-update"
 version = "0.1.0"
 dependencies = [
  "nix",
- "process-wrap",
+ "process-wrap 10.0.0",
  "serde",
  "serde_json",
  "sha2 0.11.0",
