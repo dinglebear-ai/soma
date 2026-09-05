@@ -77,10 +77,9 @@ SOMA_MCP_GITHUB_CLIENT_SECRET=...
 SOMA_MCP_AUTH_DEFAULT_PROVIDER=authelia
 ```
 
-Provider credentials are configured directly through `SOMA_MCP_*` environment
-variables. The typed `config.toml`, setup wizard, doctor output, and plugin
-settings still expose only the legacy Google fields; use environment variables
-for Authelia, GitHub, callback overrides, scopes, and default-provider selection.
+Provider credentials can be configured through `SOMA_MCP_*` environment
+variables or the corresponding typed `[mcp.auth]` `config.toml` fields. The
+canonical environment/config mapping is generated in [ENV.md](ENV.md).
 
 Default callback paths are `/auth/google/callback`,
 `/auth/authelia/callback`, and `/auth/github/callback`. Register the selected
@@ -95,6 +94,16 @@ The default scopes are `openid,email,profile` for Google,
 `read:user,user:email` for GitHub. Override them with the matching
 `SOMA_MCP_<PROVIDER>_SCOPES` comma-separated variable. GitHub scopes must keep
 `user:email` so Soma can obtain a verified primary email.
+
+Register Soma as a confidential Authelia client with
+`token_endpoint_auth_method: client_secret_basic`, authorization-code and
+refresh-token grants, PKCE `S256`, and `id_token_signed_response_alg: RS256`.
+Soma deliberately verifies a fresh RS256 ID token on both code exchange and
+refresh so current issuer, audience, subject, email, and `email_verified`
+claims can be enforced before renewing access. An Authelia refresh response
+without an ID token is rejected. The provider endpoints currently follow
+Authelia's documented issuer-relative paths (`api/oidc/authorization`,
+`api/oidc/token`, and `jwks.json`); this adapter does not perform OIDC discovery.
 
 The server exposes standard OAuth discovery endpoints under `/mcp/.well-known/` that MCP clients can use for dynamic registration. Session cookies are disabled — all auth is via `Authorization` headers.
 

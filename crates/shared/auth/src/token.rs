@@ -511,6 +511,17 @@ async fn refresh_token_grant(
     }
     let exchange = provider.refresh(&provider_refresh_token).await?;
 
+    // A refresh is a new authorization decision, not merely token rotation.
+    // Re-check the provider's freshly verified identity against the current
+    // allowlist so removing an operator actually stops renewable access.
+    let allowed = state.resolve_allowed_emails().await?;
+    crate::authorize::check_email_allowlist(
+        provider.provider_id(),
+        exchange.email.as_deref(),
+        exchange.email_verified,
+        &allowed,
+    )?;
+
     let refreshed_expires_at = expires_at(
         now_unix(),
         state.config.refresh_token_ttl,
@@ -518,14 +529,24 @@ async fn refresh_token_grant(
     )?;
     let subject =
         crate::oauth_provider::namespaced_subject(provider.provider_id(), &exchange.subject);
+    if subject != stored.subject {
+        warn!(
+            refresh_token_id = %refresh_token_id,
+            stored_subject_id = %fingerprint(&stored.subject),
+            refreshed_subject_id = %fingerprint(&subject),
+            provider = provider.provider_id(),
+            "oauth token rejected: refreshed provider identity does not match refresh token"
+        );
+        return Err(AuthError::InvalidGrant(
+            "refreshed provider identity does not match the refresh token".to_string(),
+        ));
+    }
     let next_provider_refresh_token = exchange
         .refresh_token
         .clone()
         .unwrap_or_else(|| provider_refresh_token.clone());
-    // Re-apply admin elevation in case this refresh token was originally
-    // issued before elevation was wired in, or before the user's email was
-    // on the allowlist.  elevate_scope_for_allowed_user is idempotent — if
-    // the scope already contains the admin token it is left unchanged.
+    // The current allowlist check above is the admin gate. Re-apply admin
+    // elevation for older refresh-token rows that predate scope elevation.
     let elevated_scope = crate::authorize::elevate_scope_for_allowed_user(
         &stored.scope,
         &state.config.default_scope,
@@ -1344,6 +1365,97 @@ mod tests {
                 .is_some(),
             "local refresh token must remain usable after successful refresh"
         );
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_rejects_identity_removed_from_current_allowlist() {
+        let base = test_auth_state_with_mock_google().await;
+        let mut config = (*base.config).clone();
+        config.admin_email = "different-admin@example.com".to_string();
+        let state = AuthState::for_tests(
+            config,
+            base.store.clone(),
+            (*base.signing_keys).clone(),
+            (*base.providers).clone(),
+        );
+        state
+            .store
+            .upsert_refresh_token(crate::types::RefreshTokenRow {
+                refresh_token: "removed-user-token".to_string(),
+                client_id: "client".to_string(),
+                subject: "google-subject-123".to_string(),
+                resource: String::new(),
+                scope: "lab lab:admin".to_string(),
+                provider: "google".to_string(),
+                provider_refresh_token: Some("provider-refresh".to_string()),
+                created_at: crate::util::now_unix() - 60,
+                expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
+            })
+            .await
+            .unwrap();
+
+        let response = router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/token")
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .body(Body::from(
+                        "grant_type=refresh_token&refresh_token=removed-user-token&client_id=client",
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(
+            state
+                .store
+                .find_refresh_token("removed-user-token")
+                .await
+                .unwrap()
+                .is_some(),
+            "a denied refresh must not mutate the stored grant"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_grant_rejects_provider_subject_switch() {
+        let state = test_auth_state_with_mock_google().await;
+        state
+            .store
+            .upsert_refresh_token(crate::types::RefreshTokenRow {
+                refresh_token: "subject-switch-token".to_string(),
+                client_id: "client".to_string(),
+                subject: "different-google-subject".to_string(),
+                resource: String::new(),
+                scope: "lab lab:admin".to_string(),
+                provider: "google".to_string(),
+                provider_refresh_token: Some("provider-refresh".to_string()),
+                created_at: crate::util::now_unix() - 60,
+                expires_at: crate::util::now_unix() + 3600,
+                token_endpoint_auth_method: None,
+            })
+            .await
+            .unwrap();
+
+        let response = router(state)
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/token")
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .body(Body::from(
+                        "grant_type=refresh_token&refresh_token=subject-switch-token&client_id=client",
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
