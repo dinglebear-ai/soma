@@ -226,9 +226,9 @@ async fn spawn_validator(path: &std::path::Path) -> Result<Box<dyn ChildWrapper>
     // Tokio's asynchronous file close can briefly race exec and leave the
     // staged artifact still open for writing even after the writer has been
     // flushed and converted back to a closed std file; the kernel then refuses
-    // the exec. Retry only that transient condition; every other spawn error
-    // remains immediate and typed.
-    for _ in 0..10 {
+    // the exec. Retry only that transient condition until the caller's bounded
+    // validation deadline; every other spawn error remains immediate and typed.
+    loop {
         let result = validator_command(path).spawn();
         match result {
             Ok(child) => return Ok(child),
@@ -238,9 +238,6 @@ async fn spawn_validator(path: &std::path::Path) -> Result<Box<dyn ChildWrapper>
             Err(error) => return Err(UpdateError::io(path, error)),
         }
     }
-    validator_command(path)
-        .spawn()
-        .map_err(|error| UpdateError::io(path, error))
 }
 
 fn validator_command(path: &std::path::Path) -> CommandWrap {
