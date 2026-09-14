@@ -74,12 +74,12 @@ jobs:
           (cd dist && sha256sum ./*.whl) > supply-chain/SHA256SUMS
 
       - name: Attest wheel provenance
-        uses: actions/attest-build-provenance@e3fe62ef559997059fe8380e7d2b4c909e2d65f4
+        uses: actions/attest-build-provenance@9d57eef8c06cd9d6b433effeeb7a6a77b3ff94ad
         with:
           subject-path: dist/*.whl
 
       - name: Attest wheel SBOM
-        uses: actions/attest-sbom@5729fe4dc697fb7538e4e94fd44d040aac1367b2
+        uses: actions/attest-sbom@4c8abdcbea4a6b66f70fd1169e70af4bf5b13701
         with:
           subject-path: dist/*.whl
           sbom-path: supply-chain/soma-provider.cdx.json
