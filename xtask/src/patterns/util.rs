@@ -29,6 +29,21 @@ pub(super) fn size_limit(path: &Path) -> Option<usize> {
         // keep it visible as a warning without blocking unrelated CI gates.
         return Some(700);
     }
+    let cortex_sqlite_parity_limit = match path.to_string_lossy().as_ref() {
+        // Wave 2 preserves these donor SQLite modules as behavior-parity units
+        // before the Wave 8 decomposition. Keep each exact path warning-visible
+        // without granting the crate or directory a blanket exemption.
+        "crates/shared/cortex/storage-sqlite/src/analytics.rs" => Some(750),
+        "crates/shared/cortex/storage-sqlite/src/graph.rs" => Some(1_400),
+        "crates/shared/cortex/storage-sqlite/src/graph_inventory.rs" => Some(400),
+        "crates/shared/cortex/storage-sqlite/src/maintenance.rs" => Some(550),
+        "crates/shared/cortex/storage-sqlite/src/pool.rs" => Some(1_600),
+        "crates/shared/cortex/storage-sqlite/src/queries.rs" => Some(1_600),
+        _ => None,
+    };
+    if cortex_sqlite_parity_limit.is_some() {
+        return cortex_sqlite_parity_limit;
+    }
     if path == Path::new("crates/soma/application/src/provider_registry.rs") {
         // Provider registration and dispatch is intentionally centralized while
         // the drop-in provider contract is settling. Keep it warning-visible.
@@ -286,6 +301,33 @@ mod tests {
         assert!(!is_size_exempt(Path::new(
             "xtask/src/generated_surfaces.rs"
         )));
+    }
+
+    #[test]
+    fn cortex_sqlite_parity_modules_have_narrow_transitional_budgets() {
+        let cases = [
+            ("crates/shared/cortex/storage-sqlite/src/analytics.rs", 750),
+            ("crates/shared/cortex/storage-sqlite/src/graph.rs", 1_400),
+            (
+                "crates/shared/cortex/storage-sqlite/src/graph_inventory.rs",
+                400,
+            ),
+            (
+                "crates/shared/cortex/storage-sqlite/src/maintenance.rs",
+                550,
+            ),
+            ("crates/shared/cortex/storage-sqlite/src/pool.rs", 1_600),
+            ("crates/shared/cortex/storage-sqlite/src/queries.rs", 1_600),
+        ];
+        for (path, limit) in cases {
+            assert_eq!(size_limit(Path::new(path)), Some(limit), "{path}");
+        }
+        assert_eq!(
+            size_limit(Path::new(
+                "crates/shared/cortex/storage-sqlite/src/heartbeat.rs"
+            )),
+            Some(350)
+        );
     }
 
     #[test]
