@@ -98,7 +98,7 @@ jobs:
     name: Actionlint and ShellCheck
     needs: [changes]
     if: ${{ needs.changes.outputs.workflow == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@ac57c3208cf92d71c5971bb936df51c400cb1ccf
+    uses: dinglebear-ai/workflows/.github/workflows/fast-ops.yml@137fff9d3a486208e0aa904d4a301aaf5084b5ff
     with:
       actionlint-version: v1.7.12
       shell-globs: .github/scripts/**/*.sh
