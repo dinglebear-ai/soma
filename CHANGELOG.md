@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
                Format: ## [X.Y.Z] — YYYY-MM-DD
                Use Added / Changed / Deprecated / Removed / Fixed / Security headers. -->
 
+## [0.11.0](https://github.com/dinglebear-ai/soma/compare/v0.10.0...v0.11.0) (2026-08-22)
+
+
+### Added
+
+* **infra:** complete canonical mutation runtime ([#319](https://github.com/dinglebear-ai/soma/issues/319)) ([948c419](https://github.com/dinglebear-ai/soma/commit/948c419094d6d51b08da78f4f242fa080b2c0217))
+* start Cortex shared-crate extraction ([7c9f0c2](https://github.com/dinglebear-ai/soma/commit/7c9f0c22fe0c0c5251b603b9b4befbad7429ab13))
+
+
+### Fixed
+
+* **ci:** keep Cortex parity fixture ASCII-clean ([f2be8e0](https://github.com/dinglebear-ai/soma/commit/f2be8e0f4c7059febd3dba7663afaa562fb2ab7d))
+* **ci:** satisfy Cortex extraction contract gates ([24f86b5](https://github.com/dinglebear-ai/soma/commit/24f86b5c79e9eaafcd2854d70a40cb1e2f6ac21d))
+* **python:** retry ETXTBSY on interpreter spawn; deflake Python timing tests ([#332](https://github.com/dinglebear-ai/soma/issues/332)) ([8897398](https://github.com/dinglebear-ai/soma/commit/8897398c812f9d65f2dc9cc7f310ba8ce1b1c7a2))
+* **security:** update h2 to 0.4.16 ([fdb9d60](https://github.com/dinglebear-ai/soma/commit/fdb9d60a6735f900e86538ac427223c3418232e9))
+* **self-update:** address review findings and adopt the crate in the CLI ([#330](https://github.com/dinglebear-ai/soma/issues/330)) ([b447c5e](https://github.com/dinglebear-ai/soma/commit/b447c5e1e6464821d4045a663596e4a22059248e))
+
+
+### Dependencies
+
+* **deps-dev:** bump @biomejs/biome from 2.5.6 to 2.5.7 in /apps/web ([#341](https://github.com/dinglebear-ai/soma/issues/341)) ([cf1039e](https://github.com/dinglebear-ai/soma/commit/cf1039ea11c154fc85481c29c0272b09a563357c))
+* **deps-dev:** bump @biomejs/biome from 2.5.7 to 2.5.8 in /apps/web ([#354](https://github.com/dinglebear-ai/soma/issues/354)) ([52918b6](https://github.com/dinglebear-ai/soma/commit/52918b6886c6fd5e3a7821d2a030cc895f6f7ff1))
+* **deps-dev:** bump @types/node from 26.1.2 to 26.2.0 in /apps/web ([#355](https://github.com/dinglebear-ai/soma/issues/355)) ([be7a46c](https://github.com/dinglebear-ai/soma/commit/be7a46c777d746020fccebf2c93eab304e8b3e81))
+* **deps-dev:** bump vite from 8.2.0 to 8.2.1 in /apps/web ([#343](https://github.com/dinglebear-ai/soma/issues/343)) ([1263c07](https://github.com/dinglebear-ai/soma/commit/1263c079f63eb4ae8f16a4a159873feba5fcaff7))
+* **deps:** bump async-trait from 0.1.91 to 0.1.92 ([#360](https://github.com/dinglebear-ai/soma/issues/360)) ([6d31cdd](https://github.com/dinglebear-ai/soma/commit/6d31cdd30a974edd6d339b821371ac20e56d2e70))
+* **deps:** bump base64 from 0.23.0 to 0.23.1 ([#352](https://github.com/dinglebear-ai/soma/issues/352)) ([f30bb3c](https://github.com/dinglebear-ai/soma/commit/f30bb3c09860d839049ee833a9768ffb88c173f8))
+* **deps:** bump futures from 0.3.33 to 0.3.34 ([#362](https://github.com/dinglebear-ai/soma/issues/362)) ([691e0bc](https://github.com/dinglebear-ai/soma/commit/691e0bc56598624158c50ee58dbd83a71528b5dd))
+* **deps:** bump jsonschema from 0.49.2 to 0.49.9 ([#356](https://github.com/dinglebear-ai/soma/issues/356)) ([f9cf5f4](https://github.com/dinglebear-ai/soma/commit/f9cf5f4635e1c93f4ea9f26ab57aea98edc21e26))
+* **deps:** bump next in /apps/web in the next group ([#340](https://github.com/dinglebear-ai/soma/issues/340)) ([5641910](https://github.com/dinglebear-ai/soma/commit/56419108ea10d4d17dd5101e2a721144004bf9c7))
+* **deps:** bump next in /apps/web in the next group across 1 directory ([#353](https://github.com/dinglebear-ai/soma/issues/353)) ([bdbc2f0](https://github.com/dinglebear-ai/soma/commit/bdbc2f0e73d08c71b1367f55cadb14aa20b3e352))
+* **deps:** bump postcss from 8.5.25 to 8.5.26 in /apps/web ([#342](https://github.com/dinglebear-ai/soma/issues/342)) ([e68d2b6](https://github.com/dinglebear-ai/soma/commit/e68d2b6a1750ff5daa79eb35c6f62cf65112462a))
+* **deps:** bump pyo3 from 0.29.0 to 0.29.2 ([#344](https://github.com/dinglebear-ai/soma/issues/344)) ([dbe1e63](https://github.com/dinglebear-ai/soma/commit/dbe1e637e9ea59d7da540b702ba1e65801f6745f))
+* **deps:** bump rusqlite from 0.40.1 to 0.40.2 ([#357](https://github.com/dinglebear-ai/soma/issues/357)) ([a0bcef7](https://github.com/dinglebear-ai/soma/commit/a0bcef74b7dcc33209bdc2ce3b3e13f757c9616b))
+* **deps:** bump thiserror from 2.0.19 to 2.0.20 ([#359](https://github.com/dinglebear-ai/soma/issues/359)) ([fddde1e](https://github.com/dinglebear-ai/soma/commit/fddde1ef519ae2237f050c8b708ce60c9a3a10e0))
+
+
+### Changed
+
+* **ci:** build xtask once in Soma Contracts instead of 17 cargo runs ([#336](https://github.com/dinglebear-ai/soma/issues/336)) ([ee22278](https://github.com/dinglebear-ai/soma/commit/ee22278da0948087ff49241e01d2ea5c8cbdc132))
+* **ci:** drop the redundant target cache from the Test job ([#338](https://github.com/dinglebear-ai/soma/issues/338)) ([e876708](https://github.com/dinglebear-ai/soma/commit/e8767089d2d16a4a05c9145e3276e5269d01600a))
+* **ci:** emit line-tables-only debuginfo in dev builds ([#334](https://github.com/dinglebear-ai/soma/issues/334)) ([113eb56](https://github.com/dinglebear-ai/soma/commit/113eb56b35892345d81035187ce91f2458062165))
+
 ## [0.10.0](https://github.com/dinglebear-ai/soma/compare/v0.9.0...v0.10.0) (2026-08-05)
 
 
