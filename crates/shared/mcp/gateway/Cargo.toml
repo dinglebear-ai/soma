@@ -26,7 +26,7 @@ anyhow = "1"
 bytes = "1"
 futures = "0.3"
 http = "1"
-process-wrap = { version = "9.1.0", default-features = false, features = ["tokio1", "process-group"] }
+process-wrap = { version = "10.0.0", default-features = false, features = ["tokio1", "process-group"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls-no-provider", "stream"] }
 rmcp = { workspace = true, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
