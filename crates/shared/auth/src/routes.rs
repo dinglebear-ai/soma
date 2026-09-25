@@ -64,8 +64,8 @@ fn callback_paths(state: &AuthState) -> Vec<String> {
 /// Bearer-only OAuth subset router for headless consumers.
 ///
 /// Mounts only the endpoints a non-browser MCP client needs to discover and
-/// exchange tokens — `/.well-known/*`, `/jwks`, `/authorize`,
-/// `/auth/google/callback`, `/token`, and `/revoke`. Excludes:
+/// exchange tokens — `/.well-known/*`, `/jwks`, `/authorize`, every configured
+/// provider callback, `/token`, and `/revoke`. Excludes:
 ///
 /// - `/auth/login` (browser HTML — no UI on a headless service).
 /// - `/register` (RFC 7591 dynamic client registration — extra attack
@@ -98,7 +98,9 @@ pub fn bearer_only_router(state: AuthState) -> Router {
         .layer(middleware::from_fn(auth_dispatch_observability))
 }
 
-/// Pinned snapshot of the routes mounted by [`bearer_only_router`]. Sorted.
+/// Pinned snapshot of the fixed routes mounted by [`bearer_only_router`]. Sorted.
+/// Provider callback paths are configuration-dependent and are asserted
+/// separately from `AuthState.providers` in the snapshot test.
 ///
 /// If you add or remove an endpoint in `bearer_only_router`, update this
 /// list AND consider whether the change is intentional — silently
@@ -109,7 +111,6 @@ pub const BEARER_ONLY_ROUTER_PATHS: &[(&str, &str)] = &[
     ("GET", "/.well-known/oauth-authorization-server/mcp"),
     ("GET", "/.well-known/oauth-protected-resource"),
     ("GET", "/authorize"),
-    ("GET", "/auth/google/callback"),
     ("GET", "/jwks"),
     ("POST", "/revoke"),
     ("POST", "/token"),
@@ -314,7 +315,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn bearer_only_router_route_list_matches_pinned_snapshot() {
         let state = test_auth_state().await;
-        let app = bearer_only_router(state);
+        let app = bearer_only_router(state.clone());
 
         for (method, path) in BEARER_ONLY_ROUTER_PATHS {
             let response = app
@@ -334,6 +335,25 @@ mod tests {
                 "expected `{method} {path}` to be mounted on bearer_only_router \
                  but got 404 — did the route get removed without updating \
                  BEARER_ONLY_ROUTER_PATHS?"
+            );
+        }
+
+        for callback_path in callback_paths(&state) {
+            let response = app
+                .clone()
+                .oneshot(
+                    HttpRequest::builder()
+                        .method("GET")
+                        .uri(&callback_path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_ne!(
+                response.status(),
+                StatusCode::NOT_FOUND,
+                "expected configured provider callback `{callback_path}` to be mounted"
             );
         }
 
