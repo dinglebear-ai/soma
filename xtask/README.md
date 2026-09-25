@@ -36,8 +36,7 @@ just ci
 ### `cargo xtask changed-paths`
 
 Classify changed files into the routing categories consumed by the path-aware
-GitHub Actions gates in `.github/workflows/ci.yml` and
-`.github/workflows/msrv.yml`.
+GitHub Actions gates in `.github/workflows/ci.yml`.
 
 ```bash
 cargo xtask changed-paths --event pull_request --output /tmp/ci-paths.env

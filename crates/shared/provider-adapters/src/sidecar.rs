@@ -56,6 +56,59 @@ pub fn execution_payload(call: &ProviderCall) -> Result<Vec<u8>, serde_json::Err
     serde_json::to_vec(&ExecutionEnvelope::new(call))
 }
 
+/// Attempts before giving up on a still-busy interpreter image, and the pause
+/// between them. Ten 5ms attempts bound the wait at ~50ms, which is far below
+/// any sidecar or worker startup timeout while comfortably outlasting the
+/// close-to-exec window in practice.
+const EXEC_BUSY_ATTEMPTS: u32 = 10;
+const EXEC_BUSY_BACKOFF: Duration = Duration::from_millis(5);
+
+/// `true` when the kernel refused to exec an image because it is still open
+/// for writing somewhere.
+///
+/// A prepared interpreter is materialized (copied or hard-linked into a
+/// generation tree) and then executed almost immediately. On Linux `execve`
+/// fails with `ETXTBSY` while *any* thread in this process still holds a write
+/// descriptor to that image — including a descriptor the writing thread has
+/// already dropped but whose close has not yet been observed. The condition is
+/// transient by construction and clears on its own, so it must be retried
+/// rather than reported as a broken provider.
+fn image_is_busy(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::ExecutableFileBusy
+}
+
+/// Spawns `command`, retrying only the transient "image still open for
+/// writing" condition detected by `image_is_busy`. Every other spawn error
+/// is returned immediately and untouched.
+pub async fn spawn_retrying_busy_image(command: &mut Command) -> io::Result<tokio::process::Child> {
+    for _ in 0..EXEC_BUSY_ATTEMPTS {
+        match command.spawn() {
+            Err(error) if image_is_busy(&error) => {
+                tokio::time::sleep(EXEC_BUSY_BACKOFF).await;
+            }
+            result => return result,
+        }
+    }
+    command.spawn()
+}
+
+/// Blocking counterpart to [`spawn_retrying_busy_image`] for callers that
+/// drive a `std::process::Command` (the catalog sidecar runs on a blocking
+/// worker and has no reactor to await on).
+pub fn spawn_retrying_busy_image_blocking(
+    command: &mut std::process::Command,
+) -> io::Result<std::process::Child> {
+    for _ in 0..EXEC_BUSY_ATTEMPTS {
+        match command.spawn() {
+            Err(error) if image_is_busy(&error) => {
+                std::thread::sleep(EXEC_BUSY_BACKOFF);
+            }
+            result => return result,
+        }
+    }
+    command.spawn()
+}
+
 pub struct BoundedOutput {
     pub output: Output,
     pub stdout_exceeded: bool,
@@ -82,7 +135,9 @@ pub async fn run_bounded_sidecar(
     apply_sidecar_base_env(&mut command);
     command.envs(env);
 
-    let mut child = command.spawn().map_err(SidecarError::Io)?;
+    let mut child = spawn_retrying_busy_image(&mut command)
+        .await
+        .map_err(SidecarError::Io)?;
 
     let stdout = child
         .stdout

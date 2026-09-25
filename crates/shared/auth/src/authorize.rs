@@ -32,7 +32,7 @@ const NATIVE_CALLBACK_EXPIRED_PAGE: &str = r#"<!doctype html><html><body style="
 /// `email_verified` is enforced before the email comparison: without this guard,
 /// an attacker who presents someone else's unverified address through an
 /// upstream provider could bypass the allowlist.
-fn check_email_allowlist(
+pub(crate) fn check_email_allowlist(
     provider_id: &str,
     email: Option<&str>,
     email_verified: Option<bool>,
@@ -319,7 +319,9 @@ pub async fn authorize(
     debug!(
         client_id = %query.client_id,
         oauth_state_id = %oauth_state_id,
-        location = %location,
+        provider = provider.provider_id(),
+        authorize_origin = %location.origin().ascii_serialization(),
+        authorize_path = %location.path(),
         "oauth authorize redirect URL generated"
     );
 
@@ -522,7 +524,8 @@ pub async fn callback(
         .append_pair("iss", &issuer);
     debug!(
         auth_code_id = %auth_code_id,
-        redirect_uri = %redirect_uri,
+        redirect_origin = %redirect_uri.origin().ascii_serialization(),
+        redirect_path = %redirect_uri.path(),
         "oauth callback redirecting client back to registered callback"
     );
 

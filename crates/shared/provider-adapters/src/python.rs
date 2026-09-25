@@ -37,7 +37,7 @@ use crate::{
     },
     sidecar::{
         collect_provider_env, output_exceeded_message, resolve_sidecar_command,
-        run_bounded_sidecar, sidecar_base_env,
+        run_bounded_sidecar, sidecar_base_env, spawn_retrying_busy_image_blocking,
     },
 };
 use supervisor::{PythonSupervisorConfig, PythonWorkerIdentity, PythonWorkerSupervisor};
@@ -686,7 +686,8 @@ fn run_catalog_sidecar(runtime: &PythonRuntime, input: &[u8]) -> Result<Vec<u8>,
     for (key, value) in sidecar_base_env() {
         command.env(key, value);
     }
-    let mut child = command.spawn().map_err(|error| error.to_string())?;
+    let mut child =
+        spawn_retrying_busy_image_blocking(&mut command).map_err(|error| error.to_string())?;
     let stdout = child
         .stdout
         .take()

@@ -25,6 +25,9 @@ file_count_soft_limit = 256
 files_total_size_soft_limit = 2147483648
 
 [performance]
+# Measure multiple fresh Python processes and enforce the best sample so host
+# scheduler contention cannot masquerade as SDK import work.
+sdk_import_trials = 5
 sdk_import_ms = 500
 catalog_cold_ms = 2000
 catalog_warm_average_ms = 25

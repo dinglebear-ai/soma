@@ -3,7 +3,6 @@
 use std::fs::OpenOptions;
 use std::os::unix::fs::PermissionsExt;
 
-use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use soma_self_update::{
     BackupStrategy, ConfirmationOutcome, InstallOutcome, RecoveryAction, UpdateDirective,
@@ -38,6 +37,33 @@ async fn install_rehashes_validated_bytes_before_mutating_live_state() {
     ));
     assert_eq!(std::fs::read(&executable).unwrap(), old);
     assert!(!state.exists());
+}
+
+#[tokio::test]
+async fn install_rejects_an_absent_target_before_creating_transaction_state() {
+    // Staging and validation tolerate a missing target so they can be used
+    // standalone, but this installer backs up and replaces an existing file.
+    // The absent case must fail with a typed policy error before any lock,
+    // authority, or marker file is created.
+    let temp = tempdir().unwrap();
+    let executable = temp.path().join("example");
+    let state = temp.path().join("update.json");
+    let new = b"#!/bin/sh\necho 'example 2.0.0'\n";
+    let updater = Updater::new(
+        UpdateLayout::new(&executable, &state),
+        UpdatePolicy::default(),
+    );
+    let artifact = validated(&updater, new, "2.0.0").await;
+
+    assert!(matches!(
+        updater.install(artifact, "1.0.0").await,
+        Err(UpdateError::InvalidPolicy(_))
+    ));
+    assert!(!executable.exists());
+    assert!(!state.exists());
+    assert!(!temp.path().join("update.json.lock").exists());
+    assert!(!temp.path().join(".example.update.lock").exists());
+    assert!(!temp.path().join(".example.update.authority").exists());
 }
 
 #[tokio::test]
@@ -706,7 +732,7 @@ async fn lock_and_corrupt_recovery_state_fail_closed() {
         .write(true)
         .open(&lock_path)
         .unwrap();
-    lock.try_lock_exclusive().unwrap();
+    lock.try_lock().unwrap();
     assert!(matches!(
         updater.recover_on_startup("1").await,
         Err(UpdateError::UpdateInProgress { .. })

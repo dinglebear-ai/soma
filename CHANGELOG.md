@@ -25,17 +25,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* **cli:** add `soma self-update run|recover|confirm`, adopting the previously unused `soma-self-update` crate as CLI infrastructure (HTTPS-only same-origin artifacts, refused redirects, policy-bounded download)
+
 ### Changed
 
 * **ci:** validate release-please PRs with a hosted version-surface contract while preserving the full self-hosted matrix for normal changes
 * **ci:** isolate the Fast Rust test-phase Cargo home so parallel runner containers cannot race while unpacking shared registry sources
 - Relicense Dinglebear-owned original work under AGPL-3.0-only and document separate commercial licensing; third-party material retains its original terms.
 * **ci:** pin the shared Rust cache action to upstream Kache 0.13.0 so hosted and self-hosted jobs use the same daemon protocol and S3 cache epoch
+* **deps:** drop the unmaintained `fs2` crate workspace-wide in favor of std `File::try_lock`/`try_lock_shared`/`unlock` (MSRV 1.97 covers the 1.89 stabilization) — `soma-self-update`, `soma-application` graduation locking, and `soma-provider-adapters` broker state
+* **self-update:** reject an absent target executable in `install` with a typed error instead of failing opaquely mid-transaction
+* **self-update:** reclaim stale staging/rollback artifacts owned by either the staging process euid or the installed executable owner, so hard-link and copy backups are both collected
+* **self-update:** document the single-host/local-filesystem requirement, per-startup full-binary hashing cost, and lost-backup confirmation behavior
 * **docs:** document the MinIO-only Kache remote, 80 GiB runner L1 stores, and retired NFS topology
 
 ### Fixed
 
 * **release:** regenerate the OpenAPI document during release-please fixups so version bumps cannot leave the generated contract stale
+* **python:** retry `ETXTBSY` when spawning a Python interpreter or sidecar. A freshly materialized generation could be exec'd while a write descriptor on the image was still open, surfacing as a spurious `invalid Python provider: Text file busy` load failure
+* **tests:** replace fixed-interval waits and tight wall-clock deadlines in the Python supervisor, provider-refresh, broker-state, and wasm tests with polls on the actual precondition, so scheduler pressure is no longer a false failure
 * **tests:** retain a bounded provider-refresh contention test without failing when shared-runner scheduler pressure pushes legitimate preparation beyond five seconds
 
 

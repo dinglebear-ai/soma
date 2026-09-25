@@ -36,7 +36,7 @@ RUN pnpm build
 # CUSTOMIZE: Pin to a digest for reproducible builds:
 #   docker pull rust:1.97.1-slim-bookworm
 #   docker inspect --format '{{index .RepoDigests 0}}' rust:1.97.1-slim-bookworm
-FROM rust:1.97.1-slim-bookworm AS builder
+FROM rust:1.98.0-slim-bookworm AS builder
 
 WORKDIR /app
 

@@ -156,6 +156,14 @@ impl ServerHandler for SomaRmcpServer {
         let mut execution_context =
             execution_context_with_trace(&self.state, auth, trace_resolution.trace_context.clone());
         let soma_allowed = protected_scope_allows_service(route_scope, "soma");
+        if soma_allowed {
+            // A direct tool call may be the first request after an operator
+            // drops a provider into the watched directory. Refresh through the
+            // async path here so persistent Python providers are preflighted
+            // and published without requiring a preceding tools/list call or
+            // a service restart.
+            refresh_file_providers(&self.state).await?;
+        }
         if soma_allowed
             && self.state.config().conformance_fixtures
             && let Some(result) = conformance::call_tool(&tool_name)

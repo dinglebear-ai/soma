@@ -159,7 +159,7 @@ impl ProcessInspector for Fixture {
             topology_revision: host.revision().clone(),
             sort: request.sort(),
             rows: vec![ProcessRow {
-                user: "jmagar".into(),
+                user: "devuser".into(),
                 pid: 1,
                 cpu_percent: 1.0,
                 memory_percent: 2.0,

@@ -25,6 +25,12 @@ use super::{
     verify_immutable_generation,
 };
 
+/// Upper bound for a refresh that must terminate. Large on purpose: the
+/// assertion is that the refresh owner is *bounded* under contention, not that
+/// it is fast, and a tight bound only turns a loaded machine into a false
+/// failure.
+const REFRESH_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
+
 fn wait_until_removed(path: &Path) {
     for _ in 0..100 {
         if !path.exists() {
@@ -250,11 +256,44 @@ impl PythonProviderEnvironmentPreparer for StubPythonEnvironmentPreparer {
     }
 }
 
-struct SlowPythonEnvironmentPreparer;
+/// How long a slow preparation stays in flight. Deliberately far longer than
+/// [`OFF_THREAD_BUDGET`] so "the load returned without waiting for
+/// preparation" cannot be confused with "preparation happened to finish".
+const SLOW_PREPARATION: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// How long the responsiveness tests allow a *non-blocking* load to take. The
+/// timer they race fires at 50ms, so this is pure headroom for a loaded
+/// machine while remaining far below [`SLOW_PREPARATION`] — a runtime actually
+/// blocked by preparation could not come in under this.
+const OFF_THREAD_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// A preparer that stays in `prepare` for [`SLOW_PREPARATION`], but can be cut
+/// short once the assertions are done.
+///
+/// The early release matters: `prepare` runs on a blocking worker that cannot
+/// be cancelled, and dropping the runtime waits for it. A plain
+/// `thread::sleep` would therefore add its full duration to every test's
+/// teardown, which is what kept the original sleep short — and a short sleep
+/// is exactly what left the assertion no headroom.
+#[derive(Clone, Default)]
+struct SlowPythonEnvironmentPreparer {
+    released: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl SlowPythonEnvironmentPreparer {
+    /// Lets any in-flight preparation finish promptly so runtime teardown is
+    /// not held up by the remainder of [`SLOW_PREPARATION`].
+    fn release(&self) {
+        self.released.store(true, Ordering::Release);
+    }
+}
 
 impl PythonProviderEnvironmentPreparer for SlowPythonEnvironmentPreparer {
     fn prepare(&self, _provider_path: &Path) -> Result<PythonInterpreter, String> {
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        let deadline = std::time::Instant::now() + SLOW_PREPARATION;
+        while std::time::Instant::now() < deadline && !self.released.load(Ordering::Acquire) {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
         Err("deliberately slow preparation".to_owned())
     }
 
@@ -303,8 +342,9 @@ async fn one_shot_async_load_keeps_the_tokio_thread_responsive() {
         "PROVIDER = {'name': 'candidate', 'kind': 'python'}\n",
     )
     .expect("write Python candidate");
+    let preparer = SlowPythonEnvironmentPreparer::default();
     let source = FileProviderSource::new(temp.path())
-        .with_python_environment_preparer(Arc::new(SlowPythonEnvironmentPreparer));
+        .with_python_environment_preparer(Arc::new(preparer.clone()));
     let started = std::time::Instant::now();
 
     let timeout = tokio::time::timeout(
@@ -312,14 +352,16 @@ async fn one_shot_async_load_keeps_the_tokio_thread_responsive() {
         source.load_with_python_environments_async(&Default::default()),
     )
     .await;
+    let elapsed = started.elapsed();
+    preparer.release();
 
     assert!(
         timeout.is_err(),
         "the Tokio timer must fire while one-shot preparation runs off-thread"
     );
     assert!(
-        started.elapsed() < std::time::Duration::from_millis(150),
-        "one-shot preparation blocked the current-thread runtime"
+        elapsed < OFF_THREAD_BUDGET,
+        "one-shot preparation blocked the current-thread runtime (took {elapsed:?})"
     );
 }
 
@@ -331,9 +373,10 @@ async fn persistent_async_preparation_keeps_the_tokio_thread_responsive() {
         "PROVIDER = {'name': 'candidate', 'kind': 'python'}\n",
     )
     .expect("write Python candidate");
+    let preparer = SlowPythonEnvironmentPreparer::default();
     let source = FileProviderSource::new(temp.path())
         .with_python_runner(PythonRunnerSelection::Persistent(Default::default()))
-        .with_python_environment_preparer(Arc::new(SlowPythonEnvironmentPreparer));
+        .with_python_environment_preparer(Arc::new(preparer.clone()));
     let started = std::time::Instant::now();
 
     let timeout = tokio::time::timeout(
@@ -341,14 +384,16 @@ async fn persistent_async_preparation_keeps_the_tokio_thread_responsive() {
         source.load_with_python_environments_async(&Default::default()),
     )
     .await;
+    let elapsed = started.elapsed();
+    preparer.release();
 
     assert!(
         timeout.is_err(),
         "the Tokio timer must fire while persistent preparation runs off-thread"
     );
     assert!(
-        started.elapsed() < std::time::Duration::from_millis(150),
-        "persistent environment preparation blocked the current-thread runtime"
+        elapsed < OFF_THREAD_BUDGET,
+        "persistent environment preparation blocked the current-thread runtime (took {elapsed:?})"
     );
 }
 
@@ -604,8 +649,16 @@ async fn refresh_owner_rechecks_a_change_arriving_during_candidate_preparation()
     fs::write(&provider, source_text("intermediate_action")).expect("write intermediate provider");
     let owner_registry = registry.clone();
     let owner = tokio::spawn(async move { owner_registry.refresh_file_providers_async().await });
+    // Bounded rather than an unbounded spin: if the owner never reaches its
+    // second preparation the test should say so, not hang until the harness
+    // kills it.
+    let second_prepare = tokio::time::Instant::now() + REFRESH_BOUND;
     while calls.load(Ordering::SeqCst) < 2 {
-        tokio::task::yield_now().await;
+        assert!(
+            tokio::time::Instant::now() < second_prepare,
+            "refresh owner never started a second candidate preparation"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
     }
 
     fs::write(&provider, source_text("settled_action")).expect("write settled provider");
@@ -622,17 +675,21 @@ async fn refresh_owner_rechecks_a_change_arriving_during_candidate_preparation()
                 .refresh_file_providers_async()
                 .await
                 .expect("contending refresh");
-            tokio::task::yield_now().await;
+            // A bare `yield_now` here spins as fast as the scheduler allows,
+            // which starves the very owner task this test is waiting on — the
+            // contention it is meant to create becomes CPU starvation instead.
+            // A short sleep still overlaps every contender with the owner.
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
         }
     });
     let (released, changed) = &*release;
     *released.lock().expect("release lock") = true;
     changed.notify_all();
     // The production refresh owner is bounded to two passes. Shared CI can
-    // legitimately spend more than five seconds preparing Python candidates
-    // under load, so keep the test bounded without making scheduler pressure a
-    // false failure.
-    tokio::time::timeout(std::time::Duration::from_secs(15), owner)
+    // legitimately spend a long time preparing Python candidates under load,
+    // so keep the test bounded without making scheduler pressure a false
+    // failure — this asserts boundedness, not speed.
+    tokio::time::timeout(REFRESH_BOUND, owner)
         .await
         .expect("refresh owner must remain bounded under contention")
         .unwrap()
