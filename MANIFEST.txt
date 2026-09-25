@@ -1,0 +1,62 @@
+Workspace cleanup archive for dinglebear-ai/soma
+Date: 2026-09-25
+Default: main
+
+STALE_BRANCHES 27
+STALE	backup/dependabot-rollup-pre-295-20260803	90f61ce90382da277d4d8854278682243bf7bc91
+STALE	backup/mutation-exec-before-20260804-restack	69f77dc6b4e1b7f26880cd367356c96665c009fa
+STALE	backup/mutation-exec-before-322-restack	b95f79238a83e588502a2ee8fa70b5db5330c6d7
+STALE	backup/mutation-exec-before-main-restack	f53e1d263dd7165c34563a3383d319a6ebd73cfa
+STALE	backup/mutation-exec-before-restack	4ecc86248349e4cc3324c9f9636ed11f195c442a
+STALE	backup/mutation-final-before-clean-restack-20260805	5e68f18c883cb43ef8ca504152b03b31fd02c4ac
+STALE	backup/mutation-final-before-exec-restack	a00288c5122b93d1096b74ed47d10e1aa4ea67db
+STALE	backup/mutation-final-before-restack	c17fdb026c10be1f30c6a3d274b1d70324fd0e9b
+STALE	backup/mutation-final-before-v010-restack-20260805	bb95720d6c4e3ecd43a2294fa43df60f91c03bfa
+STALE	backup/mutation-recreate-before-restack	2c65cd38a82074c52586658e6138cdafef2df596
+STALE	backup/mutation-recreate-pre-restack	4680cbe8bf04d3d5649e1fce156122cef92bc8fe
+STALE	backup/release-0.9.0-pre-rebase-20260803	e3c7acd355d3c9f672522e553173e7e77c22c2a6
+STALE	backup/synapse-standalone-before-final-restack	99dbf56fb01530313a4b0c8fbd63900f1748d042
+STALE	chore/agpl-commercial-licensing	ecb0fc74033c3c9943d9976f60687bde9e961b7c
+STALE	chore/scrub-internal-identifiers-20260805	f5281cd78c3743068ae10056ddb58fc6663bd47b
+STALE	ci/audit-fixes-20260805	bf3a713269e0f812415c173a4a26185c433b42e1
+STALE	ci/hosted-kache-minio-20260805	d5db8331a0e21c2a19b3b6354890b3f338136720
+STALE	codex/fix-provider-wheel-download	366294795da33e9d26abd08673761bba3efc7700
+STALE	codex/fix-pypi-trusted-publisher	5689a205913970bea17fe6aba5653920bbb6137b
+STALE	codex/provider-release-recovery	6ac38357f3750ca273cd5b64dfec604ede951337
+STALE	codex/scale-set-label-smoke-20260731	88860a010c336c3c0651572f8406c580488cfb0b
+STALE	codex/soma-auth-hardening-sync	46ff903bb3d81adfeb0f4dc33594429edf306716
+STALE	codex/soma-presync-20260904	f0f578cbe4b1c6226a4502557696d58b52f97724
+STALE	feat/cortex-storage-sqlite-extraction	1be1240140059e298a36415e177cf4467e891971
+STALE	feat/mutation-exec	b094ad159baa4329ce554b11fa567b1ae062d8f0
+STALE	feat/port-labby-codemode-auth-gateway	e63a293cfc131364a4c29b732f20d779ca617add
+STALE	test/remaining-fixture-scrub	991a4c0d00e8576af9c745468ac896ea5f31c06b
+
+LOCAL_ONLY_BRANCHES 24
+LOCAL_ONLY	backup/dependabot-rollup-pre-295-20260803	90f61ce90382da277d4d8854278682243bf7bc91
+LOCAL_ONLY	backup/mutation-exec-before-322-restack	b95f79238a83e588502a2ee8fa70b5db5330c6d7
+LOCAL_ONLY	backup/mutation-exec-before-main-restack	f53e1d263dd7165c34563a3383d319a6ebd73cfa
+LOCAL_ONLY	backup/mutation-exec-before-restack	4ecc86248349e4cc3324c9f9636ed11f195c442a
+LOCAL_ONLY	backup/mutation-final-before-clean-restack-20260805	5e68f18c883cb43ef8ca504152b03b31fd02c4ac
+LOCAL_ONLY	backup/mutation-final-before-exec-restack	a00288c5122b93d1096b74ed47d10e1aa4ea67db
+LOCAL_ONLY	backup/mutation-final-before-restack	c17fdb026c10be1f30c6a3d274b1d70324fd0e9b
+LOCAL_ONLY	backup/mutation-final-before-v010-restack-20260805	bb95720d6c4e3ecd43a2294fa43df60f91c03bfa
+LOCAL_ONLY	backup/mutation-recreate-before-restack	2c65cd38a82074c52586658e6138cdafef2df596
+LOCAL_ONLY	backup/mutation-recreate-pre-restack	4680cbe8bf04d3d5649e1fce156122cef92bc8fe
+LOCAL_ONLY	backup/release-0.9.0-pre-rebase-20260803	e3c7acd355d3c9f672522e553173e7e77c22c2a6
+LOCAL_ONLY	backup/synapse-standalone-before-final-restack	99dbf56fb01530313a4b0c8fbd63900f1748d042
+LOCAL_ONLY	chore/agpl-commercial-licensing	ecb0fc74033c3c9943d9976f60687bde9e961b7c
+LOCAL_ONLY	chore/scrub-internal-identifiers-20260805	f5281cd78c3743068ae10056ddb58fc6663bd47b
+LOCAL_ONLY	ci/audit-fixes-20260805	bf3a713269e0f812415c173a4a26185c433b42e1
+LOCAL_ONLY	codex/fix-provider-wheel-download	366294795da33e9d26abd08673761bba3efc7700
+LOCAL_ONLY	codex/fix-pypi-trusted-publisher	5689a205913970bea17fe6aba5653920bbb6137b
+LOCAL_ONLY	codex/provider-release-recovery	6ac38357f3750ca273cd5b64dfec604ede951337
+LOCAL_ONLY	codex/soma-presync-20260904	f0f578cbe4b1c6226a4502557696d58b52f97724
+LOCAL_ONLY	docs/agent-runtime-package-20260805	cb9b3286f7a455c1b4a45b97b5bde919fbe4a2be
+LOCAL_ONLY	feat/cortex-storage-sqlite-extraction	1be1240140059e298a36415e177cf4467e891971
+LOCAL_ONLY	feat/port-labby-codemode-auth-gateway	e63a293cfc131364a4c29b732f20d779ca617add
+LOCAL_ONLY	release-please--branches--main--components--soma	c97917a5df53d5f9cc97c88531ea2c37f42f3689
+LOCAL_ONLY	test/remaining-fixture-scrub	991a4c0d00e8576af9c745468ac896ea5f31c06b
+
+STALE_WORKTREES 0
+
+WIP_SNAPSHOTS 0

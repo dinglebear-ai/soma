@@ -1,2 +1,0 @@
-[cargo]
-manifest-exclude = ["ci/kache-key-probe/Cargo.toml"]
