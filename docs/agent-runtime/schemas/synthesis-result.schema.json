@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/synthesis-result.schema.json",
+  "title": "Soma Synthesis Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "runId", "contextGenerations", "status", "summary", "claims", "findings", "conflicts", "rejectedHypotheses", "openQuestions", "recommendedActions", "budget", "verification"],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "runId": { "$ref": "common.schema.json#/$defs/id" },
+    "contextGenerations": { "type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": true, "items": { "$ref": "common.schema.json#/$defs/id" } },
+    "status": { "enum": ["completed", "completed-with-unknowns", "insufficient-evidence", "budget-exhausted", "approval-required", "cancelled", "failed"] },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 65536 },
+    "claims": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/claim" } },
+    "findings": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/finding" } },
+    "conflicts": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/conflict" } },
+    "rejectedHypotheses": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/hypothesis" } },
+    "openQuestions": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/question" } },
+    "recommendedActions": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/action" } },
+    "budget": { "$ref": "common.schema.json#/$defs/budgetReport" },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checks"],
+      "properties": {
+        "status": { "enum": ["not-run", "passed", "failed", "partial"] },
+        "checks": { "type": "array", "items": { "type": "string", "maxLength": 4096 }, "maxItems": 1024 }
+      }
+    },
+    "narratives": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "common.schema.json#/$defs/materializationReceipt" }
+    }
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "status", "confidence", "support", "contradictions"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "subject": { "type": "string", "maxLength": 4096 },
+        "predicate": { "type": "string", "maxLength": 256 },
+        "object": true,
+        "status": { "$ref": "common.schema.json#/$defs/evidenceClass" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "support": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 },
+        "contradictions": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 },
+        "inference": { "type": "string", "maxLength": 16384 },
+        "supersedes": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/id" }, "maxItems": 128 }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "evidence"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "evidence": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 }
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "evidence"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "evidence": { "type": "array", "minItems": 2, "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 }
+      }
+    },
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "reason"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "evidence": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "derivedFrom", "depth", "status"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "question": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "derivedFrom": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 },
+        "depth": { "type": "integer", "minimum": 0, "maximum": 16 },
+        "status": { "enum": ["pending", "running", "answered", "unanswered", "failed", "cancelled"] },
+        "jobRef": { "$ref": "common.schema.json#/$defs/canonicalRef" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "riskClass", "supportedBy"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "riskClass": { "$ref": "common.schema.json#/$defs/mutationClass" },
+        "supportedBy": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/id" }, "maxItems": 1024 },
+        "snippet": { "type": "string", "maxLength": 256 }
+      }
+    }
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/agent-stack.schema.json",
+  "title": "Soma Agent Stack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "services"],
+  "properties": {
+    "apiVersion": { "const": "soma.dev/v1alpha1" },
+    "kind": { "const": "AgentStack" },
+    "metadata": { "$ref": "common.schema.json#/$defs/metadata" },
+    "services": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "propertyNames": { "$ref": "common.schema.json#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/service" }
+    }
+  },
+  "$defs": {
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "context", "gateway", "runtime"],
+      "properties": {
+        "agent": { "$ref": "#/$defs/agent" },
+        "context": { "$ref": "#/$defs/contextBinding" },
+        "gateway": { "$ref": "#/$defs/gatewayBinding" },
+        "runtime": { "$ref": "#/$defs/runtime" },
+        "snippets": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/primitiveRequirement" }
+        },
+        "skills": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/primitiveRequirement" }
+        },
+        "disclosure": { "$ref": "#/$defs/disclosure" },
+        "observability": { "$ref": "#/$defs/observability" },
+        "outputs": {
+          "type": "object",
+          "maxProperties": 64,
+          "additionalProperties": { "$ref": "#/$defs/output" }
+        },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime", "mode"],
+      "properties": {
+        "runtime": { "const": "codex-app-server" },
+        "mode": { "enum": ["one-shot", "resident"] },
+        "package": { "$ref": "#/$defs/package" },
+        "prompts": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/primitiveRequirement" }
+        },
+        "model": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "acceptanceCriteria": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        },
+        "approvalPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requiredAt": { "$ref": "common.schema.json#/$defs/mutationClass" },
+            "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 86400000 },
+            "onTimeout": { "enum": ["deny", "fail", "cancel"] }
+          }
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest"],
+      "properties": {
+        "manifest": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "lock": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "requireLock": { "type": "boolean" },
+        "audit": { "enum": ["required", "warn", "disabled"] },
+        "target": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "primitiveRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "$ref": "common.schema.json#/$defs/name" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "optional": { "type": "boolean" }
+      }
+    },
+    "contextBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest", "task"],
+      "properties": {
+        "manifest": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "view": { "$ref": "common.schema.json#/$defs/name" },
+        "task": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "revision": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "since": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "parameters": { "type": "object" },
+        "snapshotMode": { "enum": ["reference", "portable", "forensic"] }
+      }
+    },
+    "gatewayBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "loadout"],
+      "properties": {
+        "provider": { "const": "labby" },
+        "loadout": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "mode": { "enum": ["logical", "physical"] }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "image"],
+      "properties": {
+        "provider": { "const": "incus" },
+        "image": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "project": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "profiles": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "uniqueItems": true
+        },
+        "mounts": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/mount" }
+        },
+        "resources": { "$ref": "#/$defs/resources" },
+        "environment": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 4096 }
+        },
+        "secrets": {
+          "type": "object",
+          "additionalProperties": { "$ref": "common.schema.json#/$defs/secretRef" }
+        }
+      }
+    },
+    "mount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target", "mode", "purpose"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "target": { "type": "string", "pattern": "^/", "maxLength": 4096 },
+        "mode": { "enum": ["read-only", "read-write", "write-only"] },
+        "purpose": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": { "type": "number", "exclusiveMinimum": 0, "maximum": 256 },
+        "memoryBytes": { "type": "integer", "minimum": 134217728 },
+        "diskBytes": { "type": "integer", "minimum": 1073741824 },
+        "processes": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 604800000 }
+      }
+    },
+    "disclosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bootstrap": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "onDemand": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "restricted": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "maxLevel": { "enum": ["bootstrap", "orientation", "focused", "evidence", "raw", "expanded"] }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "heartbeatMs": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
+        "capture": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "commands", "tool-calls", "transcripts", "file-changes", "processes",
+              "resources", "otlp", "stdout", "stderr", "context", "claims", "artifacts"
+            ]
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contentType"],
+      "properties": {
+        "contentType": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "schema": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "required": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "snapshotOnFailure": { "type": "boolean" },
+        "destroyOnSuccess": { "type": "boolean" },
+        "retainMs": { "type": "integer", "minimum": 0, "maximum": 31536000000 }
+      }
+    }
+  }
+}

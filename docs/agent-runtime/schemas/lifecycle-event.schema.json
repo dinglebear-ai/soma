@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/lifecycle-event.schema.json",
+  "title": "Soma Agent Lifecycle Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "kind", "eventTime", "ingestionTime", "source", "severity", "sensitivity", "attributes", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "kind": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$", "maxLength": 256 },
+    "eventTime": { "$ref": "common.schema.json#/$defs/rfc3339" },
+    "ingestionTime": { "$ref": "common.schema.json#/$defs/rfc3339" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "runId": { "$ref": "common.schema.json#/$defs/id" },
+    "stackId": { "$ref": "common.schema.json#/$defs/id" },
+    "serviceId": { "$ref": "common.schema.json#/$defs/id" },
+    "agentId": { "$ref": "common.schema.json#/$defs/id" },
+    "contextGenerationId": { "$ref": "common.schema.json#/$defs/id" },
+    "disclosureDecisionId": { "$ref": "common.schema.json#/$defs/id" },
+    "snippetExecutionId": { "$ref": "common.schema.json#/$defs/id" },
+    "toolCallId": { "$ref": "common.schema.json#/$defs/id" },
+    "traceId": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "spanId": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+    "incusOperationId": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "artifactId": { "$ref": "common.schema.json#/$defs/id" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component", "version"],
+      "properties": {
+        "component": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "instance": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "severity": { "enum": ["trace", "debug", "info", "warn", "error", "critical"] },
+    "sensitivity": { "$ref": "common.schema.json#/$defs/sensitivity" },
+    "attributes": { "type": "object", "maxProperties": 512 },
+    "evidence": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 },
+    "error": { "$ref": "common.schema.json#/$defs/error" }
+  }
+}

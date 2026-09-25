@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "1",
+  "id": "synthesis-demo-01",
+  "runId": "run-demo-01",
+  "contextGenerations": ["ctxgen-demo-01"],
+  "status": "completed-with-unknowns",
+  "summary": "The sample 502 responses correlate with stale pooled upstream connections. Memory pressure is contradicted by the available heartbeat window. Whether the upstream idle timeout changed remains unknown.",
+  "claims": [
+    {
+      "id": "claim-reset-correlation",
+      "text": "The 502 responses correlate with upstream connection reset traces.",
+      "subject": "soma-gateway",
+      "predicate": "correlates-with",
+      "object": "upstream connection resets",
+      "status": "verified",
+      "confidence": 0.92,
+      "support": [
+        { "uri": "cortex://observation/trace-502-demo" }
+      ],
+      "contradictions": []
+    },
+    {
+      "id": "claim-memory-rejected",
+      "text": "Host memory pressure did not cause the sample failures.",
+      "subject": "host-memory-pressure",
+      "predicate": "did-not-cause",
+      "object": "gateway 502 responses",
+      "status": "contradicted",
+      "confidence": 0.89,
+      "support": [
+        { "uri": "cortex://heartbeat/devhost/window-demo" }
+      ],
+      "contradictions": []
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding-pool-lifetime",
+      "title": "Pooled connection lifetime exceeds guidance",
+      "description": "The sample configuration retains pooled connections beyond the documented upstream idle window.",
+      "evidence": [
+        { "uri": "axon://document/hyper-pool-guidance@generation-42" },
+        { "uri": "git://dinglebear-ai/soma/demo/config" }
+      ]
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "conflict-memory",
+      "description": "The initial memory-pressure hypothesis conflicts with observed heartbeat data.",
+      "evidence": [
+        { "uri": "cortex://observation/trace-502-demo" },
+        { "uri": "cortex://heartbeat/devhost/window-demo" }
+      ]
+    }
+  ],
+  "rejectedHypotheses": [
+    {
+      "id": "hypothesis-memory",
+      "text": "Memory exhaustion caused the failures.",
+      "reason": "Memory usage remained below the configured pressure threshold during the incident window.",
+      "evidence": [
+        { "uri": "cortex://heartbeat/devhost/window-demo" }
+      ]
+    }
+  ],
+  "openQuestions": [
+    {
+      "id": "question-idle-timeout",
+      "question": "Did the upstream idle timeout change before the incident?",
+      "derivedFrom": [
+        { "uri": "cortex://observation/trace-502-demo" }
+      ],
+      "depth": 1,
+      "status": "unanswered"
+    }
+  ],
+  "recommendedActions": [
+    {
+      "id": "action-reduce-pool-lifetime",
+      "description": "Test a pooled-connection lifetime below the verified upstream idle timeout.",
+      "riskClass": "repository-write",
+      "supportedBy": ["claim-reset-correlation", "finding-pool-lifetime"]
+    }
+  ],
+  "budget": {
+    "items": 146,
+    "bytes": 8388608,
+    "tokens": 18400,
+    "calls": 47,
+    "elapsedMs": 642000,
+    "truncated": false,
+    "reasons": []
+  },
+  "verification": {
+    "status": "partial",
+    "checks": [
+      "All material claims have canonical evidence.",
+      "The upstream idle-timeout change remains unresolved."
+    ]
+  },
+  "narratives": []
+}

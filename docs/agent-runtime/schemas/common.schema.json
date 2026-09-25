@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/common.schema.json",
+  "title": "Soma Agent Runtime Common Types",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rfc3339": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "canonicalRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "revision": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "secretRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "name"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "sensitivity": {
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "evidenceClass": {
+      "enum": [
+        "observed",
+        "verified",
+        "documented",
+        "implemented",
+        "historical",
+        "claimed",
+        "inferred",
+        "correlated",
+        "contradicted",
+        "stale",
+        "unknown"
+      ]
+    },
+    "mutationClass": {
+      "enum": [
+        "read-only",
+        "artifact-write",
+        "repository-write",
+        "runtime-mutation",
+        "infrastructure-mutation"
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 512 },
+          "propertyNames": { "maxLength": 128 }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 4096 },
+          "propertyNames": { "maxLength": 256 }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxItems": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "maxBytes": { "type": "integer", "minimum": 1024, "maximum": 1073741824 },
+        "maxTokens": { "type": "integer", "minimum": 256, "maximum": 1000000 },
+        "maxCalls": { "type": "integer", "minimum": 1, "maximum": 2048 },
+        "timeoutMs": { "type": "integer", "minimum": 1, "maximum": 86400000 }
+      }
+    },
+    "timeWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "since": { "$ref": "#/$defs/rfc3339" },
+        "until": { "$ref": "#/$defs/rfc3339" }
+      }
+    },
+    "materializationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "uri", "sha256", "bytes", "contentType"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "uri": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "contentType": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "itemCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "budgetReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["truncated"],
+      "properties": {
+        "items": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "tokens": { "type": "integer", "minimum": 0 },
+        "calls": { "type": "integer", "minimum": 0 },
+        "elapsedMs": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,127}$" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "retryable": { "type": "boolean" },
+        "detailsRef": { "$ref": "#/$defs/canonicalRef" }
+      }
+    }
+  }
+}

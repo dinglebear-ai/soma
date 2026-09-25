@@ -1,0 +1,48 @@
+apiVersion: soma.dev/v1alpha1
+kind: LabbyLoadout
+metadata:
+  name: incident-investigator-read-only
+spec:
+  mode: logical
+  upstreams:
+    allow:
+      - axon
+      - cortex
+      - github
+      - claude-devhost
+    deny: []
+  tools:
+    allow:
+      - axon::query
+      - axon::research
+      - cortex::context
+      - cortex::timeline
+      - cortex::graph
+      - github::get_file_contents
+      - claude-devhost::Read
+      - claude-devhost::Bash
+    deny:
+      - "*.delete"
+      - "*.restart"
+      - "*.write_secret"
+      - "*.create_or_update_file"
+  snippets:
+    - trace-service-failure
+  virtualServers: []
+  scopes:
+    - soma:read
+    - context:read
+    - observations:read
+  mutationClass: read-only
+  limits:
+    maxItems: 10000
+    maxBytes: 67108864
+    maxTokens: 100000
+    maxCalls: 512
+    timeoutMs: 1200000
+  credentials: {}
+  subjectPolicy: agent
+  catalog:
+    pin: true
+    refresh: manual
+  expiresMs: 7200000
