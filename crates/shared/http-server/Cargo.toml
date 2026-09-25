@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 description = "Reusable Axum server plumbing: listener binding, graceful shutdown, request IDs, tracing, timeouts, body limits, generic CORS, health primitives, rejection envelopes"
 homepage.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 repository.workspace = true
 publish = false
 

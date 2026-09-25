@@ -57,9 +57,9 @@ fn command_requests_reject_invalid_bounds() {
 #[test]
 fn transfer_requests_are_absolute_bounded_and_deadline_aware() {
     let request = TransferRequest::new(
-        HostId::new("dookie").unwrap(),
+        HostId::new("devhost").unwrap(),
         "/tmp/source",
-        HostId::new("squirts").unwrap(),
+        HostId::new("edgehost").unwrap(),
         "/tmp/destination",
         4096,
         deadline(),
@@ -72,9 +72,9 @@ fn transfer_requests_are_absolute_bounded_and_deadline_aware() {
 
     assert!(
         TransferRequest::new(
-            HostId::new("dookie").unwrap(),
+            HostId::new("devhost").unwrap(),
             "relative",
-            HostId::new("squirts").unwrap(),
+            HostId::new("edgehost").unwrap(),
             "/tmp/destination",
             4096,
             deadline(),
@@ -83,9 +83,9 @@ fn transfer_requests_are_absolute_bounded_and_deadline_aware() {
     );
     assert!(
         TransferRequest::new(
-            HostId::new("dookie").unwrap(),
+            HostId::new("devhost").unwrap(),
             "/tmp/source",
-            HostId::new("squirts").unwrap(),
+            HostId::new("edgehost").unwrap(),
             "/tmp/destination",
             0,
             deadline(),

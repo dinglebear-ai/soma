@@ -153,8 +153,12 @@ fn container_hot_reload_source_stays_outside_service_owned_data() {
 fn ci_runs_release_version_gate_before_merge() {
     let workflow = include_str!("../../../.github/workflows/ci.yml");
     let soma = workflow_job_block(workflow, "soma");
+    // Matched on the subcommand rather than `cargo xtask check-version-sync`:
+    // this job builds the xtask binary once and invokes it directly, because
+    // paying cargo's freshness check per step cost ~40s a piece. The gate that
+    // matters is that the check runs at all, not how it is spawned.
     assert!(
-        soma.contains("cargo xtask check-version-sync"),
+        soma.contains("check-version-sync"),
         "CI must ensure version-bearing files stay internally synchronized"
     );
     assert!(

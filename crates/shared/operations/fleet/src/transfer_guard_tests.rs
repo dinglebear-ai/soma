@@ -4,9 +4,9 @@ use super::*;
 
 fn request(max_bytes: u64) -> TransferRequest {
     TransferRequest::new(
-        HostId::new("dookie").unwrap(),
+        HostId::new("devhost").unwrap(),
         "/tmp/source",
-        HostId::new("squirts").unwrap(),
+        HostId::new("edgehost").unwrap(),
         "/tmp/destination",
         max_bytes,
         Timestamp::from_unix_millis(100),
@@ -30,8 +30,8 @@ fn guard_records_completion_and_digest_verification() {
             verified: true
         }
     );
-    assert_eq!(lifecycle.source().as_str(), "dookie");
-    assert_eq!(lifecycle.destination().as_str(), "squirts");
+    assert_eq!(lifecycle.source().as_str(), "devhost");
+    assert_eq!(lifecycle.destination().as_str(), "edgehost");
 }
 
 #[test]

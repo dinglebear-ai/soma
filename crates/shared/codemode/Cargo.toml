@@ -3,7 +3,7 @@ name = "soma-codemode"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 publish = false
 autobins = false
 

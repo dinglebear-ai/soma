@@ -19,7 +19,7 @@ struct StaticRepository;
 impl HostRepository for StaticRepository {
     async fn snapshot(&self) -> FleetResult<TopologySnapshot> {
         TopologySnapshot::new([HostRecord::new(
-            HostId::new("dookie").unwrap(),
+            HostId::new("devhost").unwrap(),
             HostEndpoint::Local,
         )])
         .map_err(FleetError::from)

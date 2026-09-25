@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 description = "REST API and HTTP server composition for soma"
 homepage.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 repository.workspace = true
 publish = false
 

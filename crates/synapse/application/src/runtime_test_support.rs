@@ -25,7 +25,7 @@ pub(crate) fn runtime() -> SynapseReadRuntime {
 }
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 pub(crate) struct Fixture;
@@ -49,7 +49,7 @@ impl HostInspector for Fixture {
             host: host.id().clone(),
             topology_revision: host.revision().clone(),
             identity: HostIdentity {
-                hostname: "dookie".into(),
+                hostname: "devhost".into(),
                 operating_system: "Linux".into(),
                 kernel_release: "6.0".into(),
                 architecture: "x86_64".into(),

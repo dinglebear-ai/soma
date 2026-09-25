@@ -36,7 +36,7 @@ async fn container_recreate_binds_prestate_executes_and_verifies() {
     });
     let runtime = runtime(Arc::clone(&container), compose);
     let operation = OperationName::new("container.recreate").unwrap();
-    let parameters = json!({"host":"dookie","container_id":"old-id","pull":true});
+    let parameters = json!({"host":"devhost","container_id":"old-id","pull":true});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -90,8 +90,8 @@ async fn container_pull_choice_drift_rejects_before_send() {
     });
     let runtime = runtime(Arc::clone(&container), compose);
     let operation = OperationName::new("container.recreate").unwrap();
-    let planned = json!({"host":"dookie","container_id":"old-id","pull":true});
-    let execution = json!({"host":"dookie","container_id":"old-id","pull":false});
+    let planned = json!({"host":"devhost","container_id":"old-id","pull":true});
+    let execution = json!({"host":"devhost","container_id":"old-id","pull":false});
     let context = context();
     let plan = runtime.plan(&operation, &planned, &context).await.unwrap();
     let error = runtime
@@ -131,7 +131,7 @@ async fn compose_recreate_binds_config_executes_and_verifies() {
     });
     let runtime = runtime(container, Arc::clone(&compose));
     let operation = OperationName::new("compose.recreate").unwrap();
-    let parameters = json!({"host":"dookie","project":"soma"});
+    let parameters = json!({"host":"devhost","project":"soma"});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -163,7 +163,7 @@ async fn absent_recreate_ports_fail_closed_before_inspection() {
     let error = runtime
         .plan(
             &operation,
-            &json!({"host":"dookie","container_id":"old-id"}),
+            &json!({"host":"devhost","container_id":"old-id"}),
             &context(),
         )
         .await

@@ -6,12 +6,12 @@
   "severity": "warning",
   "source": {
     "adapter": "docker",
-    "instance": "tootie",
+    "instance": "nashost",
     "transportPeer": null,
-    "claimedHost": "tootie"
+    "claimedHost": "nashost"
   },
   "subjects": [
-    "host:tootie",
+    "host:nashost",
     "service:labby",
     "container:labby-abc123"
   ],

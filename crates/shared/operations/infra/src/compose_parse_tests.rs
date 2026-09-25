@@ -6,7 +6,7 @@ use super::*;
 use crate::ComposeProjectRef;
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 fn project() -> ComposeProjectRef {
@@ -18,7 +18,7 @@ fn project_list_accepts_array_and_json_lines() {
     let array = r#"[{"Name":"soma","Status":"running(2)","ConfigFiles":"/srv/soma/compose.yaml"}]"#;
     let projects = parse_project_list(&host(), array).unwrap();
     assert_eq!(projects[0].name, "soma");
-    assert_eq!(projects[0].host.as_str(), "dookie");
+    assert_eq!(projects[0].host.as_str(), "devhost");
     assert_eq!(projects[0].status.as_deref(), Some("running(2)"));
     assert_eq!(
         projects[0].config_files,

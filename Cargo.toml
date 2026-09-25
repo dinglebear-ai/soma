@@ -14,6 +14,7 @@ members = [
   "crates/shared/cli-core",
   "crates/shared/codemode",
   "crates/shared/codex-app-server-client",
+  "crates/shared/cortex/ingest-core",
   "crates/shared/http-api",
   "crates/shared/http-server",
   "crates/shared/incus-client",
@@ -57,7 +58,7 @@ authors = ["dinglebear.ai <hello@dinglebear.ai>"]
 description = "RMCP runtime for provider-backed agents with CLI, REST, HTTP MCP, plugins, and scaffold support."
 homepage = "https://soma.dinglebear.ai"
 repository = "https://github.com/dinglebear-ai/soma"
-license = "MIT"
+license = "AGPL-3.0-only"
 readme = "README.md"
 keywords = ["mcp", "rmcp", "providers", "runtime", "scaffold"]
 
@@ -119,6 +120,7 @@ pyo3 = { version = "0.29", features = ["abi3-py311"] }
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
 # Shared crates
+cortex-ingest-core = { path = "crates/shared/cortex/ingest-core" }
 rmcp-traces = { path = "crates/shared/traces" }
 soma-auth = { path = "crates/shared/auth" }
 soma-cli-core = { path = "crates/shared/cli-core" }
@@ -140,6 +142,7 @@ soma-infra = { path = "crates/shared/operations/infra" }
 soma-ops = { path = "crates/shared/operations/ops", default-features = false }
 soma-provider-adapters = { path = "crates/shared/provider-adapters" }
 soma-provider-core = { path = "crates/shared/provider-core", default-features = false }
+soma-self-update = { path = "crates/shared/self-update" }
 soma-tauri-shell = { path = "crates/shared/tauri-shell" }
 
 # Soma product crates
@@ -164,6 +167,15 @@ synapse-application = { path = "crates/synapse/application" }
 # many codegen units so local iteration — `just sync-container`, container smoke
 # loops — recompiles in a fraction of the full `release` time. Not for shipping;
 # tags/publishes still build the canonical `release` profile.
+[profile.dev]
+# CI recompiles from scratch on every job (CARGO_INCREMENTAL=0 is required
+# under the kache rustc-wrapper), and full DWARF is a large share of that
+# time — which the build then discards anyway via -C strip=debuginfo.
+# "line-tables-only" keeps file/line in panics and backtraces, which is what
+# CI logs are read for. Override with CARGO_PROFILE_DEV_DEBUG=full for a
+# debugger session. Matches labby, cortex and yarr.
+debug = "line-tables-only"
+
 [profile.release-fast]
 inherits = "release"
 lto = false

@@ -7,7 +7,7 @@ fn base_plan() -> OperationPlan {
         OperationName::new("container.restart").unwrap(),
         TargetRef::new(TargetKind::Container, "soma")
             .unwrap()
-            .with_host("dookie")
+            .with_host("devhost")
             .unwrap(),
         RiskClass::Disruptive,
         Reversibility::Reversible,

@@ -125,7 +125,7 @@ def main() -> int:
         ],
     )
     performance = policy.get("performance", {})
-    for key in ("sdk_import_ms", "catalog_cold_ms", "catalog_warm_average_ms", "invocation_warm_average_ms", "reload_average_ms", "soak_iterations", "soak_memory_bytes"):
+    for key in ("sdk_import_trials", "sdk_import_ms", "catalog_cold_ms", "catalog_warm_average_ms", "invocation_warm_average_ms", "reload_average_ms", "soak_iterations", "soak_memory_bytes"):
         value = performance.get(key)
         if not isinstance(value, int) or value <= 0:
             fail(f"performance.{key} must be positive")

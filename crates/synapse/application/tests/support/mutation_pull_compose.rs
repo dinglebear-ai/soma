@@ -92,7 +92,7 @@ impl ComposePullMutator for FakeComposePull {
 
 pub(crate) fn compose_config() -> ComposeConfig {
     ComposeConfig {
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
         topology_revision: host().revision().clone(),
         project: "soma".into(),
         services: BTreeMap::from([

@@ -24,7 +24,7 @@ fn retry_policy_preserves_the_declared_contract_after_a_send_attempt() {
 fn uncertain_send_state_overrides_backend_specific_diagnostics() {
     let error = InfraError::UnsupportedTarget {
         domain: "docker-mutation",
-        host: HostId::new("dookie").unwrap(),
+        host: HostId::new("devhost").unwrap(),
     };
     assert_eq!(
         diagnostic_code(&error, MutationSendState::Unknown),

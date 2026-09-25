@@ -42,7 +42,7 @@ async fn docker_pull_plans_reports_progress_and_attaches_verified_artifact() {
     );
     let runtime = runtime(Some(Arc::clone(&artifacts)), None);
     let operation = OperationName::new("docker.pull").unwrap();
-    let parameters = json!({"host":"dookie","image":"alpine:latest"});
+    let parameters = json!({"host":"devhost","image":"alpine:latest"});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -90,7 +90,7 @@ async fn container_pull_rejects_image_reference_drift_before_send() {
     );
     let runtime = runtime(Some(Arc::clone(&artifacts)), None);
     let operation = OperationName::new("container.pull").unwrap();
-    let parameters = json!({"host":"dookie","container_id":"api"});
+    let parameters = json!({"host":"devhost","container_id":"api"});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -137,7 +137,7 @@ async fn compose_pull_binds_and_verifies_each_service_image() {
     });
     let runtime = runtime(Some(artifacts), Some(Arc::clone(&compose)));
     let operation = OperationName::new("compose.pull").unwrap();
-    let parameters = json!({"host":"dookie","project":"soma"});
+    let parameters = json!({"host":"devhost","project":"soma"});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -170,7 +170,7 @@ async fn progress_delivery_failure_does_not_rewrite_pull_truth() {
     );
     let runtime = runtime(Some(artifacts), None);
     let operation = OperationName::new("docker.pull").unwrap();
-    let parameters = json!({"host":"dookie","image":"alpine:latest"});
+    let parameters = json!({"host":"devhost","image":"alpine:latest"});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)
@@ -199,7 +199,7 @@ async fn progress_delivery_failure_does_not_rewrite_pull_truth() {
 async fn absent_artifact_port_fails_closed_before_pull() {
     let runtime = runtime(None, None);
     let operation = OperationName::new("docker.pull").unwrap();
-    let parameters = json!({"host":"dookie","image":"alpine:latest"});
+    let parameters = json!({"host":"devhost","image":"alpine:latest"});
     let context = context();
     let plan = runtime
         .plan(&operation, &parameters, &context)

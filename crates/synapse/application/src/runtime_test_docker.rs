@@ -12,7 +12,7 @@ fn docker_info(host: &HostRecord) -> DockerSystemInfo {
         host: host.id().clone(),
         topology_revision: host.revision().clone(),
         daemon_id: Some("daemon".into()),
-        name: Some("dookie".into()),
+        name: Some("devhost".into()),
         server_version: Some("1".into()),
         operating_system: Some("Linux".into()),
         architecture: Some("x86_64".into()),

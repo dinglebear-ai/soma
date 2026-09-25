@@ -34,7 +34,7 @@ fn ok(value: &str) -> CommandOutput {
     CommandOutput::new(value.as_bytes().to_vec(), Vec::new(), Some(0), false)
 }
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 fn deadline() -> Timestamp {
     Timestamp::from_unix_millis(10_000)

@@ -3,7 +3,7 @@ name = "soma-provider-guest"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 description = "Rust guest SDK for Soma provider components"
 
 [package.metadata.soma-architecture]

@@ -32,6 +32,9 @@ pub(crate) async fn run(args: &[String]) -> Result<()> {
             let base = url.unwrap_or_else(|| format!("http://localhost:{}", config.mcp.port));
             cli::watch::run_watch(&base, interval).await
         }
+        Some(cli::Command::SelfUpdate(command)) => {
+            cli::self_update::run_self_update(command, env!("CARGO_PKG_VERSION")).await
+        }
         Some(cli::Command::Setup(command)) => cli::run_setup(&config, command).await,
         Some(cli::Command::PackageGenerate { write }) => cli::run_package_generate(write),
         Some(cli::Command::Providers(command)) if command.is_non_executing() => {

@@ -11,18 +11,18 @@ fn operation_names_require_lowercase_dotted_segments() {
 
 #[test]
 fn target_reference_preserves_hierarchy_and_revision() {
-    let host = TargetRef::new(TargetKind::Host, "dookie").unwrap();
+    let host = TargetRef::new(TargetKind::Host, "devhost").unwrap();
     let target = TargetRef::new(TargetKind::Container, "soma")
         .unwrap()
-        .with_host("dookie")
+        .with_host("devhost")
         .unwrap()
         .with_parent(host)
         .unwrap()
         .with_revision("sha256:abc")
         .unwrap();
 
-    assert_eq!(target.host(), Some("dookie"));
-    assert_eq!(target.parent().unwrap().id(), "dookie");
+    assert_eq!(target.host(), Some("devhost"));
+    assert_eq!(target.parent().unwrap().id(), "devhost");
     assert_eq!(target.revision(), Some("sha256:abc"));
 }
 
@@ -57,7 +57,7 @@ fn parent_depth_is_bounded() {
 
 #[test]
 fn idempotency_keys_are_bounded() {
-    assert!(IdempotencyKey::new("restart:dookie:soma:1").is_ok());
+    assert!(IdempotencyKey::new("restart:devhost:soma:1").is_ok());
     assert!(IdempotencyKey::new("").is_err());
     assert!(IdempotencyKey::new("x".repeat(257)).is_err());
 }

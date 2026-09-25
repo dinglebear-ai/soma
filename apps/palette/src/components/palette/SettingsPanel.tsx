@@ -93,7 +93,7 @@ export function SettingsPanel({
             <span className="settings-section-label">Connection</span>
             <Field
               label="Labby server"
-              hint="Origin only — e.g. https://labby.tootie.tv (NOT the /mcp path)"
+              hint="Origin only — e.g. https://labby.example.internal (NOT the /mcp path)"
             >
               <TextInput
                 value={draftConfig.serverUrl}

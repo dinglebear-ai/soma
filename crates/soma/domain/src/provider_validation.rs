@@ -16,6 +16,7 @@ const RESERVED_CLI_COMMANDS: &[&str] = &[
     "mcp",
     "doctor",
     "watch",
+    "self-update",
     "setup",
     "package",
     "tools",

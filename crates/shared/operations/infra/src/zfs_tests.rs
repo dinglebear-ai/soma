@@ -3,7 +3,7 @@ use soma_fleet::{HostEndpoint, HostId};
 use super::*;
 
 fn host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 #[test]

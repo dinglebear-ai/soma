@@ -5,7 +5,7 @@
 //! attestation, activation, and rollback are serialized and digest-bound.
 
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, File, OpenOptions, TryLockError},
     io::Write,
     path::{Path, PathBuf},
     process::Command,
@@ -13,7 +13,6 @@ use std::{
 };
 
 use atomicwrites::{AllowOverwrite, AtomicFile};
-use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -119,15 +118,15 @@ impl WorkspaceLock {
             .write(true)
             .open(workspace.join(".graduation.lock"))?;
         loop {
-            match file.try_lock_exclusive() {
+            match file.try_lock() {
                 Ok(()) => return Ok(Self(file)),
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                Err(TryLockError::WouldBlock) => {
                     if Instant::now() >= deadline {
                         anyhow::bail!("graduation workspace lock deadline expired");
                     }
                     std::thread::sleep(Duration::from_millis(10));
                 }
-                Err(error) => return Err(error.into()),
+                Err(TryLockError::Error(error)) => return Err(error.into()),
             }
         }
     }
@@ -135,7 +134,7 @@ impl WorkspaceLock {
 
 impl Drop for WorkspaceLock {
     fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.0);
+        let _ = self.0.unlock();
     }
 }
 

@@ -13,7 +13,7 @@ fn parameter_and_result_contracts_validate_closed_payloads() {
         .validate(
             &operation,
             "parameter",
-            &json!({"host":"dookie","container_id":"soma"}),
+            &json!({"host":"devhost","container_id":"soma"}),
         )
         .unwrap();
     catalog

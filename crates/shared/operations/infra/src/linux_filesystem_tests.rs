@@ -8,7 +8,7 @@ use soma_fleet::{HostEndpoint, HostId, SshEndpoint};
 use super::*;
 
 fn local_host() -> HostRecord {
-    HostRecord::new(HostId::new("dookie").unwrap(), HostEndpoint::Local)
+    HostRecord::new(HostId::new("devhost").unwrap(), HostEndpoint::Local)
 }
 
 #[tokio::test(flavor = "current_thread")]

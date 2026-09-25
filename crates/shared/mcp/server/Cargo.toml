@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 description = "Reusable inbound MCP server helpers: response paging, protocol conversion, conformance fixtures, trace extraction, and optional Streamable HTTP transport wiring"
 homepage.workspace = true
-license = "MIT"
+license = "AGPL-3.0-only"
 repository.workspace = true
 publish = false
 

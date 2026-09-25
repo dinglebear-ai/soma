@@ -16,10 +16,10 @@ last_reviewed: "2026-06-27"
 
 # Linux CI Runner
 
-Linux GitHub Actions jobs run on a Dockerized self-hosted runner on TOOTIE:
+Linux GitHub Actions jobs run on a Dockerized self-hosted runner on NASHOST:
 
 ```yaml
-runs-on: [self-hosted, tootie, rmcp-template]
+runs-on: [self-hosted, nashost, rmcp-template]
 ```
 
 The runner is repo-scoped to `dinglebear-ai/soma` and mirrors the proven lab
@@ -27,7 +27,7 @@ runner layout.
 
 ## Live Layout
 
-| Purpose | Path on TOOTIE |
+| Purpose | Path on NASHOST |
 |---|---|
 | Compose project | `/mnt/cache/compose/actions-runner/soma` |
 | Compose file | `/mnt/cache/compose/actions-runner/soma/docker-compose.yml` |
@@ -41,9 +41,9 @@ Current runners:
 
 | Runner | Labels |
 |---|---|
-| `tootie-soma-linux-a` | `self-hosted`, `Linux`, `X64`, `soma`, `tootie` |
-| `tootie-soma-linux-b` | `self-hosted`, `Linux`, `X64`, `soma`, `tootie` |
-| `tootie-soma-linux-c` | `self-hosted`, `Linux`, `X64`, `soma`, `tootie` |
+| `nashost-soma-linux-a` | `self-hosted`, `Linux`, `X64`, `soma`, `nashost` |
+| `nashost-soma-linux-b` | `self-hosted`, `Linux`, `X64`, `soma`, `nashost` |
+| `nashost-soma-linux-c` | `self-hosted`, `Linux`, `X64`, `soma`, `nashost` |
 
 Verify from this repo:
 
@@ -68,8 +68,8 @@ services:
     working_dir: /home/runner
     environment:
       - RUNNER_REPO=dinglebear-ai/soma
-      - RUNNER_NAME=tootie-soma-linux
-      - RUNNER_LABELS=soma,tootie,self-hosted,linux,x64
+      - RUNNER_NAME=nashost-soma-linux
+      - RUNNER_LABELS=soma,nashost,self-hosted,linux,x64
       - RUNNER_WORKDIR=/home/runner/_work
       - RUNNER_URL=https://github.com/dinglebear-ai/soma
       - RUNNER_USE_JIT=1
@@ -95,7 +95,7 @@ services:
 
 The real compose file defines three services using the same shape, with
 runner-specific names and separate `home`, `work`, and `tmp` appdata directories.
-`group_add: ["281"]` is the TOOTIE Docker socket group; keep it in parity with
+`group_add: ["281"]` is the NASHOST Docker socket group; keep it in parity with
 `stat -c '%g' /var/run/docker.sock` so `container-smoke` and Docker publish jobs
 can reach the host Docker daemon.
 
@@ -117,7 +117,7 @@ C linker.
 ## Manage The Runner
 
 ```bash
-ssh tootie
+ssh nashost
 cd /mnt/cache/compose/actions-runner/soma
 docker compose ps
 docker compose logs -f
@@ -189,7 +189,7 @@ not need them baked in.
 
 ## When To Use This Runner
 
-Use the TOOTIE runner for trusted repo code: pushes, same-repo PRs, scheduled
+Use the NASHOST runner for trusted repo code: pushes, same-repo PRs, scheduled
 maintenance, and release automation. `ci.yml` and `msrv.yml` first classify
 changed paths with `cargo xtask changed-paths`; irrelevant heavyweight jobs are
 allowed to skip and the stable aggregate `CI Gate` / `MSRV Gate` jobs convert
@@ -205,7 +205,7 @@ outside contributors need CI feedback, route fork PRs to GitHub-hosted runners.
   `docker logs soma-linux-runner`; if `run.sh` is missing, seed the
   persistent home with the runner distribution files.
 - **Job waits for a runner**: verify the workflow labels exactly match
-  `self-hosted`, `tootie`, and `soma`.
+  `self-hosted`, `nashost`, and `soma`.
 - **Cargo ignores kache**: check the setup action's "Print cache evidence" step
   for `RUSTC_WRAPPER=kache`, then run `kache doctor` and `kache stats` on the
   runner. A green build proves nothing — kache is fail-open.
