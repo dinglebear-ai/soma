@@ -1,0 +1,47 @@
+[package]
+name = "cortex-storage-sqlite"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "SQLite persistence adapter extracted from Cortex."
+homepage.workspace = true
+license = "AGPL-3.0-only"
+repository.workspace = true
+readme = "README.md"
+keywords = ["sqlite", "observability", "logs", "storage"]
+categories = ["database", "development-tools::debugging"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+cortex-domain = { workspace = true }
+cortex-ingest-core = { workspace = true }
+cortex-inventory = { workspace = true }
+parking_lot = "0.12"
+r2d2 = "0.8"
+r2d2_sqlite = "0.35"
+rusqlite = { version = "0.40", features = ["bundled", "vtab", "backup", "hooks"] }
+rustix = { version = "1", features = ["fs"] }
+scheduled-thread-pool = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tracing = "0.1"
+
+[dev-dependencies]
+regex = "1"
+tempfile = "3"
+
+[lints]
+workspace = true

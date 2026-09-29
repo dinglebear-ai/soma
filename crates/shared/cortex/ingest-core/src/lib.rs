@@ -11,3 +11,7 @@
 pub mod metadata;
 /// Log-message normalization and stable signature hashing.
 pub mod normalize;
+/// Canonical ingest source-kind vocabulary.
+pub mod source_kind;
+
+pub use source_kind::{AGENT_DOCKER_SOURCE_KIND, SourceKind};

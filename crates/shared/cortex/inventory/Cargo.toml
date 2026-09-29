@@ -1,0 +1,30 @@
+[package]
+name = "cortex-inventory"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Pure Cortex inventory snapshot contracts and bounded inventory helpers."
+homepage.workspace = true
+license = "AGPL-3.0-only"
+repository.workspace = true
+readme = "README.md"
+keywords = ["inventory", "observability", "homelab", "topology"]
+categories = ["data-structures", "development-tools::debugging"]
+publish = false
+
+[package.metadata.soma-architecture]
+layer = "shared"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

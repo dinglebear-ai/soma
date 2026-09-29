@@ -76,3 +76,76 @@ where
             )
         })?
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Condvar, Mutex, mpsc};
+    use std::time::Duration;
+
+    use tokio::sync::oneshot;
+
+    use super::*;
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn blocking_transaction_keeps_executor_responsive_while_work_is_held() {
+        let gate = Arc::new((Mutex::new(false), Condvar::new()));
+        let worker_gate = Arc::clone(&gate);
+        let watchdog_gate = Arc::clone(&gate);
+        let (entered_tx, entered_rx) = oneshot::channel();
+        let (watchdog_arm_tx, watchdog_arm_rx) = mpsc::channel();
+
+        // The watchdog only bounds a broken implementation that executes the
+        // closure on this current-thread runtime. It is armed by the closure,
+        // so blocking-pool startup latency cannot consume the timeout budget.
+        let watchdog = std::thread::spawn(move || {
+            watchdog_arm_rx
+                .recv()
+                .expect("blocking closure should arm watchdog");
+            let (lock, condvar) = &*watchdog_gate;
+            let released = lock.lock().unwrap();
+            let (mut released, timeout) = condvar
+                .wait_timeout_while(released, Duration::from_secs(30), |released| !*released)
+                .unwrap();
+            if timeout.timed_out() && !*released {
+                *released = true;
+                condvar.notify_all();
+                true
+            } else {
+                false
+            }
+        });
+
+        let transaction = tokio::spawn(async move {
+            blocking_transaction(PathBuf::from("test-state"), move || {
+                let _ = entered_tx.send(());
+                watchdog_arm_tx
+                    .send(())
+                    .expect("watchdog thread should still be waiting");
+                let (lock, condvar) = &*worker_gate;
+                let released = lock.lock().unwrap();
+                drop(condvar.wait_while(released, |released| !*released).unwrap());
+                Ok(())
+            })
+            .await
+        });
+
+        entered_rx
+            .await
+            .expect("blocking closure should start on a worker");
+
+        // This task must run while the blocking closure is still held. If the
+        // closure ever runs on the current-thread executor, only the watchdog
+        // can release it and the assertion below will fail.
+        assert_eq!(tokio::spawn(async { 42_u8 }).await.unwrap(), 42);
+
+        let (lock, condvar) = &*gate;
+        *lock.lock().unwrap() = true;
+        condvar.notify_all();
+
+        transaction.await.unwrap().unwrap();
+        assert!(
+            !watchdog.join().unwrap(),
+            "blocking transaction ran on the async executor instead of a blocking worker"
+        );
+    }
+}

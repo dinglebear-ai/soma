@@ -27,7 +27,7 @@ unless Jacob asks for that variant by name.
 | Remote | `git@github.com:dinglebear-ai/soma.git` |
 | Default branch | `main` |
 | Former names | `rmcp-template`, then `rtemplate-mcp` — both GitHub names now redirect here. Fix any local remote still pointing at `jmagar/*`. |
-| Workspace | 41 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `crates/integrations/*`, `apps/soma`, `packages/python`, plus `xtask`. Note `apps/web` and `apps/palette` are **not** cargo members — they are frontend assets. |
+| Workspace | 44 cargo members (largest in the fleet) under `crates/soma/*`, `crates/shared/*`, `crates/integrations/*`, `apps/soma`, `packages/python`, plus `xtask`. Note `apps/web` and `apps/palette` are **not** cargo members — they are frontend assets. |
 | rmcp pin | `rmcp = { version = "=3.1.0", default-features = false }` — an **exact** pin in `[workspace.dependencies]`, deliberately duplicated on the `rmcp-client` alias entry (`Cargo.toml:81`) because TOML cannot cross-reference. Bump both together. |
 
 `crates/soma/*` is product code (this server). `crates/shared/*` is reusable

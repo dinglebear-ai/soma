@@ -9,7 +9,8 @@ runtime, transport, authentication, CLI, or deployment code.
 - deterministic log-message normalization for error signature grouping;
 - stable SHA-256 signature hashing;
 - bounded JSON metadata encoding;
-- recursive sensitive-key redaction and string/key/object limits.
+- recursive sensitive-key redaction and string/key/object limits;
+- canonical ingest `SourceKind` wire vocabulary and the agent-Docker source marker.
 
 It does not parse syslog or OTLP, open SQLite, start background tasks, or know
 about Cortex product configuration. Those concerns belong in higher extraction
