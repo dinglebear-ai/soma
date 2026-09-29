@@ -93,8 +93,8 @@ pub(crate) fn host(name: &str) -> HostRecord {
 
 pub(crate) fn container_receipt(exit_code: i64) -> ContainerExecReceipt {
     ContainerExecReceipt {
-        host: HostId::new("dookie").unwrap(),
-        topology_revision: host("dookie").revision().clone(),
+        host: HostId::new("devhost").unwrap(),
+        topology_revision: host("devhost").revision().clone(),
         container: "api".into(),
         command: vec!["printf".into(), "ok".into()],
         user: None,
@@ -114,7 +114,7 @@ pub(crate) fn runtime(
     enabled: bool,
 ) -> SynapseMutationRuntime {
     let snapshot =
-        TopologySnapshot::new([host("dookie"), host("alpha"), host("bad"), host("lost")]).unwrap();
+        TopologySnapshot::new([host("devhost"), host("alpha"), host("bad"), host("lost")]).unwrap();
     SynapseMutationRuntime::new(SynapseMutationPorts {
         hosts: Arc::new(StaticHosts(snapshot)),
         docker: Arc::new(UnusedLifecycle),

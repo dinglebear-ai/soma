@@ -23,7 +23,7 @@ async fn container_exec_binds_argv_and_returns_canonical_output() {
     let runtime = runtime(container.clone(), hosts, true);
     let operation = op("container.exec");
     let parameters = json!({
-        "host":"dookie",
+        "host":"devhost",
         "container_id":"api",
         "command":["printf","ok"],
         "exec_workdir":"/app",
@@ -152,12 +152,12 @@ async fn execution_parameter_drift_rejects_before_driver_send() {
     let runtime = runtime(container.clone(), hosts, true);
     let operation = op("container.exec");
     let planned = json!({
-        "host":"dookie",
+        "host":"devhost",
         "container_id":"api",
         "command":["printf","ok"]
     });
     let changed = json!({
-        "host":"dookie",
+        "host":"devhost",
         "container_id":"api",
         "command":["printf","changed"]
     });
