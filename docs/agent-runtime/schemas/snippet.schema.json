@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/snippet.schema.json",
+  "title": "Soma Code Mode Snippet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "soma.dev/v1alpha1" },
+    "kind": { "const": "Snippet" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "$ref": "common.schema.json#/$defs/name" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "tags": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 512 }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 4096 }
+        }
+      }
+    },
+    "spec": { "$ref": "#/$defs/spec" }
+  },
+  "$defs": {
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["riskClass", "inputs", "requires", "output", "code"],
+      "properties": {
+        "riskClass": { "$ref": "common.schema.json#/$defs/mutationClass" },
+        "inputs": {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "additionalProperties": { "$ref": "#/$defs/input" }
+        },
+        "requires": { "$ref": "#/$defs/requires" },
+        "budgets": { "$ref": "common.schema.json#/$defs/limits" },
+        "output": { "$ref": "#/$defs/output" },
+        "platforms": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["linux", "windows", "macos"] }
+        },
+        "code": { "type": "string", "minLength": 1, "maxLength": 20480 }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["string", "number", "boolean", "json", "duration", "uri", "entity-id", "context-id"] },
+        "required": { "type": "boolean" },
+        "description": { "type": "string", "maxLength": 1024 },
+        "default": true,
+        "enum": { "type": "array", "maxItems": 256, "uniqueItems": true }
+      }
+    },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skills": { "$ref": "#/$defs/requirements" },
+        "snippets": { "$ref": "#/$defs/requirements" },
+        "context": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "tools": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "research": { "type": "boolean" },
+        "minimumDisclosureLevel": { "enum": ["bootstrap", "orientation", "focused", "evidence", "raw", "expanded"] }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "$ref": "common.schema.json#/$defs/name" },
+          "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "optional": { "type": "boolean" }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contentType"],
+      "properties": {
+        "contentType": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "schema": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "artifacts": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "contentType"],
+            "properties": {
+              "name": { "$ref": "common.schema.json#/$defs/name" },
+              "contentType": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "required": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

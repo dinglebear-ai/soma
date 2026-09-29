@@ -8,6 +8,7 @@ Generated from script header comments.
 | `scripts/block-env-commits.sh` | Thin wrapper. Canonical implementation: cargo xtask block-env-commits. |
 | `scripts/build-web.sh` | Thin wrapper. Canonical implementation: cargo xtask build-web. |
 | `scripts/bump-version.sh` | Thin wrapper. Canonical implementation: cargo xtask bump-soma-version. |
+| `scripts/check-agent-runtime-docs.py` | Validate the Soma agent-runtime documentation package. |
 | `scripts/check-blob-size.py` | Thin wrapper. Canonical implementation: cargo xtask check-blob-size. |
 | `scripts/check-cargo-generate.py` | Thin wrapper. Canonical implementation: cargo xtask cargo-generate. |
 | `scripts/check-coupled-files.sh` | Thin wrapper. Canonical implementation: cargo xtask check-coupled-files. |

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1",
+  "run": {
+    "id": "run-demo-01",
+    "stackId": "stack-demo-01",
+    "serviceId": "investigator",
+    "agentId": "agent-codex-demo",
+    "state": "succeeded",
+    "stateVersion": 9,
+    "attempt": 1,
+    "resolvedStack": {
+      "uri": "soma://stack/stack-demo-01/resolution/1",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "contextGenerationId": "ctxgen-demo-01",
+    "runtimeInstanceId": "incus-demo-01",
+    "artifacts": ["artifact-briefing", "artifact-synthesis"],
+    "terminal": {
+      "category": "finalization",
+      "code": "run_completed",
+      "message": "Run completed and required outputs passed verification.",
+      "retryable": false
+    },
+    "createdAt": "2026-08-05T13:00:00Z",
+    "updatedAt": "2026-08-05T13:12:00Z"
+  },
+  "stackDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+  "packageRefs": [
+    {
+      "uri": "apm://package/soma-incident-investigator@1.0.0",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "contextRefs": [
+    { "uri": "soma://context/ctx-demo-01/generation/ctxgen-demo-01" }
+  ],
+  "loadoutRef": {
+    "uri": "labby://loadout/incident-investigator-read-only/generation/1"
+  },
+  "runtimeRef": {
+    "uri": "incus://project/default/instance/soma-incident-demo"
+  },
+  "disclosureSummary": {
+    "requests": 5,
+    "allowed": 4,
+    "narrowed": 1,
+    "denied": 0,
+    "approvalRequired": 0,
+    "maxGrantedLevel": "evidence"
+  },
+  "outputRefs": [
+    { "uri": "soma://artifact/artifact-briefing" },
+    { "uri": "soma://artifact/artifact-synthesis" }
+  ],
+  "verification": {
+    "status": "passed",
+    "checks": [
+      {
+        "name": "synthesis-schema",
+        "status": "passed",
+        "details": "synthesis-result.json validates against schema",
+        "evidence": [
+          { "uri": "soma://artifact/artifact-synthesis" }
+        ]
+      }
+    ]
+  },
+  "digest": "4444444444444444444444444444444444444444444444444444444444444444"
+}

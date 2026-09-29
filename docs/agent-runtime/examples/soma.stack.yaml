@@ -1,0 +1,137 @@
+apiVersion: soma.dev/v1alpha1
+kind: AgentStack
+metadata:
+  name: soma-incident-investigator
+  labels:
+    product: soma
+    risk: read-only
+services:
+  investigator:
+    agent:
+      runtime: codex-app-server
+      mode: one-shot
+      package:
+        manifest: ./apm.yml
+        lock: ./apm.lock.yaml
+        requireLock: true
+        audit: required
+        target: codex
+      prompts:
+        orientation:
+          name: soma-incident-orientation
+          version: "^1"
+        synthesis:
+          name: evidence-synthesis
+          version: "^1"
+      acceptanceCriteria:
+        - Build a cross-layer incident timeline.
+        - Preserve and explain conflicting evidence.
+        - Support each material claim with canonical evidence.
+        - Produce a synthesis result that validates against the declared schema.
+      approvalPolicy:
+        requiredAt: repository-write
+        timeoutMs: 300000
+        onTimeout: deny
+    context:
+      manifest: ./soma.context.yaml
+      view: incident
+      task: Investigate transient 502 responses from the Soma gateway.
+      revision: HEAD
+      since: 24h
+      parameters:
+        service: soma-gateway
+      snapshotMode: reference
+    gateway:
+      provider: labby
+      loadout: ./read-only.loadout.yaml
+      mode: logical
+    runtime:
+      provider: incus
+      image: images:ubuntu/24.04
+      project: default
+      profiles:
+        - default
+        - soma-agent
+      mounts:
+        - source: repository
+          target: /workspace
+          mode: read-only
+          purpose: Soma repository under investigation
+        - source: global-docs
+          target: /soma/docs
+          mode: read-only
+          purpose: Authoritative documentation corpus
+        - source: compiled-context
+          target: /soma/context
+          mode: read-only
+          purpose: Task-scoped context projection
+        - source: run-artifacts
+          target: /run/artifacts
+          mode: read-write
+          purpose: Bounded run outputs
+      resources:
+        cpu: 4
+        memoryBytes: 8589934592
+        diskBytes: 21474836480
+        processes: 512
+        timeoutMs: 7200000
+      environment:
+        SOMA_AGENT_MODE: one-shot
+      secrets: {}
+    snippets:
+      - name: trace-service-failure
+        version: "^1"
+    skills:
+      - name: root-cause-analysis
+        version: "^1"
+      - name: temporal-correlation
+        version: "^1"
+      - name: evidence-grading
+        version: "^1"
+    disclosure:
+      bootstrap:
+        - task
+        - acceptance-criteria
+        - repository-summary
+        - context-catalog
+        - snippet-catalog
+        - skill-catalog
+        - tool-catalog
+      onDemand:
+        - graph-neighborhoods
+        - evidence-bundles
+        - timelines
+        - selected-source-files
+        - selected-raw-logs
+      restricted:
+        - raw-transcripts
+        - raw-auth-logs
+      maxLevel: raw
+    observability:
+      heartbeatMs: 30000
+      capture:
+        - commands
+        - tool-calls
+        - transcripts
+        - processes
+        - resources
+        - otlp
+        - stdout
+        - stderr
+        - context
+        - claims
+        - artifacts
+    outputs:
+      synthesis:
+        contentType: application/json
+        schema: ../schemas/synthesis-result.schema.json
+        required: true
+        path: synthesis-result.json
+      briefing:
+        contentType: text/markdown
+        required: true
+        path: briefing.md
+    lifecycle:
+      snapshotOnFailure: true
+      destroyOnSuccess: true
+      retainMs: 604800000

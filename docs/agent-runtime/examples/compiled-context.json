@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "1",
+  "id": "ctx-demo-01",
+  "generationId": "ctxgen-demo-01",
+  "manifest": {
+    "uri": "git://dinglebear-ai/soma/c604d0d503068a64d95d59fcd70e60d6fadf571b/docs/agent-runtime/examples/soma.context.yaml",
+    "revision": "c604d0d503068a64d95d59fcd70e60d6fadf571b",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "requestDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "planDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "graphRevision": "graph-demo-01",
+  "task": "Investigate transient 502 responses from the Soma gateway.",
+  "roots": [
+    { "kind": "repository", "value": "dinglebear-ai/soma" },
+    { "kind": "service", "value": "soma-gateway" }
+  ],
+  "timeWindow": {
+    "since": "2026-08-04T13:00:00Z",
+    "until": "2026-08-05T13:00:00Z"
+  },
+  "counts": {
+    "entities": 84,
+    "relationships": 231,
+    "documents": 17,
+    "observations": 146,
+    "sessions": 3,
+    "commands": 22,
+    "traces": 31
+  },
+  "sources": [
+    {
+      "name": "repository-knowledge",
+      "provider": "axon",
+      "status": "available",
+      "revision": "generation-42",
+      "observedAt": "2026-08-05T12:59:00Z",
+      "required": true,
+      "warnings": []
+    },
+    {
+      "name": "live-operations",
+      "provider": "cortex",
+      "status": "available",
+      "revision": "checkpoint-9001",
+      "observedAt": "2026-08-05T13:00:00Z",
+      "required": true,
+      "warnings": []
+    }
+  ],
+  "items": [
+    {
+      "id": "item-trace-01",
+      "canonicalRef": {
+        "uri": "cortex://observation/trace-502-demo"
+      },
+      "kind": "trace",
+      "evidenceClass": "observed",
+      "sensitivity": "internal",
+      "freshness": "live",
+      "excerpt": "Upstream connection reset before response headers.",
+      "entityIds": ["service-soma-gateway"],
+      "attributes": {
+        "httpStatus": 502,
+        "upstream": "demo-upstream"
+      }
+    },
+    {
+      "id": "item-doc-01",
+      "canonicalRef": {
+        "uri": "axon://document/hyper-pool-guidance@generation-42",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "kind": "documentation",
+      "evidenceClass": "documented",
+      "sensitivity": "internal",
+      "freshness": "current",
+      "excerpt": "Pooled connection lifetime must remain below the upstream idle timeout.",
+      "entityIds": ["package-hyper"],
+      "attributes": {}
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "conflict-memory-01",
+      "description": "The memory-pressure hypothesis is contradicted by host heartbeats.",
+      "evidence": [
+        { "uri": "cortex://observation/trace-502-demo" },
+        { "uri": "cortex://heartbeat/devhost/window-demo" }
+      ]
+    }
+  ],
+  "budget": {
+    "items": 2,
+    "bytes": 4096,
+    "tokens": 740,
+    "calls": 12,
+    "elapsedMs": 842,
+    "truncated": false,
+    "reasons": []
+  },
+  "materializations": [
+    {
+      "kind": "manifest",
+      "uri": "file:///run/compiled-context.json",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "bytes": 4096,
+      "contentType": "application/json",
+      "itemCount": 2
+    }
+  ],
+  "createdAt": "2026-08-05T13:00:01Z",
+  "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+}

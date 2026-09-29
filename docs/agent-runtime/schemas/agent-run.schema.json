@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma.dev/schemas/agent-runtime/agent-run.schema.json",
+  "title": "Soma Agent Run Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "run", "stackDigest", "packageRefs", "contextRefs", "loadoutRef", "runtimeRef", "disclosureSummary", "outputRefs", "verification", "digest"],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "run": { "$ref": "#/$defs/run" },
+    "stackDigest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "packageRefs": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 },
+    "contextRefs": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 },
+    "loadoutRef": { "$ref": "common.schema.json#/$defs/canonicalRef" },
+    "runtimeRef": { "$ref": "common.schema.json#/$defs/canonicalRef" },
+    "disclosureSummary": { "$ref": "#/$defs/disclosureSummary" },
+    "outputRefs": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 1024 },
+    "verification": { "$ref": "#/$defs/verification" },
+    "digest": { "$ref": "common.schema.json#/$defs/sha256" }
+  },
+  "$defs": {
+    "state": {
+      "enum": [
+        "created", "resolving", "resolved", "provisioning", "bootstrapping",
+        "running", "awaiting-approval", "verifying", "finalizing", "stopping",
+        "snapshotting", "succeeded", "failed", "cancelled", "cleanup-failed"
+      ]
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "stackId", "serviceId", "agentId", "state", "stateVersion", "attempt", "resolvedStack", "artifacts", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/id" },
+        "parentId": { "$ref": "common.schema.json#/$defs/id" },
+        "stackId": { "$ref": "common.schema.json#/$defs/id" },
+        "serviceId": { "$ref": "common.schema.json#/$defs/id" },
+        "agentId": { "$ref": "common.schema.json#/$defs/id" },
+        "state": { "$ref": "#/$defs/state" },
+        "stateVersion": { "type": "integer", "minimum": 0 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "resolvedStack": { "$ref": "common.schema.json#/$defs/canonicalRef" },
+        "contextGenerationId": { "$ref": "common.schema.json#/$defs/id" },
+        "runtimeInstanceId": { "$ref": "common.schema.json#/$defs/id" },
+        "artifacts": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/id" }, "uniqueItems": true, "maxItems": 10000 },
+        "terminal": { "$ref": "#/$defs/terminal" },
+        "createdAt": { "$ref": "common.schema.json#/$defs/rfc3339" },
+        "updatedAt": { "$ref": "common.schema.json#/$defs/rfc3339" }
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "code", "message", "retryable"],
+      "properties": {
+        "category": { "enum": ["validation", "resolution", "authorization", "package", "context", "gateway", "provisioning", "bootstrap", "runtime", "approval", "budget", "verification", "cancellation", "finalization", "cleanup"] },
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,127}$" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "retryable": { "type": "boolean" },
+        "detailsRef": { "$ref": "common.schema.json#/$defs/canonicalRef" }
+      }
+    },
+    "disclosureSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "allowed", "narrowed", "denied", "approvalRequired", "maxGrantedLevel"],
+      "properties": {
+        "requests": { "type": "integer", "minimum": 0 },
+        "allowed": { "type": "integer", "minimum": 0 },
+        "narrowed": { "type": "integer", "minimum": 0 },
+        "denied": { "type": "integer", "minimum": 0 },
+        "approvalRequired": { "type": "integer", "minimum": 0 },
+        "maxGrantedLevel": { "enum": ["none", "bootstrap", "orientation", "focused", "evidence", "raw", "expanded"] }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checks"],
+      "properties": {
+        "status": { "enum": ["not-run", "passed", "failed", "partial"] },
+        "checks": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "status"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "status": { "enum": ["passed", "failed", "skipped"] },
+              "details": { "type": "string", "maxLength": 4096 },
+              "evidence": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/canonicalRef" }, "maxItems": 128 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
