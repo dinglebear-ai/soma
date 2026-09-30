@@ -206,3 +206,4 @@ apps/web/.env*.local
 
 # agent session plan artifacts
 /.zcode/
+worktrees/
