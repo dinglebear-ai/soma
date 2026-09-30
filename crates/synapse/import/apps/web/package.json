@@ -37,7 +37,7 @@
     "tailwindcss": "^4.3.2",
     "tw-animate-css": "^1.3.4",
     "typescript": "^7",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.0"
   },
   "pnpm": {
     "overrides": {
