@@ -112,8 +112,8 @@ def main() -> int:
     editable = re.findall(r'source = \{ editable = "([^"]+)" \}', lock)
     if editable not in ([], ["."]):
         fail("only the package itself may be editable")
-    provenance = "actions/attest-build-provenance@e3fe62ef559997059fe8380e7d2b4c909e2d65f4"
-    sbom = "actions/attest-sbom@5729fe4dc697fb7538e4e94fd44d040aac1367b2"
+    provenance = "actions/attest-build-provenance@9d57eef8c06cd9d6b433effeeb7a6a77b3ff94ad"
+    sbom = "actions/attest-sbom@4c8abdcbea4a6b66f70fd1169e70af4bf5b13701"
     require_text(ROOT / ".github/workflows/python-wheels.yml", ["pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33", provenance, sbom, "environment: pypi", "attestations: true", "soma-provider.cdx.json", "SHA256SUMS"])
     require_text(ROOT / ".github/workflows/release.yml", [provenance, sbom, "soma-provider-v${python_version}", "soma-release.cdx.json", "SHA256SUMS"])
     require_text(
