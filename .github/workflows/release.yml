@@ -260,7 +260,7 @@ jobs:
   npm:
     name: Publish @dinglebear/soma to npm
     needs: [validate-release-tag, release]
-    uses: dinglebear-ai/workflows/.github/workflows/npm-trusted-publish.yml@64d705af6e164aac58d507df6fb2f6bdc8a4d22d
+    uses: dinglebear-ai/workflows/.github/workflows/npm-trusted-publish.yml@a7c325a088c83c52993325c338c525c1fab5351e
     with:
       checkout-ref: ${{ needs.validate-release-tag.outputs.release_ref }}
       expected-version: ${{ needs.validate-release-tag.outputs.version }}
